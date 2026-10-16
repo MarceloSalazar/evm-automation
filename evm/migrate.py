@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 
+from evm.config import ConfigError
 from evm.model import MonthKey
 from evm.wbs import KIND_LEAF, SEV_ERROR, SEV_INFO, SEV_WARN, Issue, Report, ReportRow, fmt_money, iter_subtree, plural
 from evm.workbook import SHEET_LISTS, row_key
@@ -16,8 +17,8 @@ class PriorRow:
     name: str
     uid: int | None
     residual: bool
-    ev: dict[MonthKey, float]
-    ac: dict[MonthKey, float]
+    # Valores mensuales por serie: "EV" y "AC", o en multi-empresa "EV-A", "EV-B", "AC-A" y "AC-B"
+    series: dict[str, dict[MonthKey, float]]
     method: str
     origin_method: str | None = None     # método al generarse el libro (None: libro antiguo)
 
@@ -32,7 +33,11 @@ class PriorRow:
 
     @property
     def has_values(self) -> bool:
-        return bool(self.ev or self.ac)
+        return any(self.series.values())
+
+    def total(self, kind: str) -> float:
+        """Suma de las series de EV o de AC."""
+        return sum(sum(v.values()) for k, v in self.series.items() if k.split("-")[0] == kind)
 
 
 @dataclass
@@ -42,6 +47,7 @@ class PriorData:
     project_name: str
     max_level: int | None
     methods_list: list[str]
+    multi: bool = False
     same_project: bool = True
     # Resultado de plan_migration: clave de la fila nueva -> datos a escribir
     values: dict[str, dict[str, dict[MonthKey, float]]] = field(default_factory=dict)
@@ -60,14 +66,17 @@ def prior_from_book(path, project_name: str) -> PriorData:
     """Lee EV, AC, métodos y fecha de corte de un libro generado anteriormente."""
     from evm.update import read_book
     book = read_book(path)
+    if book.multi:
+        sources = {"EV-A": book.ev_a, "EV-B": book.ev_b, "AC-A": book.ac_a, "AC-B": book.ac_b}
+    else:
+        sources = {"EV": book.ev, "AC": book.ac}
     rows = []
     for s in book.input_rows:
         uid_text = s.key[:-2] if s.key.endswith("-D") else s.key
+        series = {k: {book.horizon.key(i): v for i, v in enumerate(src[s.row]) if v} for k, src in sources.items()}
         rows.append(PriorRow(
             key=s.key, code=s.code, name=s.name, uid=int(uid_text) if uid_text.isdigit() else None,
-            residual=s.key.endswith("-D"),
-            ev={book.horizon.key(i): v for i, v in enumerate(book.ev[s.row]) if v},
-            ac={book.horizon.key(i): v for i, v in enumerate(book.ac[s.row]) if v},
+            residual=s.key.endswith("-D"), series={k: v for k, v in series.items() if v},
             method=book.method[s.row], origin_method=s.origin_method))
     methods_list = []
     from openpyxl import load_workbook
@@ -82,7 +91,7 @@ def prior_from_book(path, project_name: str) -> PriorData:
     level = book.meta.get("nivel_maximo")
     return PriorData(rows=rows, status_date=book.status_date,
                      project_name=str(book.meta.get("proyecto") or ""),
-                     max_level=int(level) if level else None, methods_list=methods_list)
+                     max_level=int(level) if level else None, methods_list=methods_list, multi=book.multi)
 
 
 def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Issue]:
@@ -93,6 +102,10 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
     Proyecto distinto: por código EDT, una fila anterior por fila nueva.
     """
     issues: list[Issue] = []
+    if prior.multi != report.multi:
+        raise ConfigError("--migrar-desde no se admite entre un libro de una sola empresa y uno multi-empresa: "
+                          "el historial de EV y AC no se puede repartir entre empresas. Se debe generar el libro "
+                          "nuevo sin --migrar-desde.")
     prior.same_project = prior.project_name == report.project.name
     if not prior.same_project:
         issues.append(Issue(SEV_WARN, "", "",
@@ -138,9 +151,10 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
     clamped = 0.0
     for key, lst in sources.items():
         target = by_key[key]
-        merged: dict[str, dict[MonthKey, float]] = {"EV": {}, "AC": {}}
+        merged: dict[str, dict[MonthKey, float]] = {}
         for old, how in lst:
-            for kind, data in (("EV", old.ev), ("AC", old.ac)):
+            for kind, data in old.series.items():
+                merged.setdefault(kind, {})
                 for k, v in data.items():
                     i = horizon.index(k)
                     if i >= horizon.months:
@@ -155,7 +169,7 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
                 issues.append(Issue(SEV_WARN, target.code, target.name,
                                     f"Recibió el historial de EV/AC de la fila anterior {old.code} '{old.name}' "
                                     "(asociada por código EDT)."))
-        if merged["EV"] or merged["AC"]:
+        if any(merged.values()):
             prior.values[key] = merged
             prior.matched += 1
         # El método editado en Excel en el libro anterior se conserva si la asociación es uno a uno.
@@ -185,7 +199,7 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
                             "se acumularon en el último mes."))
     for old in prior.unmatched:
         issues.append(Issue(SEV_ERROR, old.code, old.name,
-                            f"No se pudo trasladar su historial (EV {fmt_money(sum(old.ev.values()))}, AC "
-                            f"{fmt_money(sum(old.ac.values()))}): la tarea no existe en el proyecto nuevo o se dividió "
+                            f"No se pudo trasladar su historial (EV {fmt_money(old.total('EV'))}, AC "
+                            f"{fmt_money(old.total('AC'))}): la tarea no existe en el proyecto nuevo o se dividió "
                             "en varias filas. Se debe cargar a mano en las filas que correspondan."))
     return issues

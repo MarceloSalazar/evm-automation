@@ -98,3 +98,33 @@ lista = [
 # "amarillo", verde en otro caso.
 rojo = 0.90
 amarillo = 0.95
+
+[multiempresa]
+# Reparto del PV, el EV y el AC entre dos empresas (ver README, sección 9).
+# Desactivado por defecto. Con activar = true, el libro agrega las hojas de cada
+# empresa (PV-EmpresaA, EV-EmpresaA, AC-EmpresaA y las de EmpresaB); las hojas
+# PV, EV y AC son la suma de las dos empresas.
+activar = false
+
+# Campo de texto de MS Project con la empresa de cada tarea (por ejemplo "Text3",
+# o su alias). Una tarea sin empresa hereda la de su tarea superior.
+campo_empresa = "Empresa"
+
+# Valores de la columna de empresa. Los nombres de las empresas se usan también
+# en los nombres de las hojas: máximo 15 caracteres, sin [ ] : * ? / \ ni '.
+empresa_a = "EmpresaA"
+empresa_b = "EmpresaB"
+ambas = "Ambas"
+
+# Campo numérico con el % de la empresa A en las tareas "Ambas" (80 = 80 % para
+# la empresa A y 20 % para la empresa B). En las demás tareas se ignora.
+campo_reparto = "% Reparto"
+
+# % de la empresa A cuando el campo de reparto está vacío, es 0 o está fuera de
+# rango, y en las tareas sin empresa.
+reparto_por_defecto = 50
+
+# AC de cada empresa: false = se carga a mano en las hojas AC-EmpresaA y
+# AC-EmpresaB; true = 'actualizar' lo carga desde MS Project (costo real de cada
+# tarea repartido según su empresa).
+ac_desde_project = false

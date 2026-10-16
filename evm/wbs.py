@@ -46,6 +46,10 @@ class ReportRow:
     pv_before: float = 0.0
     pv_after: float = 0.0
     hidden_tasks: int = 0       # tareas de nivel inferior agregadas en esta fila
+    # Multi-empresa: parte de la empresa A (la de B es el total menos A)
+    pv_a: dict[MonthKey, float] = field(default_factory=dict)
+    vector_a: list[float] = field(default_factory=list, repr=False)
+    bac_a: float = 0.0
 
     @property
     def is_input(self) -> bool:
@@ -65,6 +69,9 @@ class Report:
     pv_after: float
     pv_source: str = ""
     plan: str = ""              # código EDT de la planificación exportada ("" = todo el proyecto)
+    multi: bool = False         # multi-empresa activado
+    company_a: str = ""
+    company_b: str = ""
 
 
 # ----------------------------------------------------------------------------
@@ -373,6 +380,16 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
         raw = scope.raw_code(t)
         return pad_code(raw, cfg.max_level) if cfg.pad_wbs else raw
 
+    # Multi-empresa: proporción de la empresa A en cada tarea
+    shares: dict[int, float] = {}
+    company_notes: dict[str, list[Task]] = {}
+    if cfg.multi_enabled:
+        from evm.companies import resolve_shares
+        shares, company_notes = resolve_shares(scope.roots, cfg)
+
+    def share(t: Task) -> float:
+        return shares.get(t.uid, 0.5)
+
     def included(t: Task) -> bool:
         """Tiene fila propia: tiene código EDT y su nivel EDT no supera el nivel máximo."""
         raw = scope.raw_code(t)
@@ -474,6 +491,12 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
             add_into(acc, own.get(n.uid, {}))
         return acc
 
+    def subtree_pv_a(t: Task) -> dict[MonthKey, float]:
+        acc: dict[MonthKey, float] = {}
+        for n in iter_subtree(t):
+            add_into(acc, own.get(n.uid, {}), share(n))
+        return acc
+
     def subtree_dates(t: Task) -> tuple[datetime | None, datetime | None]:
         if t.baseline_start or t.baseline_finish:
             return t.baseline_start, t.baseline_finish
@@ -522,6 +545,8 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
         if is_leaf_row:
             row.pv = subtree_pv(t)
             row.bac = sum(row.pv.values())
+            if cfg.multi_enabled:
+                row.pv_a = subtree_pv_a(t)
             row.method = (t.method or "").strip() or cfg.default_method
             row.hidden_tasks = sum(1 for _ in iter_subtree(t)) - 1
             aggregated += row.hidden_tasks
@@ -537,11 +562,15 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
         # Costos de la tarea resumen que no quedan en ninguna fila hija: su costo propio y el de
         # las tareas sin código EDT (o de nivel mayor al máximo) que cuelgan de ella.
         others = dict(own[t.uid])
+        others_a: dict[MonthKey, float] = {}
+        add_into(others_a, own[t.uid], share(t))
         for n in loose_full:
             add_into(others, subtree_pv(n))
+            add_into(others_a, subtree_pv_a(n))
             aggregated += sum(1 for _ in iter_subtree(n))
         for n in loose_own:
             add_into(others, own.get(n.uid, {}))
+            add_into(others_a, own.get(n.uid, {}), share(n))
             aggregated += 1
         uncoded_cost = sum(others.values()) - sum(own[t.uid].values())
         if uncoded_cost > 0.005:
@@ -561,6 +590,7 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
                             method=cfg.default_method, start=s, finish=f, parent=row)
             res.pv = others
             res.bac = sum(res.pv.values())
+            res.pv_a = others_a
             rows.append(res)
             row.children.append(res)
 
@@ -578,6 +608,33 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
 
     top(scope.roots)
 
+    if cfg.multi_enabled:
+        # Avisos de empresa, solo de las tareas que forman parte del libro
+        omitted_ids = {n.uid for n in omitted}
+        notes = {k: [t for t in v if t.uid not in omitted_ids] for k, v in company_notes.items()}
+        missing = notes["sin_empresa"]
+        missing_ids = {t.uid for t in missing}
+        top_missing = [t for t in missing if t.parent is None or t.parent.uid not in missing_ids]
+        if top_missing:
+            one = len(missing) == 1
+            issues.append(Issue(SEV_WARN, "", "",
+                                f"{plural(len(missing), 'tarea', 'tareas')} sin empresa en la columna "
+                                f"'{cfg.company_field}' (ni en sus tareas superiores): se "
+                                f"{'trata' if one else 'tratan'} como '{cfg.company_both}' "
+                                f"({cfg.split_default:g} % para {cfg.company_a})."))
+            for t in top_missing[:50]:
+                issues.append(Issue(SEV_WARN, code_of(t), t.name,
+                                    f"Sin empresa: se trata como '{cfg.company_both}'"
+                                    + (" (incluye sus subtareas sin empresa)." if t.children else ".")))
+        for t in notes["desconocida"][:50]:
+            issues.append(Issue(SEV_WARN, code_of(t), t.name,
+                                f"Empresa '{t.company}' no reconocida (se esperaba '{cfg.company_a}', "
+                                f"'{cfg.company_b}' o '{cfg.company_both}'): se trata como '{cfg.company_both}'."))
+        for t in notes["reparto"][:50]:
+            issues.append(Issue(SEV_WARN, code_of(t), t.name,
+                                f"'{cfg.split_field}' = {t.split_a:g} fuera de rango (debe ser mayor que 0 y como "
+                                f"máximo 100): se usa {cfg.split_default:g} %."))
+
     # --- Vectores mensuales ---------------------------------------------------
     total_before = total_after = 0.0
     for row in rows:
@@ -589,6 +646,10 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
                 # El PV anterior al horizonte se acumula en el mes 1 para que las
                 # curvas acumuladas sean correctas.
                 row.vector[0] += row.pv_before
+            if cfg.multi_enabled:
+                row.vector_a, before_a, _after_a = horizon.to_vector(row.pv_a)
+                row.vector_a[0] += before_a
+                row.bac_a = sum(row.pv_a.values())
 
     def fill_summary(row: ReportRow) -> None:
         if row.is_input:
@@ -597,6 +658,9 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
             fill_summary(c)
         row.vector = [sum(c.vector[i] for c in row.children) for i in range(horizon.months)]
         row.bac = sum(c.bac for c in row.children)
+        if cfg.multi_enabled:
+            row.vector_a = [sum(c.vector_a[i] for c in row.children) for i in range(horizon.months)]
+            row.bac_a = sum(c.bac_a for c in row.children)
         row.pv_before = sum(c.pv_before for c in row.children)
         row.pv_after = sum(c.pv_after for c in row.children)
 
@@ -652,6 +716,11 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
                             f"{plural(aggregated, 'tarea', 'tareas')} sin código EDT o de nivel EDT mayor a "
                             f"{cfg.max_level} se {'agregó' if aggregated == 1 else 'agregaron'} en su elemento EDT "
                             "superior."))
+    if cfg.multi_enabled:
+        bac_a = sum(r.bac_a for r in report_roots)
+        issues.append(Issue(SEV_INFO, "", "",
+                            f"Multi-empresa: BAC de {cfg.company_a} {fmt_money(bac_a)}; BAC de {cfg.company_b} "
+                            f"{fmt_money(total_bac - bac_a)}."))
     linear = getattr(source, "linear_count", 0)
     if linear and isinstance(source, TimephasedPVSource):
         if source.timephased_count:
@@ -671,4 +740,6 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
 
     return Report(project=project, horizon=horizon, rows=rows, roots=report_roots, issues=issues,
                   total_vector=total_vector, total_bac=total_bac, pv_before=total_before,
-                  pv_after=total_after, pv_source=source.description, plan=scope.prefix)
+                  pv_after=total_after, pv_source=source.description, plan=scope.prefix,
+                  multi=cfg.multi_enabled, company_a=cfg.company_a if cfg.multi_enabled else "",
+                  company_b=cfg.company_b if cfg.multi_enabled else "")

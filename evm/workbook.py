@@ -226,19 +226,43 @@ def _info_line(report: Report, cfg: Config, generated: datetime) -> str:
     p = report.project
     cur = cfg.currency or p.currency_symbol or "-"
     plan = f"Planificación: {report.plan}  |  " if report.plan else ""
-    return (f"Proyecto: {p.name}  |  {plan}Origen: {Path(p.source).name}  |  {p.baseline_label}  |  "
+    companies = f"Empresas: {report.company_a} y {report.company_b}  |  " if report.multi else ""
+    return (f"Proyecto: {p.name}  |  {plan}{companies}Origen: {Path(p.source).name}  |  {p.baseline_label}  |  "
             f"Moneda: {cur}  |  Generado: {generated:%d/%m/%Y %H:%M}")
 
 
+def company_sheet(kind: str, company: str) -> str:
+    """Nombre de la hoja de una empresa: 'PV-EmpresaA'."""
+    return f"{kind}-{company}"
+
+
 def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
-                      generated: datetime, prior=None) -> None:
-    titles = {
-        SHEET_PV: "Valor Planificado (PV) por mes",
-        SHEET_EV: "Valor Ganado (EV) por mes  -  en las celdas amarillas se debe ingresar el valor DEL MES (no acumulado)",
-        SHEET_AC: "Costo Real (AC) por mes  -  en las celdas amarillas se debe ingresar el valor DEL MES (no acumulado)",
-    }
+                      generated: datetime, prior=None, role: str | None = None) -> None:
+    """Escribe una hoja mensual (PV, EV o AC).
+
+    role: None = hoja total; "A" / "B" = hoja de cada empresa (solo multi-empresa).
+    En multi-empresa la hoja total suma, celda por celda, las hojas de A y de B.
+    """
+    multi_total = report.multi and role is None
+    company = {"A": report.company_a, "B": report.company_b}.get(role or "", "")
+    is_pv = kind == SHEET_PV
+    input_sheet = not is_pv and not multi_total          # celdas amarillas de ingreso
+    month_key = kind if role is None else f"{kind}-{role}"   # serie para --migrar-desde
+
+    names = {SHEET_PV: "Valor Planificado (PV)", SHEET_EV: "Valor Ganado (EV)", SHEET_AC: "Costo Real (AC)"}
+    if multi_total:
+        title = (f"{names[kind]} por mes: suma de las hojas {company_sheet(kind, report.company_a)} y "
+                 f"{company_sheet(kind, report.company_b)}")
+    elif is_pv:
+        title = f"{names[kind]} por mes" + (f"  -  {company}" if company else "")
+    elif kind == SHEET_EV and role:
+        title = (f"{names[kind]} por mes  -  {company}  -  valor DEL MES (no acumulado); 'actualizar' lo carga "
+                 "desde MS Project")
+    else:
+        title = (f"{names[kind]} por mes" + (f"  -  {company}" if company else "") +
+                 "  -  en las celdas amarillas se debe ingresar el valor DEL MES (no acumulado)")
     money = money_format(cfg.decimals)
-    ws.cell(row=TITLE_ROW, column=1, value=titles[kind]).font = FONT_TITLE
+    ws.cell(row=TITLE_ROW, column=1, value=title).font = FONT_TITLE
     put_text(ws, INFO_ROW, 1, _info_line(report, cfg, generated)).font = FONT_NOTE
 
     # Fila 3: número de mes; fila 4: encabezados y fecha de cada mes
@@ -250,8 +274,9 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
         c.font = FONT_BOLD
     _header(ws, HEADER_ROW, [
         (COL_CODE, "Código EDT"), (COL_NAME, "Actividad"), (COL_METHOD, "Método de medición"),
-        (COL_BAC, "BAC (Presupuesto)"), (COL_START, "Fecha inicio Plan (PV)"),
-        (COL_FINISH, "Fecha fin Plan (PV)"), (lay.total_col, "Total horizonte"),
+        (COL_BAC, "BAC (Presupuesto)" + (f" {company}" if company else "")),
+        (COL_START, "Fecha inicio Plan (PV)"), (COL_FINISH, "Fecha fin Plan (PV)"),
+        (lay.total_col, "Total horizonte"),
     ])
     for i, d in enumerate(lay.month_dates):
         c = ws.cell(row=HEADER_ROW, column=lay.first_col + i, value=d)
@@ -260,47 +285,76 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
         c.font = FONT_HEADER
         c.alignment = Alignment(horizontal="center", vertical="center")
         c.border = BORDER
-    if kind == SHEET_PV and report.pv_before > 0.005:
+    if is_pv and role is None and report.pv_before > 0.005:
         ws.cell(row=HEADER_ROW, column=lay.first_col).comment = Comment(
             f"El mes 1 incluye {report.pv_before:,.2f} de PV planificado antes del inicio del horizonte.",
             "evm_export")
+
+    def sum_of_companies(letter: str, r: int) -> str:
+        return (f"='{company_sheet(kind, report.company_a)}'!{letter}{r}"
+                f"+'{company_sheet(kind, report.company_b)}'!{letter}{r}")
+
+    def row_vector(row: ReportRow) -> list[float]:
+        if role == "A":
+            return row.vector_a
+        if role == "B":
+            return [v - a for v, a in zip(row.vector, row.vector_a)]
+        return row.vector
+
+    def row_bac(row: ReportRow) -> float:
+        if role == "A":
+            return row.bac_a
+        if role == "B":
+            return row.bac - row.bac_a
+        return row.bac
 
     for row in report.rows:
         r = lay.r(row)
         put_text(ws, r, COL_CODE, row.code)
         name = put_text(ws, r, COL_NAME, row.name)
         name.alignment = Alignment(indent=max(0, row.level - 1))
-        if kind == SHEET_PV:
+
+        # Columnas C a F
+        if is_pv and role is None:
             method = (prior.method_for(row_key(row)) if prior is not None and row.is_input else None) or row.method
             put_text(ws, r, COL_METHOD, method if row.is_input else None)
-            if row.is_input:
-                ws.cell(row=r, column=COL_BAC, value=round(row.bac, 2))
-            else:
-                ws.cell(row=r, column=COL_BAC,
-                        value=_sum_formula(col(COL_BAC), [lay.r(c) for c in row.children], lay.block(row)))
             ws.cell(row=r, column=COL_START, value=_naive(row.start))
             ws.cell(row=r, column=COL_FINISH, value=_naive(row.finish))
         else:
-            for c_ in (COL_METHOD, COL_BAC, COL_START, COL_FINISH):
+            for c_ in (COL_METHOD, COL_START, COL_FINISH):
                 ref = f"'{SHEET_PV}'!{col(c_)}{r}"
                 ws.cell(row=r, column=c_, value=f'=IF({ref}="","",{ref})')
+        if is_pv and multi_total:
+            ws.cell(row=r, column=COL_BAC, value=sum_of_companies(col(COL_BAC), r))
+        elif is_pv:
+            if row.is_input:
+                ws.cell(row=r, column=COL_BAC, value=round(row_bac(row), 2))
+            else:
+                ws.cell(row=r, column=COL_BAC,
+                        value=_sum_formula(col(COL_BAC), [lay.r(c) for c in row.children], lay.block(row)))
+        else:
+            pv_sheet = SHEET_PV if role is None else company_sheet(SHEET_PV, company)
+            ref = f"'{pv_sheet}'!{col(COL_BAC)}{r}"
+            ws.cell(row=r, column=COL_BAC, value=f'=IF({ref}="","",{ref})')
         ws.cell(row=r, column=COL_BAC).number_format = money
         ws.cell(row=r, column=COL_START).number_format = FMT_DATE
         ws.cell(row=r, column=COL_FINISH).number_format = FMT_DATE
 
         # Columnas mensuales
-        if row.is_input:
-            if kind == SHEET_PV:
-                values = round_preserving_total(row.vector, 2)
-                for i, v in enumerate(values):
+        if multi_total:
+            for i in range(lay.months):
+                ws.cell(row=r, column=lay.first_col + i, value=sum_of_companies(col(lay.first_col + i), r))
+        elif row.is_input:
+            if is_pv:
+                for i, v in enumerate(round_preserving_total(row_vector(row), 2)):
                     if v:
                         ws.cell(row=r, column=lay.first_col + i, value=v)
             elif prior is not None:
-                for k, v in prior.values_for(row_key(row), "EV" if kind == SHEET_EV else "AC").items():
+                for k, v in prior.values_for(row_key(row), month_key).items():
                     i = report.horizon.index(k)
                     if 0 <= i < lay.months:
                         ws.cell(row=r, column=lay.first_col + i, value=round(v, 2))
-            if kind != SHEET_PV:
+            if input_sheet:
                 for i in range(lay.months):
                     ws.cell(row=r, column=lay.first_col + i).fill = FILL_INPUT
         else:
@@ -322,18 +376,22 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
             cell = ws.cell(row=r, column=c_)
             if font:
                 cell.font = font
-            if fill and not (row.is_input and kind != SHEET_PV and c_ >= lay.first_col):
+            if fill and not (row.is_input and input_sheet and c_ >= lay.first_col):
                 cell.fill = fill
         ws.row_dimensions[r].outline_level = min(7, max(0, row.level - 1))
 
     # Fila de total
     tr = lay.total_row
     ws.cell(row=tr, column=COL_CODE, value="TOTAL")
-    ws.cell(row=tr, column=COL_NAME, value="Total proyecto")
+    ws.cell(row=tr, column=COL_NAME, value="Total proyecto" + (f" - {company}" if company else ""))
     root_rows = [lay.r(x) for x in report.roots]
     for c_ in [COL_BAC] + list(range(lay.first_col, lay.last_col + 1)):
         L = col(c_)
-        ws.cell(row=tr, column=c_, value=_sum_formula(L, root_rows, (FIRST_ROW, lay.last_row))).number_format = money
+        if multi_total:
+            value = sum_of_companies(L, tr)
+        else:
+            value = _sum_formula(L, root_rows, (FIRST_ROW, lay.last_row))
+        ws.cell(row=tr, column=c_, value=value).number_format = money
     ws.cell(row=tr, column=lay.total_col,
             value=f"=SUM({col(lay.first_col)}{tr}:{col(lay.last_col)}{tr})").number_format = money
     for c_ in range(1, lay.total_col + 1):
@@ -342,20 +400,20 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
         cell.font = FONT_BOLD
         cell.border = Border(top=Side(style="medium", color=DARK))
 
-    if kind == SHEET_PV:
+    if is_pv:
         # Resaltar filas cuyo total en el horizonte no coincide con el BAC
         rng = f"{col(lay.total_col)}{FIRST_ROW}:{col(lay.total_col)}{lay.total_row}"
         ws.conditional_formatting.add(rng, FormulaRule(
             formula=[f"ABS({col(lay.total_col)}{FIRST_ROW}-$D{FIRST_ROW})>0.5"], fill=FILL_RED))
-        if report.rows:
-            dv = DataValidation(type="list", formula1=NAME_METHODS,
-                                allow_blank=True, showErrorMessage=True, errorStyle="warning",
-                                errorTitle="Método de medición",
-                                error="El valor no está en la lista de la hoja 'Listas'. ¿Mantener el valor?")
-            ws.add_data_validation(dv)
-            for row in report.rows:
-                if row.is_input:
-                    dv.add(f"{col(COL_METHOD)}{lay.r(row)}")
+    if is_pv and role is None and report.rows:
+        dv = DataValidation(type="list", formula1=NAME_METHODS,
+                            allow_blank=True, showErrorMessage=True, errorStyle="warning",
+                            errorTitle="Método de medición",
+                            error="El valor no está en la lista de la hoja 'Listas'. ¿Mantener el valor?")
+        ws.add_data_validation(dv)
+        for row in report.rows:
+            if row.is_input:
+                dv.add(f"{col(COL_METHOD)}{lay.r(row)}")
 
     widths = {COL_CODE: 12, COL_NAME: 48, COL_METHOD: 20, COL_BAC: 16, COL_START: 12, COL_FINISH: 12}
     for c_, w in widths.items():
@@ -386,6 +444,13 @@ def _write_lists(ws, methods: list[str]) -> None:
             "unidades completadas, avance lineal (LOE) y CPTR de MS Project. Otros textos se calculan "
             "como % completado.").font = FONT_NOTE
     ws.cell(row=1, column=4).alignment = Alignment(wrap_text=True, vertical="top")
+
+
+def input_sheets(report: Report, kind: str) -> list[str]:
+    """Hojas donde se cargan los valores de EV o AC (las de cada empresa en multi-empresa)."""
+    if report.multi:
+        return [company_sheet(kind, report.company_a), company_sheet(kind, report.company_b)]
+    return [kind]
 
 
 def _write_curve(ws, report: Report, cfg: Config, lay: _Layout) -> None:
@@ -427,8 +492,10 @@ def _write_curve(ws, report: Report, cfg: Config, lay: _Layout) -> None:
             C_SPI: f"=IFERROR({col(C_EVC)}{r}/{col(C_PVC)}{r},NA())",
             C_CPI: f"=IFERROR({col(C_EVC)}{r}/{col(C_ACC)}{r},NA())",
             C_BAC: f"={bac}",
-            C_EVN: f"=COUNTIFS({kinds},\"<>{KIND_SUMMARY}\",'{SHEET_EV}'!{month_cells},\"<>\"){prev_evn}",
-            C_ACN: f"=COUNTIFS({kinds},\"<>{KIND_SUMMARY}\",'{SHEET_AC}'!{month_cells},\"<>\"){prev_acn}",
+            C_EVN: "=" + "+".join(f"COUNTIFS({kinds},\"<>{KIND_SUMMARY}\",'{sh}'!{month_cells},\"<>\")"
+                                  for sh in input_sheets(report, SHEET_EV)) + prev_evn,
+            C_ACN: "=" + "+".join(f"COUNTIFS({kinds},\"<>{KIND_SUMMARY}\",'{sh}'!{month_cells},\"<>\")"
+                                  for sh in input_sheets(report, SHEET_AC)) + prev_acn,
         }
         for c_, v in cells.items():
             cell = ws.cell(row=r, column=c_, value=v)
@@ -714,9 +781,12 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     wb = Workbook()
     ws_sum = wb.active
     ws_sum.title = SHEET_SUMMARY
-    ws_pv = wb.create_sheet(SHEET_PV)
-    ws_ev = wb.create_sheet(SHEET_EV)
-    ws_ac = wb.create_sheet(SHEET_AC)
+    data_sheets = []                     # (hoja, tipo, empresa)
+    for kind in (SHEET_PV, SHEET_EV, SHEET_AC):
+        data_sheets.append((wb.create_sheet(kind), kind, None))
+        if report.multi:
+            for role, company in (("A", report.company_a), ("B", report.company_b)):
+                data_sheets.append((wb.create_sheet(company_sheet(kind, company)), kind, role))
     ws_curve = wb.create_sheet(SHEET_CURVE)
     ws_ind = wb.create_sheet(SHEET_IND)
     ws_val = wb.create_sheet(SHEET_VALID)
@@ -736,9 +806,8 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
             methods.append(m)
 
     _write_lists(ws_lists, methods)
-    _write_data_sheet(ws_pv, SHEET_PV, report, cfg, lay, generated, prior)
-    _write_data_sheet(ws_ev, SHEET_EV, report, cfg, lay, generated, prior)
-    _write_data_sheet(ws_ac, SHEET_AC, report, cfg, lay, generated, prior)
+    for ws, kind, role in data_sheets:
+        _write_data_sheet(ws, kind, report, cfg, lay, generated, prior, role)
     _write_curve(ws_curve, report, cfg, lay)
     _write_summary(ws_sum, report, cfg, lay, generated, status)
     _write_indicators(ws_ind, report, cfg, lay)
@@ -768,7 +837,18 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
         "nivel_maximo": cfg.max_level,
         "decimales": cfg.decimals,
         "generado": generated.replace(microsecond=0),
+        "multiempresa": bool(report.multi),
     }
+    if report.multi:
+        meta.update({
+            "empresa_a": report.company_a,
+            "empresa_b": report.company_b,
+            "ambas": cfg.company_both,
+            "campo_empresa": cfg.company_field,
+            "campo_reparto": cfg.split_field,
+            "reparto_por_defecto": cfg.split_default,
+            "ac_desde_project": bool(cfg.ac_from_project),
+        })
     write_meta(ws_meta, meta)
 
     wb.calculation = CalcProperties(fullCalcOnLoad=True)
@@ -811,6 +891,15 @@ class StructRow:
         return self.kind in (KIND_LEAF, KIND_RESIDUAL)
 
 
+def _as_bool(value) -> bool:
+    """Valor lógico de _meta (Excel o LibreOffice pueden guardarlo como texto o fórmula)."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value or "").strip().upper().lstrip("=").rstrip("()") in ("TRUE", "VERDADERO", "SI", "SÍ", "1")
+
+
 def read_meta(wb) -> dict:
     if SHEET_META not in wb.sheetnames or SHEET_STRUCT not in wb.sheetnames:
         raise WorkbookFormatError(
@@ -825,6 +914,7 @@ def read_meta(wb) -> dict:
     hs = meta["horizonte_inicio"]
     meta["horizonte_inicio"] = hs.date() if isinstance(hs, datetime) else hs
     meta["meses"] = int(meta["meses"])
+    meta["multiempresa"] = _as_bool(meta.get("multiempresa"))
     meta["primera_fila"] = int(meta["primera_fila"])
     meta["fila_total"] = int(meta["fila_total"])
     return meta

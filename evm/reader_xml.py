@@ -145,6 +145,16 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
     weight_ref = _resolve(cfg.milestone_weight_field, defs) if cfg.milestone_weight_field else None
     if cfg.milestone_weight_field and weight_ref is None:
         warnings.append(f"No se encontró el campo de peso de hitos '{cfg.milestone_weight_field}' en el XML.")
+    company_ref = split_ref = None
+    if cfg.multi_enabled:
+        company_ref = _resolve(cfg.company_field, defs)
+        if company_ref is None:
+            warnings.append(f"No se encontró el campo de empresa '{cfg.company_field}' en el XML: todas las tareas "
+                            f"se tratan como '{cfg.company_both}'.")
+        split_ref = _resolve(cfg.split_field, defs)
+        if split_ref is None:
+            warnings.append(f"No se encontró el campo de reparto '{cfg.split_field}' en el XML: las tareas "
+                            f"'{cfg.company_both}' se reparten al {cfg.split_default:g} %.")
 
     # Calendario del proyecto: reparte los tramos escalonados que cruzan de un mes a otro
     try:
@@ -243,6 +253,8 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
         weight = None
         if weight_ref is not None:
             weight = parse_number(value_of(weight_ref))
+        company = value_of(company_ref).strip() if company_ref is not None else ""
+        split_a = parse_number(value_of(split_ref)) if split_ref is not None else None
 
         task = Task(
             uid=uid, id=tid, name=r.text(el, "Name"), outline_level=level,
@@ -259,6 +271,7 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
             actual_start=r.date(el, "ActualStart"), actual_finish=r.date(el, "ActualFinish"),
             actual_cost=r.money(el, "ActualCost"), acwp=r.money_opt(el, "ACWP"), bcwp=r.money_opt(el, "BCWP"),
             method=value_of(method_ref).strip(), milestone_weight=weight, ev_baseline_cost=ev_bl_cost,
+            company=company, split_a=split_a,
             timephased_pv=tp,
         )
         tasks.append(task)

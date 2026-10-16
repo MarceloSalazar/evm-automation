@@ -313,6 +313,16 @@ class ComSession:
         weight_ref = self._resolve_field(cfg.milestone_weight_field) if cfg.milestone_weight_field else None
         if cfg.milestone_weight_field and weight_ref is None:
             warnings.append(f"No se encontró el campo de peso de hitos '{cfg.milestone_weight_field}'.")
+        company_ref = split_ref = None
+        if cfg.multi_enabled:
+            company_ref = self._resolve_field(cfg.company_field)
+            if company_ref is None:
+                warnings.append(f"No se encontró el campo de empresa '{cfg.company_field}' en MS Project: todas las "
+                                f"tareas se tratan como '{cfg.company_both}'.")
+            split_ref = self._resolve_field(cfg.split_field)
+            if split_ref is None:
+                warnings.append(f"No se encontró el campo de reparto '{cfg.split_field}' en MS Project: las tareas "
+                                f"'{cfg.company_both}' se reparten al {cfg.split_default:g} %.")
 
         tasks: list[Task] = []
         any_baseline = False
@@ -331,6 +341,8 @@ class ComSession:
             any_baseline = any_baseline or has_bl or bool(bl_cost)
             wbs = self._field_value(t, wbs_ref)
             weight = self._field_value(t, weight_ref)
+            company = self._field_value(t, company_ref)
+            split = self._field_value(t, split_ref)
             task = Task(
                 uid=uid, id=int(_get(t, "ID", 0) or 0), name=str(_get(t, "Name", "") or ""),
                 outline_level=int(_get(t, "OutlineLevel", 1) or 1),
@@ -352,6 +364,8 @@ class ComSession:
                 ev_baseline_cost=(_f(_get(t, f"Baseline{'' if ev_baseline == 0 else ev_baseline}Cost"))
                                   if n != ev_baseline else None),
                 milestone_weight=None if weight in (None, "") else parse_number(weight),
+                company=str(company or "").strip(),
+                split_a=None if split in (None, "") else parse_number(split),
             )
             tasks.append(task)
             self._com_tasks[uid] = t

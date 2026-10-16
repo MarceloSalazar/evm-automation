@@ -14,6 +14,9 @@
 	<ExtendedAttributes>
 		<ExtendedAttribute><FieldID>188743750</FieldID><FieldName>Text10</FieldName><Alias>Método EVM</Alias></ExtendedAttribute>
 		<ExtendedAttribute><FieldID>188743767</FieldID><FieldName>Number1</FieldName><Alias>Peso hito</Alias></ExtendedAttribute>
+		<ExtendedAttribute><FieldID>188743734</FieldID><FieldName>Text2</FieldName><Alias>Item EDT</Alias></ExtendedAttribute>
+		<ExtendedAttribute><FieldID>188743737</FieldID><FieldName>Text3</FieldName><Alias>Empresa</Alias></ExtendedAttribute>
+		<ExtendedAttribute><FieldID>188743768</FieldID><FieldName>Number2</FieldName><Alias>% Reparto</Alias></ExtendedAttribute>
 	</ExtendedAttributes>
 	<Tasks>
 		<Task>
@@ -533,6 +536,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>INTERNO</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-01-05T08:00:00</Start>
@@ -1057,6 +1061,9 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.0.0</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743737</FieldID><Value>Ambas</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743768</FieldID><Value>60</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-01-05T08:00:00</Start>
@@ -1551,6 +1558,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.1.0</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-01-05T08:00:00</Start>
@@ -2046,6 +2054,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal (LOE)</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.1.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-01-05T08:00:00</Start>
@@ -2541,6 +2550,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal (LOE)</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.1.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-01-05T08:00:00</Start>
@@ -3036,6 +3046,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal (LOE)</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.1.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-02-04T08:00:00</Start>
@@ -3514,6 +3525,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.2.0</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-01-05T08:00:00</Start>
@@ -3969,6 +3981,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>0/100</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.2.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-01-05T08:00:00</Start>
@@ -4032,6 +4045,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>50/50</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.2.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-09-07T08:00:00</Start>
@@ -4103,6 +4117,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal (LOE)</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.2.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-11-05T08:00:00</Start>
@@ -4509,6 +4524,8 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.0.0</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743737</FieldID><Value>EmpresaA</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-03-06T08:00:00</Start>
@@ -4731,6 +4748,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.0</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-03-06T08:00:00</Start>
@@ -4850,6 +4868,8 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>50/50</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.1</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743737</FieldID><Value>EmpresaB</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-03-06T08:00:00</Start>
@@ -4905,6 +4925,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Hitos ponderados</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-04-06T08:00:00</Start>
@@ -4975,6 +4996,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-04-06T08:00:00</Start>
@@ -5052,6 +5074,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-05-11T08:00:00</Start>
@@ -5137,6 +5160,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-07-06T08:00:00</Start>
@@ -5215,6 +5239,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>% Completado</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-07-06T08:00:00</Start>
@@ -5302,6 +5327,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>% Completado</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.4</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-07-06T08:00:00</Start>
@@ -5388,6 +5414,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.0</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-01-04T08:00:00</Start>
@@ -5531,6 +5558,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>% Físico completado</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-01-04T08:00:00</Start>
@@ -5650,6 +5678,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>% Físico completado</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-02-04T08:00:00</Start>
@@ -5769,6 +5798,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>% Completado</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-03-08T08:00:00</Start>
@@ -5896,6 +5926,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Hitos ponderados</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.4</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-11-04T08:00:00</Start>
@@ -5950,6 +5981,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.4.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-11-04T08:00:00</Start>
@@ -6027,6 +6059,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.4.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-12-16T08:00:00</Start>
@@ -6104,6 +6137,8 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.0.0</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743737</FieldID><Value>EmpresaB</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-07-06T08:00:00</Start>
@@ -6374,6 +6409,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.1.0</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-07-06T08:00:00</Start>
@@ -6597,6 +6633,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Unidades completadas</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.1.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-07-06T08:00:00</Start>
@@ -6692,6 +6729,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Unidades completadas</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.1.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-11-04T08:00:00</Start>
@@ -6811,6 +6849,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>% Físico completado</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.1.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2028-05-05T08:00:00</Start>
@@ -6953,6 +6992,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.2.0</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-09-06T08:00:00</Start>
@@ -7208,6 +7248,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Hitos ponderados</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.2.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-09-06T08:00:00</Start>
@@ -7334,6 +7375,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.2.1.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-09-06T08:00:00</Start>
@@ -7475,6 +7517,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.2.1.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2028-06-12T08:00:00</Start>
@@ -7561,6 +7604,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>% Completado</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.2.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2028-09-04T08:00:00</Start>
@@ -7696,6 +7740,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>% Completado</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.2.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2028-11-03T08:00:00</Start>
@@ -7838,6 +7883,8 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>4.0.0</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743737</FieldID><Value>Ambas</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2029-10-04T08:00:00</Start>
@@ -7948,6 +7995,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>4.1.0</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2029-10-04T08:00:00</Start>
@@ -8027,6 +8075,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>0/100</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>4.1.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2029-10-04T08:00:00</Start>
@@ -8082,6 +8131,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>20/80</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>4.1.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2030-01-03T08:00:00</Start>
@@ -8136,6 +8186,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>4.2.0</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2030-03-05T08:00:00</Start>
@@ -8207,6 +8258,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>50/50</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>4.2.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2030-03-05T08:00:00</Start>
@@ -8261,6 +8313,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>4.2.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2030-05-06T08:00:00</Start>
@@ -8315,6 +8368,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>CLIENTE</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-01-05T08:00:00</Start>
@@ -8839,6 +8893,9 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.0.0</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743737</FieldID><Value>Ambas</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743768</FieldID><Value>60</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-01-05T08:00:00</Start>
@@ -9333,6 +9390,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.1.0</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-01-05T08:00:00</Start>
@@ -9828,6 +9886,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal (LOE)</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.1.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-01-05T08:00:00</Start>
@@ -10323,6 +10382,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal (LOE)</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.1.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-01-05T08:00:00</Start>
@@ -10818,6 +10878,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal (LOE)</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.1.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-02-04T08:00:00</Start>
@@ -11296,6 +11357,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.2.0</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-01-05T08:00:00</Start>
@@ -11751,6 +11813,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>0/100</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.2.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-01-05T08:00:00</Start>
@@ -11814,6 +11877,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>50/50</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.2.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-09-07T08:00:00</Start>
@@ -11885,6 +11949,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal (LOE)</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.2.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-11-05T08:00:00</Start>
@@ -12291,6 +12356,8 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.0.0</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743737</FieldID><Value>EmpresaA</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-03-06T08:00:00</Start>
@@ -12513,6 +12580,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.0</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-03-06T08:00:00</Start>
@@ -12632,6 +12700,8 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>50/50</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.1</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743737</FieldID><Value>EmpresaB</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-03-06T08:00:00</Start>
@@ -12687,6 +12757,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Hitos ponderados</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-04-06T08:00:00</Start>
@@ -12757,6 +12828,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-04-06T08:00:00</Start>
@@ -12834,6 +12906,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-05-11T08:00:00</Start>
@@ -12919,6 +12992,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-07-06T08:00:00</Start>
@@ -12997,6 +13071,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>% Completado</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-07-06T08:00:00</Start>
@@ -13084,6 +13159,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>% Completado</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.4</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-07-06T08:00:00</Start>
@@ -13170,6 +13246,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.0</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-01-04T08:00:00</Start>
@@ -13313,6 +13390,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>% Físico completado</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-01-04T08:00:00</Start>
@@ -13432,6 +13510,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>% Físico completado</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-02-04T08:00:00</Start>
@@ -13551,6 +13630,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>% Completado</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-03-08T08:00:00</Start>
@@ -13678,6 +13758,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Hitos ponderados</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.4</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-11-04T08:00:00</Start>
@@ -13732,6 +13813,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.4.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-11-04T08:00:00</Start>
@@ -13809,6 +13891,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.4.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-12-16T08:00:00</Start>
@@ -13886,6 +13969,8 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.0.0</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743737</FieldID><Value>EmpresaB</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-07-06T08:00:00</Start>
@@ -14156,6 +14241,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.1.0</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-07-06T08:00:00</Start>
@@ -14379,6 +14465,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Unidades completadas</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.1.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-07-06T08:00:00</Start>
@@ -14474,6 +14561,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Unidades completadas</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.1.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-11-04T08:00:00</Start>
@@ -14593,6 +14681,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>% Físico completado</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.1.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2028-05-05T08:00:00</Start>
@@ -14735,6 +14824,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.2.0</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-09-06T08:00:00</Start>
@@ -14990,6 +15080,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Hitos ponderados</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.2.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-09-06T08:00:00</Start>
@@ -15116,6 +15207,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.2.1.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-09-06T08:00:00</Start>
@@ -15257,6 +15349,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.2.1.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2028-06-12T08:00:00</Start>
@@ -15343,6 +15436,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>% Completado</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.2.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2028-09-04T08:00:00</Start>
@@ -15478,6 +15572,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>% Completado</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.2.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2028-11-03T08:00:00</Start>
@@ -15620,6 +15715,8 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>4.0.0</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743737</FieldID><Value>Ambas</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2029-10-04T08:00:00</Start>
@@ -15730,6 +15827,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>4.1.0</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2029-10-04T08:00:00</Start>
@@ -15809,6 +15907,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>0/100</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>4.1.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2029-10-04T08:00:00</Start>
@@ -15864,6 +15963,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>20/80</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>4.1.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2030-01-03T08:00:00</Start>
@@ -15918,6 +16018,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>4.2.0</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2030-03-05T08:00:00</Start>
@@ -15989,6 +16090,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743750</FieldID><Value>50/50</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>4.2.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2030-03-05T08:00:00</Start>
@@ -16043,6 +16145,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>4.2.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2030-05-06T08:00:00</Start>
