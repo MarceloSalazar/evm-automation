@@ -13,6 +13,8 @@ gestionar el **Valor Ganado (EVM)**:
   es un gráfico nativo de Excel que se actualiza solo al cargar datos o cambiar la fecha de corte.
 - Un comando que **calcula EV y AC desde MS Project** a la fecha de corte, según el método de
   medición de cada fila, y los carga en el mes correspondiente.
+- Opcional: **multi-empresa**, con el PV, el EV y el AC de dos empresas en hojas separadas y el total
+  en las hojas `PV`, `EV` y `AC` (sección 9).
 
 El formato de la hoja `PV` es el siguiente:
 
@@ -40,13 +42,14 @@ Los montos se expresan por defecto en **euros (EUR)**.
 6. [El libro Excel](#6-el-libro-excel)
 7. [Cómo se calcula el PV](#7-cómo-se-calcula-el-pv)
 8. [Cómo se calculan EV y AC](#8-cómo-se-calculan-ev-y-ac)
-9. [Preparación del proyecto en MS Project](#9-preparación-del-proyecto-en-ms-project)
-10. [Validaciones](#10-validaciones)
-11. [Limitaciones conocidas](#11-limitaciones-conocidas)
-12. [Solución de problemas](#12-solución-de-problemas)
-13. [Pruebas y archivo de ejemplo](#13-pruebas-y-archivo-de-ejemplo)
-14. [Flujo de trabajo del repositorio](#14-flujo-de-trabajo-del-repositorio)
-15. [Licencia](#15-licencia)
+9. [Multi-empresa (opcional)](#9-multi-empresa-opcional)
+10. [Preparación del proyecto en MS Project](#10-preparación-del-proyecto-en-ms-project)
+11. [Validaciones](#11-validaciones)
+12. [Limitaciones conocidas](#12-limitaciones-conocidas)
+13. [Solución de problemas](#13-solución-de-problemas)
+14. [Pruebas y archivo de ejemplo](#14-pruebas-y-archivo-de-ejemplo)
+15. [Flujo de trabajo del repositorio](#15-flujo-de-trabajo-del-repositorio)
+16. [Licencia](#16-licencia)
 
 ---
 
@@ -92,7 +95,7 @@ La curva S y los indicadores se consultan en las hojas `Curva S`, `Resumen` e `I
 libro.
 
 Para probar el programa sin MS Project se incluye un proyecto de ejemplo en XML, con las
-planificaciones `INTERNO` y `CLIENTE` (ver sección 13):
+planificaciones `INTERNO` y `CLIENTE` (ver sección 14):
 
 ```powershell
 python evm_export.py generar --origen ejemplos\programa_ejemplo.xml --planificacion INTERNO --salida ejemplo.xlsx
@@ -105,7 +108,7 @@ python evm_export.py generar --origen ejemplos\programa_ejemplo.xml --planificac
 **Una vez, al inicio (o al aprobar una nueva línea base):**
 
 1. Se deben cargar los costos y los métodos de medición en MS Project y guardar la línea base
-   (sección 9).
+   (sección 10).
 2. Se ejecuta `generar` y se revisa la hoja **Validación**; lo que corresponda se corrige en MS Project.
 3. Se revisa o completa el **método de medición** de cada fila (columna C de la hoja `PV`) si no se
    definió en MS Project.
@@ -160,7 +163,7 @@ Para ver mensajes de diagnóstico se agrega `-v` **antes** del comando:
 | `--origen` | Proyecto con el avance a la fecha de corte (`.mpp`, `.xml` o `activo`). **Obligatoria.** |
 | `--libro` | Libro creado con `generar`. **Obligatoria.** |
 | `--fecha-corte AAAA-MM-DD` | Fecha de corte. Por defecto, la fecha de estado del proyecto; si el proyecto no tiene fecha de estado, es obligatoria. Con `.mpp`, el programa fija esa fecha de estado en la copia abierta (no guarda el archivo). |
-| `--solo ev\|ac` | Actualiza solo EV o solo AC. |
+| `--solo ev\|ac` | Actualiza solo EV o solo AC. En multi-empresa, `--solo ac` requiere `ac_desde_project = true` (sección 9). |
 | `--simular` | Muestra el EV y AC calculados para cada fila y los indicadores resultantes, sin modificar el libro. |
 | `--forzar` | Permite actualizar aunque haya valores en meses posteriores. |
 | `--sin-respaldo` | No crea la copia `<libro>.respaldo-AAAAMMDD-HHMMSS.xlsx` (si ya existe una con ese nombre, se agrega `-2`, `-3`...). |
@@ -187,10 +190,10 @@ Se debe copiar `config.ejemplo.toml` como `config.toml` y ajustarlo. Todas las c
 
 | Sección / clave | Por defecto | Uso |
 |---|---|---|
-| `[campos] edt` | `"WBS"` | Campo con el código EDT: `WBS` (campo EDT de MS Project), `OutlineNumber` (número de esquema), un campo de texto (`Text1`...) o su alias. Si un campo personalizado tiene el alias `EDT`, `edt = "EDT"` usa ese campo. |
+| `[campos] edt` | `"WBS"` | Campo con el código EDT: `WBS` (campo EDT de MS Project), `OutlineNumber` (número de esquema), un campo de texto (`Text1`...) o su alias. Si un campo personalizado tiene el alias `EDT`, `edt = "EDT"` usa ese campo. El archivo de ejemplo indica el campo personalizado `"Item EDT"`. |
 | `[campos] metodo` | vacío | Campo personalizado con el método de medición, p. ej. `"Text10"` o su alias `"Método EVM"`. |
 | `[campos] peso_hito` | vacío | Campo numérico con el peso de cada hito, p. ej. `"Number1"` o `"Peso hito"`. |
-| `[horizonte] mes_inicio` | vacío | Primer mes (`"AAAA-MM"`). Vacío = inicio de la línea base. |
+| `[horizonte] mes_inicio` | vacío | Primer mes (`"AAAA-MM"`). Vacío = inicio de la línea base. El archivo de ejemplo indica `"2026-01"`. |
 | `[horizonte] meses` | `120` | Cantidad de meses. |
 | `[exportacion] planificacion` | sin filtro | Código EDT de alto nivel de la planificación a exportar, por ejemplo `"INTERNO"` o `"CLIENTE"`; el archivo de ejemplo indica `"INTERNO"`. Si se omite, se exportan todas las tareas. |
 | `[exportacion] nivel_maximo` | `3` | Nivel máximo del código EDT exportado; los niveles inferiores se suman en su elemento de este nivel. |
@@ -204,6 +207,13 @@ Se debe copiar `config.ejemplo.toml` como `config.toml` y ajustarlo. Todas las c
 | `[exportacion] decimales` | `0` | Decimales de los montos en el libro. |
 | `[metodos] lista` | ver ejemplo | Opciones de la lista desplegable de la columna C. |
 | `[semaforo] rojo` / `amarillo` | `0.90` / `0.95` | Umbrales de SPI y CPI: rojo si es menor que `rojo`, amarillo si es menor que `amarillo`, verde en otro caso. |
+| `[multiempresa] activar` | `false` | Activa el modo multi-empresa (sección 9). |
+| `[multiempresa] campo_empresa` | `"Empresa"` | Campo de texto de MS Project con la empresa de cada tarea (por ejemplo `"Text3"`, o su alias). |
+| `[multiempresa] empresa_a` / `empresa_b` | `"EmpresaA"` / `"EmpresaB"` | Valores de la columna de empresa y sufijo de las hojas de cada empresa (`PV-EmpresaA`...). Máximo 15 caracteres, sin `[ ] : * ? / \ '`. |
+| `[multiempresa] ambas` | `"Ambas"` | Valor que indica una tarea de las dos empresas. |
+| `[multiempresa] campo_reparto` | `"% Reparto"` | Campo numérico con el % de la empresa A en las tareas `Ambas`. |
+| `[multiempresa] reparto_por_defecto` | `50` | % de la empresa A cuando el campo de reparto está vacío, es 0 o está fuera de rango, y en las tareas sin empresa. |
+| `[multiempresa] ac_desde_project` | `false` | `false`: el AC de cada empresa se carga a mano. `true`: `actualizar` también lo carga desde MS Project. |
 
 Los nombres de campo aceptan el nombre interno en inglés (`Text10`, `Number1`), el nombre en
 español (`Texto10`, `Número1`) o el alias definido en MS Project.
@@ -218,9 +228,10 @@ español (`Texto10`, `Número1`) o el alias definido en MS Project.
 | **PV** | Formato A–F + 120 meses. Fila 3: número de mes. Fila 4: fecha de cada mes. Al final: columna **Total horizonte** (en rojo si no coincide con el BAC) y fila **TOTAL**. |
 | **EV** | Misma estructura. Celdas amarillas = ingreso del **valor del mes** (no acumulado). |
 | **AC** | Misma estructura. Celdas amarillas = costo real **del mes**. |
+| **PV-EmpresaA**, **EV-EmpresaA**, **AC-EmpresaA** y las de EmpresaB | Solo en modo multi-empresa (sección 9): valores de cada empresa, con la misma estructura. Las hojas `PV`, `EV` y `AC` son la suma de las dos empresas. |
 | **Curva S** | Tabla mensual calculada con fórmulas: PV, EV y AC del mes y acumulados, % de avance, SPI y CPI acumulados. Gráfico de líneas nativo de Excel con PV, EV, AC acumulados y BAC sobre todo el horizonte. EV y AC se dibujan desde el primer mes con datos hasta la fecha de corte. |
 | **Indicadores EDT** | Para cada fila de la EDT, a la fecha de corte: BAC, PV, EV, AC, SV, CV, SPI, CPI, EAC, VAC y porcentajes, con semáforo. |
-| **Validación** | Advertencias de la exportación (ver sección 10). |
+| **Validación** | Advertencias de la exportación (ver sección 11). |
 | **Listas** | Métodos de medición del desplegable y su regla de cálculo. Se pueden agregar métodos al final de la columna A, sin dejar filas vacías. |
 | `_estructura`, `_meta` | Hojas ocultas que usan `actualizar` y `--migrar-desde`. **No se deben modificar.** |
 
@@ -231,8 +242,8 @@ Reglas importantes:
 - Las filas se pueden **contraer por nivel** con los botones de esquema (1, 2, 3) a la izquierda.
 - La curva S no requiere ninguna acción: al cargar valores en las hojas `EV` o `AC`, o al cambiar la
   fecha de corte en `Resumen!B5`, Excel recalcula la tabla y el gráfico.
-- No se deben insertar ni eliminar filas o columnas en `PV`, `EV` y `AC`: `actualizar` ubica cada fila
-  por su posición. Para cambiar la EDT, se modifica MS Project y se vuelve a generar el libro con
+- No se deben insertar ni eliminar filas o columnas en `PV`, `EV`, `AC` ni en las hojas de cada
+  empresa: `actualizar` ubica cada fila por su posición. Para cambiar la EDT, se modifica MS Project y se vuelve a generar el libro con
   `--migrar-desde`.
 - `--migrar-desde` traslada el historial de cada fila por el UniqueID de la tarea en MS Project (o por
   código EDT si el proyecto cambió de nombre), sin duplicarlo. Si una tarea quedó dentro de un paquete
@@ -342,12 +353,72 @@ El SPI tiende a 1 al final de un proyecto atrasado; SPI(t) y SV(t) siguen mostra
 
 ---
 
-## 9. Preparación del proyecto en MS Project
+## 9. Multi-empresa (opcional)
+
+Cuando el proyecto se ejecuta entre dos empresas, el libro puede separar el PV, el EV y el AC de cada
+una. Este modo está desactivado por defecto y se activa con `activar = true` en la sección
+`[multiempresa]` del archivo de configuración.
+
+**Preparación en MS Project:**
+
+1. Se crea un campo personalizado de tarea de tipo *Texto* (por ejemplo *Texto3*) con el nombre
+   `Empresa` y, en *Atributos personalizados > Búsqueda*, los valores `EmpresaA`, `EmpresaB` y
+   `Ambas` (los valores se configuran con `empresa_a`, `empresa_b` y `ambas`).
+2. Se crea un campo de tipo *Número* (por ejemplo *Número2*) con el nombre `% Reparto`: porcentaje
+   de la empresa A en las tareas `Ambas` (por ejemplo, 80 = 80 % para la empresa A y 20 % para la
+   empresa B).
+3. Se completa la columna `Empresa`. Una tarea sin empresa hereda la de su tarea superior (con su
+   `% Reparto`): basta con completarla en las tareas resumen y en las subtareas que sean de otra
+   empresa.
+
+**Parte de la empresa A en cada tarea** (la empresa B recibe el resto):
+
+| Columna `Empresa` | Parte de la empresa A |
+|---|---|
+| Empresa A | 100 % |
+| Empresa B | 0 % |
+| `Ambas` | El valor de `% Reparto`. Si está vacío o es 0, el reparto por defecto (`reparto_por_defecto`, 50 %). Si es negativo o mayor que 100, el reparto por defecto, y se informa en `Validación`. |
+| Vacía | La de la tarea superior. Si ninguna tarea superior tiene empresa, se trata como `Ambas` con el reparto por defecto y se informa en `Validación`. |
+| Otro valor | Se trata como `Ambas` con el reparto por defecto y se informa en `Validación`. |
+
+`% Reparto` solo se usa en las tareas `Ambas`; en las demás se ignora. En MS Project un campo
+numérico vacío vale 0, por eso 0 equivale a vacío. Para asignar el 100 % a una empresa se indica su
+nombre en `Empresa`.
+
+**Hojas del libro:** además de `PV`, `EV` y `AC`, se crean `PV-EmpresaA`, `PV-EmpresaB`,
+`EV-EmpresaA`, `EV-EmpresaB`, `AC-EmpresaA` y `AC-EmpresaB` (con los nombres configurados), con el
+mismo formato. En las hojas `PV`, `EV` y `AC` cada celda es la **suma** de las dos empresas (fórmula).
+
+- **PV y BAC:** se reparten tarea por tarea según la parte de cada empresa. Una fila de nivel 3 puede
+  incluir tareas de las dos empresas.
+- **Curva S, Resumen e Indicadores EDT** usan los totales.
+- **EV:** `actualizar` escribe el EV del mes en `EV-EmpresaA` y `EV-EmpresaB`. El EV de cada empresa
+  se calcula con su BAC en la fila y su propio avance:
+
+| Método (columna C) | EV acumulado de cada empresa |
+|---|---|
+| `% Completado`, `% Físico completado`, `Unidades completadas` | BAC de la empresa × avance de sus tareas, ponderado por el costo de línea base que le corresponde en cada tarea. |
+| `CPTR de MS Project` | CPTR de las tareas de la fila, repartido según la parte de cada empresa en cada tarea. |
+| `Avance lineal (LOE)` | PV acumulado de la empresa. |
+| `0/100`, `X/Y`, `Hitos ponderados` | BAC de la empresa × avance del paquete completo. |
+
+- **AC:** se carga a mano en `AC-EmpresaA` y `AC-EmpresaB` (celdas amarillas). `actualizar` no lo
+  modifica y no admite `--solo ac`. Con `ac_desde_project = true`, `actualizar` también carga el AC
+  de cada empresa: el CRTR de cada tarea repartido según su parte.
+- `actualizar` usa los nombres de las empresas y los campos con los que se generó el libro (guardados
+  en la hoja `_meta`), aunque la configuración no tenga la sección `[multiempresa]`.
+- `--migrar-desde` traslada el historial de cada empresa entre libros multi-empresa. No se admite
+  entre un libro de una sola empresa y uno multi-empresa, porque el historial no se puede repartir
+  entre las empresas.
+
+---
+
+## 10. Preparación del proyecto en MS Project
 
 Los nombres de menú corresponden a MS Project en español 2016 a 2024 y a la versión de suscripción
 (*Project Online Desktop Client*); pueden variar levemente según la versión.
 
-### 9.1 Presupuesto (BAC) de cada tarea
+### 10.1 Presupuesto (BAC) de cada tarea
 
 Los costos se deben asignar **solo a las tareas de detalle**, nunca a las tareas resumen:
 
@@ -366,7 +437,7 @@ Al incorporar tareas nuevas aprobadas, se debe guardar la línea base para *Tare
 la opción *Resumir líneas base: en todas las tareas de resumen*. Se recomienda guardar una copia de
 cada línea base aprobada en *Línea base 1..10* para conservar el historial de cambios.
 
-### 9.2 Método de medición
+### 10.2 Método de medición
 
 1. Clic derecho en el encabezado de una columna > **Campos personalizados**.
 2. Se elige *Tarea*, tipo *Texto*, se selecciona *Texto10* y con **Cambiar nombre** se le asigna el
@@ -387,14 +458,14 @@ Guía práctica para elegir el método según la duración del paquete, medida e
 | Trabajo medible en cantidades (m³, planos, equipos) | `% Físico completado` o `Unidades completadas` |
 | Gestión, soporte, supervisión | `Avance lineal (LOE)`, limitado a lo indispensable |
 
-### 9.3 Hitos ponderados
+### 10.3 Hitos ponderados
 
 1. Dentro de cada paquete de nivel 3 se crean **subtareas hito** (duración 0) para cada entregable.
 2. Se crea un campo personalizado *Número1* con el nombre `Peso hito` y se escribe el peso de cada
    hito (por ejemplo 30, 30 y 40). En `config.toml` se indica `peso_hito = "Peso hito"`.
 3. Cada hito se marca al 100 % cuando se cumple. El EV del paquete es BAC × pesos cumplidos / total.
 
-### 9.4 Método del valor acumulado propio de MS Project (opcional)
+### 10.4 Método del valor acumulado propio de MS Project (opcional)
 
 MS Project calcula su propio valor ganado (CPTR) con el campo **Método del valor acumulado** de cada
 tarea (*Información de la tarea > Opciones avanzadas*): *% completado* o *% físico completado*.
@@ -404,7 +475,7 @@ Si se usa *% físico completado* y se carga según la regla de cada método (0 /
 hitos, unidades), se puede elegir el método `CPTR de MS Project` en la columna C. La tabla *Valor
 acumulado* (*Vista > Tablas > Más tablas*) sirve para comparar.
 
-### 9.5 Fecha de estado y costo real
+### 10.5 Fecha de estado y costo real
 
 - Antes de cada `actualizar` se debe definir **Proyecto > Fecha de estado** = último día del mes
   informado. Sin fecha de estado, MS Project usa la fecha de hoy.
@@ -412,14 +483,14 @@ acumulado* (*Vista > Tablas > Más tablas*) sirve para comparar.
   ERP en MS Project se debe desmarcar *Archivo > Opciones > Programación > Los costos reales siempre
   se calculan por Project*. También se puede cargar el AC del ERP directamente en la hoja `AC`.
 
-### 9.6 Exportación a XML (si no se usa COM)
+### 10.6 Exportación a XML (si no se usa COM)
 
 *Archivo > Guardar como > Tipo: Formato XML (\*.xml)*. El XML se debe guardar **después** de fijar
 la fecha de estado: el CPTR y el CRTR del archivo se calculan a esa fecha.
 
 ---
 
-## 10. Validaciones
+## 11. Validaciones
 
 La hoja **Validación** (y la consola) informa, entre otros:
 
@@ -436,10 +507,12 @@ La hoja **Validación** (y la consola) informa, entre otros:
 - BAC total distinto del costo de línea base del proyecto o de la planificación.
 - Códigos EDT duplicados (por ejemplo, si no se eligió una planificación y ambas usan los mismos
   códigos), filas sin método de medición, tareas inactivas excluidas.
+- Multi-empresa: BAC de cada empresa, tareas sin empresa, valores de empresa no reconocidos y
+  `% Reparto` fuera de rango.
 
 ---
 
-## 11. Limitaciones conocidas
+## 12. Limitaciones conocidas
 
 - El modo `.mpp` requiere MS Project de escritorio en Windows. Sin él, se debe usar el XML.
 - El programa no guarda cambios en el archivo de MS Project: lo abre en modo solo lectura.
@@ -458,7 +531,7 @@ La hoja **Validación** (y la consola) informa, entre otros:
 
 ---
 
-## 12. Solución de problemas
+## 13. Solución de problemas
 
 | Mensaje o síntoma | Solución |
 |---|---|
@@ -477,24 +550,31 @@ La hoja **Validación** (y la consola) informa, entre otros:
 | La curva no muestra EV/AC | Se debe completar la fecha de corte en `Resumen!B5`. |
 | `No se encontró la planificación ...` | El mensaje lista las tareas de nivel superior con su código EDT; se debe indicar en `planificacion` uno de esos códigos. |
 | El libro solo muestra los elementos de primer nivel (`1.0.0`, `2.0.0`...) | Se debe revisar que el campo indicado en `[campos] edt` contenga los códigos EDT de todas las tareas. El nivel se toma del código EDT. |
+| `En modo multi-empresa el AC se carga a mano ...` | El AC se carga en las hojas de cada empresa. Para cargarlo desde MS Project se debe indicar `ac_desde_project = true` en `[multiempresa]`. |
+| `--migrar-desde no se admite entre un libro de una sola empresa y uno multi-empresa` | Se debe generar el libro nuevo sin `--migrar-desde` y cargar a mano el historial que se necesite. |
+| `No se encontró el campo de empresa ...` | Se debe revisar `campo_empresa` en `[multiempresa]`: nombre del campo (`Text3`) o su alias en MS Project. |
 | Las tildes se ven mal en la consola | Solo afecta a la consola, no al libro. Se recomienda usar Windows Terminal o ejecutar `chcp 65001`. |
 
 ---
 
-## 13. Pruebas y archivo de ejemplo
+## 14. Pruebas y archivo de ejemplo
 
 `ejemplos/programa_ejemplo.xml` es un programa ficticio con dos planificaciones, `INTERNO` y `CLIENTE`
 (esta con costos un 15 % mayores). Cada una tiene 4 elementos de nivel EDT 1, con códigos del tipo
 `1.0.0`, `1.1.0`, `1.1.1` y `1.1.1.1`, costos, línea base mensualizada, métodos de medición y pesos de
-hitos. Los hitos de los paquetes y la reunión de arranque no tienen código EDT. Para generar versiones
-con avance simulado a una fecha:
+hitos. Los hitos de los paquetes y la reunión de arranque no tienen código EDT. Los códigos EDT están
+también en el campo personalizado `Item EDT`, el que indica `config.ejemplo.toml`. Los campos `Empresa`
+y `% Reparto` permiten probar el modo multi-empresa: gestión compartida 60/40, ingeniería de
+EmpresaA (salvo los estudios de terreno, de EmpresaB), construcción de EmpresaB y puesta en marcha
+compartida al 50 %. Para generar versiones con avance simulado a una fecha:
 
 ```powershell
 python ejemplos\generar_ejemplo.py --fecha-estado 2027-06-30 --salida avance_2027-06.xml
 ```
 
 Ciclo completo con el ejemplo (en `config.toml` se deben definir `metodo = "Método EVM"` y
-`peso_hito = "Peso hito"`):
+`peso_hito = "Peso hito"`; para probar el modo multi-empresa, también `activar = true` en
+`[multiempresa]`):
 
 ```powershell
 copy config.ejemplo.toml config.toml
@@ -527,6 +607,7 @@ de algunos meses con la vista *Uso de tareas* (campo *Costo previsto* en la esca
 | `evm/reader_xml.py`, `evm/workcalendar.py` | Lectura del XML de MS Project y de su calendario. |
 | `evm/fields.py` | Identificación de campos personalizados (Texto1..30, Número1..20 y alias). |
 | `evm/wbs.py` | Estructura EDT hasta el nivel máximo y PV por fila. |
+| `evm/companies.py` | Multi-empresa: parte de cada empresa por tarea y reparto del EV y el AC. |
 | `evm/timeline.py` | Horizonte mensual y repartos en el tiempo. |
 | `evm/workbook.py` | Escritura del libro Excel, incluidas la curva S y los indicadores. |
 | `evm/methods.py` | Métodos de medición del EV. |
@@ -536,7 +617,7 @@ de algunos meses con la vista *Uso de tareas* (campo *Costo previsto* en la esca
 
 ---
 
-## 14. Flujo de trabajo del repositorio
+## 15. Flujo de trabajo del repositorio
 
 - La rama `main` contiene solo **versiones estables**. No se hacen commits directos en `main`.
 - Todo cambio se hace en una rama propia y se incorpora mediante un **Pull Request**:
@@ -561,7 +642,7 @@ gh pr create --base main --fill
 
 ---
 
-## 15. Licencia
+## 16. Licencia
 
 Este programa se distribuye bajo la **licencia MIT** (ver el archivo [LICENSE](LICENSE)): se puede
 usar, copiar, modificar y distribuir libremente, también con fines comerciales, siempre que se

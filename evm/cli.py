@@ -116,8 +116,8 @@ def cmd_generar(args) -> int:
     print(f"  BAC total: {report.total_bac:,.2f}")
     _print_issues(report.issues)
     if prior is not None:
-        lost_ev = sum(sum(r.ev.values()) for r in prior.unmatched)
-        lost_ac = sum(sum(r.ac.values()) for r in prior.unmatched)
+        lost_ev = sum(r.total("EV") for r in prior.unmatched)
+        lost_ac = sum(r.total("AC") for r in prior.unmatched)
         print(f"Migración desde {args.migrar_desde}: {prior.matched} filas con EV/AC trasladados.")
         if prior.unmatched:
             print(f"  [!] {len(prior.unmatched)} filas no se pudieron trasladar (EV {lost_ev:,.2f}, AC {lost_ac:,.2f}). "
@@ -131,13 +131,15 @@ def _print_update(res, currency: str) -> None:
     from evm.update import indicators_for
     print(f"Fecha de corte: {res.status_date:%d/%m/%Y} (mes {res.month_index + 1} del horizonte)")
     if res.dry_run:
-        print(f"{'Código':<10} {'EV del mes':>16} {'EV acumulado':>16} {'AC del mes':>16} {'AC acumulado':>16}")
-
         def m(v):
             return "-" if v is None else f"{v:,.0f}"
 
+        company_cols = sorted({k for r in res.rows for k in r.by_company}, key=lambda k: (k[:2] == "AC", k))
+        print(f"{'Código':<10} {'EV del mes':>16} {'EV acumulado':>16} {'AC del mes':>16} {'AC acumulado':>16}"
+              + "".join(f" {k:>16}" for k in company_cols))
         for r in res.rows:
-            print(f"{r.code:<10} {m(r.ev_month):>16} {m(r.ev_cum):>16} {m(r.ac_month):>16} {m(r.ac_cum):>16}")
+            print(f"{r.code:<10} {m(r.ev_month):>16} {m(r.ev_cum):>16} {m(r.ac_month):>16} {m(r.ac_cum):>16}"
+                  + "".join(f" {m(r.by_company.get(k)):>16}" for k in company_cols))
     shown = [r for r in res.rows if r.note]
     if shown:
         print("Observaciones por fila:")
@@ -149,6 +151,9 @@ def _print_update(res, currency: str) -> None:
         print(f"  [!] {w}")
     if len(res.warnings) > 30:
         print(f"  ... y {len(res.warnings) - 30} advertencias más.")
+    if res.book is not None and res.book.multi and not res.ac_loaded:
+        print(f"  [i] El AC se carga a mano en las hojas 'AC-{res.book.company_a}' y 'AC-{res.book.company_b}'; "
+              "los indicadores de costo usan los valores cargados.")
     if res.book is not None:
         print()
         print(format_table(indicators_for(res.book, res.status_date), currency))
@@ -157,7 +162,10 @@ def _print_update(res, currency: str) -> None:
 def cmd_actualizar(args) -> int:
     cfg = _apply_overrides(load_config(args.config), args)
     status = parse_date(args.fecha_corte) if args.fecha_corte else None
-    from evm.update import run_update
+    from evm.update import apply_book_settings, book_meta, check_only, run_update
+    # Multi-empresa: se usan los nombres y campos con los que se generó el libro
+    cfg = apply_book_settings(cfg, book_meta(args.libro))
+    check_only(cfg, args.solo)
     print(f"Leyendo {args.origen} ...")
     with open_project(args.origen, cfg, args.motor, args.visible, status) as (project, _source):
         pass

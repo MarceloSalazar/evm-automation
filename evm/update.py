@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import shutil
 import zipfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -18,7 +18,7 @@ from evm.timeline import Horizon
 from evm.wbs import Scope, build_tree, fmt_money, iter_subtree, pad_code, prune_inactive, select_scope, tolerance
 from evm.workbook import (COL_BAC, COL_METHOD, FIRST_MONTH_COL, SHEET_AC, SHEET_CURVE, SHEET_EV, SHEET_META,
                           SHEET_PV, SHEET_SUMMARY, STATUS_CELL, StructRow, WorkbookFormatError, add_s_curve_chart,
-                          col, read_meta, read_structure, save_workbook, write_meta)
+                          col, company_sheet, read_meta, read_structure, save_workbook, write_meta)
 
 
 # ----------------------------------------------------------------------------
@@ -38,6 +38,16 @@ class BookData:
     status_date: date | None
     # Celdas de ingreso de EV/AC que no son números: (hoja, fila, columna, valor numérico, motivo)
     fixable: list[tuple[str, int, int, float, str]] = field(default_factory=list)
+    # Multi-empresa: valores de la empresa A y B por fila (pv, ev y ac totales son la suma)
+    multi: bool = False
+    company_a: str = ""
+    company_b: str = ""
+    pv_a: dict[int, list[float]] = field(default_factory=dict)
+    bac_a: dict[int, float] = field(default_factory=dict)
+    ev_a: dict[int, list[float | None]] = field(default_factory=dict)
+    ev_b: dict[int, list[float | None]] = field(default_factory=dict)
+    ac_a: dict[int, list[float | None]] = field(default_factory=dict)
+    ac_b: dict[int, list[float | None]] = field(default_factory=dict)
 
     @property
     def input_rows(self) -> list[StructRow]:
@@ -122,20 +132,81 @@ def read_book(path: str | Path, wb=None, allow_fix: bool = False) -> BookData:
             out[s.row] = vals
         return out
 
-    pv_raw = sheet_values(SHEET_PV, allow_fix)
-    pv = {r: [v or 0.0 for v in vals] for r, vals in pv_raw.items()}
+    def bac_values(name: str) -> dict[int, float]:
+        ws, wv = wb[name], wb_vals[name]
+        return {s.row: _num(ws.cell(row=s.row, column=COL_BAC).value, wv.cell(row=s.row, column=COL_BAC).value,
+                            f"{name}!D{s.row}", fixable if allow_fix else None, (name, s.row, COL_BAC)) or 0.0
+                for s in inputs}
+
+    def zeros(series: dict[int, list[float | None]]) -> dict[int, list[float]]:
+        return {r: [v or 0.0 for v in vals] for r, vals in series.items()}
+
+    def combine(x: dict, y: dict) -> dict:
+        return {r: [None if a is None and b is None else (a or 0.0) + (b or 0.0) for a, b in zip(x[r], y[r])]
+                for r in x}
+
+    ws_pv = wb[SHEET_PV]
+    method = {s.row: str(ws_pv.cell(row=s.row, column=COL_METHOD).value or "").strip() for s in inputs}
+    status = _as_date(wb[SHEET_SUMMARY][STATUS_CELL].value)
+    if meta.get("multiempresa"):
+        a, b = str(meta.get("empresa_a") or ""), str(meta.get("empresa_b") or "")
+        names = {k: (company_sheet(k, a), company_sheet(k, b)) for k in (SHEET_PV, SHEET_EV, SHEET_AC)}
+        for sheet in [n for pair in names.values() for n in pair]:
+            if sheet not in wb.sheetnames:
+                raise WorkbookFormatError(f"Falta la hoja '{sheet}' del libro multi-empresa.")
+        pv_a = zeros(sheet_values(names[SHEET_PV][0], allow_fix))
+        pv_b = zeros(sheet_values(names[SHEET_PV][1], allow_fix))
+        bac_a, bac_b = bac_values(names[SHEET_PV][0]), bac_values(names[SHEET_PV][1])
+        ev_a, ev_b = sheet_values(names[SHEET_EV][0], allow_fix), sheet_values(names[SHEET_EV][1], allow_fix)
+        ac_a, ac_b = sheet_values(names[SHEET_AC][0], allow_fix), sheet_values(names[SHEET_AC][1], allow_fix)
+        pv = {r: [x + y for x, y in zip(pv_a[r], pv_b[r])] for r in pv_a}
+        bac = {r: bac_a[r] + bac_b[r] for r in bac_a}
+        return BookData(path, meta, structure, horizon, pv, combine(ev_a, ev_b), combine(ac_a, ac_b), bac, method,
+                        status, fixable, True, a, b, pv_a, bac_a, ev_a, ev_b, ac_a, ac_b)
+    pv = zeros(sheet_values(SHEET_PV, allow_fix))
     ev = sheet_values(SHEET_EV, allow_fix)
     ac = sheet_values(SHEET_AC, allow_fix)
-    ws_pv, wv_pv = wb[SHEET_PV], wb_vals[SHEET_PV]
-    bac = {}
-    method = {}
-    for s in inputs:
-        bac[s.row] = _num(ws_pv.cell(row=s.row, column=COL_BAC).value,
-                          wv_pv.cell(row=s.row, column=COL_BAC).value, f"PV!D{s.row}",
-                          fixable if allow_fix else None, (SHEET_PV, s.row, COL_BAC)) or 0.0
-        method[s.row] = str(ws_pv.cell(row=s.row, column=COL_METHOD).value or "").strip()
-    status = _as_date(wb[SHEET_SUMMARY][STATUS_CELL].value)
-    return BookData(path, meta, structure, horizon, pv, ev, ac, bac, method, status, fixable)
+    return BookData(path, meta, structure, horizon, pv, ev, ac, bac_values(SHEET_PV), method, status, fixable)
+
+
+def book_meta(path: str | Path) -> dict:
+    """Metadatos de un libro generado por este programa (sin leer sus valores)."""
+    path = Path(path)
+    if not path.is_file():
+        raise FileNotFoundError(f"No existe el libro: {path}")
+    try:
+        wb = load_workbook(path, read_only=True)
+    except (zipfile.BadZipFile, InvalidFileException, OSError) as exc:
+        raise WorkbookFormatError(f"No se pudo abrir '{path.name}' como libro de Excel: {exc}") from exc
+    try:
+        return read_meta(wb)
+    finally:
+        wb.close()
+
+
+def apply_book_settings(cfg: Config, meta: dict) -> Config:
+    """Configuración multi-empresa con la que se generó el libro (nombres y campos de MS Project).
+
+    La opción ac_desde_project se toma de la configuración actual.
+    """
+    cfg = replace(cfg)
+    cfg.multi_enabled = bool(meta.get("multiempresa"))
+    if cfg.multi_enabled:
+        cfg.company_a = str(meta.get("empresa_a") or cfg.company_a)
+        cfg.company_b = str(meta.get("empresa_b") or cfg.company_b)
+        cfg.company_both = str(meta.get("ambas") or cfg.company_both)
+        cfg.company_field = str(meta.get("campo_empresa") or cfg.company_field)
+        cfg.split_field = str(meta.get("campo_reparto") or cfg.split_field)
+        if meta.get("reparto_por_defecto") is not None:
+            cfg.split_default = float(meta["reparto_por_defecto"])
+    return cfg
+
+
+def check_only(cfg: Config, only: str | None) -> None:
+    """En multi-empresa, --solo ac requiere ac_desde_project (el AC se carga a mano)."""
+    if cfg.multi_enabled and only == "ac" and not cfg.ac_from_project:
+        raise ValueError("En modo multi-empresa el AC se carga a mano en las hojas de cada empresa. Para cargarlo "
+                         "desde MS Project se debe activar ac_desde_project en [multiempresa].")
 
 
 # ----------------------------------------------------------------------------
@@ -152,6 +223,7 @@ class RowResult:
     ev_month: float | None
     ac_month: float | None
     note: str = ""
+    by_company: dict[str, float] = field(default_factory=dict)   # valor del mes por hoja de empresa
 
 
 @dataclass
@@ -163,6 +235,7 @@ class UpdateResult:
     backup: Path | None
     book: BookData | None = None
     dry_run: bool = False
+    ac_loaded: bool = True              # False en multi-empresa con AC cargado a mano
 
 
 def _acwp(t: Task) -> float:
@@ -234,6 +307,15 @@ def _match_tasks(project: ProjectData, book: BookData, cfg: Config) -> tuple[dic
     return out, warnings, scope
 
 
+def _contributors(book: BookData, row: StructRow, task: Task, matches: dict[int, Task]) -> list[Task]:
+    """Tareas cuyo costo forma la fila: la rama del paquete, o (fila -D) lo que cuelga de la
+    tarea resumen sin pertenecer a sus filas hijas."""
+    if row.kind != "residual":
+        return list(iter_subtree(task))
+    taken = {n.uid for c in _row_children(book, row, matches) for n in iter_subtree(c)}
+    return [n for n in iter_subtree(task) if n.uid not in taken]
+
+
 def _row_children(book: BookData, row: StructRow, matches: dict[int, Task]) -> list[Task]:
     """Tareas de las filas hijas de la tarea resumen de una fila de otros costos (-D)."""
     return [matches[s.row] for s in book.structure
@@ -286,7 +368,11 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
     book_path = Path(book_path)
     wb = load_workbook(book_path)
     book = read_book(book_path, wb, allow_fix=True)
+    cfg = apply_book_settings(cfg, book.meta)
     warnings: list[str] = list(project.warnings)
+    multi = book.multi
+    load_ac = (not multi) or cfg.ac_from_project
+    check_only(cfg, only)
 
     if status is None:
         if project.status_date is None:
@@ -313,8 +399,15 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
 
     matches, w, scope = _match_tasks(project, book, cfg)
     warnings += w
-    if only != "ev":
+    if only != "ev" and load_ac:
         warnings += _coverage_warnings(scope, book, matches, cfg)
+
+    shares: dict[int, float] = {}
+    if multi:
+        from evm.companies import ac_by_company, ev_by_company, resolve_shares
+        shares, _ = resolve_shares(scope.roots, cfg)
+        sheets = {(k, r): company_sheet(k, book.company_a if r == "A" else book.company_b)
+                  for k in (SHEET_EV, SHEET_AC) for r in ("A", "B")}
 
     rows: list[RowResult] = []
     later_filled: list[str] = []
@@ -338,26 +431,46 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
                 bcwp_base -= sum(c.ev_baseline_cost or 0.0 for c in siblings)
         frac, note = ev_fraction(method, task, (pv_cum / bac) if bac else 0.0, bac=bac, bcwp=bcwp,
                                  bcwp_base=bcwp_base)
-        ev_cum = round(bac * frac, 2)
-        ac_cum = round(_own_ac(task, siblings) if residual else _acwp(task), 2)
-        ac_total += ac_cum
+
+        # (tipo, hoja, valor acumulado, serie del libro)
+        targets: list[tuple[str, str, float, list]] = []
+        if multi:
+            contributors = _contributors(book, s, task, matches)
+            bac_a = book.bac_a[s.row]
+            pv_cum_a = sum(book.pv_a[s.row][: idx + 1])
+            ev_a, ev_b = ev_by_company(method, contributors, shares, (bac_a, bac - bac_a),
+                                       (pv_cum_a, pv_cum - pv_cum_a), frac, task.ev_baseline_cost is not None)
+            targets += [("ev", sheets[(SHEET_EV, "A")], round(ev_a, 2), book.ev_a[s.row]),
+                        ("ev", sheets[(SHEET_EV, "B")], round(ev_b, 2), book.ev_b[s.row])]
+            if load_ac:
+                ac_a, ac_b = ac_by_company(contributors, shares)
+                targets += [("ac", sheets[(SHEET_AC, "A")], round(ac_a, 2), book.ac_a[s.row]),
+                            ("ac", sheets[(SHEET_AC, "B")], round(ac_b, 2), book.ac_b[s.row])]
+        else:
+            targets += [("ev", SHEET_EV, round(bac * frac, 2), book.ev[s.row]),
+                        ("ac", SHEET_AC, round(_own_ac(task, siblings) if residual else _acwp(task), 2),
+                         book.ac[s.row])]
 
         res = RowResult(s.code, s.name, method_text, bac, None, None, None, None, note)
-        for kind, cum_value, series in (("ev", ev_cum, book.ev[s.row]), ("ac", ac_cum, book.ac[s.row])):
+        for kind, sheet, cum_value, series in targets:
             if only and only != kind:
                 continue
             later = [v for v in series[idx + 1:] if v]
             if later:
-                later_filled.append(f"{kind.upper()} {s.code}")
+                later_filled.append(f"{sheet} {s.code}")
             prev = sum(v or 0.0 for v in series[:idx])
             month_value = round(cum_value - prev, 2)
             if kind == "ev":
-                res.ev_cum, res.ev_month = cum_value, month_value
+                res.ev_cum = (res.ev_cum or 0.0) + cum_value
+                res.ev_month = (res.ev_month or 0.0) + month_value
             else:
-                res.ac_cum, res.ac_month = cum_value, month_value
+                res.ac_cum = (res.ac_cum or 0.0) + cum_value
+                res.ac_month = (res.ac_month or 0.0) + month_value
+                ac_total += cum_value
+            if multi:
+                res.by_company[sheet] = month_value
             if month_value < -tolerance(cum_value):
-                res.note = (res.note + "; " if res.note else "") + f"{kind.upper()} del mes negativo (corrección)"
-            sheet = SHEET_EV if kind == "ev" else SHEET_AC
+                res.note = (res.note + "; " if res.note else "") + f"{sheet} del mes negativo (corrección)"
             writes.append((sheet, s.row, FIRST_MONTH_COL + idx, month_value))
         rows.append(res)
 
@@ -367,7 +480,7 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
             ("..." if len(later_filled) > 10 else "") + "). Se deben borrar esos valores o usar --forzar.")
 
     reference = _acwp(scope.plan) if scope.plan is not None else project.summary_acwp
-    if only != "ev" and reference is not None:
+    if only != "ev" and load_ac and reference is not None:
         diff = reference - ac_total
         if abs(diff) > tolerance(reference):
             whose = f"de la planificación '{scope.prefix}'" if scope.plan is not None else "del proyecto"
@@ -382,8 +495,17 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
 
     # Valores en memoria (también en simulación, para mostrar los indicadores resultantes)
     for sheet, r, c, v in writes:
-        target = book.ev if sheet == SHEET_EV else book.ac
-        target[r][c - FIRST_MONTH_COL] = v
+        i = c - FIRST_MONTH_COL
+        if not multi:
+            (book.ev if sheet == SHEET_EV else book.ac)[r][i] = v
+            continue
+        target = {sheets[(SHEET_EV, "A")]: book.ev_a, sheets[(SHEET_EV, "B")]: book.ev_b,
+                  sheets[(SHEET_AC, "A")]: book.ac_a, sheets[(SHEET_AC, "B")]: book.ac_b}[sheet]
+        target[r][i] = v
+        total = book.ev if sheet in (sheets[(SHEET_EV, "A")], sheets[(SHEET_EV, "B")]) else book.ac
+        pair = (book.ev_a, book.ev_b) if total is book.ev else (book.ac_a, book.ac_b)
+        x, y = pair[0][r][i], pair[1][r][i]
+        total[r][i] = None if x is None and y is None else (x or 0.0) + (y or 0.0)
 
     backup_path = None
     if not dry_run:
@@ -404,7 +526,7 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
             shutil.copy2(book_path, backup_path)
         save_workbook(wb, book_path)
     book.status_date = status
-    return UpdateResult(status, idx, rows, warnings, backup_path, book, dry_run)
+    return UpdateResult(status, idx, rows, warnings, backup_path, book, dry_run, ac_loaded=load_ac)
 
 
 def book_totals(book: BookData) -> tuple[list[float], list[float], list[float], float]:

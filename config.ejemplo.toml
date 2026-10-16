@@ -1,7 +1,9 @@
 # Configuración del exportador EVM.
 # Este archivo se debe copiar como config.toml y ajustar a cada proyecto.
 # Uso:  python evm_export.py generar --origen Programa.mpp --config config.toml
-# Todas las claves son opcionales: si se omiten se usan los valores indicados.
+# Los valores de este archivo son los del programa. Todas las claves son
+# opcionales: si se omite una clave, se usa el valor por defecto indicado en su
+# comentario.
 
 [campos]
 # Campo de MS Project con el código EDT de cada tarea:
@@ -10,7 +12,9 @@
 #   Si existe un campo personalizado con el alias "EDT", se usa ese campo; si no,
 #   "EDT" equivale al campo EDT de MS Project.
 # Las tareas sin código EDT no tienen fila propia en el libro.
-edt = "WBS"
+# En este programa los códigos EDT están en el campo personalizado "Item EDT".
+# Si se omite la clave, se usa "WBS".
+edt = "Item EDT"
 
 # Campo personalizado de texto con el método de medición del valor ganado
 # (por ejemplo "Text10", o su alias "Método EVM"). Vacío = no se lee.
@@ -22,8 +26,9 @@ peso_hito = ""
 
 [horizonte]
 # Primer mes del horizonte (mes 1), formato "AAAA-MM".
-# Vacío = mes en que comienza la línea base del proyecto.
-mes_inicio = ""
+# Vacío o sin la clave = mes en que comienza la línea base del proyecto.
+mes_inicio = "2026-01"
+
 # Cantidad de meses (columnas mensuales). 120 = 10 años.
 meses = 120
 
@@ -32,34 +37,43 @@ meses = 120
 # ("INTERNO" o "CLIENTE"). Se exportan solo las tareas que dependen de ella.
 # Si se omite esta clave, se exportan todas las tareas del proyecto.
 planificacion = "INTERNO"
+
 # Nivel máximo del código EDT que se exporta (2.0.0 = nivel 1, 2.1.0 = nivel 2,
 # 2.1.1 = nivel 3). Las tareas de nivel inferior se agregan (suman) en su
 # elemento de este nivel.
 nivel_maximo = 3
+
 # Línea base que define el PV y el BAC: 0 = "Línea base", 1..10 = "Línea base N".
 # Si se omite, se usa la línea base que el proyecto tiene configurada para el
 # valor acumulado (Archivo > Opciones > Avanzadas > Opciones de valor acumulado).
 # linea_base = 0
+
 # Completar los códigos EDT con ceros: "1" -> "1.0.0", "1.2" -> "1.2.0".
 rellenar_edt = true
+
 # Incluir tareas inactivas (MS Project 2010 o posterior).
 incluir_inactivas = false
+
 # Reparto en el tiempo de las tareas que no tienen distribución mensual de la
 # línea base en MS Project (p. ej. costo de línea base escrito a mano):
 #   "habiles"    proporcional al tiempo laborable del calendario
 #   "calendario" proporcional a los días corridos
 distribucion = "habiles"
+
 # Feriados adicionales. Con XML se agregan al calendario del proyecto; con .mpp
 # solo afectan el reparto lineal (MS Project usa sus propios calendarios).
 feriados = [
   # "2026-12-25",
   # "2027-01-01",
 ]
+
 # Método asignado a las filas cuyo campo de método está vacío.
 metodo_por_defecto = "Por definir"
+
 # Moneda que se muestra en el libro (por defecto euro, "EUR").
 # Vacío = código de moneda del proyecto en MS Project.
 moneda = "EUR"
+
 # Decimales en los montos del libro (0 a 4).
 decimales = 0
 
@@ -84,3 +98,33 @@ lista = [
 # "amarillo", verde en otro caso.
 rojo = 0.90
 amarillo = 0.95
+
+[multiempresa]
+# Reparto del PV, el EV y el AC entre dos empresas (ver README, sección 9).
+# Desactivado por defecto. Con activar = true, el libro agrega las hojas de cada
+# empresa (PV-EmpresaA, EV-EmpresaA, AC-EmpresaA y las de EmpresaB); las hojas
+# PV, EV y AC son la suma de las dos empresas.
+activar = false
+
+# Campo de texto de MS Project con la empresa de cada tarea (por ejemplo "Text3",
+# o su alias). Una tarea sin empresa hereda la de su tarea superior.
+campo_empresa = "Empresa"
+
+# Valores de la columna de empresa. Los nombres de las empresas se usan también
+# en los nombres de las hojas: máximo 15 caracteres, sin [ ] : * ? / \ ni '.
+empresa_a = "EmpresaA"
+empresa_b = "EmpresaB"
+ambas = "Ambas"
+
+# Campo numérico con el % de la empresa A en las tareas "Ambas" (80 = 80 % para
+# la empresa A y 20 % para la empresa B). En las demás tareas se ignora.
+campo_reparto = "% Reparto"
+
+# % de la empresa A cuando el campo de reparto está vacío, es 0 o está fuera de
+# rango, y en las tareas sin empresa.
+reparto_por_defecto = 50
+
+# AC de cada empresa: false = se carga a mano en las hojas AC-EmpresaA y
+# AC-EmpresaB; true = 'actualizar' lo carga desde MS Project (costo real de cada
+# tarea repartido según su empresa).
+ac_desde_project = false

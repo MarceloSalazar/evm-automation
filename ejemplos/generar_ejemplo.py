@@ -9,7 +9,11 @@ Número1) y, opcionalmente, avance a una fecha de estado.
 El proyecto tiene dos planificaciones, con códigos EDT de alto nivel "INTERNO" y
 "CLIENTE" (la del cliente con costos un 15 % mayores). Debajo de cada una, los
 elementos tienen códigos EDT del tipo 1.0.0, 1.1.0, 1.1.1 y 1.1.1.1; los hitos de
-los paquetes y la reunión de arranque no tienen código EDT.
+los paquetes y la reunión de arranque no tienen código EDT. Los códigos EDT están
+en el campo EDT (WBS) y también en el campo personalizado "Item EDT".
+
+Para multi-empresa, el campo "Empresa" indica EmpresaA, EmpresaB o Ambas, y el
+campo "% Reparto" el porcentaje de EmpresaA en las tareas de ambas empresas.
 
 Uso:
     python ejemplos/generar_ejemplo.py                       # solo línea base
@@ -24,8 +28,11 @@ from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-TEXT10 = 188743750      # Texto10 (tarea)
-NUMBER1 = 188743767     # Número1 (tarea)
+TEXT10 = 188743750      # Texto10 (tarea): "Método EVM"
+NUMBER1 = 188743767     # Número1 (tarea): "Peso hito"
+TEXT2 = 188743734       # Texto2 (tarea): "Item EDT"
+TEXT3 = 188743737       # Texto3 (tarea): "Empresa"
+NUMBER2 = 188743768     # Número2 (tarea): "% Reparto"
 
 
 @dataclass
@@ -40,6 +47,8 @@ class T:
     weight: float | None = None
     children: list["T"] = field(default_factory=list)
     code: str | None = None     # código EDT fijo ("" = sin código); None = se numera
+    company: str = ""           # empresa responsable (EmpresaA, EmpresaB, Ambas)
+    split: float | None = None  # % de EmpresaA en tareas "Ambas"
     # calculados
     uid: int = 0
     wbs: str = ""
@@ -151,6 +160,13 @@ def build_program(factor: float = 1.0) -> list[T]:
             ]),
         ]),
     ]
+    # Multi-empresa: gestión compartida 60/40, ingeniería de A (salvo los estudios de
+    # terreno, de B), construcción de B y puesta en marcha compartida (50 % por defecto).
+    prog[0].company, prog[0].split = "Ambas", 60
+    prog[1].company = "EmpresaA"
+    prog[1].children[0].children[0].company = "EmpresaB"
+    prog[2].company = "EmpresaB"
+    prog[3].company = "Ambas"
     return prog
 
 
@@ -287,6 +303,12 @@ def write(nodes: list[T], path: Path, status: date | None) -> None:
             "<Alias>Método EVM</Alias></ExtendedAttribute>",
             f"\t\t<ExtendedAttribute><FieldID>{NUMBER1}</FieldID><FieldName>Number1</FieldName>"
             "<Alias>Peso hito</Alias></ExtendedAttribute>",
+            f"\t\t<ExtendedAttribute><FieldID>{TEXT2}</FieldID><FieldName>Text2</FieldName>"
+            "<Alias>Item EDT</Alias></ExtendedAttribute>",
+            f"\t\t<ExtendedAttribute><FieldID>{TEXT3}</FieldID><FieldName>Text3</FieldName>"
+            "<Alias>Empresa</Alias></ExtendedAttribute>",
+            f"\t\t<ExtendedAttribute><FieldID>{NUMBER2}</FieldID><FieldName>Number2</FieldName>"
+            "<Alias>% Reparto</Alias></ExtendedAttribute>",
             "\t</ExtendedAttributes>",
             "\t<Tasks>"]
 
@@ -324,6 +346,15 @@ def write(nodes: list[T], path: Path, status: date | None) -> None:
                          "</ExtendedAttribute>")
         if t and t.weight is not None:
             lines.append(f"\t\t\t<ExtendedAttribute><FieldID>{NUMBER1}</FieldID><Value>{t.weight:g}</Value>"
+                         "</ExtendedAttribute>")
+        if t and wbs:
+            lines.append(f"\t\t\t<ExtendedAttribute><FieldID>{TEXT2}</FieldID><Value>{escape(wbs)}</Value>"
+                         "</ExtendedAttribute>")
+        if t and t.company:
+            lines.append(f"\t\t\t<ExtendedAttribute><FieldID>{TEXT3}</FieldID><Value>{escape(t.company)}</Value>"
+                         "</ExtendedAttribute>")
+        if t and t.split is not None:
+            lines.append(f"\t\t\t<ExtendedAttribute><FieldID>{NUMBER2}</FieldID><Value>{t.split:g}</Value>"
                          "</ExtendedAttribute>")
         lines += ["\t\t\t<Baseline>", "\t\t\t\t<Number>0</Number>",
                   f"\t\t\t\t<Start>{dt(s)}</Start>", f"\t\t\t\t<Finish>{dt(f, True)}</Finish>",

@@ -32,6 +32,9 @@ class ConfigError(ValueError):
     """Error en el archivo de configuración o en los parámetros."""
 
 
+INVALID_SHEET_CHARS = set("[]:*?/\\")
+
+
 def parse_month(text: str) -> date:
     """Convierte 'AAAA-MM' (o 'AAAA-MM-DD') al primer día de ese mes."""
     m = re.fullmatch(r"\s*(\d{4})-(\d{1,2})(?:-(\d{1,2}))?\s*", text or "")
@@ -91,6 +94,16 @@ class Config:
     threshold_red: float = 0.90
     threshold_yellow: float = 0.95
 
+    # [multiempresa] -- reparto entre dos empresas (desactivado por defecto)
+    multi_enabled: bool = False
+    company_field: str = "Empresa"        # columna de MS Project con la empresa responsable
+    company_a: str = "EmpresaA"           # valor en la columna y sufijo de las hojas (máx. 15 caracteres)
+    company_b: str = "EmpresaB"
+    company_both: str = "Ambas"           # valor que indica tarea de ambas empresas
+    split_field: str = "% Reparto"        # % de la empresa A en las tareas "Ambas"
+    split_default: float = 50.0
+    ac_from_project: bool = False         # AC por empresa desde MS Project (si no, se carga a mano)
+
     source_file: str = ""                 # ruta del TOML leído (informativo)
 
     def validate(self) -> None:
@@ -108,6 +121,24 @@ class Config:
             raise ConfigError("Los umbrales deben cumplir 0 < rojo <= amarillo.")
         if self.default_method and self.default_method not in self.methods:
             self.methods.insert(0, self.default_method)
+        if self.multi_enabled:
+            from evm.fields import same_name
+            for key, name in (("empresa_a", self.company_a), ("empresa_b", self.company_b)):
+                if not name:
+                    raise ConfigError(f"[multiempresa] {key} no puede estar vacío.")
+                if len(name) > 15:
+                    raise ConfigError(f"[multiempresa] {key} = '{name}' supera los 15 caracteres permitidos.")
+                bad = [ch for ch in name if ch in INVALID_SHEET_CHARS or ch == "'"]
+                if bad:
+                    raise ConfigError(f"[multiempresa] {key} = '{name}' contiene caracteres no admitidos en "
+                                      f"nombres de hoja: {' '.join(sorted(set(bad)))}")
+            if same_name(self.company_a, self.company_b):
+                raise ConfigError("[multiempresa] empresa_a y empresa_b deben ser distintas.")
+            if not self.company_both or any(same_name(self.company_both, n)
+                                            for n in (self.company_a, self.company_b)):
+                raise ConfigError("[multiempresa] ambas debe tener un valor distinto de los nombres de las empresas.")
+            if not 0 <= self.split_default <= 100:
+                raise ConfigError("[multiempresa] reparto_por_defecto debe estar entre 0 y 100.")
 
 
 def _get(section: dict, key: str, default, kind):
@@ -173,6 +204,16 @@ def load_config(path: str | Path | None) -> Config:
     sem = data.get("semaforo", {})
     cfg.threshold_red = _get(sem, "rojo", cfg.threshold_red, float)
     cfg.threshold_yellow = _get(sem, "amarillo", cfg.threshold_yellow, float)
+
+    mul = data.get("multiempresa", {})
+    cfg.multi_enabled = _get(mul, "activar", cfg.multi_enabled, bool)
+    cfg.company_field = _get(mul, "campo_empresa", cfg.company_field, str).strip()
+    cfg.company_a = _get(mul, "empresa_a", cfg.company_a, str).strip()
+    cfg.company_b = _get(mul, "empresa_b", cfg.company_b, str).strip()
+    cfg.company_both = _get(mul, "ambas", cfg.company_both, str).strip()
+    cfg.split_field = _get(mul, "campo_reparto", cfg.split_field, str).strip()
+    cfg.split_default = _get(mul, "reparto_por_defecto", cfg.split_default, float)
+    cfg.ac_from_project = _get(mul, "ac_desde_project", cfg.ac_from_project, bool)
 
     cfg.source_file = str(path)
     cfg.validate()
