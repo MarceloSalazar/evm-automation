@@ -628,13 +628,33 @@ Pruebas automáticas:
 
 ```powershell
 python -m pip install -r requirements-dev.txt
-python -m pytest
+python -m pytest                          # todas las pruebas
+python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffice (más rápido)
 ```
 
-Si LibreOffice está instalado, una de las pruebas recalcula todas las fórmulas del libro y las compara
-con el cálculo en Python. El lector `.mpp` se prueba con objetos que simulan MS Project. Con MS Project
-disponible, se recomienda una primera verificación con un proyecto real: comparar el BAC total y el PV
-de algunos meses con la vista *Uso de tareas* (campo *Costo previsto* en la escala temporal mensual).
+| Archivo de pruebas | Contenido |
+|---|---|
+| `test_robustez_calculo.py` | Estructura EDT y PV, métodos de medición, multi-empresa, reparto en el tiempo, indicadores y configuración. Incluye reglas que se verifican sobre árboles EDT aleatorios. |
+| `test_robustez_lectores.py` | Lectura del XML (campos, líneas base, calendarios y excepciones) y del `.mpp` con objetos que simulan MS Project. |
+| `test_robustez_libro.py` | `actualizar`, `--migrar-desde`, libros modificados a mano, errores de la línea de comandos y del archivo de configuración. |
+| `test_proyectos_aleatorios.py` | Proyectos aleatorios de punta a punta (`generar`, varias fechas de corte, migración y recálculo). |
+| Resto | Casos del programa de ejemplo, Cuadro de Mando, multi-empresa y planificación. |
+
+- **LibreOffice:** si está instalado, las pruebas marcadas `libreoffice` recalculan las fórmulas del
+  libro y las comparan con el cálculo en Python. Se usa un perfil propio de LibreOffice, por lo que
+  funcionan aunque LibreOffice esté abierto. Si no está instalado, se omiten.
+- **Proyectos aleatorios:** la cantidad de proyectos (y de árboles EDT aleatorios) se aumenta con la
+  variable de entorno `EVM_SEMILLAS`, por ejemplo `$env:EVM_SEMILLAS = 50` antes de `python -m pytest`.
+  Cada caso indica su semilla, de modo que un fallo se puede repetir.
+- **Problemas conocidos:** las pruebas marcadas `xfail` documentan problemas detectados que aún no se
+  corrigieron; aparecen como `xfailed` y no hacen fallar la ejecución. Cuando se corrige el problema,
+  la prueba aparece como fallida (`XPASS(strict)`) para que se quite la marca.
+- **Cobertura (opcional):** `python -m pip install coverage`, luego
+  `python -m coverage run --branch --source=evm -m pytest` y `python -m coverage report -m`.
+
+El lector `.mpp` se prueba con objetos que simulan MS Project. Con MS Project disponible, se recomienda
+una verificación con un proyecto real: comparar el BAC total y el PV de algunos meses con la vista
+*Uso de tareas* (campo *Costo previsto* en la escala temporal mensual).
 
 ### Estructura del código
 
