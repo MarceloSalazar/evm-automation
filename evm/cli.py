@@ -2,7 +2,6 @@
 
     python evm_export.py generar    --origen proyecto.mpp --salida EVM.xlsx
     python evm_export.py actualizar --origen proyecto.mpp --libro EVM.xlsx --fecha-corte 2026-10-31
-    python evm_export.py curva      --libro EVM.xlsx
 """
 from __future__ import annotations
 
@@ -32,8 +31,8 @@ def _engine_for(origen: str, motor: str) -> str:
         return "xml"
     if ext in COM_EXTENSIONS:
         return "com"
-    raise ConfigError(f"No se reconoce la extensión '{ext}'. Use un archivo .mpp (requiere MS Project) o "
-                      ".xml (MS Project > Guardar como > XML), o indique --motor.")
+    raise ConfigError(f"No se reconoce la extensión '{ext}'. Se debe usar un archivo .mpp (requiere MS Project) "
+                      "o .xml (MS Project > Guardar como > XML), o indicar --motor.")
 
 
 @contextmanager
@@ -89,8 +88,8 @@ def cmd_generar(args) -> int:
     if salida.suffix.lower() != ".xlsx":
         raise ConfigError("La salida debe ser un archivo .xlsx")
     if salida.exists() and not args.sobrescribir:
-        raise ConfigError(f"'{salida}' ya existe. Use --sobrescribir, o --migrar-desde para conservar EV/AC "
-                          "cargados y escribir en un archivo nuevo.")
+        raise ConfigError(f"'{salida}' ya existe. Para reemplazarlo se debe usar --sobrescribir; para conservar "
+                          "los EV/AC cargados se debe generar un archivo nuevo con --migrar-desde.")
     if args.migrar_desde and Path(args.migrar_desde).resolve() == salida.resolve():
         raise ConfigError("--migrar-desde debe ser un archivo distinto de --salida.")
 
@@ -124,8 +123,8 @@ def cmd_generar(args) -> int:
 
 
 def _print_update(res, currency: str) -> None:
-    from evm.chart import indicators_for
     from evm.indicators import format_table
+    from evm.update import indicators_for
     print(f"Fecha de corte: {res.status_date:%d/%m/%Y} (mes {res.month_index + 1} del horizonte)")
     if res.dry_run:
         print(f"{'Código':<10} {'EV del mes':>16} {'EV acumulado':>16} {'AC del mes':>16} {'AC acumulado':>16}")
@@ -167,30 +166,15 @@ def cmd_actualizar(args) -> int:
         if res.backup:
             print(f"Respaldo: {res.backup}")
         print(f"Libro actualizado: {Path(args.libro).resolve()}")
-    return 0
-
-
-def cmd_curva(args) -> int:
-    from evm.chart import indicators_for, plot_s_curve
-    from evm.indicators import format_table
-    from evm.update import read_book
-    book = read_book(args.libro)
-    status = parse_date(args.fecha_corte) if args.fecha_corte else book.status_date
-    salida = Path(args.salida) if args.salida else Path(args.libro).with_name(Path(args.libro).stem + "_curva_S.png")
-    png = plot_s_curve(book, status, salida)
-    if status:
-        print(f"Fecha de corte: {status:%d/%m/%Y}")
-        print(format_table(indicators_for(book, status), str(book.meta.get("moneda") or "")))
-    else:
-        print("Sin fecha de corte: se grafica solo el PV (indique --fecha-corte o complete la hoja Resumen).")
-    print(f"Imagen generada: {png.resolve()}")
+        print("La curva S y los indicadores se calculan en el libro (hojas 'Curva S' y 'Resumen').")
     return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="evm_export",
-        description="Exporta datos de MS Project a un libro Excel de Valor Ganado (PV mensual, EV, AC, curva S).")
+        description="Exporta datos de MS Project a un libro Excel de Valor Ganado (PV mensual, EV, AC, curva S "
+                    "e indicadores calculados en Excel).")
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     p.add_argument("-v", "--verbose", action="store_true", help="muestra mensajes de diagnóstico")
     sub = p.add_subparsers(dest="comando", required=True)
@@ -227,11 +211,6 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--simular", action="store_true", help="muestra el resultado sin modificar el libro")
     a.set_defaults(func=cmd_actualizar)
 
-    c = sub.add_parser("curva", help="genera una imagen PNG de la curva S e imprime los indicadores")
-    c.add_argument("--libro", required=True, help="libro .xlsx generado con 'generar'")
-    c.add_argument("--fecha-corte", help="fecha de corte AAAA-MM-DD (por defecto la de la hoja Resumen)")
-    c.add_argument("--salida", help="imagen .png a crear (por defecto <libro>_curva_S.png)")
-    c.set_defaults(func=cmd_curva)
     return p
 
 
@@ -259,6 +238,6 @@ def main(argv: list[str] | None = None) -> int:
         if args.verbose:
             log.exception("Error inesperado")
         else:
-            print("Ejecute de nuevo con -v para ver el detalle técnico.", file=sys.stderr)
+            print("Para ver el detalle técnico se debe ejecutar de nuevo con -v.", file=sys.stderr)
         print(f"ERROR inesperado: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1

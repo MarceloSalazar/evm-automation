@@ -234,7 +234,7 @@ def test_earned_schedule_plateaus_and_horizon():
 
 def test_earned_schedule_formula_matches_python_in_spreadsheet(tmp_path, recalc):
     """Proyecto con un mes sin PV: el ES de la hoja Resumen debe coincidir con Python."""
-    from evm.chart import indicators_for
+    from evm.update import indicators_for
     tasks = [T(1, 1, "1", "A", 300, bs=datetime(2026, 1, 5, 8), bf=datetime(2026, 1, 30, 17)),
              T(2, 1, "2", "B", 300, bs=datetime(2026, 4, 6, 8), bf=datetime(2026, 4, 30, 17))]
     tasks[0].percent_complete, tasks[0].acwp = 100, 300.0

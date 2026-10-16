@@ -296,8 +296,8 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
         issues.append(Issue(
             SEV_WARN, "", "",
             "El proyecto no tiene guardada la línea base seleccionada: el PV y el BAC se calcularon con "
-            "el programa ACTUAL (costo y fechas actuales). Guarde la línea base en MS Project "
-            "(Proyecto > Establecer línea base) y vuelva a exportar."))
+            "el programa ACTUAL (costo y fechas actuales). Se debe guardar la línea base en MS Project "
+            "(Proyecto > Establecer línea base) y volver a exportar."))
 
     # --- Costo propio (distribución mensual) de cada tarea -------------------
     # own: costo propio de cada tarea; eff / eff_dist: total efectivo de su rama
@@ -335,7 +335,7 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
             own[t.uid] = source.summary_residual(t, residual, child_dists)
             issues.append(Issue(SEV_WARN, code_of(t), t.name,
                                 f"La tarea resumen tiene costo propio de {fmt_money(residual)} (p. ej. costo fijo "
-                                "en la tarea resumen). Se incluye en el PV. Recomendación: asigne costos solo a "
+                                "en la tarea resumen). Se incluye en el PV. Se recomienda asignar costos solo a "
                                 "tareas de detalle."))
         elif residual < -tolerance(t.baseline_cost):
             issues.append(Issue(SEV_WARN, code_of(t), t.name,
@@ -358,7 +358,7 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
         total_nb = sum(t.cost for t in no_baseline)
         issues.append(Issue(SEV_WARN, "", "",
                             f"{len(no_baseline)} tareas tienen costo ({fmt_money(total_nb)} en total) pero no "
-                            "tienen línea base: no aportan PV. Actualice la línea base si corresponde."))
+                            "tienen línea base: no aportan PV. Si corresponde, se debe actualizar la línea base."))
         for t in no_baseline[:200]:
             issues.append(Issue(SEV_WARN, code_of(t), t.name, f"Sin línea base. Costo actual {fmt_money(t.cost)}."))
 
@@ -475,7 +475,8 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
     if total_after > 0.005:
         issues.append(Issue(SEV_WARN, "", "",
                             f"Hay PV por {fmt_money(total_after)} posterior al último mes del horizonte "
-                            f"({horizon.end:%m/%Y}); no aparece en las columnas mensuales. Aumente 'meses'."))
+                            f"({horizon.end:%m/%Y}); no aparece en las columnas mensuales. Se debe aumentar "
+                            "'meses'."))
 
     # --- Controles -------------------------------------------------------------
     if project.summary_baseline_cost is not None and project.baseline_found:
