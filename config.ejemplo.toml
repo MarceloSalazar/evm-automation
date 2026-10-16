@@ -1,4 +1,5 @@
-# Configuración del exportador EVM (copie este archivo como config.toml y ajústelo).
+# Configuración del exportador EVM.
+# Este archivo se debe copiar como config.toml y ajustar a cada proyecto.
 # Uso:  python evm_export.py generar --origen Programa.mpp --config config.toml
 # Todas las claves son opcionales: si se omiten se usan los valores indicados.
 
@@ -48,8 +49,9 @@ feriados = [
 ]
 # Método asignado a las filas cuyo campo de método está vacío.
 metodo_por_defecto = "Por definir"
-# Moneda que se muestra en el libro. Vacío = código de moneda del proyecto (p. ej. USD).
-moneda = ""
+# Moneda que se muestra en el libro (por defecto euro, "EUR").
+# Vacío = código de moneda del proyecto en MS Project.
+moneda = "EUR"
 # Decimales en los montos del libro (0 a 4).
 decimales = 0
 

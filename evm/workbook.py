@@ -93,7 +93,7 @@ METHOD_HELP = {
                     "de las subtareas.",
     "% Físico completado": "EV = BAC × '% físico completado' de MS Project (avance medido objetivamente, "
                            "p. ej. m³ ejecutados, planos emitidos).",
-    "Unidades completadas": "EV = BAC × unidades terminadas / unidades totales. Registre el cociente en "
+    "Unidades completadas": "EV = BAC × unidades terminadas / unidades totales. El cociente se registra en "
                             "'% físico completado' de MS Project.",
     "Avance lineal (LOE)": "Nivel de esfuerzo: EV = PV (gestión, soporte). No genera variación de plazo; "
                            "conviene limitarlo.",
@@ -233,8 +233,8 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
                       generated: datetime, prior=None) -> None:
     titles = {
         SHEET_PV: "Valor Planificado (PV) por mes",
-        SHEET_EV: "Valor Ganado (EV) por mes  -  ingresar el valor DEL MES (no acumulado) en las celdas amarillas",
-        SHEET_AC: "Costo Real (AC) por mes  -  ingresar el valor DEL MES (no acumulado) en las celdas amarillas",
+        SHEET_EV: "Valor Ganado (EV) por mes  -  en las celdas amarillas se debe ingresar el valor DEL MES (no acumulado)",
+        SHEET_AC: "Costo Real (AC) por mes  -  en las celdas amarillas se debe ingresar el valor DEL MES (no acumulado)",
     }
     money = money_format(cfg.decimals)
     ws.cell(row=TITLE_ROW, column=1, value=titles[kind]).font = FONT_TITLE
@@ -350,7 +350,7 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
             dv = DataValidation(type="list", formula1=NAME_METHODS,
                                 allow_blank=True, showErrorMessage=True, errorStyle="warning",
                                 errorTitle="Método de medición",
-                                error="El valor no está en la lista de la hoja 'Listas'. ¿Desea mantenerlo?")
+                                error="El valor no está en la lista de la hoja 'Listas'. ¿Mantener el valor?")
             ws.add_data_validation(dv)
             for row in report.rows:
                 if row.is_input:
@@ -379,7 +379,7 @@ def _write_lists(ws, methods: list[str]) -> None:
     ws.column_dimensions["A"].width = 24
     ws.column_dimensions["B"].width = 110
     ws.column_dimensions["D"].width = 70
-    ws.cell(row=1, column=4, value="Puede agregar métodos al final de la columna A, sin dejar filas vacías: "
+    ws.cell(row=1, column=4, value="Se pueden agregar métodos al final de la columna A, sin dejar filas vacías: "
             "aparecen en el desplegable de la columna C de la hoja PV. Para calcular el EV se reconocen: "
             "fórmulas fijas X/Y (0/100, 50/50...), hitos ponderados, % completado, % físico completado, "
             "unidades completadas, avance lineal (LOE) y CPTR de MS Project. Otros textos se calculan "
@@ -387,12 +387,12 @@ def _write_lists(ws, methods: list[str]) -> None:
     ws.cell(row=1, column=4).alignment = Alignment(wrap_text=True, vertical="top")
 
 
-def _write_curve(ws, report: Report, cfg: Config, lay: _Layout, chart_months: int) -> None:
+def _write_curve(ws, report: Report, cfg: Config, lay: _Layout) -> None:
     money = money_format(cfg.decimals)
     ws.cell(row=1, column=1, value="Curva S  -  valores acumulados del proyecto").font = FONT_TITLE
-    ws.cell(row=2, column=1, value="EV y AC se muestran desde el primer mes con datos cargados hasta la fecha "
-            "de corte de la hoja 'Resumen'. Los valores mensuales provienen de la fila TOTAL de las hojas PV, EV "
-            "y AC.").font = FONT_NOTE
+    ws.cell(row=2, column=1, value="Tabla y gráfico calculados con fórmulas a partir de la fila TOTAL de las hojas "
+            "PV, EV y AC. EV y AC se muestran desde el primer mes con datos cargados hasta la fecha de corte de la "
+            "hoja 'Resumen'.").font = FONT_NOTE
     _header(ws, CURVE_HEADER_ROW, [
         (C_NUM, "Mes N°"), (C_DATE, "Mes"), (C_PV, "PV del mes"), (C_PVC, "PV acumulado"),
         (C_EV, "EV del mes"), (C_EVC, "EV acumulado"), (C_AC, "AC del mes"), (C_ACC, "AC acumulado"),
@@ -448,18 +448,23 @@ def _write_curve(ws, report: Report, cfg: Config, lay: _Layout, chart_months: in
     for c_ in range(C_PV, C_BAC + 1):
         ws.column_dimensions[col(c_)].width = 14
     ws.freeze_panes = ws.cell(row=CURVE_FIRST_ROW, column=C_PV)
-    add_s_curve_chart(ws, chart_months, report.project.name)
+    add_s_curve_chart(ws, lay.months, report.project.name, cfg.currency or report.project.currency_symbol)
 
 
-def add_s_curve_chart(ws, chart_months: int, project_name: str) -> None:
-    """Agrega (o vuelve a agregar) el gráfico de curva S en la hoja 'Curva S'."""
+def add_s_curve_chart(ws, months: int, project_name: str, currency: str = "") -> None:
+    """Agrega (o vuelve a agregar) el gráfico de curva S en la hoja 'Curva S'.
+
+    El gráfico toma sus datos de la tabla de la hoja, calculada con fórmulas de
+    Excel, y abarca todo el horizonte: cualquier valor cargado en las hojas PV,
+    EV o AC y cualquier cambio de la fecha de corte se reflejan al recalcular.
+    """
     ws._charts = []  # openpyxl no conserva gráficos al reabrir: se recrea siempre
-    last = CURVE_FIRST_ROW + max(1, chart_months) - 1
+    last = CURVE_FIRST_ROW + max(1, months) - 1
     chart = LineChart()
     chart.title = f"Curva S - {project_name}" if project_name else "Curva S"
     chart.height = 15
     chart.width = 30
-    chart.y_axis.title = "Monto acumulado"
+    chart.y_axis.title = f"Monto acumulado ({currency})" if currency else "Monto acumulado"
     chart.y_axis.number_format = "#,##0"
     chart.y_axis.crossAx = 500
     chart.x_axis = DateAxis(crossAx=100)
@@ -506,7 +511,7 @@ def _write_summary(ws, report: Report, cfg: Config, lay: _Layout, generated: dat
     st.number_format = FMT_DATE
     st.fill = FILL_INPUT
     st.border = BORDER
-    ws["C5"] = "Ingrese el último día del mes informado (p. ej. 31/10/2026). Celda con nombre 'FechaCorte'."
+    ws["C5"] = "Se debe ingresar el último día del mes informado (p. ej. 31/10/2026). Celda con nombre 'FechaCorte'."
     ws["A6"] = "Mes de corte (N°)"
     ws["B6"] = (f'=IF({NAME_STATUS}="","",(YEAR({NAME_STATUS})-YEAR({NAME_START}))*12'
                 f'+MONTH({NAME_STATUS})-MONTH({NAME_START})+1)')
@@ -698,14 +703,6 @@ def write_meta(ws, meta: dict) -> None:
         _texts_in_last_row(ws)
 
 
-def chart_months_for(report: Report, status_index: int | None = None) -> int:
-    nz = [i for i, v in enumerate(report.total_vector) if abs(v) > 0.005]
-    last = nz[-1] if nz else 0
-    if status_index is not None:
-        last = max(last, status_index)
-    return min(report.horizon.months, max(12, last + 1 + 6))
-
-
 def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
                    generated: datetime | None = None) -> dict:
     """Crea el libro Excel completo y lo guarda en `path`. Devuelve los metadatos."""
@@ -734,14 +731,12 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
         m = (prior.method_for(row_key(r)) if prior is not None and r.is_input else None) or r.method
         if r.is_input and m and m not in methods:
             methods.append(m)
-    status_idx = report.horizon.index(status) if status else None
 
     _write_lists(ws_lists, methods)
     _write_data_sheet(ws_pv, SHEET_PV, report, cfg, lay, generated, prior)
     _write_data_sheet(ws_ev, SHEET_EV, report, cfg, lay, generated, prior)
     _write_data_sheet(ws_ac, SHEET_AC, report, cfg, lay, generated, prior)
-    chart_months = chart_months_for(report, status_idx)
-    _write_curve(ws_curve, report, cfg, lay, chart_months)
+    _write_curve(ws_curve, report, cfg, lay)
     _write_summary(ws_sum, report, cfg, lay, generated, status)
     _write_indicators(ws_ind, report, cfg, lay)
     _write_validation(ws_val, report)
@@ -768,7 +763,6 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
         "fila_total": lay.total_row,
         "nivel_maximo": cfg.max_level,
         "decimales": cfg.decimals,
-        "meses_grafico": chart_months,
         "generado": generated.replace(microsecond=0),
     }
     write_meta(ws_meta, meta)
@@ -786,7 +780,8 @@ def save_workbook(wb, path: str | Path) -> None:
         wb.save(path)
     except PermissionError as exc:
         raise PermissionError(
-            f"No se pudo guardar '{path}'. ¿Está abierto en Excel? Ciérrelo y vuelva a intentar.") from exc
+            f"No se pudo guardar '{path}'. Si el libro está abierto en Excel, se debe cerrar y volver a "
+            "intentar.") from exc
 
 
 # ----------------------------------------------------------------------------
@@ -840,29 +835,4 @@ def read_structure(wb) -> list[StructRow]:
         out.append(StructRow(int(fila), str(key), str(code or ""), int(level or 0), str(kind),
                              int(parent) if parent else None, str(name or ""),
                              None if len(vals) < 8 else str(origin or "")))
-    return out
-
-
-def read_month_values(ws, rows: list[int], months: int) -> dict[int, list[float | None]]:
-    """Lee los valores numéricos de las columnas mensuales de las filas indicadas."""
-    out: dict[int, list[float | None]] = {}
-    for r in rows:
-        vals: list[float | None] = []
-        for i in range(months):
-            v = ws.cell(row=r, column=FIRST_MONTH_COL + i).value
-            if isinstance(v, (int, float)) and not isinstance(v, bool):
-                vals.append(float(v))
-            elif v in (None, ""):
-                vals.append(None)
-            elif isinstance(v, str) and v.startswith("="):
-                raise WorkbookFormatError(
-                    f"La celda {ws.title}!{col(FIRST_MONTH_COL + i)}{r} contiene una fórmula en una fila de "
-                    "ingreso; reemplácela por un valor numérico.")
-            else:
-                try:
-                    vals.append(float(str(v).replace(",", ".")))
-                except ValueError as exc:
-                    raise WorkbookFormatError(
-                        f"Valor no numérico en {ws.title}!{col(FIRST_MONTH_COL + i)}{r}: {v!r}") from exc
-        out[r] = vals
     return out

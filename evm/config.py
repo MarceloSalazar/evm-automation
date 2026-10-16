@@ -36,7 +36,7 @@ def parse_month(text: str) -> date:
     """Convierte 'AAAA-MM' (o 'AAAA-MM-DD') al primer día de ese mes."""
     m = re.fullmatch(r"\s*(\d{4})-(\d{1,2})(?:-(\d{1,2}))?\s*", text or "")
     if not m:
-        raise ConfigError(f"Mes inválido '{text}'. Use el formato AAAA-MM, por ejemplo 2026-01.")
+        raise ConfigError(f"Mes inválido '{text}'. El formato debe ser AAAA-MM, por ejemplo 2026-01.")
     year, month = int(m.group(1)), int(m.group(2))
     if not 1 <= month <= 12:
         raise ConfigError(f"Mes inválido '{text}'.")
@@ -58,7 +58,7 @@ def parse_date(text: str) -> date:
             return date(*parts)
         except ValueError:
             pass
-    raise ConfigError(f"Fecha inválida '{text}'. Use AAAA-MM-DD, por ejemplo 2026-10-31.")
+    raise ConfigError(f"Fecha inválida '{text}'. El formato debe ser AAAA-MM-DD, por ejemplo 2026-10-31.")
 
 
 @dataclass
@@ -80,7 +80,7 @@ class Config:
     distribution: str = "habiles"         # tareas sin datos mensuales: "habiles" | "calendario"
     holidays: set[date] = field(default_factory=set)
     default_method: str = "Por definir"
-    currency: str = ""                    # vacío = código de moneda del proyecto
+    currency: str = "EUR"                 # "" = código de moneda del proyecto en MS Project
     decimals: int = 0
 
     # [metodos]

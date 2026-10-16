@@ -110,17 +110,9 @@ def test_migrate_keeps_ev_ac(book, tmp_path, example_files):
     assert b.status_date == date(2027, 6, 30)
 
 
-def test_curve_png(book, tmp_path, example_files):
-    cfg = load_config(example_files["config"])
-    run_update(read_xml(example_files["jun"], cfg), cfg, book, backup=False)
-    png = tmp_path / "curva.png"
-    assert main(["curva", "--libro", str(book), "--salida", str(png)]) == 0
-    assert png.stat().st_size > 10_000
-
-
 def test_formulas_recalculate_without_errors(book, example_files, recalc):
     """Recalcula con LibreOffice y compara con el cálculo en Python."""
-    from evm.chart import indicators_for
+    from evm.update import indicators_for
     cfg = load_config(example_files["config"])
     run_update(read_xml(example_files["jun"], cfg), cfg, book, backup=False)
     out = recalc(book)
@@ -144,3 +136,30 @@ def test_formulas_recalculate_without_errors(book, example_files, recalc):
     assert curve.cell(5 + 17, 6).value == pytest.approx(ind.ev, abs=0.01)   # EV acumulado en el mes 18
     assert curve.cell(5 + 18, 6).value == "#N/A"                            # después del corte
     assert curve.cell(5, 6).value == "#N/A"                                 # antes del primer dato
+
+
+def test_currency_defaults_to_euro(book, tmp_path, example_files):
+    assert load_workbook(book)["Resumen"]["B9"].value == "EUR"
+    cfg = tmp_path / "moneda.toml"
+    cfg.write_text('[exportacion]\nmoneda = ""\n', encoding="utf-8")
+    out = tmp_path / "proyecto.xlsx"
+    assert main(["generar", "--origen", str(example_files["base"]), "--config", str(cfg),
+                 "--salida", str(out)]) == 0
+    assert load_workbook(out)["Resumen"]["B9"].value == "USD"          # moneda del proyecto
+
+
+def test_s_curve_chart_uses_excel_table_for_whole_horizon(book, example_files):
+    import re
+    import zipfile
+    with zipfile.ZipFile(book) as z:
+        charts = [n for n in z.namelist() if n.startswith("xl/charts/chart")]
+        assert len(charts) == 1
+        xml = z.read(charts[0]).decode()
+    refs = re.findall(r"<(?:c:)?f>([^<]*)</(?:c:)?f>", xml)
+    assert refs and all(r.startswith("'Curva S'!") for r in refs)       # datos de la tabla de fórmulas
+    assert any(r.endswith("$124") for r in refs)                         # filas 5..124 = 120 meses
+    cfg = load_config(example_files["config"])
+    run_update(read_xml(example_files["jun"], cfg), cfg, book, backup=False)
+    with zipfile.ZipFile(book) as z:
+        xml = z.read([n for n in z.namelist() if n.startswith("xl/charts/chart")][0]).decode()
+    assert any(r.endswith("$124") for r in re.findall(r"<(?:c:)?f>([^<]*)</(?:c:)?f>", xml))

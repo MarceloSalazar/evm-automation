@@ -170,7 +170,7 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
         issues.append(Issue(SEV_INFO, "", "",
                             f"Se conservaron {len(prior.methods)} métodos de medición de la columna C del libro anterior"
                             + (" (el libro anterior no indica si se editaron en Excel o cambiaron en MS Project; "
-                               "revíselos)." if legacy else ", editados en Excel.")))
+                               "se recomienda revisarlos)." if legacy else ", editados en Excel.")))
         # Recalcular el aviso de filas sin método
         undefined = sum(1 for r in inputs
                         if (prior.methods.get(row_key(r)) or r.method).strip().lower() in ("", "por definir",
@@ -186,5 +186,5 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
         issues.append(Issue(SEV_ERROR, old.code, old.name,
                             f"No se pudo trasladar su historial (EV {fmt_money(sum(old.ev.values()))}, AC "
                             f"{fmt_money(sum(old.ac.values()))}): la tarea no existe en el proyecto nuevo o se dividió "
-                            "en varias filas. Cárguelo a mano en las filas que correspondan."))
+                            "en varias filas. Se debe cargar a mano en las filas que correspondan."))
     return issues

@@ -53,8 +53,8 @@ def _num(value, cached, where: str, fixable: list | None = None, key=None) -> fl
     if isinstance(value, str) and value.startswith("="):
         if cached is None or isinstance(cached, str):
             raise WorkbookFormatError(
-                f"La celda {where} tiene una fórmula sin valor numérico calculado. Abra y guarde el libro en "
-                "Excel, o reemplace la fórmula por un número.")
+                f"La celda {where} tiene una fórmula sin valor numérico calculado. Se debe abrir y guardar el "
+                "libro en Excel, o reemplazar la fórmula por un número.")
         if fixable is not None and key is not None and not isinstance(cached, bool):
             fixable.append((*key, float(cached), "fórmula reemplazada por su valor"))
         value = cached
@@ -74,7 +74,7 @@ def _num(value, cached, where: str, fixable: list | None = None, key=None) -> fl
     if fixable is None or key is None:
         raise WorkbookFormatError(
             f"La celda {where} contiene el número {value!r} guardado como texto: Excel no lo suma. "
-            "Ingréselo como número.")
+            "Se debe ingresar como número.")
     fixable.append((*key, number, "número guardado como texto convertido a número"))
     return number
 
@@ -199,7 +199,8 @@ def _match_tasks(project: ProjectData, book: BookData, cfg: Config) -> tuple[dic
     same = str(book.meta.get("proyecto") or "") == project.name
     if not same:
         warnings.append(f"El libro fue generado para el proyecto '{book.meta.get('proyecto')}' y el origen es "
-                        f"'{project.name}': las filas se asocian por código EDT. Verifique los resultados.")
+                        f"'{project.name}': las filas se asocian por código EDT. Se recomienda verificar los "
+                        "resultados.")
     out: dict[int, Task] = {}
     used: set[tuple[int, bool]] = set()
     for s in book.input_rows:
@@ -209,7 +210,7 @@ def _match_tasks(project: ProjectData, book: BookData, cfg: Config) -> tuple[dic
             task = by_uid.get(int(uid_text))
             if task is None:
                 warnings.append(f"Fila {s.code} '{s.name}': la tarea (UID {uid_text}) ya no existe en MS Project; "
-                                "se omite. Si cambió la EDT, regenere el libro con --migrar-desde.")
+                                "se omite. Si cambió la EDT, se debe regenerar el libro con --migrar-desde.")
                 continue
         else:
             code = s.code[:-2] if residual else s.code
@@ -253,7 +254,7 @@ def _coverage_warnings(project: ProjectData, book: BookData, matches: dict[int, 
                 missing.append((t, _acwp(t), "tarea sin fila en el libro"))
     for t, amount, why in missing[:15]:
         warnings.append(f"{t.wbs} '{t.name}': {why} (costo real {fmt_money(amount)}); no se incluye en el AC. "
-                        "Regenere el libro con --migrar-desde para incorporarla.")
+                        "Para incorporarla se debe regenerar el libro con --migrar-desde.")
     if len(missing) > 15:
         warnings.append(f"... y {len(missing) - 15} tareas más sin fila en el libro.")
     return warnings
@@ -283,8 +284,8 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
 
     if status is None:
         if project.status_date is None:
-            raise ValueError("El proyecto no tiene fecha de estado: indique la fecha de corte con --fecha-corte "
-                             "AAAA-MM-DD, o defina Proyecto > Fecha de estado en MS Project.")
+            raise ValueError("El proyecto no tiene fecha de estado: se debe indicar la fecha de corte con "
+                             "--fecha-corte AAAA-MM-DD o definir Proyecto > Fecha de estado en MS Project.")
         status = project.status_date.date()
     idx = book.horizon.index(status)
     if not 0 <= idx < book.horizon.months:
@@ -292,7 +293,8 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
                          f"({book.horizon.start:%m/%Y} a {book.horizon.end:%m/%Y}).")
     if project.status_date is None and project.backend == "xml":
         warnings.append("El XML no tiene fecha de estado: MS Project calculó el costo real (CRTR) y el CPTR a la "
-                        "fecha en que se guardó el archivo. Defina Proyecto > Fecha de estado antes de exportar.")
+                        "fecha en que se guardó el archivo. Se debe definir Proyecto > Fecha de estado antes de "
+                        "exportar.")
     if status != _month_end(status):
         warnings.append("La fecha de corte no es el último día del mes: el PV acumulado incluye el mes completo.")
     if project.status_date and project.status_date.date() != status:
@@ -355,14 +357,14 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
     if later_filled and not force:
         raise ValueError(
             "Hay valores cargados en meses posteriores a la fecha de corte (" + ", ".join(later_filled[:10]) +
-            ("..." if len(later_filled) > 10 else "") + "). Bórrelos o use --forzar.")
+            ("..." if len(later_filled) > 10 else "") + "). Se deben borrar esos valores o usar --forzar.")
 
     if only != "ev" and project.summary_acwp is not None:
         diff = project.summary_acwp - ac_total
         if abs(diff) > tolerance(project.summary_acwp):
             warnings.append(f"El AC cargado ({fmt_money(ac_total)}) difiere del costo real del proyecto en MS Project "
-                            f"({fmt_money(project.summary_acwp)}) en {fmt_money(diff)}. Revise las advertencias "
-                            "anteriores (tareas sin fila, costos en tareas resumen).")
+                            f"({fmt_money(project.summary_acwp)}) en {fmt_money(diff)}. Se recomienda revisar las "
+                            "advertencias anteriores (tareas sin fila, costos en tareas resumen).")
 
     if book.fixable:
         cells = ", ".join(f"{sh}!{col(c)}{r}" for sh, r, c, _v, _why in book.fixable[:8])
@@ -382,11 +384,11 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
             wb[sheet].cell(row=r, column=c, value=v)
         wb[SHEET_SUMMARY][STATUS_CELL].value = status
         meta = dict(book.meta)
-        chart_months = max(int(meta.get("meses_grafico") or 12), min(book.horizon.months, idx + 1 + 6))
-        meta["meses_grafico"] = chart_months
+        meta.pop("meses_grafico", None)
         meta["ultima_actualizacion"] = datetime.now().replace(microsecond=0)
         write_meta(wb[SHEET_META], meta)
-        add_s_curve_chart(wb[SHEET_CURVE], chart_months, str(meta.get("proyecto") or ""))
+        add_s_curve_chart(wb[SHEET_CURVE], book.horizon.months, str(meta.get("proyecto") or ""),
+                          str(meta.get("moneda") or ""))
         wb.calculation = CalcProperties(fullCalcOnLoad=True)
         if backup:
             backup_path = _backup_path(book_path)
@@ -411,8 +413,11 @@ def book_totals(book: BookData) -> tuple[list[float], list[float], list[float], 
     return pv, ev, ac, bac
 
 
-def first_loaded_month(series_by_row: dict[int, list[float | None]]) -> int | None:
-    """Primer mes (índice base 0) con algún valor cargado (aunque sea 0)."""
-    firsts = [next((i for i, v in enumerate(vals) if v is not None), None) for vals in series_by_row.values()]
-    firsts = [f for f in firsts if f is not None]
-    return min(firsts) if firsts else None
+def indicators_for(book: BookData, status: date):
+    """Indicadores del proyecto a la fecha de corte (mismos cálculos que la hoja Resumen)."""
+    from evm.indicators import compute
+    pv, ev, ac, bac = book_totals(book)
+    idx = book.horizon.index(status)
+    if not 0 <= idx < book.horizon.months:
+        raise ValueError(f"La fecha de corte {status:%d/%m/%Y} está fuera del horizonte del libro.")
+    return compute(pv, ev, ac, bac, idx)

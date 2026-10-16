@@ -96,7 +96,8 @@ class ComSession:
         except ImportError as exc:
             raise RuntimeError(
                 "Para leer archivos .mpp se necesita pywin32 (pip install pywin32) y MS Project instalado. "
-                "Alternativa: en MS Project use Archivo > Guardar como > XML y procese ese archivo.") from exc
+                "Alternativa: guardar el proyecto como XML desde MS Project (Archivo > Guardar como > XML) y "
+                "procesar ese archivo.") from exc
         pythoncom.CoInitialize()
         self._pythoncom = pythoncom
         try:
@@ -122,8 +123,8 @@ class ComSession:
                 raw = win32com.client.DispatchEx(PROGID)
             except pywintypes.com_error as exc:
                 raise RuntimeError(
-                    "No se pudo iniciar MS Project por automatización COM. Verifique que MS Project de "
-                    "escritorio esté instalado, o exporte el proyecto a XML y use ese archivo.") from exc
+                    "No se pudo iniciar MS Project por automatización COM. Se debe verificar que MS Project "
+                    "de escritorio esté instalado, o bien exportar el proyecto a XML y usar ese archivo.") from exc
             # Si en realidad se conectó a un MS Project abierto por el usuario, no cerrarlo después.
             user_control = bool(_get(raw, "UserControl", True))
             try:
