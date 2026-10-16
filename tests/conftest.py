@@ -29,11 +29,12 @@ def example_files(tmp_path_factory, generator):
     """XML de ejemplo: línea base y avances a junio y julio de 2027."""
     d = tmp_path_factory.mktemp("ejemplo")
     files = {"base": d / "base.xml", "jun": d / "jun.xml", "jul": d / "jul.xml"}
-    generator.write(generator.build_program(), files["base"], None)
-    generator.write(generator.build_program(), files["jun"], date(2027, 6, 30))
-    generator.write(generator.build_program(), files["jul"], date(2027, 7, 31))
+    generator.write(generator.build_plans(), files["base"], None)
+    generator.write(generator.build_plans(), files["jun"], date(2027, 6, 30))
+    generator.write(generator.build_plans(), files["jul"], date(2027, 7, 31))
     cfg = d / "config.toml"
-    cfg.write_text('[campos]\nmetodo = "Método EVM"\npeso_hito = "Peso hito"\n', encoding="utf-8")
+    cfg.write_text('[campos]\nmetodo = "Método EVM"\npeso_hito = "Peso hito"\n\n'
+                   '[exportacion]\nplanificacion = "INTERNO"\n', encoding="utf-8")
     files["config"] = cfg
     return files
 

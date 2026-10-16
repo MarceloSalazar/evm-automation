@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from evm.model import MonthKey
-from evm.wbs import KIND_LEAF, SEV_ERROR, SEV_INFO, SEV_WARN, Issue, Report, ReportRow, fmt_money, iter_subtree
+from evm.wbs import KIND_LEAF, SEV_ERROR, SEV_INFO, SEV_WARN, Issue, Report, ReportRow, fmt_money, iter_subtree, plural
 from evm.workbook import SHEET_LISTS, row_key
 
 
@@ -177,7 +177,8 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
                                                                                           "a definir"))
         report.issues[:] = [i for i in report.issues if "sin método de medición" not in i.message]
         if undefined:
-            issues.append(Issue(SEV_INFO, "", "", f"{undefined} filas sin método de medición definido (columna C)."))
+            issues.append(Issue(SEV_INFO, "", "", f"{plural(undefined, 'fila', 'filas')} sin método de medición "
+                                                  "definido (columna C)."))
     if clamped > 0.005:
         issues.append(Issue(SEV_WARN, "", "",
                             f"Hay EV/AC por {fmt_money(clamped)} cargados después del último mes del nuevo horizonte: "

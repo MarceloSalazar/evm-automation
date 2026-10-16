@@ -65,7 +65,8 @@ def test_pad_code():
     assert pad_code("1", 3) == "1.0.0"
     assert pad_code("1.2", 3) == "1.2.0"
     assert pad_code("1.2.3", 3) == "1.2.3"
-    assert pad_code("A-01", 3) == "A-01.0.0"
+    assert pad_code("A-01", 3) == "A-01"                  # los códigos no numéricos no se rellenan
+    assert pad_code("INTERNO", 3) == "INTERNO"
     assert pad_code("", 3) == ""
 
 

@@ -5,8 +5,11 @@
 
 [campos]
 # Campo de MS Project con el código EDT de cada tarea:
-#   "WBS" (EDT, por defecto), "OutlineNumber" (número de esquema) o un campo
-#   personalizado de texto, por ejemplo "Text1" o su alias ("Código EDT").
+#   "WBS" (campo EDT de MS Project, por defecto), "OutlineNumber" (número de
+#   esquema) o un campo personalizado de texto, por ejemplo "Text1" o su alias.
+#   Si existe un campo personalizado con el alias "EDT", se usa ese campo; si no,
+#   "EDT" equivale al campo EDT de MS Project.
+# Las tareas sin código EDT no tienen fila propia en el libro.
 edt = "WBS"
 
 # Campo personalizado de texto con el método de medición del valor ganado
@@ -25,8 +28,13 @@ mes_inicio = ""
 meses = 120
 
 [exportacion]
-# Nivel máximo de la EDT que se exporta. Las tareas de nivel inferior se
-# agregan (suman) en su tarea de este nivel.
+# Planificación a exportar: código EDT de alto nivel de la tarea que la contiene
+# ("INTERNO" o "CLIENTE"). Se exportan solo las tareas que dependen de ella.
+# Si se omite esta clave, se exportan todas las tareas del proyecto.
+planificacion = "INTERNO"
+# Nivel máximo del código EDT que se exporta (2.0.0 = nivel 1, 2.1.0 = nivel 2,
+# 2.1.1 = nivel 3). Las tareas de nivel inferior se agregan (suman) en su
+# elemento de este nivel.
 nivel_maximo = 3
 # Línea base que define el PV y el BAC: 0 = "Línea base", 1..10 = "Línea base N".
 # Si se omite, se usa la línea base que el proyecto tiene configurada para el

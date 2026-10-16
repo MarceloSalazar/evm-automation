@@ -24,13 +24,22 @@ def _norm(text: str) -> str:
 
 
 def builtin_kind(name: str) -> str | None:
-    """'WBS' u 'OutlineNumber' si el nombre corresponde a esos campos estándar."""
+    """'WBS' u 'OutlineNumber' si el nombre corresponde a esos campos estándar (nombre en inglés)."""
     n = _norm(name)
-    if n in ("wbs", "edt"):
+    if n == "wbs":
         return "WBS"
     if n in ("outlinenumber", "numerodeesquema", "numeroesquema"):
         return "OutlineNumber"
     return None
+
+
+def is_spanish_wbs_name(name: str) -> bool:
+    """'EDT' es el nombre del campo WBS en MS Project en español.
+
+    Se usa solo si ningún campo personalizado se llama así: es habitual crear un
+    campo personalizado con el alias 'EDT' para cargar códigos propios.
+    """
+    return _norm(name) == "edt"
 
 
 def parse_custom_name(name: str) -> tuple[str, int] | None:

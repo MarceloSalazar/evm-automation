@@ -55,7 +55,8 @@ def test_update_cycle(book, example_files):
     ev_jun, ac_jun = sum(ev), sum(ac)
     assert ev_jun > 0 and ac_jun > 0
     # AC = ACWP de MS Project del proyecto completo (suma de las tareas de nivel 1)
-    assert ac_jun == pytest.approx(sum(t.acwp for t in jun.tasks if t.outline_level == 1), abs=0.05)
+    interno = next(t for t in jun.tasks if t.wbs == "INTERNO")
+    assert ac_jun == pytest.approx(interno.acwp, abs=0.05)
     # Repetir el mismo mes no duplica valores
     run_update(jun, cfg, book, backup=False)
     b2 = read_book(book)

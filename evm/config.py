@@ -73,6 +73,7 @@ class Config:
     months: int = 120
 
     # [exportacion]
+    plan: str = ""                        # código EDT de la planificación (p. ej. INTERNO); "" = todas
     max_level: int = 3
     baseline: int | None = None           # 0 = Línea base; 1..10 = Línea base N; None = la del proyecto
     pad_wbs: bool = True                  # "1" -> "1.0.0", "1.2" -> "1.2.0"
@@ -146,6 +147,7 @@ def load_config(path: str | Path | None) -> Config:
     cfg.months = _get(hor, "meses", cfg.months, int)
 
     exp = data.get("exportacion", {})
+    cfg.plan = _get(exp, "planificacion", cfg.plan, str).strip()
     cfg.max_level = _get(exp, "nivel_maximo", cfg.max_level, int)
     if exp.get("linea_base") not in (None, ""):
         cfg.baseline = _get(exp, "linea_base", 0, int)

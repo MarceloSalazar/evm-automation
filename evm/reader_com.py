@@ -18,8 +18,8 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from evm.config import Config
-from evm.fields import (TASK_NUMBER_IDS, TASK_TEXT_IDS, builtin_kind, parse_custom_name, parse_number,
-                        same_name)
+from evm.fields import (TASK_NUMBER_IDS, TASK_TEXT_IDS, builtin_kind, is_spanish_wbs_name, parse_custom_name,
+                        parse_number, same_name)
 from evm.model import MonthKey, ProjectData, Task, use_current_schedule
 from evm.timeline import add_months, first_of_month, last_of_month
 from evm.wbs import TimephasedPVSource
@@ -256,6 +256,8 @@ class ComSession:
                     continue
                 if alias and same_name(str(alias), name):
                     return ("attr", f"{kind}{idx}")
+        if is_spanish_wbs_name(name):
+            return ("attr", "WBS")
         try:
             return ("fid", int(self.app.FieldNameToFieldConstant(name, 0)))
         except Exception:
@@ -333,7 +335,7 @@ class ComSession:
                 uid=uid, id=int(_get(t, "ID", 0) or 0), name=str(_get(t, "Name", "") or ""),
                 outline_level=int(_get(t, "OutlineLevel", 1) or 1),
                 outline_number=str(_get(t, "OutlineNumber", "") or ""),
-                wbs=str(wbs or _get(t, "WBS", "") or ""),
+                wbs=str(wbs or "").strip(),          # sin código EDT => la tarea no tiene fila propia
                 summary=bool(_get(t, "Summary", False)), milestone=bool(_get(t, "Milestone", False)),
                 active=bool(_get(t, "Active", True)),
                 baseline_cost=bl_cost, baseline_start=bl_start, baseline_finish=bl_finish, has_baseline=has_bl,

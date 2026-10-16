@@ -225,7 +225,8 @@ class _Layout:
 def _info_line(report: Report, cfg: Config, generated: datetime) -> str:
     p = report.project
     cur = cfg.currency or p.currency_symbol or "-"
-    return (f"Proyecto: {p.name}  |  Origen: {Path(p.source).name}  |  {p.baseline_label}  |  "
+    plan = f"Planificación: {report.plan}  |  " if report.plan else ""
+    return (f"Proyecto: {p.name}  |  {plan}Origen: {Path(p.source).name}  |  {p.baseline_label}  |  "
             f"Moneda: {cur}  |  Generado: {generated:%d/%m/%Y %H:%M}")
 
 
@@ -532,6 +533,8 @@ def _write_summary(ws, report: Report, cfg: Config, lay: _Layout, generated: dat
     ws["A13"] = "Generado"
     ws["B13"] = generated.replace(microsecond=0)
     ws["B13"].number_format = "dd/mm/yyyy hh:mm"
+    ws["A14"] = "Planificación"
+    put_text(ws, 14, 2, report.plan or "Todas (sin filtro)")
 
     pv_tot = lay.month_range(SHEET_PV, tr)
     ev_tot = lay.month_range(SHEET_EV, tr)
@@ -756,6 +759,7 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
         "motor": p.backend,
         "linea_base": p.baseline_label,
         "fuente_pv": report.pv_source,
+        "planificacion": report.plan,
         "moneda": cfg.currency or p.currency_symbol or "",
         "horizonte_inicio": report.horizon.start,
         "meses": report.horizon.months,

@@ -24,9 +24,13 @@ def test_read_example_xml(example_files):
     assert p.name == "Programa de ejemplo EVM"
     assert p.currency_symbol == "USD"
     assert p.baseline_found
-    # Montos del XML están multiplicados por 100
-    assert p.summary_baseline_cost == pytest.approx(44_210_000)
-    by_name = {t.name: t for t in p.tasks}
+    # Montos del XML están multiplicados por 100 (INTERNO + CLIENTE, este con costos un 15 % mayores)
+    assert p.summary_baseline_cost == pytest.approx(44_210_000 * 2.15)
+    interno = next(t for t in p.tasks if t.wbs == "INTERNO")
+    assert interno.baseline_cost == pytest.approx(44_210_000)
+    by_name = {}
+    for t in p.tasks:                       # primero aparecen las tareas de INTERNO
+        by_name.setdefault(t.name, t)
     assert by_name["Licitación de ingeniería"].method == "0/100"          # alias "Método EVM"
     assert by_name["Hito: bases aprobadas"].milestone_weight == 30         # alias "Peso hito"
     assert by_name["Licitación de ingeniería"].timephased_pv
@@ -43,7 +47,8 @@ def test_report_limits_level_and_totals(example_files):
     assert sum(rep.total_vector) == pytest.approx(44_210_000)
     assert src.timephased_count > 0 and src.linear_count == 0
     codes = [r.code for r in rep.rows]
-    assert codes[0] == "1.0.0" and "2.1.2" in codes
+    assert codes[0] == "1.0.0" and "2.1.2" in codes and "2.1.0" in codes
+    assert "INTERNO" not in codes and not any(c.count(".") > 2 for c in codes)
     conceptual = next(r for r in rep.rows if r.name == "Diseño conceptual")
     assert conceptual.kind == KIND_LEAF and conceptual.hidden_tasks == 6
     assert conceptual.bac == pytest.approx(600_000)

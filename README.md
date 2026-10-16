@@ -3,7 +3,10 @@
 Programa en Python que lee un cronograma de MS Project y genera un libro Excel para
 gestionar el **Valor Ganado (EVM)**:
 
-- **PV mensual** de cada elemento de la EDT (hasta nivel 3) durante 120 meses (10 años).
+- **PV mensual** de cada elemento de la EDT (hasta nivel 3 del código EDT: `2.0.0`, `2.1.0`,
+  `2.1.1`) durante 120 meses (10 años).
+- Selección de la **planificación** a exportar cuando el proyecto tiene varias (por ejemplo
+  `INTERNO` y `CLIENTE`).
 - Hojas para cargar **EV** (valor ganado) y **AC** (costo real) mes a mes.
 - **Curva S** e **indicadores** (SV, CV, SPI, CPI, EAC, VAC, TCPI y Cronograma Ganado) a la fecha de
   corte, calculados con fórmulas de Excel, para el proyecto y para cada elemento de la EDT. La curva S
@@ -88,10 +91,11 @@ python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config con
 La curva S y los indicadores se consultan en las hojas `Curva S`, `Resumen` e `Indicadores EDT` del
 libro.
 
-Para probar el programa sin MS Project se incluye un proyecto de ejemplo en XML (ver sección 13):
+Para probar el programa sin MS Project se incluye un proyecto de ejemplo en XML, con las
+planificaciones `INTERNO` y `CLIENTE` (ver sección 13):
 
 ```powershell
-python evm_export.py generar --origen ejemplos\programa_ejemplo.xml --salida ejemplo.xlsx
+python evm_export.py generar --origen ejemplos\programa_ejemplo.xml --planificacion INTERNO --salida ejemplo.xlsx
 ```
 
 ---
@@ -141,8 +145,9 @@ Para ver mensajes de diagnóstico se agrega `-v` **antes** del comando:
 | `--config` | Archivo de configuración TOML (ver `config.ejemplo.toml`). |
 | `--mes-inicio AAAA-MM` | Primer mes del horizonte (mes 1). Por defecto, el mes en que comienza la línea base. |
 | `--meses N` | Cantidad de meses (columnas). Por defecto 120. |
+| `--planificacion CODIGO` | Código EDT de la planificación a exportar (`INTERNO`, `CLIENTE`...). Reemplaza el valor del archivo de configuración; `""` exporta todas. |
 | `--linea-base N` | 0 = Línea base, 1..10 = Línea base N. Por defecto, la que el proyecto usa para el valor acumulado. |
-| `--nivel-max N` | Nivel máximo de la EDT. Por defecto 3. |
+| `--nivel-max N` | Nivel máximo del código EDT. Por defecto 3. |
 | `--motor auto\|com\|xml` | Forma de lectura. `auto` decide por la extensión. |
 | `--migrar-desde libro.xlsx` | Copia al libro nuevo los EV/AC ya cargados, los métodos editados en la columna C y la fecha de corte de un libro anterior (útil al cambiar la línea base o la EDT). Ver sección 6. |
 | `--sobrescribir` | Reemplaza el libro de salida si ya existe. |
@@ -160,6 +165,7 @@ Para ver mensajes de diagnóstico se agrega `-v` **antes** del comando:
 | `--forzar` | Permite actualizar aunque haya valores en meses posteriores. |
 | `--sin-respaldo` | No crea la copia `<libro>.respaldo-AAAAMMDD-HHMMSS.xlsx` (si ya existe una con ese nombre, se agrega `-2`, `-3`...). |
 | `--config`, `--motor`, `--linea-base`, `--nivel-max`, `--visible` | Igual que en `generar`. |
+| `--planificacion` | No se aplica: `actualizar` usa siempre la planificación con la que se generó el libro (y lo advierte si la configuración indica otra). |
 
 Repetir `actualizar` para el mismo mes **reemplaza** el valor de ese mes; no lo duplica.
 
@@ -181,12 +187,13 @@ Se debe copiar `config.ejemplo.toml` como `config.toml` y ajustarlo. Todas las c
 
 | Sección / clave | Por defecto | Uso |
 |---|---|---|
-| `[campos] edt` | `"WBS"` | Campo con el código EDT: `WBS` (EDT), `OutlineNumber` (número de esquema), un campo de texto (`Text1`...) o su alias. |
+| `[campos] edt` | `"WBS"` | Campo con el código EDT: `WBS` (campo EDT de MS Project), `OutlineNumber` (número de esquema), un campo de texto (`Text1`...) o su alias. Si un campo personalizado tiene el alias `EDT`, `edt = "EDT"` usa ese campo. |
 | `[campos] metodo` | vacío | Campo personalizado con el método de medición, p. ej. `"Text10"` o su alias `"Método EVM"`. |
 | `[campos] peso_hito` | vacío | Campo numérico con el peso de cada hito, p. ej. `"Number1"` o `"Peso hito"`. |
 | `[horizonte] mes_inicio` | vacío | Primer mes (`"AAAA-MM"`). Vacío = inicio de la línea base. |
 | `[horizonte] meses` | `120` | Cantidad de meses. |
-| `[exportacion] nivel_maximo` | `3` | Nivel de la EDT exportado; los niveles inferiores se suman en su tarea de este nivel. |
+| `[exportacion] planificacion` | sin filtro | Código EDT de alto nivel de la planificación a exportar, por ejemplo `"INTERNO"` o `"CLIENTE"`; el archivo de ejemplo indica `"INTERNO"`. Si se omite, se exportan todas las tareas. |
+| `[exportacion] nivel_maximo` | `3` | Nivel máximo del código EDT exportado; los niveles inferiores se suman en su elemento de este nivel. |
 | `[exportacion] linea_base` | la del proyecto | `0` = Línea base, `1`..`10` = Línea base N. |
 | `[exportacion] rellenar_edt` | `true` | `1` → `1.0.0`, `1.2` → `1.2.0`. |
 | `[exportacion] incluir_inactivas` | `false` | Incluir tareas inactivas. |
@@ -207,7 +214,7 @@ español (`Texto10`, `Número1`) o el alias definido en MS Project.
 
 | Hoja | Contenido |
 |---|---|
-| **Resumen** | Fecha de corte (celda amarilla `B5`, con nombre `FechaCorte`), parámetros e indicadores del proyecto: BAC, PV, EV, AC, SV, CV, SPI, CPI, EAC (3 fórmulas), ETC, VAC, TCPI, % planificado/completado/gastado y Cronograma Ganado (ES, SV(t), SPI(t), duración y término estimados). SPI, CPI y SPI(t) con semáforo. |
+| **Resumen** | Fecha de corte (celda amarilla `B5`, con nombre `FechaCorte`), parámetros (incluida la planificación exportada, en `B14`) e indicadores del proyecto: BAC, PV, EV, AC, SV, CV, SPI, CPI, EAC (3 fórmulas), ETC, VAC, TCPI, % planificado/completado/gastado y Cronograma Ganado (ES, SV(t), SPI(t), duración y término estimados). SPI, CPI y SPI(t) con semáforo. |
 | **PV** | Formato A–F + 120 meses. Fila 3: número de mes. Fila 4: fecha de cada mes. Al final: columna **Total horizonte** (en rojo si no coincide con el BAC) y fila **TOTAL**. |
 | **EV** | Misma estructura. Celdas amarillas = ingreso del **valor del mes** (no acumulado). |
 | **AC** | Misma estructura. Celdas amarillas = costo real **del mes**. |
@@ -253,12 +260,26 @@ Reglas importantes:
 | `.xml` | El XML trae el costo de línea base escalonado en tramos. Los tramos que cruzan de un mes a otro se reparten según el **calendario del proyecto** incluido en el XML. |
 | Tareas sin datos mensuales | Si MS Project no tiene la distribución de una tarea (p. ej. un costo de línea base escrito a mano), el BAC se reparte en forma lineal entre el inicio y el fin de la línea base, por tiempo laborable. La hoja `Validación` informa cuántas tareas se repartieron así. |
 
-**Agregación hasta el nivel 3:** el PV de una fila de nivel 3 es la suma del PV de todas sus
-subtareas (niveles 4, 5, ...). Las filas de nivel 1 y 2 suman a sus hijos en Excel.
+**Planificación:** si se indica `planificacion` (por ejemplo `INTERNO`), solo se exportan las tareas
+que dependen de la tarea con ese código EDT. Esa tarea contenedora no tiene fila propia. Si los
+códigos de sus tareas incluyen el prefijo de la planificación (por ejemplo `INTERNO.1.1`), el prefijo
+se quita.
+
+**Niveles por código EDT:** el nivel de cada tarea se toma de su **código EDT**, no de su posición en
+el esquema de MS Project: `2.0.0` es nivel 1, `2.1.0` nivel 2 y `2.1.1` nivel 3 (los ceros finales no
+cuentan). Tienen fila propia las tareas con código EDT hasta el nivel máximo (3 por defecto). El PV de
+una fila de nivel 3 es la suma del PV de todas las tareas que cuelgan de ella. Las filas de nivel 1 y 2
+suman a sus hijos en Excel.
+
+**Tareas sin código EDT:** no tienen fila propia. Si dependen de un elemento EDT, su costo se suma en
+ese elemento: dentro de un paquete de nivel 3, en el propio paquete; directamente bajo un elemento de
+nivel 1 o 2, en la fila `<código>-D Otros costos de «tarea»`. Si no dependen de ningún elemento EDT
+(por ejemplo, un hito suelto bajo la planificación), se omiten y se informa en `Validación` con su
+costo.
 
 **Costos asignados a tareas resumen:** si una tarea resumen tiene costo propio (por ejemplo, un
-costo fijo o un recurso asignado directamente a la tarea resumen), se agrega una fila
-`<código>-D Costos directos de «tarea»` para no perder ese presupuesto, y se informa en `Validación`.
+costo fijo o un recurso asignado directamente a la tarea resumen), ese costo también se registra en la
+fila `<código>-D Otros costos de «tarea»`, para no perder ese presupuesto, y se informa en `Validación`.
 
 **Horizonte:** el mes 1 es, por defecto, el mes de inicio de la línea base. Si se elige un mes de
 inicio posterior, el PV de los meses anteriores se **acumula en el mes 1** para que la curva acumulada
@@ -290,9 +311,9 @@ que se puede modificar) y escribe la diferencia con los meses anteriores en el m
 Las fórmulas fijas se reconocen también escritas con `%` (`50%/50%`, `0% / 100%`).
 
 **AC**: es el **CRTR (ACWP)** de MS Project a la fecha de estado. Para filas de nivel 3 con
-subtareas es la suma de ellas. El costo real cargado directamente en una tarea resumen de nivel 1 o 2
-se registra en su fila `-D Costos directos`. Si el costo real proviene del ERP, se usa `--solo ev` y
-el AC se carga a mano.
+subtareas es la suma de ellas. El costo real cargado directamente en una tarea resumen de nivel 1 o 2,
+o en tareas sin código EDT que cuelgan de ella, se registra en su fila `-D Otros costos`. Si el costo
+real proviene del ERP, se usa `--solo ev` y el AC se carga a mano.
 
 Notas:
 
@@ -402,15 +423,19 @@ la fecha de estado: el CPTR y el CRTR del archivo se calculan a esa fecha.
 
 La hoja **Validación** (y la consola) informa, entre otros:
 
+- Planificación exportada y cantidad de tareas que dependen de ella.
+- Tareas sin código EDT omitidas (con su costo) y tareas sin código EDT o de nivel mayor al máximo que
+  se sumaron en su elemento EDT superior.
 - Proyecto sin línea base: se usó el programa actual.
 - Tareas con costo pero sin línea base (agregadas después de guardarla): no aportan PV.
-- Tareas resumen con costo propio (se agrega una fila de costos directos).
+- Tareas resumen con costo propio (se agrega una fila de otros costos).
 - Línea base de una tarea resumen distinta de la suma de sus subtareas (línea base no acumulada).
 - Distribución mensual de MS Project que no suma el costo de línea base (costo de línea base editado
   a mano): se ajusta en forma proporcional.
 - PV anterior al mes 1 (acumulado en el mes 1) o posterior al mes 120 (fuera de las columnas).
-- BAC total distinto del costo de línea base del proyecto.
-- Códigos EDT duplicados o vacíos, filas sin método de medición, tareas inactivas excluidas.
+- BAC total distinto del costo de línea base del proyecto o de la planificación.
+- Códigos EDT duplicados (por ejemplo, si no se eligió una planificación y ambas usan los mismos
+  códigos), filas sin método de medición, tareas inactivas excluidas.
 
 ---
 
@@ -450,15 +475,19 @@ La hoja **Validación** (y la consola) informa, entre otros:
 | `contiene el número ... guardado como texto` | Se debe escribir ese valor como número en Excel, o ejecutar `actualizar`, que lo convierte. |
 | `La celda ... tiene una fórmula sin valor calculado` | Se debe abrir y guardar el libro en Excel, o reemplazar la fórmula de esa celda de ingreso por un número. |
 | La curva no muestra EV/AC | Se debe completar la fecha de corte en `Resumen!B5`. |
+| `No se encontró la planificación ...` | El mensaje lista las tareas de nivel superior con su código EDT; se debe indicar en `planificacion` uno de esos códigos. |
+| El libro solo muestra los elementos de primer nivel (`1.0.0`, `2.0.0`...) | Se debe revisar que el campo indicado en `[campos] edt` contenga los códigos EDT de todas las tareas. El nivel se toma del código EDT. |
 | Las tildes se ven mal en la consola | Solo afecta a la consola, no al libro. Se recomienda usar Windows Terminal o ejecutar `chcp 65001`. |
 
 ---
 
 ## 13. Pruebas y archivo de ejemplo
 
-`ejemplos/programa_ejemplo.xml` es un programa ficticio de 4 elementos de nivel 1, hasta nivel 4,
-con costos, línea base mensualizada, métodos de medición y pesos de hitos. Para generar versiones con
-avance simulado a una fecha:
+`ejemplos/programa_ejemplo.xml` es un programa ficticio con dos planificaciones, `INTERNO` y `CLIENTE`
+(esta con costos un 15 % mayores). Cada una tiene 4 elementos de nivel EDT 1, con códigos del tipo
+`1.0.0`, `1.1.0`, `1.1.1` y `1.1.1.1`, costos, línea base mensualizada, métodos de medición y pesos de
+hitos. Los hitos de los paquetes y la reunión de arranque no tienen código EDT. Para generar versiones
+con avance simulado a una fecha:
 
 ```powershell
 python ejemplos\generar_ejemplo.py --fecha-estado 2027-06-30 --salida avance_2027-06.xml

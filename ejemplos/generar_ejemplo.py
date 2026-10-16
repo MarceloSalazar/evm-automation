@@ -6,6 +6,11 @@ línea base 0, costo de línea base mensualizado (TimephasedData tipo 10),
 campos personalizados con alias ("Método EVM" en Texto10 y "Peso hito" en
 Número1) y, opcionalmente, avance a una fecha de estado.
 
+El proyecto tiene dos planificaciones, con códigos EDT de alto nivel "INTERNO" y
+"CLIENTE" (la del cliente con costos un 15 % mayores). Debajo de cada una, los
+elementos tienen códigos EDT del tipo 1.0.0, 1.1.0, 1.1.1 y 1.1.1.1; los hitos de
+los paquetes y la reunión de arranque no tienen código EDT.
+
 Uso:
     python ejemplos/generar_ejemplo.py                       # solo línea base
     python ejemplos/generar_ejemplo.py --fecha-estado 2027-06-30 --salida ejemplos/avance_2027-06.xml
@@ -34,9 +39,11 @@ class T:
     milestone: bool = False
     weight: float | None = None
     children: list["T"] = field(default_factory=list)
+    code: str | None = None     # código EDT fijo ("" = sin código); None = se numera
     # calculados
     uid: int = 0
     wbs: str = ""
+    outline: str = ""
     pct: float = 0.0
     actual_cost: float = 0.0
     actual_start: date | None = None
@@ -63,8 +70,8 @@ def add_wd(d: date, n: int) -> date:
     return d
 
 
-def build_program() -> list[T]:
-    """Programa de 4 elementos de nivel 1, hasta nivel 4, ~5 años."""
+def build_program(factor: float = 1.0) -> list[T]:
+    """Programa de 4 elementos de nivel EDT 1, hasta nivel 4, ~5 años."""
     start = date(2026, 1, 5)
 
     def wp(name, offset_m, dur_d, cost, method="", acts=None):
@@ -73,14 +80,15 @@ def build_program() -> list[T]:
         if acts:
             cur = s
             for (aname, adur, acost, *rest) in acts:
-                if adur == 0:  # hito
-                    t.children.append(T(aname, 4, cur, cur, acost, milestone=True, weight=rest[0] if rest else None))
+                if adur == 0:  # hito (sin código EDT)
+                    t.children.append(T(aname, 4, cur, cur, acost * factor, milestone=True,
+                                        weight=rest[0] if rest else None, code=""))
                 else:
                     f = add_wd(cur, adur)
-                    t.children.append(T(aname, 4, cur, f, acost))
+                    t.children.append(T(aname, 4, cur, f, acost * factor))
                     cur = add_wd(f + timedelta(days=1), 1)
         else:
-            t.start, t.finish, t.cost = s, add_wd(s, dur_d), cost
+            t.start, t.finish, t.cost = s, add_wd(s, dur_d), cost * factor
         return t
 
     prog = [
@@ -146,11 +154,36 @@ def build_program() -> list[T]:
     return prog
 
 
-def walk(nodes, prefix=""):
+def build_plans() -> list[T]:
+    """Dos planificaciones en el mismo proyecto: INTERNO y CLIENTE."""
+    plans = []
+    for name, code, factor in (("Planificación interna", "INTERNO", 1.0),
+                               ("Planificación del cliente", "CLIENTE", 1.15)):
+        kickoff = T("Reunión de arranque", 2, date(2026, 1, 5), date(2026, 1, 5), milestone=True, code="")
+        plans.append(T(name, 1, code=code, children=[kickoff] + build_program(factor)))
+    return plans
+
+
+def walk(nodes, depth=1, outline="", numbers=()):
+    """Asigna nivel de esquema y código EDT.
+
+    Las planificaciones conservan su código (INTERNO / CLIENTE); debajo, los
+    elementos se numeran 1.0.0, 1.1.0, 1.1.1 y 1.1.1.1 (solo los que tienen código).
+    """
+    k = 0
     for i, n in enumerate(nodes, start=1):
-        n.wbs = f"{prefix}{i}"
+        n.level = depth
+        n.outline = f"{outline}{i}"
+        if n.code is not None:
+            n.wbs = n.code
+            child_numbers = () if n.code else numbers
+        else:
+            k += 1
+            segs = list(numbers) + [k]
+            n.wbs = ".".join(str(x) for x in (segs + [0] * (3 - len(segs)) if len(segs) < 3 else segs))
+            child_numbers = tuple(segs)
         yield n
-        yield from walk(n.children, n.wbs + ".")
+        yield from walk(n.children, depth + 1, n.outline + ".", child_numbers)
 
 
 def rollup(n: T) -> None:
@@ -267,7 +300,8 @@ def write(nodes: list[T], path: Path, status: date | None) -> None:
         ev = (sum(x.cost * x.pct for x in walk_leaves(t)) if t else total_ev)
         lines = ["\t\t<Task>", f"\t\t\t<UID>{uid}</UID>", f"\t\t\t<ID>{tid}</ID>",
                  f"\t\t\t<Name>{escape(name)}</Name>", "\t\t\t<Active>1</Active>", "\t\t\t<IsNull>0</IsNull>",
-                 f"\t\t\t<WBS>{wbs}</WBS>", f"\t\t\t<OutlineNumber>{wbs}</OutlineNumber>",
+                 f"\t\t\t<WBS>{wbs}</WBS>",
+                 f"\t\t\t<OutlineNumber>{t.outline if t else '0'}</OutlineNumber>",
                  f"\t\t\t<OutlineLevel>{level}</OutlineLevel>",
                  f"\t\t\t<Start>{dt(s)}</Start>", f"\t\t\t<Finish>{dt(f, True)}</Finish>",
                  f"\t\t\t<Milestone>{1 if t and t.milestone else 0}</Milestone>",
@@ -329,7 +363,7 @@ def main() -> None:
     p.add_argument("--fecha-estado", help="AAAA-MM-DD: agrega avance simulado a esa fecha")
     a = p.parse_args()
     status = date.fromisoformat(a.fecha_estado) if a.fecha_estado else None
-    write(build_program(), Path(a.salida), status)
+    write(build_plans(), Path(a.salida), status)
     print(f"Archivo generado: {a.salida}")
 
 
