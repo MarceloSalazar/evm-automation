@@ -178,7 +178,8 @@ def cmd_actualizar(args) -> int:
         if res.backup:
             print(f"Respaldo: {res.backup}")
         print(f"Libro actualizado: {Path(args.libro).resolve()}")
-        print("La curva S y los indicadores se calculan en el libro (hojas 'Curva S' y 'Resumen').")
+        print("Los indicadores y los gráficos se calculan en el libro (hojas 'Cuadro de Mando', 'Resumen' e "
+              "'Indicadores EDT').")
     return 0
 
 

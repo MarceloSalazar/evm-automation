@@ -30,7 +30,8 @@ SHEET_SUMMARY = "Resumen"
 SHEET_PV = "PV"
 SHEET_EV = "EV"
 SHEET_AC = "AC"
-SHEET_CURVE = "Curva S"
+SHEET_CURVE = "Evolución mensual"
+LEGACY_SHEET_CURVE = "Curva S"      # libros generados con versiones anteriores a la 1.3.0
 SHEET_IND = "Indicadores EDT"
 SHEET_VALID = "Validación"
 SHEET_LISTS = "Listas"
@@ -41,7 +42,7 @@ TITLE_ROW, INFO_ROW, MONTHNUM_ROW, HEADER_ROW, FIRST_ROW = 1, 2, 3, 4, 5
 COL_CODE, COL_NAME, COL_METHOD, COL_BAC, COL_START, COL_FINISH = 1, 2, 3, 4, 5, 6
 FIRST_MONTH_COL = 7  # columna G
 
-# Curva S (tabla vertical)
+# Evolución mensual (tabla vertical; datos de la curva S)
 CURVE_HEADER_ROW = 4
 CURVE_FIRST_ROW = 5
 (C_NUM, C_DATE, C_PV, C_PVC, C_EV, C_EVC, C_AC, C_ACC,
@@ -50,6 +51,7 @@ CHART_ANCHOR = "Q4"
 
 # Resumen
 STATUS_CELL = "B5"
+CUT_MONTH_CELL = "B6"
 NAME_METHODS = "ListaMetodos"
 START_CELL = "B7"
 NAME_STATUS = "FechaCorte"
@@ -455,10 +457,10 @@ def input_sheets(report: Report, kind: str) -> list[str]:
 
 def _write_curve(ws, report: Report, cfg: Config, lay: _Layout) -> None:
     money = money_format(cfg.decimals)
-    ws.cell(row=1, column=1, value="Curva S  -  valores acumulados del proyecto").font = FONT_TITLE
-    ws.cell(row=2, column=1, value="Tabla y gráfico calculados con fórmulas a partir de la fila TOTAL de las hojas "
-            "PV, EV y AC. EV y AC se muestran desde el primer mes con datos cargados hasta la fecha de corte de la "
-            "hoja 'Resumen'.").font = FONT_NOTE
+    ws.cell(row=1, column=1, value="Evolución mensual  -  valores del proyecto").font = FONT_TITLE
+    ws.cell(row=2, column=1, value="Tabla calculada con fórmulas a partir de la fila TOTAL de las hojas PV, EV y AC. "
+            "EV y AC acumulados se muestran desde el primer mes con datos cargados hasta la fecha de corte de la "
+            "hoja 'Resumen'. Los gráficos están en la hoja 'Cuadro de Mando'.").font = FONT_NOTE
     _header(ws, CURVE_HEADER_ROW, [
         (C_NUM, "Mes N°"), (C_DATE, "Mes"), (C_PV, "PV del mes"), (C_PVC, "PV acumulado"),
         (C_EV, "EV del mes"), (C_EVC, "EV acumulado"), (C_AC, "AC del mes"), (C_ACC, "AC acumulado"),
@@ -516,15 +518,14 @@ def _write_curve(ws, report: Report, cfg: Config, lay: _Layout) -> None:
     for c_ in range(C_PV, C_BAC + 1):
         ws.column_dimensions[col(c_)].width = 14
     ws.freeze_panes = ws.cell(row=CURVE_FIRST_ROW, column=C_PV)
-    add_s_curve_chart(ws, lay.months, report.project.name, cfg.currency or report.project.currency_symbol)
 
 
 def add_s_curve_chart(ws, months: int, project_name: str, currency: str = "") -> None:
-    """Agrega (o vuelve a agregar) el gráfico de curva S en la hoja 'Curva S'.
+    """Agrega (o vuelve a agregar) el gráfico de curva S en la hoja 'Curva S' de los libros
+    generados con versiones anteriores a la 1.3.0 (sin hoja 'Cuadro de Mando').
 
     El gráfico toma sus datos de la tabla de la hoja, calculada con fórmulas de
-    Excel, y abarca todo el horizonte: cualquier valor cargado en las hojas PV,
-    EV o AC y cualquier cambio de la fecha de corte se reflejan al recalcular.
+    Excel, y abarca todo el horizonte.
     """
     ws._charts = []  # openpyxl no conserva gráficos al reabrir: se recrea siempre
     last = CURVE_FIRST_ROW + max(1, months) - 1
@@ -672,7 +673,8 @@ def _write_summary(ws, report: Report, cfg: Config, lay: _Layout, generated: dat
     ws.column_dimensions["B"].width = 20
     ws.column_dimensions["C"].width = 70
     ws.cell(row=46, column=1, value="Valores mensuales: hojas PV, EV y AC (celdas amarillas = ingreso). "
-            "Curva S: hoja 'Curva S'. Indicadores por elemento EDT: hoja 'Indicadores EDT'.").font = FONT_NOTE
+            "Gráficos: hoja 'Cuadro de Mando'. Tabla mensual: hoja 'Evolución mensual'. Indicadores por elemento "
+            "EDT: hoja 'Indicadores EDT'.").font = FONT_NOTE
 
 
 def _traffic_light(ws, rng: str, cfg: Config) -> None:
@@ -776,11 +778,13 @@ def write_meta(ws, meta: dict) -> None:
 def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
                    generated: datetime | None = None) -> dict:
     """Crea el libro Excel completo y lo guarda en `path`. Devuelve los metadatos."""
+    from evm import dashboard
     generated = generated or datetime.now()
     lay = _Layout(report)
     wb = Workbook()
-    ws_sum = wb.active
-    ws_sum.title = SHEET_SUMMARY
+    ws_dash = wb.active
+    ws_dash.title = dashboard.SHEET_DASHBOARD
+    ws_sum = wb.create_sheet(SHEET_SUMMARY)
     data_sheets = []                     # (hoja, tipo, empresa)
     for kind in (SHEET_PV, SHEET_EV, SHEET_AC):
         data_sheets.append((wb.create_sheet(kind), kind, None))
@@ -791,10 +795,11 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     ws_ind = wb.create_sheet(SHEET_IND)
     ws_val = wb.create_sheet(SHEET_VALID)
     ws_lists = wb.create_sheet(SHEET_LISTS)
+    ws_charts = wb.create_sheet(dashboard.SHEET_CHARTDATA)
     ws_struct = wb.create_sheet(SHEET_STRUCT)
     ws_meta = wb.create_sheet(SHEET_META)
-    ws_struct.sheet_state = "hidden"
-    ws_meta.sheet_state = "hidden"
+    for ws in (ws_charts, ws_struct, ws_meta):
+        ws.sheet_state = "hidden"
 
     status = prior.status_date if prior else None
     methods = list(_method_list(cfg))
@@ -813,12 +818,20 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     _write_indicators(ws_ind, report, cfg, lay)
     _write_validation(ws_val, report)
     _write_structure(ws_struct, report, lay)
+    packages = dashboard.chart_packages((lay.r(r), r.code, r.level, r.kind) for r in report.rows)
+    dashboard.write_chart_data(ws_charts, cfg, lay, packages)
+    dashboard.write_dashboard(ws_dash, report, cfg, lay, packages, status)
 
     wb.defined_names[NAME_STATUS] = DefinedName(NAME_STATUS, attr_text=f"'{SHEET_SUMMARY}'!$B$5")
     wb.defined_names[NAME_START] = DefinedName(NAME_START, attr_text=f"'{SHEET_SUMMARY}'!$B$7")
     # Lista de métodos con tamaño dinámico (crece si se agregan métodos en la hoja Listas)
     wb.defined_names[NAME_METHODS] = DefinedName(
         NAME_METHODS, attr_text=f"OFFSET('{SHEET_LISTS}'!$A$2,0,0,MAX(1,COUNTA('{SHEET_LISTS}'!$A:$A)-1),1)")
+    dashboard.define_names(wb, lay)
+    cutoff = report.horizon.index(status) + 1 if status else None
+    dashboard.add_dashboard_charts(wb, packages, lay.months, dashboard.plan_end_month(report.total_vector),
+                                   cutoff, report.total_bac, cfg.currency or report.project.currency_symbol or "")
+    wb.active = 0
 
     p = report.project
     meta = {

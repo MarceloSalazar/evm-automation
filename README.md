@@ -8,9 +8,13 @@ gestionar el **Valor Ganado (EVM)**:
 - Selección de la **planificación** a exportar cuando el proyecto tiene varias (por ejemplo
   `INTERNO` y `CLIENTE`).
 - Hojas para cargar **EV** (valor ganado) y **AC** (costo real) mes a mes.
-- **Curva S** e **indicadores** (SV, CV, SPI, CPI, EAC, VAC, TCPI y Cronograma Ganado) a la fecha de
-  corte, calculados con fórmulas de Excel, para el proyecto y para cada elemento de la EDT. La curva S
-  es un gráfico nativo de Excel que se actualiza solo al cargar datos o cambiar la fecha de corte.
+- **Cuadro de Mando** (primera hoja) con el mes de reporte seleccionable: BAC, PV, EV y AC acumulados,
+  desviaciones (CV, SV), índices (CPI, SPI), pronósticos (ETC, EAC, VAC, TCPI) y tres gráficos nativos
+  de Excel: evolución EVM (curva S), evolución de CPI y SPI con zonas de alarma, y CPI frente a SPI por
+  elemento EDT.
+- **Indicadores** (SV, CV, SPI, CPI, EAC, VAC, TCPI y Cronograma Ganado) a la fecha de corte,
+  calculados con fórmulas de Excel, para el proyecto y para cada elemento de la EDT. Todo se actualiza
+  solo al cargar datos o cambiar la fecha de corte.
 - Un comando que **calcula EV y AC desde MS Project** a la fecha de corte, según el método de
   medición de cada fila, y los carga en el mes correspondiente.
 - Opcional: **multi-empresa**, con el PV, el EV y el AC de dos empresas en hojas separadas y el total
@@ -91,8 +95,8 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config config.toml --libro EVM_Programa.xlsx --fecha-corte 2026-10-31
 ```
 
-La curva S y los indicadores se consultan en las hojas `Curva S`, `Resumen` e `Indicadores EDT` del
-libro.
+Los indicadores y los gráficos se consultan en las hojas `Cuadro de Mando`, `Resumen` e
+`Indicadores EDT` del libro.
 
 Para probar el programa sin MS Project se incluye un proyecto de ejemplo en XML, con las
 planificaciones `INTERNO` y `CLIENTE` (ver sección 14):
@@ -126,7 +130,8 @@ python evm_export.py generar --origen ejemplos\programa_ejemplo.xml --planificac
    - actualiza la fecha de corte de la hoja `Resumen` y guarda una **copia de respaldo** del libro.
 4. Si el AC proviene del ERP o de contabilidad, se ejecuta `actualizar --solo ev` y el AC del mes se
    carga a mano en la hoja `AC` (celdas amarillas).
-5. Al abrir el libro, `Resumen`, `Curva S` e `Indicadores EDT` se recalculan solos.
+5. Al abrir el libro, `Cuadro de Mando`, `Resumen` e `Indicadores EDT` se recalculan solos. El
+   `Cuadro de Mando` muestra el mes de corte; para ver un mes anterior se elige en su desplegable.
 
 > Aunque el informe sea bimestral, se recomienda registrar el estado **todos los meses**: así la curva
 > S y los métodos 0/100 y 50/50 se miden con el período mensual.
@@ -224,27 +229,29 @@ español (`Texto10`, `Número1`) o el alias definido en MS Project.
 
 | Hoja | Contenido |
 |---|---|
+| **Cuadro de Mando** | Tablero del mes de reporte (desplegable): valores acumulados, desviaciones, índices con semáforo, pronósticos y tres gráficos. Ver sección 6.1. |
 | **Resumen** | Fecha de corte (celda amarilla `B5`, con nombre `FechaCorte`), parámetros (incluida la planificación exportada, en `B14`) e indicadores del proyecto: BAC, PV, EV, AC, SV, CV, SPI, CPI, EAC (3 fórmulas), ETC, VAC, TCPI, % planificado/completado/gastado y Cronograma Ganado (ES, SV(t), SPI(t), duración y término estimados). SPI, CPI y SPI(t) con semáforo. |
 | **PV** | Formato A–F + 120 meses. Fila 3: número de mes. Fila 4: fecha de cada mes. Al final: columna **Total horizonte** (en rojo si no coincide con el BAC) y fila **TOTAL**. |
 | **EV** | Misma estructura. Celdas amarillas = ingreso del **valor del mes** (no acumulado). |
 | **AC** | Misma estructura. Celdas amarillas = costo real **del mes**. |
 | **PV-EmpresaA**, **EV-EmpresaA**, **AC-EmpresaA** y las de EmpresaB | Solo en modo multi-empresa (sección 9): valores de cada empresa, con la misma estructura. Las hojas `PV`, `EV` y `AC` son la suma de las dos empresas. |
-| **Curva S** | Tabla mensual calculada con fórmulas: PV, EV y AC del mes y acumulados, % de avance, SPI y CPI acumulados. Gráfico de líneas nativo de Excel con PV, EV, AC acumulados y BAC sobre todo el horizonte. EV y AC se dibujan desde el primer mes con datos hasta la fecha de corte. |
+| **Evolución mensual** | Tabla mensual calculada con fórmulas: PV, EV y AC del mes y acumulados, % de avance, SPI y CPI acumulados (los datos de la curva S). EV y AC acumulados se muestran desde el primer mes con datos hasta la fecha de corte. |
 | **Indicadores EDT** | Para cada fila de la EDT, a la fecha de corte: BAC, PV, EV, AC, SV, CV, SPI, CPI, EAC, VAC y porcentajes, con semáforo. |
 | **Validación** | Advertencias de la exportación (ver sección 11). |
 | **Listas** | Métodos de medición del desplegable y su regla de cálculo. Se pueden agregar métodos al final de la columna A, sin dejar filas vacías. |
-| `_estructura`, `_meta` | Hojas ocultas que usan `actualizar` y `--migrar-desde`. **No se deben modificar.** |
+| `_graficos`, `_estructura`, `_meta` | Hojas ocultas: datos de los gráficos del Cuadro de Mando y datos que usan `actualizar` y `--migrar-desde`. **No se deben modificar.** |
 
 Reglas importantes:
 
 - Las **filas de nivel 1 y 2** con subelementos son **subtotales** (fórmulas `SUM` de sus hijos).
   Los valores se ingresan solo en las filas de nivel 3 (o en filas sin hijos).
 - Las filas se pueden **contraer por nivel** con los botones de esquema (1, 2, 3) a la izquierda.
-- La curva S no requiere ninguna acción: al cargar valores en las hojas `EV` o `AC`, o al cambiar la
-  fecha de corte en `Resumen!B5`, Excel recalcula la tabla y el gráfico.
+- Los gráficos no requieren ninguna acción: al cargar valores en las hojas `EV` o `AC`, al cambiar la
+  fecha de corte en `Resumen!B5` o el mes de reporte del `Cuadro de Mando`, Excel recalcula las tablas
+  y los gráficos.
 - No se deben insertar ni eliminar filas o columnas en `PV`, `EV`, `AC` ni en las hojas de cada
-  empresa: `actualizar` ubica cada fila por su posición. Para cambiar la EDT, se modifica MS Project y se vuelve a generar el libro con
-  `--migrar-desde`.
+  empresa: `actualizar` ubica cada fila por su posición. Para cambiar la EDT, se modifica MS Project y
+  se vuelve a generar el libro con `--migrar-desde`.
 - `--migrar-desde` traslada el historial de cada fila por el UniqueID de la tarea en MS Project (o por
   código EDT si el proyecto cambió de nombre), sin duplicarlo. Si una tarea quedó dentro de un paquete
   nuevo, su historial se suma a ese paquete. Si una fila se dividió en varias o la tarea se eliminó, su
@@ -253,11 +260,45 @@ Reglas importantes:
   en MS Project, se usa el nuevo.
 - Las fórmulas del libro se calculan al abrirlo en Excel. En la vista protegida de Excel o en vistas
   previas de archivos los indicadores pueden aparecer vacíos hasta habilitar la edición.
-- `actualizar` vuelve a crear el gráfico de la hoja `Curva S` (la biblioteca que escribe el libro no
-  conserva gráficos). Por eso no se deben agregar gráficos ni imágenes propias en este libro; los
+- `actualizar` vuelve a crear los gráficos del `Cuadro de Mando` (la biblioteca que escribe el libro
+  no conserva gráficos). Por eso no se deben agregar gráficos ni imágenes propias en este libro; los
   gráficos adicionales se deben hacer en otro libro que lea estos datos.
 - El PV acumulado a la fecha de corte incluye **el mes completo** de esa fecha. Como fecha de corte se
   debe usar el **último día del mes**.
+- Los libros generados con versiones anteriores a la 1.3.0 conservan su hoja `Curva S` y `actualizar`
+  sigue funcionando con ellos. Para obtener el `Cuadro de Mando`, se debe generar un libro nuevo con
+  `--migrar-desde` (se conservan los EV y AC cargados).
+
+### 6.1 Cuadro de Mando
+
+Es la primera hoja del libro y resume el estado del proyecto en el **mes de reporte**:
+
+- **Mes de reporte** (celda amarilla `E5`): se elige en el desplegable, que ofrece los meses hasta la
+  fecha de corte de `Resumen`. `actualizar` lo fija en el mes de corte. Todos los valores son
+  acumulados hasta el final del mes elegido.
+- **Método EAC** (celda amarilla `R5`): `BAC / CPI` (por defecto), `AC + (BAC - EV)` o
+  `AC + (BAC - EV) / (CPI × SPI)`. Define el EAC y, con él, ETC, VAC y TCPI (EAC).
+- **Valores acumulados:** BAC, PV, EV y AC, con el % del BAC.
+- **Desviaciones e índices:** CV (y CV % del EV), SV (y SV % del PV), CPI y SPI con semáforo según los
+  umbrales de `[semaforo]`.
+- **Pronósticos:** ETC = EAC − AC, EAC, VAC = BAC − EAC, TCPI (BAC) = (BAC − EV) / (BAC − AC) y
+  TCPI (EAC) = (BAC − EV) / (EAC − AC). El TCPI tiene semáforo: verde hasta 1 / `amarillo`, amarillo
+  hasta 1 / `rojo` y rojo por encima (o si es negativo). Con el método `BAC / CPI`, TCPI (EAC) es igual
+  al CPI.
+- Mientras no hay AC cargado (por ejemplo, en multi-empresa antes de cargar el AC a mano), los
+  indicadores de costo (CV, CPI, ETC, EAC, VAC y TCPI) quedan vacíos.
+
+Gráficos (nativos de Excel, calculados con fórmulas):
+
+| Gráfico | Contenido |
+|---|---|
+| Evolución EVM | PV, EV y AC acumulados y BAC. El PV abarca hasta el fin del plan (o hasta la fecha de corte, si es posterior); EV y AC, hasta el mes de reporte, marcado con una línea vertical. |
+| Evolución de CPI y SPI | CPI y SPI acumulados mes a mes hasta la fecha de corte, sobre las zonas de alarma roja (< `rojo`), amarilla (`rojo` a `amarillo`) y verde (≥ `amarillo`), y la línea objetivo 1,00. |
+| CPI vs SPI por elemento EDT | Un punto por cada elemento EDT de nivel 1 (rombo) y 2 (círculo) en el mes de reporte. Eje X: CPI; eje Y: SPI; el centro es (1, 1). Arriba a la derecha: adelantado y con ahorro; abajo a la izquierda: atrasado y con sobrecosto. Junto al gráfico, una tabla con el CPI, el SPI y el % completado de cada elemento. |
+
+Los gráficos de índices usan una escala fija de 0,5 a 1,5, igual en todos los informes para poder
+compararlos. Los valores fuera de escala se dibujan en el límite y su valor exacto está en la tabla.
+La hoja se imprime en vertical, en una página de ancho.
 
 ---
 
@@ -391,7 +432,7 @@ mismo formato. En las hojas `PV`, `EV` y `AC` cada celda es la **suma** de las d
 
 - **PV y BAC:** se reparten tarea por tarea según la parte de cada empresa. Una fila de nivel 3 puede
   incluir tareas de las dos empresas.
-- **Curva S, Resumen e Indicadores EDT** usan los totales.
+- **Cuadro de Mando, Resumen e Indicadores EDT** usan los totales.
 - **EV:** `actualizar` escribe el EV del mes en `EV-EmpresaA` y `EV-EmpresaB`. El EV de cada empresa
   se calcula con su BAC en la fila y su propio avance:
 
@@ -527,7 +568,7 @@ La hoja **Validación** (y la consola) informa, entre otros:
 - No hay en MS Project un método nativo 0/100, 50/50 o de hitos: el programa los calcula a partir
   del avance registrado.
 - El libro está pensado para Excel. LibreOffice abre las fórmulas correctamente, pero dibuja como
-  cero los meses sin datos de EV y AC en el gráfico.
+  cero los meses sin datos de EV y AC en los gráficos.
 
 ---
 
@@ -609,7 +650,8 @@ de algunos meses con la vista *Uso de tareas* (campo *Costo previsto* en la esca
 | `evm/wbs.py` | Estructura EDT hasta el nivel máximo y PV por fila. |
 | `evm/companies.py` | Multi-empresa: parte de cada empresa por tarea y reparto del EV y el AC. |
 | `evm/timeline.py` | Horizonte mensual y repartos en el tiempo. |
-| `evm/workbook.py` | Escritura del libro Excel, incluidas la curva S y los indicadores. |
+| `evm/workbook.py` | Escritura del libro Excel y de sus indicadores. |
+| `evm/dashboard.py` | Hoja `Cuadro de Mando` y sus tres gráficos. |
 | `evm/methods.py` | Métodos de medición del EV. |
 | `evm/update.py` | Comando `actualizar` y lectura del libro. |
 | `evm/migrate.py` | Traslado de EV, AC y métodos al regenerar el libro (`--migrar-desde`). |

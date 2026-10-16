@@ -16,7 +16,7 @@ from evm.methods import ev_fraction, parse_method
 from evm.model import ProjectData, Task
 from evm.timeline import Horizon
 from evm.wbs import Scope, build_tree, fmt_money, iter_subtree, pad_code, prune_inactive, select_scope, tolerance
-from evm.workbook import (COL_BAC, COL_METHOD, FIRST_MONTH_COL, SHEET_AC, SHEET_CURVE, SHEET_EV, SHEET_META,
+from evm.workbook import (COL_BAC, COL_METHOD, FIRST_MONTH_COL, LEGACY_SHEET_CURVE, SHEET_AC, SHEET_EV, SHEET_META,
                           SHEET_PV, SHEET_SUMMARY, STATUS_CELL, StructRow, WorkbookFormatError, add_s_curve_chart,
                           col, company_sheet, read_meta, read_structure, save_workbook, write_meta)
 
@@ -518,8 +518,7 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
         meta.pop("meses_grafico", None)
         meta["ultima_actualizacion"] = datetime.now().replace(microsecond=0)
         write_meta(wb[SHEET_META], meta)
-        add_s_curve_chart(wb[SHEET_CURVE], book.horizon.months, str(meta.get("proyecto") or ""),
-                          str(meta.get("moneda") or ""))
+        _refresh_charts(wb, book, idx, meta)
         wb.calculation = CalcProperties(fullCalcOnLoad=True)
         if backup:
             backup_path = _backup_path(book_path)
@@ -527,6 +526,22 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
         save_workbook(wb, book_path)
     book.status_date = status
     return UpdateResult(status, idx, rows, warnings, backup_path, book, dry_run, ac_loaded=load_ac)
+
+
+def _refresh_charts(wb, book: BookData, idx: int, meta: dict) -> None:
+    """Vuelve a crear los gráficos (openpyxl no los conserva) y fija el mes de reporte en el mes de corte."""
+    from evm import dashboard
+    currency = str(meta.get("moneda") or "")
+    if dashboard.SHEET_DASHBOARD in wb.sheetnames:
+        wb[dashboard.SHEET_DASHBOARD][dashboard.REPORT_CELL].value = book.horizon.month_start(idx)
+        pv, _ev, _ac, bac = book_totals(book)
+        loaded = [i for i in range(idx + 1)
+                  if any(series[r][i] is not None for series in (book.ev, book.ac) for r in series)]
+        packages = dashboard.chart_packages((s.row, s.code, s.level, s.kind) for s in book.structure)
+        dashboard.add_dashboard_charts(wb, packages, book.horizon.months, dashboard.plan_end_month(pv), idx + 1,
+                                       bac, currency, idx + 1 - loaded[0] if loaded else 0)
+    elif LEGACY_SHEET_CURVE in wb.sheetnames:
+        add_s_curve_chart(wb[LEGACY_SHEET_CURVE], book.horizon.months, str(meta.get("proyecto") or ""), currency)
 
 
 def book_totals(book: BookData) -> tuple[list[float], list[float], list[float], float]:
