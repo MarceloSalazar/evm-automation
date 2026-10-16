@@ -16,7 +16,7 @@ from evm.wbs import SEV_INFO, TimephasedPVSource, build_report
 from evm.workbook import FIRST_MONTH_COL, FIRST_ROW, read_meta
 
 ROOT = Path(__file__).resolve().parents[1]
-SHEETS = ["Resumen", "PV", "PV-EmpresaA", "PV-EmpresaB", "EV", "EV-EmpresaA", "EV-EmpresaB",
+SHEETS = ["Cuadro de Mando", "Resumen", "PV", "PV-EmpresaA", "PV-EmpresaB", "EV", "EV-EmpresaA", "EV-EmpresaB",
           "AC", "AC-EmpresaA", "AC-EmpresaB"]
 
 
@@ -281,7 +281,7 @@ def test_report_company_notes_and_residual(tmp_path, example_files, generator):
 def test_workbook_sheets_and_formulas(multi_book):
     path, _ = multi_book
     wb = load_workbook(path)
-    assert wb.sheetnames[:10] == SHEETS
+    assert wb.sheetnames[:11] == SHEETS
     r = FIRST_ROW
     month = FIRST_MONTH_COL
     pv, pv_a, ev_a = wb["PV"], wb["PV-EmpresaA"], wb["EV-EmpresaA"]
@@ -468,5 +468,6 @@ def test_multi_formulas_recalculate(multi_book, example_files, recalc):
     assert out["AC"].cell(total_row, FIRST_MONTH_COL + 17).value == pytest.approx(1_500)
     summary = {out["Resumen"].cell(r, 1).value: out["Resumen"].cell(r, 2).value for r in range(1, 60)}
     assert summary["AC - Costo real acumulado"] == pytest.approx(1_500)
+    assert out["Cuadro de Mando"]["Q10"].value == pytest.approx(1_500)                 # AC total en el tablero
     ev_total = sum(out["EV"].cell(total_row, c).value or 0 for c in range(FIRST_MONTH_COL, FIRST_MONTH_COL + 18))
     assert summary["EV - Valor ganado acumulado"] == pytest.approx(ev_total)

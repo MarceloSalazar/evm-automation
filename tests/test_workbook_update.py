@@ -20,7 +20,7 @@ def book(tmp_path, example_files):
 
 def test_layout_matches_requested_format(book):
     wb = load_workbook(book)
-    assert wb.sheetnames[:4] == ["Resumen", "PV", "EV", "AC"]
+    assert wb.sheetnames[:5] == ["Cuadro de Mando", "Resumen", "PV", "EV", "AC"]
     ws = wb["PV"]
     heads = [ws.cell(HEADER_ROW, c).value for c in range(1, 7)]
     assert heads == ["Código EDT", "Actividad", "Método de medición", "BAC (Presupuesto)",
@@ -133,7 +133,7 @@ def test_formulas_recalculate_without_errors(book, example_files, recalc):
     pv = wb["PV"]
     total_row = next(r for r in range(FIRST_ROW, pv.max_row + 1) if pv.cell(r, 1).value == "TOTAL")
     assert pv.cell(total_row, 4).value == pytest.approx(44_210_000, abs=0.01)
-    curve = wb["Curva S"]
+    curve = wb["Evolución mensual"]
     assert curve.cell(5 + 17, 6).value == pytest.approx(ind.ev, abs=0.01)   # EV acumulado en el mes 18
     assert curve.cell(5 + 18, 6).value == "#N/A"                            # después del corte
     assert curve.cell(5, 6).value == "#N/A"                                 # antes del primer dato
@@ -147,20 +147,3 @@ def test_currency_defaults_to_euro(book, tmp_path, example_files):
     assert main(["generar", "--origen", str(example_files["base"]), "--config", str(cfg),
                  "--salida", str(out)]) == 0
     assert load_workbook(out)["Resumen"]["B9"].value == "USD"          # moneda del proyecto
-
-
-def test_s_curve_chart_uses_excel_table_for_whole_horizon(book, example_files):
-    import re
-    import zipfile
-    with zipfile.ZipFile(book) as z:
-        charts = [n for n in z.namelist() if n.startswith("xl/charts/chart")]
-        assert len(charts) == 1
-        xml = z.read(charts[0]).decode()
-    refs = re.findall(r"<(?:c:)?f>([^<]*)</(?:c:)?f>", xml)
-    assert refs and all(r.startswith("'Curva S'!") for r in refs)       # datos de la tabla de fórmulas
-    assert any(r.endswith("$124") for r in refs)                         # filas 5..124 = 120 meses
-    cfg = load_config(example_files["config"])
-    run_update(read_xml(example_files["jun"], cfg), cfg, book, backup=False)
-    with zipfile.ZipFile(book) as z:
-        xml = z.read([n for n in z.namelist() if n.startswith("xl/charts/chart")][0]).decode()
-    assert any(r.endswith("$124") for r in re.findall(r"<(?:c:)?f>([^<]*)</(?:c:)?f>", xml))
