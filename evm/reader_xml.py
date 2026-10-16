@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 from evm.config import Config
-from evm.fields import builtin_kind, field_id, parse_custom_name, parse_number, same_name
+from evm.fields import builtin_kind, field_id, is_spanish_wbs_name, parse_custom_name, parse_number, same_name
 from evm.model import MonthKey, ProjectData, Task, use_current_schedule
 from evm.timeline import split_segment
 from evm.workcalendar import WorkCalendar, calendar_from_xml
@@ -106,6 +106,8 @@ def _resolve(name: str, defs: dict[int, tuple[str, str]]) -> tuple[str, object] 
         fid = field_id(*parsed)
         if fid:
             return ("ext", fid)
+    if is_spanish_wbs_name(name):
+        return ("elem", "WBS")
     return None
 
 
@@ -245,7 +247,7 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
         task = Task(
             uid=uid, id=tid, name=r.text(el, "Name"), outline_level=level,
             outline_number=r.text(el, "OutlineNumber"),
-            wbs=value_of(wbs_ref) or r.text(el, "WBS") or r.text(el, "OutlineNumber"),
+            wbs=value_of(wbs_ref).strip(),         # sin código EDT => la tarea no tiene fila propia
             summary=r.flag(el, "Summary"), milestone=r.flag(el, "Milestone"),
             active=r.flag(el, "Active", True),
             baseline_cost=bl_cost, baseline_start=bl_start, baseline_finish=bl_finish, has_baseline=has_bl,

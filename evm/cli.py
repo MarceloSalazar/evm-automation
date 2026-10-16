@@ -64,6 +64,8 @@ def _apply_overrides(cfg: Config, args) -> Config:
         cfg.baseline = args.linea_base
     if getattr(args, "nivel_max", None):
         cfg.max_level = args.nivel_max
+    if getattr(args, "planificacion", None) is not None:
+        cfg.plan = args.planificacion.strip()
     cfg.validate()
     return cfg
 
@@ -106,6 +108,8 @@ def cmd_generar(args) -> int:
 
     leaves = sum(1 for r in report.rows if r.is_input)
     print(f"Proyecto: {project.name}")
+    if report.plan:
+        print(f"  Planificación: {report.plan}")
     print(f"  {project.baseline_label}  |  PV: {report.pv_source}")
     print(f"  Filas EDT: {len(report.rows)} ({leaves} de ingreso)  |  Nivel máximo: {cfg.max_level}")
     print(f"  Horizonte: {report.horizon.start:%m/%Y} a {report.horizon.end:%m/%Y} ({report.horizon.months} meses)")
@@ -188,7 +192,10 @@ def build_parser() -> argparse.ArgumentParser:
                         help="forma de lectura (por defecto según la extensión)")
         sp.add_argument("--linea-base", type=int, choices=range(0, 11), metavar="N",
                         help="línea base a usar: 0 = Línea base, 1..10 = Línea base N")
-        sp.add_argument("--nivel-max", type=int, help="nivel máximo de la EDT (por defecto 3)")
+        sp.add_argument("--nivel-max", type=int, help="nivel máximo del código EDT (por defecto 3)")
+        sp.add_argument("--planificacion", metavar="CODIGO",
+                        help="código EDT de la planificación a exportar, p. ej. INTERNO o CLIENTE (reemplaza el "
+                             "valor del archivo de configuración; \"\" = todas)")
         sp.add_argument("--visible", action="store_true", help="muestra MS Project durante la lectura (COM)")
 
     g = sub.add_parser("generar", help="crea el libro Excel con el PV mensual a partir de MS Project")

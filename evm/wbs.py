@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
-from evm.config import Config
+from evm.config import Config, ConfigError
 from evm.model import MonthKey, ProjectData, Task
 from evm.timeline import Horizon, add_into, distribute_linear, first_of_month, lump
 
@@ -64,6 +64,7 @@ class Report:
     pv_before: float
     pv_after: float
     pv_source: str = ""
+    plan: str = ""              # código EDT de la planificación exportada ("" = todo el proyecto)
 
 
 # ----------------------------------------------------------------------------
@@ -256,14 +257,22 @@ def prune_inactive(roots: list[Task]) -> tuple[list[Task], dict[int, list[Task]]
 
 
 def pad_code(code: str, levels: int) -> str:
-    """Completa un código EDT con ceros: '1' -> '1.0.0', '1.2' -> '1.2.0'."""
+    """Completa un código EDT numérico con ceros: '1' -> '1.0.0', '1.2' -> '1.2.0'.
+
+    Los códigos no numéricos (p. ej. 'INTERNO') no se modifican.
+    """
     code = (code or "").strip()
     if not code:
         return code
     parts = code.split(".")
-    if any(not p for p in parts) or len(parts) >= levels:
+    if not all(p.strip().isdigit() for p in parts) or len(parts) >= levels:
         return code
     return ".".join(parts + ["0"] * (levels - len(parts)))
+
+
+def plural(n: int, singular: str, plural_form: str) -> str:
+    """'1 tarea', '3 tareas'."""
+    return f"{n} {singular if n == 1 else plural_form}"
 
 
 def tolerance(amount: float) -> float:
@@ -272,6 +281,60 @@ def tolerance(amount: float) -> float:
 
 def fmt_money(v: float) -> str:
     return f"{v:,.2f}"
+
+
+# ----------------------------------------------------------------------------
+# Códigos EDT y planificación
+# ----------------------------------------------------------------------------
+def code_level(code: str) -> int:
+    """Nivel de un código EDT: cantidad de segmentos sin contar los ceros finales.
+
+    '2.0.0' -> 1, '2.1.0' -> 2, '2.1.1' -> 3, '2.1.1.4' -> 4, 'INTERNO' -> 1.
+    """
+    parts = [p.strip() for p in (code or "").strip().split(".")]
+    while len(parts) > 1 and not parts[-1].strip("0"):
+        parts.pop()
+    return len(parts)
+
+
+@dataclass
+class Scope:
+    """Tareas a exportar: todo el proyecto o la planificación elegida (p. ej. INTERNO)."""
+
+    roots: list[Task]
+    plan: Task | None = None
+    prefix: str = ""            # código EDT de la planificación
+
+    def raw_code(self, task: Task) -> str:
+        """Código EDT de la tarea, sin el prefijo de la planificación si lo tuviera."""
+        code = (task.wbs or "").strip()
+        p = self.prefix
+        if p and len(code) > len(p) + 1 and code[:len(p)].upper() == p.upper() and code[len(p)] in ".-_ /":
+            code = code[len(p) + 1:].strip()
+        return code
+
+    def tasks(self):
+        for r in self.roots:
+            yield from iter_subtree(r)
+
+
+def select_scope(roots: list[Task], plan_code: str) -> Scope:
+    """Elige la planificación por su código EDT (o, si no lo hay, por el nombre de la tarea)."""
+    plan_code = (plan_code or "").strip()
+    if not plan_code:
+        return Scope(list(roots))
+    from evm.fields import same_name
+    every = [t for r in roots for t in iter_subtree(r)]
+    found = sorted((t for t in every if same_name(t.wbs or "", plan_code)), key=lambda t: t.outline_level)
+    if not found:
+        found = sorted((t for t in every if same_name(t.name or "", plan_code)), key=lambda t: t.outline_level)
+    if not found:
+        tops = [f"{(t.wbs or '').strip()} ({t.name})" if (t.wbs or "").strip() else t.name for t in roots]
+        raise ConfigError(
+            f"No se encontró la planificación '{plan_code}': ninguna tarea tiene ese código EDT. Tareas de nivel "
+            f"superior del proyecto: {', '.join(tops[:15]) or 'ninguna'}.")
+    plan = found[0]
+    return Scope(list(plan.children), plan, (plan.wbs or "").strip() or plan_code)
 
 
 # ----------------------------------------------------------------------------
@@ -292,12 +355,28 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
                                 f"Se excluyeron {removed} tareas inactivas (costo de línea base "
                                 f"{fmt_money(excl_cost)}, que no forma parte del BAC)."))
 
+    # Planificación (p. ej. INTERNO o CLIENTE): solo las tareas que dependen de ella
+    scope = select_scope(roots, cfg.plan)
+    if scope.plan is not None:
+        issues.append(Issue(SEV_INFO, scope.prefix, scope.plan.name,
+                            f"Planificación '{scope.prefix}': se exportan las {sum(1 for _ in scope.tasks())} "
+                            f"tareas que dependen de '{scope.plan.name}'."))
+
     if not project.baseline_found:
         issues.append(Issue(
             SEV_WARN, "", "",
             "El proyecto no tiene guardada la línea base seleccionada: el PV y el BAC se calcularon con "
             "el programa ACTUAL (costo y fechas actuales). Se debe guardar la línea base en MS Project "
             "(Proyecto > Establecer línea base) y volver a exportar."))
+
+    def code_of(t: Task) -> str:
+        raw = scope.raw_code(t)
+        return pad_code(raw, cfg.max_level) if cfg.pad_wbs else raw
+
+    def included(t: Task) -> bool:
+        """Tiene fila propia: tiene código EDT y su nivel EDT no supera el nivel máximo."""
+        raw = scope.raw_code(t)
+        return bool(raw) and code_level(raw) <= cfg.max_level
 
     # --- Costo propio (distribución mensual) de cada tarea -------------------
     # own: costo propio de cada tarea; eff / eff_dist: total efectivo de su rama
@@ -306,9 +385,6 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
     eff: dict[int, float] = {}
     eff_dist: dict[int, dict[MonthKey, float]] = {}
     no_baseline: list[Task] = []
-
-    def code_of(t: Task) -> str:
-        return pad_code(t.wbs, cfg.max_level) if cfg.pad_wbs else (t.wbs or "").strip()
 
     def compute_own(t: Task) -> None:
         for c in t.children:
@@ -348,9 +424,9 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
             add_into(acc, eff_dist[c.uid])
         eff_dist[t.uid] = acc
 
-    for r in roots:
+    for r in scope.roots:
         compute_own(r)
-    by_wbs = {t.wbs: code_of(t) for t in tasks}
+    by_wbs = {t.wbs: code_of(t) for t in scope.tasks()}
     for i in getattr(source, "issues", []):
         issues.append(Issue(i.severity, by_wbs.get(i.code, i.code), i.name, i.message))
 
@@ -371,7 +447,7 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
             y, m = min(keys)
             start = date(y, m, 1)
         else:
-            dates = [t.baseline_start or t.start for t in tasks if (t.baseline_start or t.start)]
+            dates = [t.baseline_start or t.start for t in scope.tasks() if (t.baseline_start or t.start)]
             ref = min(dates) if dates else (project.project_start or datetime.now())
             start = first_of_month(ref.date() if isinstance(ref, datetime) else ref)
     horizon = Horizon(start, cfg.months)
@@ -379,6 +455,18 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
     # --- Filas del informe -----------------------------------------------------
     rows: list[ReportRow] = []
     report_roots: list[ReportRow] = []
+
+    has_included: dict[int, bool] = {}
+
+    def mark(t: Task) -> bool:
+        found = False
+        for c in t.children:
+            found = mark(c) or included(c) or found
+        has_included[t.uid] = found
+        return found
+
+    for r in scope.roots:
+        mark(r)
 
     def subtree_pv(t: Task) -> dict[MonthKey, float]:
         acc: dict[MonthKey, float] = {}
@@ -393,10 +481,36 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
         finishes = [n.baseline_finish for n in iter_subtree(t) if n.baseline_finish]
         return (min(starts) if starts else None, max(finishes) if finishes else None)
 
+    def gather(node: Task) -> tuple[list[Task], list[Task], list[Task]]:
+        """Recorre los hijos hasta encontrar tareas con fila propia.
+
+        Devuelve (tareas con fila, ramas completas sin fila, tareas intermedias sin fila).
+        Las intermedias aportan solo su costo propio; sus hijos se recorren.
+        """
+        with_row: list[Task] = []
+        loose_full: list[Task] = []
+        loose_own: list[Task] = []
+        for c in node.children:
+            if included(c):
+                with_row.append(c)
+            elif has_included[c.uid]:
+                loose_own.append(c)
+                a, b, d = gather(c)
+                with_row += a
+                loose_full += b
+                loose_own += d
+            else:
+                loose_full.append(c)
+        return with_row, loose_full, loose_own
+
+    aggregated = 0      # tareas sin fila propia sumadas en una fila
+
     def visit(t: Task, parent: ReportRow | None) -> None:
+        nonlocal aggregated
         s, f = subtree_dates(t)
-        is_leaf_row = t.is_leaf or t.outline_level >= cfg.max_level
-        row = ReportRow(code=code_of(t), name=t.name, level=t.outline_level,
+        row_tasks, loose_full, loose_own = gather(t)
+        is_leaf_row = not row_tasks or code_level(scope.raw_code(t)) >= cfg.max_level
+        row = ReportRow(code=code_of(t), name=t.name, level=(parent.level + 1) if parent else 1,
                         kind=KIND_LEAF if is_leaf_row else KIND_SUMMARY, task=t,
                         start=s, finish=f, parent=parent)
         rows.append(row)
@@ -410,6 +524,7 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
             row.bac = sum(row.pv.values())
             row.method = (t.method or "").strip() or cfg.default_method
             row.hidden_tasks = sum(1 for _ in iter_subtree(t)) - 1
+            aggregated += row.hidden_tasks
             if (t.children and t.baseline_cost
                     and abs(row.bac - t.baseline_cost) > tolerance(t.baseline_cost)):
                 issues.append(Issue(SEV_WARN, row.code, t.name,
@@ -417,28 +532,51 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
                                     f"costo de línea base de la tarea en MS Project ({fmt_money(t.baseline_cost)})."))
             return
 
-        for c in t.children:
+        for c in row_tasks:
             visit(c, row)
-        # Costo real cargado directamente en la tarea resumen (sin línea base propia):
-        # se agrega una fila de costos directos con BAC 0 para poder registrar su AC.
-        own_actual = t.actual_cost - sum(c.actual_cost for c in t.children)
+        # Costos de la tarea resumen que no quedan en ninguna fila hija: su costo propio y el de
+        # las tareas sin código EDT (o de nivel mayor al máximo) que cuelgan de ella.
+        others = dict(own[t.uid])
+        for n in loose_full:
+            add_into(others, subtree_pv(n))
+            aggregated += sum(1 for _ in iter_subtree(n))
+        for n in loose_own:
+            add_into(others, own.get(n.uid, {}))
+            aggregated += 1
+        uncoded_cost = sum(others.values()) - sum(own[t.uid].values())
+        if uncoded_cost > 0.005:
+            issues.append(Issue(SEV_INFO, row.code, t.name,
+                                f"Tareas sin código EDT o de nivel mayor a {cfg.max_level} con costo de línea base "
+                                f"{fmt_money(uncoded_cost)}: se suman en la fila {row.code}-D."))
+        own_actual = t.actual_cost - sum(c.actual_cost for c in row_tasks)
         has_own_now = own_actual > tolerance(t.actual_cost)
-        if has_own_now and not own.get(t.uid):
+        if has_own_now and not others:
             issues.append(Issue(SEV_WARN, row.code, t.name,
                                 f"La tarea resumen tiene costo real asignado directamente ({fmt_money(own_actual)}) "
-                                "que no está en la línea base. Se agrega una fila de costos directos (BAC 0) para "
+                                "que no está en la línea base. Se agrega una fila de otros costos (BAC 0) para "
                                 "registrar su costo real."))
-        if own.get(t.uid) or has_own_now:
-            res = ReportRow(code=f"{row.code}-D", name=f"Costos directos de «{t.name}»",
-                            level=t.outline_level + 1, kind=KIND_RESIDUAL, task=t,
+        if others or has_own_now:
+            res = ReportRow(code=f"{row.code}-D", name=f"Otros costos de «{t.name}»",
+                            level=row.level + 1, kind=KIND_RESIDUAL, task=t,
                             method=cfg.default_method, start=s, finish=f, parent=row)
-            res.pv = dict(own[t.uid])
+            res.pv = others
             res.bac = sum(res.pv.values())
             rows.append(res)
             row.children.append(res)
 
-    for t in roots:
-        visit(t, None)
+    omitted: list[Task] = []
+
+    def top(nodes: list[Task]) -> None:
+        for n in nodes:
+            if included(n):
+                visit(n, None)
+            elif has_included[n.uid]:
+                omitted.append(n)           # contenedor sin código: se omite, sus hijos se recorren
+                top(n.children)
+            else:
+                omitted.extend(iter_subtree(n))
+
+    top(scope.roots)
 
     # --- Vectores mensuales ---------------------------------------------------
     total_before = total_after = 0.0
@@ -479,27 +617,41 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
                             "'meses'."))
 
     # --- Controles -------------------------------------------------------------
-    if project.summary_baseline_cost is not None and project.baseline_found:
-        ref = project.summary_baseline_cost
-        if abs(ref - total_bac) > tolerance(ref):
+    if omitted:
+        omitted_cost = sum(sum(own.get(n.uid, {}).values()) for n in omitted)
+        issues.append(Issue(SEV_WARN if omitted_cost > 0.005 else SEV_INFO, "", "",
+                            f"Se {'omitió' if len(omitted) == 1 else 'omitieron'} "
+                            f"{plural(len(omitted), 'tarea', 'tareas')} sin código EDT que no depende"
+                            f"{'' if len(omitted) == 1 else 'n'} de ningún elemento EDT (costo de línea base "
+                            f"{fmt_money(omitted_cost)}, que no forma parte del BAC)."))
+    if not rows:
+        issues.append(Issue(SEV_WARN, "", "",
+                            "Ninguna tarea tiene código EDT: el libro no tiene filas. Se debe revisar el campo EDT "
+                            "configurado ([campos] edt) y la planificación elegida."))
+
+    reference = scope.plan.baseline_cost if scope.plan is not None else project.summary_baseline_cost
+    if reference is not None and project.baseline_found:
+        if abs(reference - total_bac) > tolerance(reference):
+            whose = f"de la planificación '{scope.prefix}'" if scope.plan is not None else "del proyecto"
             issues.append(Issue(SEV_WARN, "", "",
                                 f"El BAC total exportado ({fmt_money(total_bac)}) difiere del costo de línea base "
-                                f"del proyecto en MS Project ({fmt_money(ref)})."))
+                                f"{whose} en MS Project ({fmt_money(reference)})."))
 
     seen: set[str] = set()
     for row in rows:
-        if not row.code:
-            issues.append(Issue(SEV_WARN, "", row.name, "Fila sin código EDT."))
-        elif row.code in seen:
-            issues.append(Issue(SEV_WARN, row.code, row.name, "Código EDT duplicado."))
+        if row.code in seen:
+            issues.append(Issue(SEV_WARN, row.code, row.name,
+                                "Código EDT duplicado." + ("" if scope.plan is not None else
+                                                           " Si el proyecto tiene varias planificaciones, se "
+                                                           "debe elegir una con 'planificacion'.")))
         else:
             seen.add(row.code)
 
-    hidden = sum(r.hidden_tasks for r in rows if r.kind == KIND_LEAF)
-    if hidden:
+    if aggregated:
         issues.append(Issue(SEV_INFO, "", "",
-                            f"{hidden} tareas de nivel mayor a {cfg.max_level} se agregaron en su tarea de "
-                            f"nivel {cfg.max_level}."))
+                            f"{plural(aggregated, 'tarea', 'tareas')} sin código EDT o de nivel EDT mayor a "
+                            f"{cfg.max_level} se {'agregó' if aggregated == 1 else 'agregaron'} en su elemento EDT "
+                            "superior."))
     linear = getattr(source, "linear_count", 0)
     if linear and isinstance(source, TimephasedPVSource):
         if source.timephased_count:
@@ -514,8 +666,9 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
     undefined = [r for r in rows if r.is_input and r.method.strip().lower() in ("", "por definir", "a definir")]
     if undefined:
         issues.append(Issue(SEV_INFO, "", "",
-                            f"{len(undefined)} filas sin método de medición definido (columna C)."))
+                            f"{plural(len(undefined), 'fila', 'filas')} sin método de medición definido "
+                            "(columna C)."))
 
     return Report(project=project, horizon=horizon, rows=rows, roots=report_roots, issues=issues,
                   total_vector=total_vector, total_bac=total_bac, pv_before=total_before,
-                  pv_after=total_after, pv_source=source.description)
+                  pv_after=total_after, pv_source=source.description, plan=scope.prefix)

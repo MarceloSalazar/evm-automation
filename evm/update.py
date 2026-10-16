@@ -15,7 +15,7 @@ from evm.config import Config
 from evm.methods import ev_fraction, parse_method
 from evm.model import ProjectData, Task
 from evm.timeline import Horizon
-from evm.wbs import build_tree, fmt_money, iter_subtree, pad_code, prune_inactive, tolerance
+from evm.wbs import Scope, build_tree, fmt_money, iter_subtree, pad_code, prune_inactive, select_scope, tolerance
 from evm.workbook import (COL_BAC, COL_METHOD, FIRST_MONTH_COL, SHEET_AC, SHEET_CURVE, SHEET_EV, SHEET_META,
                           SHEET_PV, SHEET_SUMMARY, STATUS_CELL, StructRow, WorkbookFormatError, add_s_curve_chart,
                           col, read_meta, read_structure, save_workbook, write_meta)
@@ -169,33 +169,40 @@ def _acwp(t: Task) -> float:
     return t.acwp if t.acwp is not None else t.actual_cost
 
 
-def _own_ac(task: Task) -> float:
-    """Costo real propio de una tarea resumen (sin sus subtareas)."""
-    return _acwp(task) - sum(_acwp(c) for c in task.children)
+def _own_ac(task: Task, children: list[Task]) -> float:
+    """Costo real de una tarea resumen que no está en sus filas hijas."""
+    return _acwp(task) - sum(_acwp(c) for c in children)
 
 
-def _own_bcwp(task: Task) -> float | None:
-    if task.bcwp is None or any(c.bcwp is None for c in task.children):
+def _own_bcwp(task: Task, children: list[Task]) -> float | None:
+    if task.bcwp is None or any(c.bcwp is None for c in children):
         return None
-    return task.bcwp - sum(c.bcwp for c in task.children)
+    return task.bcwp - sum(c.bcwp for c in children)
 
 
-def _match_tasks(project: ProjectData, book: BookData, cfg: Config) -> tuple[dict[int, Task], list[str]]:
-    """Asocia cada fila de ingreso del libro con la tarea de MS Project.
+def _match_tasks(project: ProjectData, book: BookData, cfg: Config) -> tuple[dict[int, Task], list[str], Scope]:
+    """Asocia cada fila del libro con la tarea de MS Project.
 
     Mismo proyecto: por UniqueID (si la tarea ya no existe, la fila se omite).
     Proyecto distinto: por código EDT, sin asignar una tarea a dos filas.
+    Se usa la planificación con la que se generó el libro.
     """
     warnings: list[str] = []
     tasks = [t for t in project.tasks if t.outline_level >= 1]
     roots = build_tree(tasks)
     if not cfg.include_inactive:
-        prune_inactive(roots)       # el avance de tareas inactivas no cuenta
+        roots, _, _ = prune_inactive(roots)     # el avance de tareas inactivas no cuenta
+    plan_code = str(book.meta.get("planificacion") or "")
+    if cfg.plan and cfg.plan.strip().upper() != plan_code.upper():
+        warnings.append(f"El libro se generó para la planificación '{plan_code or 'todas'}': se usa esa "
+                        f"planificación y no '{cfg.plan}'.")
+    scope = select_scope(roots, plan_code)
     by_uid = {t.uid: t for t in tasks}
     by_code: dict[str, Task] = {}
-    for t in tasks:
-        code = pad_code(t.wbs, cfg.max_level) if cfg.pad_wbs else (t.wbs or "").strip()
-        by_code.setdefault(code, t)
+    for t in scope.tasks():
+        raw = scope.raw_code(t)
+        if raw:
+            by_code.setdefault(pad_code(raw, cfg.max_level) if cfg.pad_wbs else raw, t)
     same = str(book.meta.get("proyecto") or "") == project.name
     if not same:
         warnings.append(f"El libro fue generado para el proyecto '{book.meta.get('proyecto')}' y el origen es "
@@ -203,60 +210,59 @@ def _match_tasks(project: ProjectData, book: BookData, cfg: Config) -> tuple[dic
                         "resultados.")
     out: dict[int, Task] = {}
     used: set[tuple[int, bool]] = set()
-    for s in book.input_rows:
+    for s in book.structure:
         residual = s.key.endswith("-D")
         uid_text = s.key[:-2] if residual else s.key
         if same and uid_text.isdigit():
             task = by_uid.get(int(uid_text))
             if task is None:
-                warnings.append(f"Fila {s.code} '{s.name}': la tarea (UID {uid_text}) ya no existe en MS Project; "
-                                "se omite. Si cambió la EDT, se debe regenerar el libro con --migrar-desde.")
+                if s.is_input:
+                    warnings.append(f"Fila {s.code} '{s.name}': la tarea (UID {uid_text}) ya no existe en MS "
+                                    "Project; se omite. Si cambió la EDT, se debe regenerar el libro con "
+                                    "--migrar-desde.")
                 continue
         else:
             code = s.code[:-2] if residual else s.code
             task = by_code.get(code)
             if task is None or (task.uid, residual) in used:
-                warnings.append(f"Fila {s.code} '{s.name}': no se encontró una tarea con ese código EDT; se omite.")
+                if s.is_input:
+                    warnings.append(f"Fila {s.code} '{s.name}': no se encontró una tarea con ese código EDT; "
+                                    "se omite.")
                 continue
         used.add((task.uid, residual))
         out[s.row] = task
-    return out, warnings
+    return out, warnings, scope
 
 
-def _coverage_warnings(project: ProjectData, book: BookData, matches: dict[int, Task], cfg: Config) -> list[str]:
-    """Tareas con costo que no quedaron representadas en ninguna fila del libro."""
-    warnings: list[str] = []
+def _row_children(book: BookData, row: StructRow, matches: dict[int, Task]) -> list[Task]:
+    """Tareas de las filas hijas de la tarea resumen de una fila de otros costos (-D)."""
+    return [matches[s.row] for s in book.structure
+            if s.parent_row == row.parent_row and s.kind != "residual" and s.row in matches]
+
+
+def _coverage_warnings(scope: Scope, book: BookData, matches: dict[int, Task], cfg: Config) -> list[str]:
+    """Costo real de tareas de la planificación que no queda en ninguna fila del libro."""
     covered: set[int] = set()
-    ancestors: set[int] = set()
-    residual_uids: set[int] = set()
-    rows = {s.row: s for s in book.input_rows}
-    for r, task in matches.items():
-        if rows[r].kind == "residual":
-            residual_uids.add(task.uid)
-            continue
-        covered.update(n.uid for n in iter_subtree(task))
-        p = task.parent
-        while p is not None:
-            ancestors.add(p.uid)
-            p = p.parent
+    for s in book.input_rows:
+        task = matches.get(s.row)
+        if task is not None:
+            # Una fila -D cubre todo lo que cuelga de su tarea resumen y no tiene fila propia.
+            covered.update(n.uid for n in iter_subtree(task))
     missing = []
-    for t in project.tasks:
-        if t.outline_level < 1 or t.uid in covered or (not cfg.include_inactive and not t.active):
+    for t in scope.tasks():
+        if t.uid in covered:
             continue
-        if t.uid in ancestors:
-            own = _own_ac(t) if t.children else _acwp(t)
-            if own > tolerance(own) and t.uid not in residual_uids:
-                missing.append((t, own, "costo real asignado directamente a la tarea resumen"))
-            continue
-        parent_covered = t.parent is not None and t.parent.uid in covered
-        if not parent_covered and (_acwp(t) > tolerance(_acwp(t)) or t.baseline_cost or t.cost):
-            if t.parent is None or t.parent.uid in ancestors:
-                missing.append((t, _acwp(t), "tarea sin fila en el libro"))
-    for t, amount, why in missing[:15]:
-        warnings.append(f"{t.wbs} '{t.name}': {why} (costo real {fmt_money(amount)}); no se incluye en el AC. "
-                        "Para incorporarla se debe regenerar el libro con --migrar-desde.")
+        own = _acwp(t) - sum(_acwp(c) for c in t.children)
+        if own > tolerance(own):
+            missing.append((t, own))
+    warnings = []
+    for t, amount in missing[:15]:
+        code = scope.raw_code(t) or "(sin código EDT)"
+        warnings.append(f"{code} '{t.name}': costo real {fmt_money(amount)} sin fila en el libro; no se incluye en "
+                        "el AC. Para incluirlo, la tarea debe tener código EDT y el libro se debe regenerar con "
+                        "--migrar-desde.")
     if len(missing) > 15:
-        warnings.append(f"... y {len(missing) - 15} tareas más sin fila en el libro.")
+        warnings.append(f"... y {len(missing) - 15} tareas más con costo real sin fila en el libro.")
     return warnings
 
 
@@ -305,10 +311,10 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
         warnings.append(f"La fecha de corte ({status:%d/%m/%Y}) es anterior a la última cargada en el libro "
                         f"({book.status_date:%d/%m/%Y}).")
 
-    matches, w = _match_tasks(project, book, cfg)
+    matches, w, scope = _match_tasks(project, book, cfg)
     warnings += w
     if only != "ev":
-        warnings += _coverage_warnings(project, book, matches, cfg)
+        warnings += _coverage_warnings(scope, book, matches, cfg)
 
     rows: list[RowResult] = []
     later_filled: list[str] = []
@@ -323,16 +329,17 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
         method = parse_method(method_text)
         pv_cum = sum(book.pv[s.row][: idx + 1])
         residual = s.kind == "residual"
-        bcwp = _own_bcwp(task) if residual else task.bcwp
+        siblings = _row_children(book, s, matches) if residual else []
+        bcwp = _own_bcwp(task, siblings) if residual else task.bcwp
         bcwp_base = None
         if task.ev_baseline_cost is not None:       # CPTR calculado con otra línea base
             bcwp_base = task.ev_baseline_cost
             if residual:
-                bcwp_base -= sum(c.ev_baseline_cost or 0.0 for c in task.children)
+                bcwp_base -= sum(c.ev_baseline_cost or 0.0 for c in siblings)
         frac, note = ev_fraction(method, task, (pv_cum / bac) if bac else 0.0, bac=bac, bcwp=bcwp,
                                  bcwp_base=bcwp_base)
         ev_cum = round(bac * frac, 2)
-        ac_cum = round(_own_ac(task) if residual else _acwp(task), 2)
+        ac_cum = round(_own_ac(task, siblings) if residual else _acwp(task), 2)
         ac_total += ac_cum
 
         res = RowResult(s.code, s.name, method_text, bac, None, None, None, None, note)
@@ -359,12 +366,14 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
             "Hay valores cargados en meses posteriores a la fecha de corte (" + ", ".join(later_filled[:10]) +
             ("..." if len(later_filled) > 10 else "") + "). Se deben borrar esos valores o usar --forzar.")
 
-    if only != "ev" and project.summary_acwp is not None:
-        diff = project.summary_acwp - ac_total
-        if abs(diff) > tolerance(project.summary_acwp):
-            warnings.append(f"El AC cargado ({fmt_money(ac_total)}) difiere del costo real del proyecto en MS Project "
-                            f"({fmt_money(project.summary_acwp)}) en {fmt_money(diff)}. Se recomienda revisar las "
-                            "advertencias anteriores (tareas sin fila, costos en tareas resumen).")
+    reference = _acwp(scope.plan) if scope.plan is not None else project.summary_acwp
+    if only != "ev" and reference is not None:
+        diff = reference - ac_total
+        if abs(diff) > tolerance(reference):
+            whose = f"de la planificación '{scope.prefix}'" if scope.plan is not None else "del proyecto"
+            warnings.append(f"El AC cargado ({fmt_money(ac_total)}) difiere del costo real {whose} en MS Project "
+                            f"({fmt_money(reference)}) en {fmt_money(diff)}. Se recomienda revisar las advertencias "
+                            "anteriores (tareas sin fila, costos en tareas resumen).")
 
     if book.fixable:
         cells = ", ".join(f"{sh}!{col(c)}{r}" for sh, r, c, _v, _why in book.fixable[:8])
