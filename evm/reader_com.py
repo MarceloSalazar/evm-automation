@@ -1,0 +1,424 @@
+"""Lector por automatización COM de MS Project de escritorio (Windows + pywin32).
+
+Abre el archivo .mpp en modo solo lectura, lee las tareas y obtiene el PV
+mensual con Task.TimeScaleData (costo de línea base escalonado por mes), es
+decir, exactamente la distribución que calcula MS Project (calendarios,
+perfiles de trabajo, acumulación de costos fijos, etc.).
+
+Precauciones:
+- Si MS Project ya estaba abierto, se usa esa instancia y no se cierra.
+- El archivo se abre solo lectura, sin macros, y se cierra sin guardar.
+- Las fechas se envían a COM con zona horaria UTC explícita (pywin32
+  convierte las fechas sin zona como hora local y las desplazaría).
+"""
+from __future__ import annotations
+
+import logging
+from datetime import date, datetime, timezone
+from pathlib import Path
+
+from evm.config import Config
+from evm.fields import (TASK_NUMBER_IDS, TASK_TEXT_IDS, builtin_kind, parse_custom_name, parse_number,
+                        same_name)
+from evm.model import MonthKey, ProjectData, Task, use_current_schedule
+from evm.timeline import add_months, first_of_month, last_of_month
+from evm.wbs import TimephasedPVSource
+
+log = logging.getLogger(__name__)
+
+# Constantes de MS Project (referencia VBA)
+TS_COST = 5                                   # pjTaskTimescaledCost
+TS_BASELINE_COST = {0: 6, 1: 484, 2: 495, 3: 506, 4: 517, 5: 528,   # pjTaskTimescaledBaseline[N]Cost
+                    6: 546, 7: 557, 8: 568, 9: 579, 10: 590}
+PJ_TIMESCALE_MONTHS = 2                       # pjTimescaleMonths
+PJ_DO_NOT_SAVE = 0                            # pjDoNotSave
+PJ_POOL_READ_ONLY = 1                         # pjPoolReadOnly (no pregunta; abre subproyectos)
+MSO_AUTOMATION_SECURITY_FORCE_DISABLE = 3     # sin macros
+ACCRUAL = {1: "inicio", 2: "fin", 3: "prorrateado"}   # PjAccrueAt
+
+PROGID = "MSProject.Application"
+
+
+def _dt(v) -> datetime | None:
+    """Fecha COM -> datetime sin zona. 'NA' u otros valores -> None."""
+    if isinstance(v, datetime):
+        if not 1984 <= v.year <= 2149:
+            return None
+        return datetime(v.year, v.month, v.day, v.hour, v.minute, v.second)
+    return None
+
+
+def _com_date(d: date | datetime) -> datetime:
+    """datetime con zona UTC para que pywin32 no lo desplace."""
+    if isinstance(d, datetime):
+        return datetime(d.year, d.month, d.day, d.hour, d.minute, tzinfo=timezone.utc)
+    return datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
+
+
+def _f(v, default: float = 0.0) -> float:
+    if v is None or v == "":
+        return default
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        n = parse_number(v)
+        return default if n is None else n
+
+
+def _get(obj, name: str, default=None):
+    try:
+        return getattr(obj, name)
+    except Exception:  # propiedad inexistente en esta versión de Project, etc.
+        return default
+
+
+class ComSession:
+    """Sesión de MS Project. Uso: with ComSession(ruta) as s: s.read_project(cfg)."""
+
+    def __init__(self, origen: str, visible: bool = False):
+        self.origen = origen
+        self.visible = visible
+        self.app = None
+        self.project = None
+        self.started_by_us = False
+        self.opened_by_us = False
+        self._orig_status = None
+        self._status_changed = False
+        self._com_tasks: dict[int, object] = {}
+        self._pythoncom = None
+        self._prev_active = None            # proyecto activo antes de empezar (si ya había uno abierto)
+        self._saved_app_props: dict[str, object] = {}
+
+    # -- conexión -------------------------------------------------------------
+    def __enter__(self) -> "ComSession":
+        try:
+            import pythoncom
+        except ImportError as exc:
+            raise RuntimeError(
+                "Para leer archivos .mpp se necesita pywin32 (pip install pywin32) y MS Project instalado. "
+                "Alternativa: en MS Project use Archivo > Guardar como > XML y procese ese archivo.") from exc
+        pythoncom.CoInitialize()
+        self._pythoncom = pythoncom
+        try:
+            self._connect()
+            self._open()
+        except BaseException:
+            self._cleanup()
+            raise
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self._cleanup()
+
+    def _connect(self) -> None:
+        import pywintypes
+        import win32com.client
+        raw = None
+        try:
+            raw = win32com.client.GetActiveObject(PROGID)
+            self.started_by_us = False
+        except pywintypes.com_error:
+            try:
+                raw = win32com.client.DispatchEx(PROGID)
+            except pywintypes.com_error as exc:
+                raise RuntimeError(
+                    "No se pudo iniciar MS Project por automatización COM. Verifique que MS Project de "
+                    "escritorio esté instalado, o exporte el proyecto a XML y use ese archivo.") from exc
+            # Si en realidad se conectó a un MS Project abierto por el usuario, no cerrarlo después.
+            user_control = bool(_get(raw, "UserControl", True))
+            try:
+                n_open = int(raw.Projects.Count)
+            except Exception:
+                n_open = 1
+            self.started_by_us = not user_control and n_open == 0
+        # Enlace temprano (más rápido) si está disponible; si falla, enlace dinámico.
+        try:
+            from win32com.client import gencache
+            self.app = gencache.EnsureDispatch(raw._oleobj_)
+        except Exception as exc:  # caché gen_py dañada, sin biblioteca de tipos, etc.
+            log.debug("Sin enlace temprano (%s); se usa enlace dinámico", exc)
+            self.app = win32com.client.dynamic.Dispatch(raw._oleobj_)
+        if self.started_by_us:
+            try:
+                self.app.Visible = bool(self.visible)
+            except Exception:
+                pass
+
+    def _open(self) -> None:
+        app = self.app
+        if self.origen.lower() == "activo":
+            if int(app.Projects.Count) == 0:
+                raise RuntimeError("No hay proyectos abiertos en MS Project.")
+            self.project = app.ActiveProject
+            return
+        full = str(Path(self.origen).resolve())
+        if int(app.Projects.Count) > 0:
+            self._prev_active = _get(app, "ActiveProject")
+        for i in range(1, int(app.Projects.Count) + 1):
+            p = app.Projects.Item(i)
+            if str(_get(p, "FullName", "")).lower() == full.lower():
+                self.project = p          # ya estaba abierto: se usa sin cerrarlo
+                self._activate()
+                return
+        if not self.started_by_us:
+            self._saved_app_props = {prop: _get(app, prop) for prop in ("DisplayAlerts", "AutomationSecurity")}
+        for prop, value in (("DisplayAlerts", False), ("AutomationSecurity", MSO_AUTOMATION_SECURITY_FORCE_DISABLE)):
+            try:
+                setattr(app, prop, value)
+            except Exception:
+                pass
+        import pywintypes
+        # pythoncom.Empty (no Missing): pywin32 corta la lista de argumentos en el primer Missing.
+        e = self._pythoncom.Empty
+        try:
+            # Name, ReadOnly, ..., NoAuto, ..., openPool, ..., IgnoreReadOnlyRecommended, ..., DoNotLoadFromEnterprise
+            ok = app.FileOpenEx(full, True, e, e, e, e, True, e, e, e, e, PJ_POOL_READ_ONLY, e, e, True, e, True)
+        except (pywintypes.com_error, TypeError):
+            ok = app.FileOpenEx(full, True)
+        if not ok:
+            raise RuntimeError(f"MS Project no pudo abrir {full}.")
+        self.project = app.ActiveProject
+        self.opened_by_us = True
+
+    def _activate(self) -> None:
+        """Las llamadas a nivel de aplicación (cálculo, alias de campos) actúan sobre el proyecto activo."""
+        try:
+            self.project.Activate()
+        except Exception:
+            pass
+
+    def _cleanup(self) -> None:
+        try:
+            if self.project is not None and self._status_changed and not self.opened_by_us:
+                try:
+                    self.project.StatusDate = self._orig_status if self._orig_status is not None else "NA"
+                except Exception:
+                    pass
+            if self.project is not None and self.opened_by_us:
+                try:
+                    self.project.Activate()
+                except Exception:
+                    pass
+                try:
+                    self.app.FileCloseEx(PJ_DO_NOT_SAVE)
+                except Exception:
+                    try:
+                        self.app.FileClose(PJ_DO_NOT_SAVE)
+                    except Exception:
+                        log.warning("No se pudo cerrar el proyecto en MS Project")
+            if self.app is not None and not self.started_by_us:
+                for prop, value in self._saved_app_props.items():
+                    if value is not None:
+                        try:
+                            setattr(self.app, prop, value)
+                        except Exception:
+                            pass
+                if self._prev_active is not None:
+                    try:
+                        self._prev_active.Activate()
+                    except Exception:
+                        pass
+            if self.app is not None and self.started_by_us:
+                try:
+                    if int(self.app.Projects.Count) == 0:   # no cerrar si hay otros proyectos abiertos
+                        self.app.Quit(PJ_DO_NOT_SAVE)
+                except Exception:
+                    pass
+        finally:
+            self._com_tasks.clear()
+            self.project = None
+            self._prev_active = None
+            self.app = None
+            if self._pythoncom is not None:
+                try:
+                    self._pythoncom.CoUninitialize()
+                except Exception:
+                    pass
+                self._pythoncom = None
+
+    # -- campos ---------------------------------------------------------------
+    def _resolve_field(self, name: str):
+        """('attr', 'Text10') o ('fid', id) para un nombre de campo o su alias."""
+        if not name:
+            return None
+        b = builtin_kind(name)
+        if b:
+            return ("attr", b)
+        parsed = parse_custom_name(name)
+        if parsed:
+            return ("attr", f"{parsed[0]}{parsed[1]}")
+        for kind, table in (("Text", TASK_TEXT_IDS), ("Number", TASK_NUMBER_IDS)):
+            for idx, fid in table.items():
+                try:
+                    alias = self.app.CustomFieldGetName(fid)
+                except Exception:
+                    continue
+                if alias and same_name(str(alias), name):
+                    return ("attr", f"{kind}{idx}")
+        try:
+            return ("fid", int(self.app.FieldNameToFieldConstant(name, 0)))
+        except Exception:
+            return None
+
+    @staticmethod
+    def _field_value(t, ref) -> object:
+        if ref is None:
+            return None
+        kind, key = ref
+        try:
+            return getattr(t, key) if kind == "attr" else t.GetField(key)
+        except Exception:
+            return None
+
+    # -- lectura --------------------------------------------------------------
+    def set_status_date(self, d: date) -> None:
+        self._activate()
+        p = self.project
+        self._orig_status = _get(p, "StatusDate")
+        p.StatusDate = _com_date(datetime(d.year, d.month, d.day, 23, 59))
+        self._status_changed = True
+        for method in ("CalculateProject", "CalculateAll"):
+            try:
+                getattr(self.app, method)()
+                break
+            except Exception:
+                continue
+
+    def read_project(self, cfg: Config, status_date: date | None = None) -> ProjectData:
+        p = self.project
+        self._activate()
+        if status_date is not None:
+            self.set_status_date(status_date)
+        warnings: list[str] = []
+        # Línea base: la indicada en la configuración o la que el proyecto usa para el valor acumulado
+        ev_baseline = int(_f(_get(p, "EarnedValueBaseline", 0)))
+        ev_baseline = ev_baseline if 0 <= ev_baseline <= 10 else 0
+        n = cfg.baseline if cfg.baseline is not None else ev_baseline
+        if n != ev_baseline:
+            warnings.append(f"El PV y el BAC usan la línea base {n}, pero MS Project calcula su valor acumulado "
+                            f"(CPTR) con la línea base {ev_baseline}: el método 'CPTR de MS Project' no es "
+                            "comparable.")
+        sfx = "" if n == 0 else str(n)
+
+        wbs_ref = self._resolve_field(cfg.wbs_field)
+        if wbs_ref is None:
+            warnings.append(f"No se encontró el campo EDT '{cfg.wbs_field}' en MS Project; se usa el campo EDT (WBS).")
+            wbs_ref = ("attr", "WBS")
+        method_ref = self._resolve_field(cfg.method_field) if cfg.method_field else None
+        if cfg.method_field and method_ref is None:
+            warnings.append(f"No se encontró el campo de método '{cfg.method_field}' en MS Project.")
+        weight_ref = self._resolve_field(cfg.milestone_weight_field) if cfg.milestone_weight_field else None
+        if cfg.milestone_weight_field and weight_ref is None:
+            warnings.append(f"No se encontró el campo de peso de hitos '{cfg.milestone_weight_field}'.")
+
+        tasks: list[Task] = []
+        any_baseline = False
+        skipped_external = 0
+        for t in p.Tasks:
+            if t is None:                 # fila en blanco
+                continue
+            if bool(_get(t, "ExternalTask", False)):
+                skipped_external += 1
+                continue
+            uid = int(t.UniqueID)
+            bl_start = _dt(_get(t, f"Baseline{sfx}Start"))
+            bl_finish = _dt(_get(t, f"Baseline{sfx}Finish"))
+            bl_cost = _f(_get(t, f"Baseline{sfx}Cost"))
+            has_bl = bl_start is not None or bl_finish is not None
+            any_baseline = any_baseline or has_bl or bool(bl_cost)
+            wbs = self._field_value(t, wbs_ref)
+            weight = self._field_value(t, weight_ref)
+            task = Task(
+                uid=uid, id=int(_get(t, "ID", 0) or 0), name=str(_get(t, "Name", "") or ""),
+                outline_level=int(_get(t, "OutlineLevel", 1) or 1),
+                outline_number=str(_get(t, "OutlineNumber", "") or ""),
+                wbs=str(wbs or _get(t, "WBS", "") or ""),
+                summary=bool(_get(t, "Summary", False)), milestone=bool(_get(t, "Milestone", False)),
+                active=bool(_get(t, "Active", True)),
+                baseline_cost=bl_cost, baseline_start=bl_start, baseline_finish=bl_finish, has_baseline=has_bl,
+                start=_dt(_get(t, "Start")), finish=_dt(_get(t, "Finish")), cost=_f(_get(t, "Cost")),
+                fixed_cost=_f(_get(t, "FixedCost")),
+                fixed_cost_accrual=ACCRUAL.get(int(_f(_get(t, "FixedCostAccrual"), 3)), "prorrateado"),
+                percent_complete=_f(_get(t, "PercentComplete")),
+                physical_percent_complete=_f(_get(t, "PhysicalPercentComplete")),
+                actual_start=_dt(_get(t, "ActualStart")), actual_finish=_dt(_get(t, "ActualFinish")),
+                actual_cost=_f(_get(t, "ActualCost")),
+                acwp=_f(_get(t, "ACWP"), None) if _get(t, "ACWP") not in (None, "") else None,
+                bcwp=_f(_get(t, "BCWP"), None) if _get(t, "BCWP") not in (None, "") else None,
+                method=str(self._field_value(t, method_ref) or "").strip(),
+                ev_baseline_cost=(_f(_get(t, f"Baseline{'' if ev_baseline == 0 else ev_baseline}Cost"))
+                                  if n != ev_baseline else None),
+                milestone_weight=None if weight in (None, "") else parse_number(weight),
+            )
+            tasks.append(task)
+            self._com_tasks[uid] = t
+        if skipped_external:
+            warnings.append(f"Se omitieron {skipped_external} tareas externas (vínculos entre proyectos).")
+
+        saved = None
+        for getter in (lambda: p.BaselineSavedDate(n), lambda: p.GetBaselineSavedDate(n)):
+            try:
+                saved = _dt(getter())
+                break
+            except Exception:
+                continue
+        any_baseline = any_baseline or saved is not None
+
+        summary = _get(p, "ProjectSummaryTask")
+        title = str(_get(summary, "Name", "") or "") if summary is not None else ""
+        status = _dt(_get(p, "StatusDate"))
+        project = ProjectData(
+            name=title or str(_get(p, "Name", "") or Path(self.origen).stem),
+            source=str(_get(p, "FullName", "") or self.origen), backend="com", tasks=tasks,
+            status_date=status,
+            currency_symbol=str(_get(p, "CurrencyCode", "") or _get(p, "CurrencySymbol", "") or ""),
+            project_start=_dt(_get(p, "ProjectStart")),
+            baseline_label="Línea base" if n == 0 else f"Línea base {n}",
+            summary_baseline_cost=_f(_get(summary, f"Baseline{sfx}Cost")) if summary is not None else None,
+            summary_cost=_f(_get(summary, "Cost")) if summary is not None else None,
+            summary_acwp=(_f(_get(summary, "ACWP"), None) if summary is not None
+                          and _get(summary, "ACWP") not in (None, "") else None),
+            ev_baseline=ev_baseline,
+            warnings=warnings,
+        )
+        if not any_baseline:
+            use_current_schedule(project)
+        self._ts_type = TS_BASELINE_COST[n] if project.baseline_found else TS_COST
+        return project
+
+    # -- PV mensual -------------------------------------------------------------
+    def monthly_values(self, task: Task) -> dict[MonthKey, float] | None:
+        """Costo de línea base de la tarea por mes, según MS Project."""
+        t = self._com_tasks.get(task.uid)
+        s = task.baseline_start or task.start
+        f = task.baseline_finish or task.finish
+        if t is None or s is None or f is None:
+            return None
+        start = add_months(first_of_month(min(s, f).date()), -1)
+        end = last_of_month(add_months(first_of_month(max(s, f).date()), 1))
+        try:
+            tsv = t.TimeScaleData(_com_date(start), _com_date(end), self._ts_type, PJ_TIMESCALE_MONTHS, 1)
+            out: dict[MonthKey, float] = {}
+            for i in range(1, int(tsv.Count) + 1):
+                item = tsv.Item(i)
+                value = _f(item.Value)
+                if value:
+                    d = _dt(item.StartDate)
+                    if d is not None:
+                        out[(d.year, d.month)] = out.get((d.year, d.month), 0.0) + value
+            return out
+        except Exception as exc:
+            log.warning("TimeScaleData falló para la tarea %s (%s): %s", task.uid, task.name, exc)
+            return None
+
+    def pv_source(self, project: ProjectData, cfg: Config) -> TimephasedPVSource:
+        cache: dict[int, dict[MonthKey, float] | None] = {}
+
+        def fetch(task: Task):
+            if task.uid not in cache:
+                cache[task.uid] = self.monthly_values(task)
+            return cache[task.uid]
+
+        label = ("Costo de línea base mensual calculado por MS Project (datos escalonados)"
+                 if project.baseline_found else "Costo mensual del programa actual calculado por MS Project")
+        return TimephasedPVSource(fetch, label, cfg.distribution, cfg.holidays)

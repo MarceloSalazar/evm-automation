@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.vscode/
+.idea/
+
+# Archivos generados o personales (no subir: el repositorio es público)
+/config.toml
+*.xlsx
+*.png
+*.mpp
+/*.xml
+~$*
+salida/

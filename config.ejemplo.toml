@@ -1,0 +1,76 @@
+# Configuración del exportador EVM (copie este archivo como config.toml y ajústelo).
+# Uso:  python evm_export.py generar --origen Programa.mpp --config config.toml
+# Todas las claves son opcionales: si se omiten se usan los valores indicados.
+
+[campos]
+# Campo de MS Project con el código EDT de cada tarea:
+#   "WBS" (EDT, por defecto), "OutlineNumber" (número de esquema) o un campo
+#   personalizado de texto, por ejemplo "Text1" o su alias ("Código EDT").
+edt = "WBS"
+
+# Campo personalizado de texto con el método de medición del valor ganado
+# (por ejemplo "Text10", o su alias "Método EVM"). Vacío = no se lee.
+metodo = ""
+
+# Campo numérico con el peso de cada hito para el método "Hitos ponderados"
+# (por ejemplo "Number1" o su alias "Peso hito"). Vacío = hitos con igual peso.
+peso_hito = ""
+
+[horizonte]
+# Primer mes del horizonte (mes 1), formato "AAAA-MM".
+# Vacío = mes en que comienza la línea base del proyecto.
+mes_inicio = ""
+# Cantidad de meses (columnas mensuales). 120 = 10 años.
+meses = 120
+
+[exportacion]
+# Nivel máximo de la EDT que se exporta. Las tareas de nivel inferior se
+# agregan (suman) en su tarea de este nivel.
+nivel_maximo = 3
+# Línea base que define el PV y el BAC: 0 = "Línea base", 1..10 = "Línea base N".
+# Si se omite, se usa la línea base que el proyecto tiene configurada para el
+# valor acumulado (Archivo > Opciones > Avanzadas > Opciones de valor acumulado).
+# linea_base = 0
+# Completar los códigos EDT con ceros: "1" -> "1.0.0", "1.2" -> "1.2.0".
+rellenar_edt = true
+# Incluir tareas inactivas (MS Project 2010 o posterior).
+incluir_inactivas = false
+# Reparto en el tiempo de las tareas que no tienen distribución mensual de la
+# línea base en MS Project (p. ej. costo de línea base escrito a mano):
+#   "habiles"    proporcional al tiempo laborable del calendario
+#   "calendario" proporcional a los días corridos
+distribucion = "habiles"
+# Feriados adicionales. Con XML se agregan al calendario del proyecto; con .mpp
+# solo afectan el reparto lineal (MS Project usa sus propios calendarios).
+feriados = [
+  # "2026-12-25",
+  # "2027-01-01",
+]
+# Método asignado a las filas cuyo campo de método está vacío.
+metodo_por_defecto = "Por definir"
+# Moneda que se muestra en el libro. Vacío = código de moneda del proyecto (p. ej. USD).
+moneda = ""
+# Decimales en los montos del libro (0 a 4).
+decimales = 0
+
+[metodos]
+# Valores del desplegable de la columna C (método de medición).
+lista = [
+  "Por definir",
+  "0/100",
+  "50/50",
+  "25/75",
+  "20/80",
+  "Hitos ponderados",
+  "% Completado",
+  "% Físico completado",
+  "Unidades completadas",
+  "Avance lineal (LOE)",
+  "CPTR de MS Project",
+]
+
+[semaforo]
+# Umbrales de SPI y CPI: rojo si es menor que "rojo", amarillo si es menor que
+# "amarillo", verde en otro caso.
+rojo = 0.90
+amarillo = 0.95
