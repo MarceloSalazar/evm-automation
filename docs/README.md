@@ -17,7 +17,7 @@ rápido están en el [README principal](../README.md).
 | Interpretar los indicadores y los gráficos | [Cuadro de Mando e indicadores](cuadro-de-mando.md) |
 | Entender un valor del libro | [Cálculo del PV](calculo-pv.md) y [Cálculo de EV y AC](calculo-ev-ac.md) |
 | Resolver un mensaje de error | [Validaciones y solución de problemas](validaciones-y-problemas.md) |
-| Presentar el programa a los Jefes de Proyecto | [Presentación de 30 minutos](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) |
+| Presentar el programa al equipo de proyecto | [Presentación de 30 minutos](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) |
 
 ---
 
@@ -31,7 +31,7 @@ rápido están en el [README principal](../README.md).
 | [Proceso de reporte EVM](proceso-reporte-evm.md) | Puesta en marcha, cierre mensual, cambios de línea base, roles, calendario, buenas prácticas y lista de control. |
 | [Comandos y opciones](comandos.md) | `generar` y `actualizar`, todas sus opciones y ejemplos de salida. |
 | [Configuración](configuracion.md) | Claves del archivo `config.toml` y ejemplos. |
-| [Presentación para Jefes de Proyecto](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) | 32 diapositivas para unos 30 minutos, con notas para el presentador: conceptos EVM, preparación en MS Project, `generar` y `actualizar`, Cuadro de Mando y cierre mensual. Se abre con PowerPoint o LibreOffice Impress. |
+| [Presentación para el equipo de proyecto](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) | 35 diapositivas para unos 30 minutos, con notas para el presentador: conceptos EVM, preparación en MS Project (incluida la línea base), `generar` y `actualizar`, Cuadro de Mando y cierre mensual. Se abre con PowerPoint o LibreOffice Impress. |
 
 **Preparación en MS Project**
 
