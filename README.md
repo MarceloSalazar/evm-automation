@@ -97,6 +97,7 @@ El [tutorial](docs/ejemplo-paso-a-paso.md) recorre el ciclo completo con 24 mese
 | Tema | Documento |
 |---|---|
 | Ciclo completo con el proyecto de ejemplo | [Tutorial](docs/ejemplo-paso-a-paso.md) |
+| Sesión de 30 minutos para el equipo de proyecto, con notas para el presentador | [Presentación](docs/presentacion-jefes-de-proyecto.pptx) ([PDF](docs/presentacion-jefes-de-proyecto.pdf)) |
 | Puesta en marcha, cierre mensual, cambios de línea base y buenas prácticas | [Proceso de reporte EVM](docs/proceso-reporte-evm.md) |
 | Código EDT, campos personalizados, línea base, fecha de estado y avance | [Preparación en MS Project](docs/preparacion-ms-project.md) |
 | Recursos de trabajo, materiales y de costo, costo fijo y línea base | [Presupuesto (BAC) de cada tarea](docs/presupuesto-bac.md) |
