@@ -103,9 +103,12 @@ class Config:
     # [metodos]
     methods: list[str] = field(default_factory=lambda: list(DEFAULT_METHODS))
 
-    # [semaforo] -- umbrales para SPI / CPI
-    threshold_red: float = 0.90
-    threshold_yellow: float = 0.95
+    # [semaforo] -- umbrales comunes de SPI y CPI. Rojo: menor que el rojo inferior o mayor que el rojo
+    # superior; amarillo: menor que el amarillo inferior o mayor que el amarillo superior; verde: entre ambos
+    threshold_red: float = 0.90           # rojo inferior
+    threshold_yellow: float = 0.95        # amarillo inferior
+    threshold_yellow_upper: float = 1.05  # amarillo superior
+    threshold_red_upper: float = 1.10     # rojo superior
 
     # [multiempresa] -- reparto entre dos empresas (desactivado por defecto)
     multi_enabled: bool = False
@@ -143,8 +146,10 @@ class Config:
             raise ConfigError("distribucion debe ser 'habiles' o 'calendario'.")
         if not 0 <= self.decimals <= 4:
             raise ConfigError("decimales debe estar entre 0 y 4.")
-        if not 0 < self.threshold_red <= self.threshold_yellow:
-            raise ConfigError("Los umbrales deben cumplir 0 < rojo <= amarillo.")
+        if not (0 < self.threshold_red <= self.threshold_yellow < self.threshold_yellow_upper
+                <= self.threshold_red_upper):
+            raise ConfigError("Los umbrales del semáforo deben cumplir 0 < rojo_inferior <= amarillo_inferior < "
+                              "amarillo_superior <= rojo_superior (por defecto 0,90 / 0,95 / 1,05 / 1,10).")
         if self.default_method and self.default_method not in self.methods:
             self.methods.insert(0, self.default_method)
         if self.multi_enabled:
@@ -286,8 +291,15 @@ def load_config(path: str | Path | None) -> Config:
         cfg.methods = [x.strip() for x in lista if x.strip()]
 
     sem = _section(data, "semaforo")
-    cfg.threshold_red = _get(sem, "rojo", cfg.threshold_red, float)
-    cfg.threshold_yellow = _get(sem, "amarillo", cfg.threshold_yellow, float)
+    for key, alias in (("rojo_inferior", "rojo"), ("amarillo_inferior", "amarillo")):
+        if key in sem and alias in sem:
+            raise ConfigError(f"[semaforo]: se indicó '{key}' y '{alias}', que son la misma clave ('{alias}' es el "
+                              f"nombre anterior). Se debe dejar solo '{key}'.")
+    cfg.threshold_red = _get(sem, "rojo_inferior" if "rojo_inferior" in sem else "rojo", cfg.threshold_red, float)
+    cfg.threshold_yellow = _get(sem, "amarillo_inferior" if "amarillo_inferior" in sem else "amarillo",
+                                cfg.threshold_yellow, float)
+    cfg.threshold_yellow_upper = _get(sem, "amarillo_superior", cfg.threshold_yellow_upper, float)
+    cfg.threshold_red_upper = _get(sem, "rojo_superior", cfg.threshold_red_upper, float)
 
     mul = _section(data, "multiempresa")
     cfg.multi_enabled = _get(mul, "activar", cfg.multi_enabled, bool)

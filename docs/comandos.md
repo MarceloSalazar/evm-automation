@@ -82,8 +82,8 @@ python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config con
 - Antes de leer MS Project verifica el libro (hojas, filas y hojas ocultas) y se detiene sin modificarlo
   si encuentra un problema; también avisa si el libro está abierto en Excel. El libro se guarda primero
   en un archivo temporal, de modo que un error al guardar no daña el libro anterior.
-- Agrega a la hoja `Análisis de desviaciones` los paquetes con SPI o CPI fuera de umbral en el mes de
-  corte, y conserva lo ya escrito ([Análisis de desviaciones](analisis-desviaciones.md)).
+- Agrega a la hoja `Análisis de desviaciones` los paquetes con SPI o CPI fuera del rango verde del
+  semáforo en el mes de corte, y conserva lo ya escrito ([Análisis de desviaciones](analisis-desviaciones.md)).
 - Al terminar, muestra los paquetes fuera de umbral y los indicadores a la fecha de corte, con los
   mismos cálculos que la hoja `Resumen`.
 
@@ -94,10 +94,15 @@ Leyendo ...\avance_2027-06.xml ...
 Fecha de corte: 30/06/2027 (mes 18 del horizonte)
 Observaciones por fila:
   4.2.2 Cierre administrativo: método no definido: se usó % completado
-Paquetes fuera de umbral (SPI o CPI menor que 0.95): 8 (hoja 'Análisis de desviaciones')
+Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05): 13 (hoja 'Análisis de desviaciones')
+  1.1.1      Oficina de gestión del programa (PMO)     SPI  1.00  CPI  1.11
+  1.1.2      Control de proyectos y EVM                SPI  1.00  CPI  1.11
+  1.1.3      Gestión de riesgos                        SPI  1.00  CPI  1.09
   1.2.1      Licitación de ingeniería                  SPI  0.00  CPI  0.00
   1.2.2      Licitación de obras                       SPI  0.50  CPI  0.54
+  1.2.3      Administración de contratos               SPI  1.00  CPI  1.12
   2.1.1      Estudios de terreno                       SPI  0.50  CPI  0.54
+  2.1.2      Diseño conceptual                         SPI  1.00  CPI  1.09
   2.1.3      Ingeniería básica civil                   SPI  0.85  CPI  0.93
   2.1.4      Ingeniería básica eléctrica               SPI  0.85  CPI  0.93
   2.2.1      Detalle civil                             SPI  0.84  CPI  0.93

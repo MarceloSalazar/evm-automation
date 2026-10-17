@@ -12,6 +12,7 @@ from evm.update import read_book
 from evm.workbook import FIRST_MONTH_COL, FIRST_ROW
 
 JUN, JUL = date(2027, 6, 1), date(2027, 7, 1)
+JUNE_COUNT = 13         # paquetes fuera de 0,95 a 1,05 en junio de 2027 (8 por debajo y 5 por encima)
 
 
 @pytest.fixture()
@@ -38,8 +39,8 @@ def rows_of(book) -> dict[str, int]:
     return {ws.cell(r, A_CODE).value: r for r in range(FIRST, ws.max_row + 1) if ws.cell(r, A_KEY).value}
 
 
-def expected(book, month: date, threshold: float = 0.95) -> set[str]:
-    """Paquetes con SPI o CPI acumulado menor que el umbral, calculados aparte."""
+def expected(book, month: date, low: float = 0.95, high: float = 1.05) -> set[str]:
+    """Paquetes con SPI o CPI acumulado fuera del rango verde (0,95 a 1,05 por defecto), calculados aparte."""
     b = read_book(book)
     idx = b.horizon.index(month)
     out = set()
@@ -47,7 +48,8 @@ def expected(book, month: date, threshold: float = 0.95) -> set[str]:
         pv = sum(b.pv[s.row][: idx + 1])
         ev = sum(v or 0 for v in b.ev[s.row][: idx + 1])
         ac = sum(v or 0 for v in b.ac[s.row][: idx + 1])
-        if (pv and ev / pv < threshold) or (ac and ev / ac < threshold):
+        if any(not low <= x <= high for x in ((ev / pv) if pv else None, (ev / ac) if ac else None)
+               if x is not None):
             out.add(s.code)
     return out
 
@@ -72,7 +74,8 @@ def test_generate_creates_empty_sheet(book):
     assert ws.auto_filter.ref.startswith("A4:S")          # al ordenar, la clave acompaña a su fila
     assert entries(book) == []
     meta = read_book(book).meta
-    assert (meta["semaforo_rojo"], meta["semaforo_amarillo"]) == (0.9, 0.95)
+    assert [meta[k] for k in ("semaforo_rojo_inferior", "semaforo_amarillo_inferior", "semaforo_amarillo_superior",
+                              "semaforo_rojo_superior")] == [0.9, 0.95, 1.05, 1.1]
 
 
 def test_update_lists_packages_out_of_threshold(book, example_files, capsys):
@@ -80,8 +83,10 @@ def test_update_lists_packages_out_of_threshold(book, example_files, capsys):
     out = capsys.readouterr().out
     found = entries(book)
     codes = {e.code for e in found}
-    assert codes == expected(book, JUN) and len(codes) == 8
-    assert f"Paquetes fuera de umbral (SPI o CPI menor que 0.95): 8" in out
+    n = len(codes)
+    assert codes == expected(book, JUN) and n == JUNE_COUNT
+    assert {"1.1.1", "2.2.1"} <= codes                    # 1.1.1 (LOE): CPI mayor que 1,05; 2.2.1: atraso
+    assert f"Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05): {n}" in out
     assert all(e.month == JUN and e.origin == analysis.NEW for e in found)
     # La clave y las fórmulas apuntan a la fila del paquete en las hojas PV, EV y AC
     b = read_book(book)
@@ -91,10 +96,10 @@ def test_update_lists_packages_out_of_threshold(book, example_files, capsys):
         key, data_row = keys[code]
         assert ws.cell(r, A_KEY).value == key
         assert ws.cell(r, A_BAC).value == f"='PV'!$D${data_row}"
-    assert "Último análisis: 06/2027, 8 paquetes fuera de umbral." == ws.cell(3, 1).value
+    assert f"Último análisis: 06/2027, {n} paquetes fuera de umbral." == ws.cell(3, 1).value
     # Repetir el mismo mes no duplica filas
     update(book, example_files, "jun")
-    assert len(entries(book)) == 8
+    assert len(entries(book)) == n
 
 
 def test_text_is_kept_and_copied_to_the_next_month(book, example_files):
@@ -153,12 +158,15 @@ def test_analizar_after_loading_ac_by_hand(book, example_files, capsys):
 def test_text_kept_when_back_within_threshold(book, example_files):
     update(book, example_files, "jun")
     write_cells(book, {("2.1.3", A_CAUSE): "Retraso en la topografía"})
-    # El paquete 2.1.3 y el 2.1.4 recuperan su avance (EV del mes alto); solo 2.1.3 tiene texto
+    # 2.1.3 y 2.1.4 vuelven al rango verde (EV y AC acumulados iguales al PV); solo 2.1.3 tiene texto
     b = read_book(book)
     wb = load_workbook(book)
+    i = b.horizon.index(JUN)
     for code in ("2.1.3", "2.1.4"):
         row = next(s.row for s in b.input_rows if s.code == code)
-        wb["EV"].cell(row, FIRST_MONTH_COL + b.horizon.index(JUN), 10_000_000)
+        pv = sum(b.pv[row][: i + 1])
+        wb["EV"].cell(row, FIRST_MONTH_COL + i, pv - sum(v or 0 for v in b.ev[row][:i]))
+        wb["AC"].cell(row, FIRST_MONTH_COL + i, pv - sum(v or 0 for v in b.ac[row][:i]))
     wb.save(book)
     assert main(["analizar", "--libro", str(book), "--sin-respaldo"]) == 0
     codes = {e.code for e in entries(book)}
@@ -167,7 +175,7 @@ def test_text_kept_when_back_within_threshold(book, example_files):
 
 def test_simulation_does_not_write(book, example_files, capsys):
     update(book, example_files, "jun", "--simular")
-    assert "Paquetes fuera de umbral (SPI o CPI menor que 0.95): 8" in capsys.readouterr().out
+    assert f"Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05): {JUNE_COUNT}" in capsys.readouterr().out
     assert entries(book) == []
 
 
@@ -208,7 +216,7 @@ def test_migrate_keeps_the_analysis(book, example_files, tmp_path):
     ws = load_workbook(new)[SHEET_ANALYSIS]
     assert ws.cell(rows_of(new)["2.2.1"], A_BAC).value == f"='PV'!$D${data_row}"
     details = [r[3] for r in load_workbook(new)["Validación"].iter_rows(min_row=4, values_only=True) if r[3]]
-    assert any("del análisis de desviaciones" in d and "trasladaron 7 filas" in d for d in details)
+    assert any(f"trasladaron {JUNE_COUNT - 1} filas del análisis de desviaciones" in d for d in details)
     assert any("ya no tiene fila en el libro nuevo" in d for d in details)
 
 
@@ -227,6 +235,8 @@ def test_values_recalculate(book, example_files, recalc):
                 assert value in ("", None), code
             else:
                 assert value == pytest.approx(reference, abs=1e-9), code
-        low = min(x for x in (ws.cell(r, A_SPI).value, ws.cell(r, A_CPI).value) if isinstance(x, (int, float)))
-        assert ws.cell(r, A_LIGHT).value == ("Rojo" if low < 0.9 else "Amarillo"), code
+        values = [x for x in (ws.cell(r, A_SPI).value, ws.cell(r, A_CPI).value) if isinstance(x, (int, float))]
+        light = ("Rojo" if min(values) < 0.9 or max(values) > 1.1 else
+                 "Amarillo" if min(values) < 0.95 or max(values) > 1.05 else "Verde")
+        assert ws.cell(r, A_LIGHT).value == light != "Verde", code
     assert ws.cell(FIRST, A_ORIGIN).value == analysis.NEW

@@ -338,7 +338,7 @@ class UpdateResult:
     dry_run: bool = False
     ac_loaded: bool = True              # False en multi-empresa con AC cargado a mano
     deviations: list = field(default_factory=list)   # paquetes fuera de umbral (analysis.Deviation)
-    threshold: float | None = None                   # umbral amarillo del semáforo
+    thresholds: object | None = None                 # umbrales del semáforo (workbook.Thresholds)
 
 
 def _acwp(t: Task) -> float:
@@ -723,8 +723,8 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
         total[r][i] = None if x is None and y is None else (x or 0.0) + (y or 0.0)
 
     # Paquetes fuera de umbral en el mes de corte (con el EV y el AC que quedan en el libro)
-    red, yellow = analysis.thresholds(book.meta, cfg)
-    found = analysis.deviations(book, idx, yellow)
+    th = analysis.thresholds(book.meta, cfg)
+    found = analysis.deviations(book, idx, th)
 
     backup_path = None
     if not dry_run:
@@ -737,12 +737,12 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
         meta.pop("meses_grafico", None)
         meta["ultima_actualizacion"] = datetime.now().replace(microsecond=0)
         write_meta(wb[SHEET_META], meta)
-        _write_analysis(wb, book, idx, found, red, yellow)
+        _write_analysis(wb, book, idx, found, th)
         _refresh_charts(wb, book, idx, meta)
         backup_path = _save(wb, book_path, backup)
     book.status_date = status
     return UpdateResult(status, idx, rows, warnings, backup_path, book, dry_run, ac_loaded=load_ac,
-                        deviations=found, threshold=yellow)
+                        deviations=found, thresholds=th)
 
 
 def _save(wb, book_path: Path, backup: bool) -> Path | None:
@@ -761,13 +761,13 @@ def _save(wb, book_path: Path, backup: bool) -> Path | None:
     return backup_path
 
 
-def _write_analysis(wb, book: BookData, idx: int, found: list, red: float, yellow: float) -> None:
+def _write_analysis(wb, book: BookData, idx: int, found: list, th) -> None:
     """Agrega a la hoja Análisis de desviaciones los paquetes fuera de umbral del mes idx (la crea en los
     libros de versiones anteriores), conservando el texto ya escrito."""
     entries = analysis.read_entries(wb[analysis.SHEET_ANALYSIS]) if analysis.SHEET_ANALYSIS in wb.sheetnames else []
     month = book.horizon.month_start(idx)
     entries = analysis.refresh(entries, found, month)
-    analysis.write_sheet(wb, entries, {s.key: s.row for s in book.input_rows}, book.horizon.months, red, yellow,
+    analysis.write_sheet(wb, entries, {s.key: s.row for s in book.input_rows}, book.horizon.months, th,
                          int(book.meta.get("decimales") or 0), month, len(found))
 
 
@@ -791,12 +791,12 @@ def run_analysis(cfg: Config, book_path: str | Path, backup: bool = True) -> Upd
         warnings.append(f"Se reemplazaron por su valor numérico celdas de ingreso con texto o fórmulas: {cells}{more}.")
         for sheet, r, c, v, _why in book.fixable:
             wb[sheet].cell(row=r, column=c, value=v)
-    red, yellow = analysis.thresholds(book.meta, cfg)
-    found = analysis.deviations(book, idx, yellow)
-    _write_analysis(wb, book, idx, found, red, yellow)
+    th = analysis.thresholds(book.meta, cfg)
+    found = analysis.deviations(book, idx, th)
+    _write_analysis(wb, book, idx, found, th)
     _refresh_charts(wb, book, idx, book.meta)
     backup_path = _save(wb, book_path, backup)
-    return UpdateResult(book.status_date, idx, [], warnings, backup_path, book, deviations=found, threshold=yellow)
+    return UpdateResult(book.status_date, idx, [], warnings, backup_path, book, deviations=found, thresholds=th)
 
 
 def _refresh_charts(wb, book: BookData, idx: int, meta: dict) -> None:

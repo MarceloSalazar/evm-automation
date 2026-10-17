@@ -160,7 +160,8 @@ paquetes explican la desviación del proyecto.
 
 ### Análisis de desviaciones
 
-Paquetes de trabajo con SPI o CPI en amarillo o rojo en el mes de corte, que `actualizar` (o
+Paquetes de trabajo con SPI o CPI en amarillo o rojo (por debajo o por encima del rango verde) en el
+mes de corte, que `actualizar` (o
 `analizar`) agrega cada mes, con columnas amarillas para explicar cada desviación. El texto se conserva
 al actualizar y con `--migrar-desde`. Ver [Análisis de desviaciones](analisis-desviaciones.md).
 

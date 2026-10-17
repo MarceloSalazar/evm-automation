@@ -3,15 +3,15 @@
 [Inicio](../README.md) › [Documentación](README.md) › Análisis de desviaciones
 
 La hoja **Análisis de desviaciones** lista cada mes los paquetes de trabajo fuera de umbral (SPI o CPI
-en amarillo o rojo) y tiene columnas para explicar cada desviación: causa, impacto, acción correctiva,
+en amarillo o rojo, por debajo o por encima del rango verde) y tiene columnas para explicar cada desviación: causa, impacto, acción correctiva,
 responsable y fecha compromiso. Así, el análisis que acompaña al informe mensual queda en el mismo libro
 que los datos, y lo escrito se conserva al actualizar el libro y al regenerarlo por un cambio de línea
 base.
 
 ![Hoja Análisis de desviaciones del ejemplo](img/excel/analisis-desviaciones.png)
 
-*Análisis de diciembre de 2027 del [proyecto de ejemplo](ejemplo-paso-a-paso.md), con el texto de dos
-paquetes como ejemplo.*
+*Análisis de diciembre de 2027 del [proyecto de ejemplo](ejemplo-paso-a-paso.md), con el texto de tres
+paquetes como ejemplo: uno por encima del rango verde (CPI 1,11) y dos por debajo.*
 
 ---
 
@@ -30,14 +30,20 @@ paquetes como ejemplo.*
 ## 1. Qué paquetes se listan
 
 `actualizar` agrega a la hoja las **filas de ingreso** (paquetes de trabajo y filas de otros costos `-D`)
-cuyo **SPI o CPI acumulado** al mes de la fecha de corte es menor que el umbral **amarillo** del
-semáforo (`[semaforo] amarillo`, 0,95 por defecto): es decir, los paquetes con semáforo amarillo o rojo
-en `Indicadores EDT`.
+cuyo **SPI o CPI acumulado** al mes de la fecha de corte está fuera del **rango verde** del semáforo:
+menor que `amarillo_inferior` o mayor que `amarillo_superior` (0,95 y 1,05 por defecto,
+[Configuración](configuracion.md)). Es decir, los paquetes con semáforo amarillo o rojo en
+`Indicadores EDT`.
+
+- Un índice **por debajo** del rango indica atraso (SPI) o sobrecosto (CPI).
+- Un índice **por encima** del rango también se analiza: puede indicar un AC incompleto, un avance
+  informado de más o un presupuesto o una línea base poco exigentes
+  ([Cuadro de Mando](cuadro-de-mando.md#3-valores-desviaciones-índices-y-pronósticos)).
 
 - El SPI y el CPI se calculan igual que en `Indicadores EDT`. Un índice sin valor (por ejemplo, el CPI
   de un paquete sin AC) no se considera.
-- Los umbrales son los mismos con los que se **generó** el libro (los del semáforo del `Cuadro de
-  Mando`).
+- Los umbrales son los mismos con los que se **generó** el libro: los que muestra la fila
+  *Semáforo CPI y SPI* del `Cuadro de Mando`.
 - Los elementos de nivel 1 y 2 (subtotales) no se listan: su desviación se explica con la de sus
   paquetes.
 - Con [varios archivos de MS Project](varios-archivos.md), se listan los paquetes de todos los
@@ -46,10 +52,12 @@ en `Indicadores EDT`.
 La pantalla también muestra la lista al terminar `actualizar`, incluso con `--simular`:
 
 ```text
-Paquetes fuera de umbral (SPI o CPI menor que 0.95): 8 (hoja 'Análisis de desviaciones')
+Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05): 13 (hoja 'Análisis de desviaciones')
+  1.1.1      Oficina de gestión del programa (PMO)     SPI  1.00  CPI  1.11
+  1.1.2      Control de proyectos y EVM                SPI  1.00  CPI  1.11
+  1.1.3      Gestión de riesgos                        SPI  1.00  CPI  1.09
   1.2.1      Licitación de ingeniería                  SPI  0.00  CPI  0.00
   1.2.2      Licitación de obras                       SPI  0.50  CPI  0.54
-  2.1.1      Estudios de terreno                       SPI  0.50  CPI  0.54
   ...
 ```
 
@@ -62,7 +70,7 @@ Paquetes fuera de umbral (SPI o CPI menor que 0.95): 8 (hoja 'Análisis de desvi
 | Mes | Mes analizado (el de la fecha de corte). |
 | Código EDT, Actividad | Paquete de trabajo. |
 | BAC, PV, EV y AC acumulados, SV, CV, SPI, CPI | **Fórmulas** sobre las hojas `PV`, `EV` y `AC`, acumuladas hasta el mes de la fila. Si se corrige un valor en esas hojas, el análisis se recalcula. |
-| Semáforo | `Rojo`, `Amarillo` o `Verde`, según el menor de los dos índices. Una fila puede quedar en `Verde` si se corrigieron los datos después de agregarla. |
+| Semáforo | `Rojo`, `Amarillo` o `Verde`, según el índice más alejado del rango verde: `Rojo` si alguno de los dos está por debajo de `rojo_inferior` o por encima de `rojo_superior`. Una fila puede quedar en `Verde` si se corrigieron los datos después de agregarla. |
 | Antecedente | `Nuevo` (primer mes fuera de umbral), `También en MM/AAAA` (estaba fuera de umbral el mes anterior, sin texto) o `Texto copiado de MM/AAAA: se debe revisar` (ver la [sección 4](#4-qué-se-conserva-de-un-mes-a-otro)). |
 | **Causa**, **Impacto en plazo y costo**, **Acción correctiva**, **Responsable**, **Fecha compromiso** | Celdas amarillas: se completan a mano. |
 
@@ -146,12 +154,14 @@ la crea a continuación de `Indicadores EDT`, con el semáforo de la configuraci
 
 ## 7. Preguntas frecuentes
 
-**¿Se puede cambiar el umbral?** El umbral es el amarillo del semáforo (`[semaforo] amarillo`) con que
-se generó el libro. Para usar otro se cambia la configuración y se regenera el libro con
-`--migrar-desde`, que conserva el análisis.
+**¿Se pueden cambiar los umbrales?** Son los del semáforo (`[semaforo]`) con que se generó el libro. Para
+usar otros se cambia la configuración y se regenera el libro con `--migrar-desde`, que conserva el
+análisis. Para no analizar los índices altos se indican umbrales superiores que no se alcanzan en la
+práctica ([Configuración](configuracion.md#ejemplos)).
 
-**¿Por qué aparece un paquete de nivel de esfuerzo (LOE) con SPI 1?** Porque su CPI está por debajo del
-umbral: el SPI de un paquete LOE siempre es 1, pero su costo puede desviarse.
+**¿Por qué aparece un paquete de nivel de esfuerzo (LOE) con SPI 1?** Porque su CPI está fuera del rango
+verde: el SPI de un paquete LOE siempre es 1, pero su costo puede desviarse. En el ejemplo, los paquetes
+de gestión tienen CPI 1,09 a 1,12 porque su costo real es menor que el planificado.
 
 **¿Qué pasa si borro una fila del análisis?** Si el paquete sigue fuera de umbral en el mes de corte,
 vuelve a aparecer (sin texto) la próxima vez que se ejecute `actualizar` o `analizar` para ese mes.

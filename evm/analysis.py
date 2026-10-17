@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from types import SimpleNamespace
 
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.styles import Alignment, Font
@@ -18,7 +17,8 @@ from openpyxl.worksheet.properties import PageSetupProperties
 
 from evm.workbook import (BORDER, COL_BAC, FILL_GREEN, FILL_INPUT, FILL_RED, FILL_YELLOW, FIRST_MONTH_COL,
                           FMT_DATE, FMT_MONTH, FMT_RATIO, FONT_NOTE, FONT_TITLE, HEADER_ROW, SHEET_AC, SHEET_EV,
-                          SHEET_IND, SHEET_PV, _header, _traffic_light, col, money_format, put_text)
+                          SHEET_IND, SHEET_PV, Thresholds, _header, _traffic_light, col, fmt_decimal, money_format,
+                          put_text)
 
 SHEET_ANALYSIS = "Análisis de desviaciones"
 STATUS_ROW = 3              # resumen del último análisis
@@ -67,13 +67,9 @@ class Deviation:
     cpi: float | None
 
 
-def thresholds(meta: dict, cfg) -> tuple[float, float]:
-    """Umbrales (rojo, amarillo) del semáforo con que se generó el libro (libros antiguos: los de la
-    configuración)."""
-    try:
-        return float(meta["semaforo_rojo"]), float(meta["semaforo_amarillo"])
-    except (KeyError, TypeError, ValueError):
-        return cfg.threshold_red, cfg.threshold_yellow
+def thresholds(meta: dict, cfg) -> Thresholds:
+    """Umbrales del semáforo con que se generó el libro (libros antiguos: los de la configuración)."""
+    return Thresholds.from_meta(meta, cfg)
 
 
 def _month(value) -> date | None:
@@ -101,9 +97,10 @@ def read_entries(ws) -> list[Entry]:
     return out
 
 
-def deviations(book, idx: int, yellow: float) -> list[Deviation]:
-    """Filas de ingreso con SPI o CPI acumulado menor que el umbral amarillo en el mes idx del horizonte
-    (mismos cálculos que la hoja Indicadores EDT)."""
+def deviations(book, idx: int, th: Thresholds) -> list[Deviation]:
+    """Filas de ingreso con SPI o CPI acumulado fuera del rango verde del semáforo (menor que el amarillo
+    inferior o mayor que el amarillo superior) en el mes idx del horizonte (mismos cálculos que la hoja
+    Indicadores EDT)."""
     out = []
     for s in book.input_rows:
         pv = sum(book.pv[s.row][: idx + 1])
@@ -111,7 +108,7 @@ def deviations(book, idx: int, yellow: float) -> list[Deviation]:
         ac = sum(v or 0.0 for v in book.ac[s.row][: idx + 1])
         spi = ev / pv if abs(pv) > 1e-9 else None
         cpi = ev / ac if abs(ac) > 1e-9 else None
-        if any(x is not None and x < yellow - 1e-12 for x in (spi, cpi)):
+        if any(th.light(x) in ("Rojo", "Amarillo") for x in (spi, cpi)):
             out.append(Deviation(s.key, s.code, s.name, spi, cpi))
     return out
 
@@ -151,6 +148,13 @@ def refresh(entries: list[Entry], found: list[Deviation], month: date) -> list[E
     return out
 
 
+def _light_formula(rng: str, th: Thresholds) -> str:
+    """Semáforo del peor de los dos índices de la fila (SPI y CPI)."""
+    low, high = f"MIN({rng})", f"MAX({rng})"
+    return (f'=IF(COUNT({rng})=0,"",IF(OR({low}<{th.red_low!r},{high}>{th.red_high!r}),"Rojo",'
+            f'IF(OR({low}<{th.yellow_low!r},{high}>{th.yellow_high!r}),"Amarillo","Verde")))')
+
+
 def _put(ws, row: int, column: int, value) -> None:
     """Texto siempre como texto (nunca como fórmula); números y fechas, tal cual."""
     if isinstance(value, str):
@@ -159,7 +163,7 @@ def _put(ws, row: int, column: int, value) -> None:
         ws.cell(row=row, column=column, value=value)
 
 
-def write_sheet(wb, entries: list[Entry], row_of: dict[str, int], months: int, red: float, yellow: float,
+def write_sheet(wb, entries: list[Entry], row_of: dict[str, int], months: int, th: Thresholds,
                 decimals: int, month: date | None = None, found: int | None = None):
     """Escribe (o vuelve a escribir) la hoja. row_of: clave -> fila de las hojas PV, EV y AC."""
     if SHEET_ANALYSIS in wb.sheetnames:
@@ -175,11 +179,11 @@ def write_sheet(wb, entries: list[Entry], row_of: dict[str, int], months: int, r
     header = f"'{SHEET_PV}'!${first}${HEADER_ROW}:${last}${HEADER_ROW}"
 
     ws.cell(row=1, column=1, value="Análisis de desviaciones").font = FONT_TITLE
-    limit = f"{yellow:.2f}".replace(".", ",")
     ws.cell(row=2, column=1, value=(
-        f"Paquetes con SPI o CPI acumulado menor que {limit} (semáforo amarillo o rojo) en el mes de corte. Las "
-        "columnas amarillas se completan a mano y se conservan al actualizar; las filas de meses anteriores sin "
-        "texto se eliminan.")).font = FONT_NOTE
+        f"Paquetes con SPI o CPI acumulado fuera del rango verde ({fmt_decimal(th.yellow_low)} a "
+        f"{fmt_decimal(th.yellow_high)}) en el mes de corte. Semáforo: {th.describe()}. Las columnas amarillas "
+        "se completan a mano y se conservan al actualizar; las filas de meses anteriores sin texto se "
+        "eliminan.")).font = FONT_NOTE
     if month is not None and found is not None:
         ws.cell(row=STATUS_ROW, column=1, value=(
             f"Último análisis: {month:%m/%Y}, {found} "
@@ -214,9 +218,7 @@ def write_sheet(wb, entries: list[Entry], row_of: dict[str, int], months: int, r
                     A_CV: f'=IFERROR({L[A_EV]}{i}-{L[A_AC]}{i},"")',
                     A_SPI: f'=IFERROR({L[A_EV]}{i}/{L[A_PV]}{i},"")',
                     A_CPI: f'=IFERROR({L[A_EV]}{i}/{L[A_AC]}{i},"")',
-                    A_LIGHT: (f'=IF(COUNT({L[A_SPI]}{i}:{L[A_CPI]}{i})=0,"",'
-                              f'IF(MIN({L[A_SPI]}{i}:{L[A_CPI]}{i})<{red},"Rojo",'
-                              f'IF(MIN({L[A_SPI]}{i}:{L[A_CPI]}{i})<{yellow},"Amarillo","Verde")))'),
+                    A_LIGHT: _light_formula(f"{L[A_SPI]}{i}:{L[A_CPI]}{i}", th),
                 }
                 for c_, f in formulas.items():
                     ws.cell(row=i, column=c_, value=f)
@@ -234,8 +236,7 @@ def write_sheet(wb, entries: list[Entry], row_of: dict[str, int], months: int, r
         ws.cell(row=i, column=A_DATE).number_format = FMT_DATE
 
     end = max(FIRST, FIRST + len(entries) - 1)
-    _traffic_light(ws, f"{col(A_SPI)}{FIRST}:{col(A_CPI)}{end}",
-                   SimpleNamespace(threshold_red=red, threshold_yellow=yellow))
+    _traffic_light(ws, f"{col(A_SPI)}{FIRST}:{col(A_CPI)}{end}", th)
     light = f"{col(A_LIGHT)}{FIRST}:{col(A_LIGHT)}{end}"
     for text, fill in (("Rojo", FILL_RED), ("Amarillo", FILL_YELLOW), ("Verde", FILL_GREEN)):
         ws.conditional_formatting.add(light, FormulaRule(formula=[f'${col(A_LIGHT)}{FIRST}="{text}"'], fill=fill))

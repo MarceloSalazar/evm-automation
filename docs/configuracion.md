@@ -36,7 +36,8 @@ copy config.ejemplo.toml config.toml
 | `[exportacion] decimales` | `0` | Decimales de los montos en el libro (0 a 4). |
 | `[exportacion] titulo` | vacío | Título del informe en el `Cuadro de Mando` y en `Resumen`. Vacío = nombre del proyecto en MS Project (con varios archivos, los nombres unidos con `+`). |
 | `[metodos] lista` | ver ejemplo | Opciones de la lista desplegable de la columna C. |
-| `[semaforo] rojo` / `amarillo` | `0.90` / `0.95` | Umbrales de SPI y CPI: rojo si es menor que `rojo`, amarillo si es menor que `amarillo`, verde en otro caso. Los paquetes con SPI o CPI menor que `amarillo` se listan en [Análisis de desviaciones](analisis-desviaciones.md). Se guardan en el libro al generarlo. |
+| `[semaforo] rojo_inferior` / `amarillo_inferior` | `0.90` / `0.95` | Umbrales inferiores, comunes para el SPI y el CPI: rojo si el índice es menor que `rojo_inferior`; amarillo si es menor que `amarillo_inferior`. Los nombres anteriores, `rojo` y `amarillo`, siguen siendo válidos. |
+| `[semaforo] amarillo_superior` / `rojo_superior` | `1.05` / `1.10` | Umbrales superiores: amarillo si el índice es mayor que `amarillo_superior`; rojo si es mayor que `rojo_superior`. Verde entre `amarillo_inferior` y `amarillo_superior`, inclusive. Se debe cumplir 0 < `rojo_inferior` ≤ `amarillo_inferior` < `amarillo_superior` ≤ `rojo_superior`. Los umbrales se guardan en el libro al generarlo y se muestran en el `Cuadro de Mando`; los paquetes fuera del rango verde se listan en [Análisis de desviaciones](analisis-desviaciones.md). |
 | `[multiempresa] activar` | `false` | Activa el modo multi-empresa ([Multi-empresa](multiempresa.md)). |
 | `[multiempresa] campo_empresa` | `"Empresa"` | Campo de texto de MS Project con la empresa de cada tarea (por ejemplo `"Text3"`, o su alias). |
 | `[multiempresa] empresa_a` / `empresa_b` | `"EmpresaA"` / `"EmpresaB"` | Valores de la columna de empresa y sufijo de las hojas de cada empresa (`PV-EmpresaA`...). Máximo 15 caracteres, sin `[ ] : * ? / \ '`. |
@@ -129,10 +130,21 @@ origen = 'C:\Programa\Proyecto2.mpp'
 planificacion = ""
 ```
 
-**Semáforo más exigente** (rojo por debajo de 0,95 y amarillo por debajo de 0,98):
+**Semáforo más exigente** (verde de 0,98 a 1,02; rojo por debajo de 0,95 o por encima de 1,05):
 
 ```toml
 [semaforo]
-rojo = 0.95
-amarillo = 0.98
+rojo_inferior = 0.95
+amarillo_inferior = 0.98
+amarillo_superior = 1.02
+rojo_superior = 1.05
+```
+
+**Sin alerta por índices altos** (solo los umbrales inferiores, como en las versiones anteriores a la
+1.5.0): se indican umbrales superiores que no se alcanzan en la práctica.
+
+```toml
+[semaforo]
+amarillo_superior = 99
+rojo_superior = 99
 ```

@@ -33,7 +33,7 @@ Las imágenes de este documento corresponden al [proyecto de ejemplo](ejemplo-pa
 | 1 | **Mes de reporte** | Celda amarilla `E5`: mes cuyos valores acumulados se muestran. |
 | 2 | **Método EAC** | Celda amarilla `R5`: fórmula de la estimación a la conclusión. |
 | 3 | **Valores acumulados** | BAC, PV, EV y AC acumulados hasta el final del mes de reporte, con su % del BAC. |
-| 4 | **Desviaciones e índices** | CV y SV (con su %), CPI y SPI con semáforo. |
+| 4 | **Desviaciones e índices** | CV y SV (con su %), CPI y SPI con semáforo, y la escala del semáforo con los umbrales del libro. |
 | 5 | **Pronósticos** | ETC, EAC, VAC, TCPI (BAC) y TCPI (EAC). |
 | 6 | **Evolución EVM** | Curva S: PV, EV y AC acumulados y BAC. |
 | 7 | **Evolución de CPI y SPI** | Índices acumulados mes a mes sobre zonas de alarma. |
@@ -88,12 +88,24 @@ las diferencias en el informe.
 | TCPI (BAC) | (BAC − EV) / (BAC − AC) | Eficiencia necesaria en el trabajo restante para terminar dentro del BAC. |
 | TCPI (EAC) | (BAC − EV) / (EAC − AC) | Eficiencia necesaria para terminar dentro del EAC. Con el método `BAC / CPI` es igual al CPI. |
 
-**Semáforos** (umbrales de la sección `[semaforo]` de la [configuración](configuracion.md)):
+**Semáforos.** Los umbrales son comunes para el CPI y el SPI, con un límite **inferior** y otro
+**superior** para el amarillo y para el rojo (sección `[semaforo]` de la
+[configuración](configuracion.md)). Debajo de las tarjetas de índices, la fila **Semáforo CPI y SPI**
+muestra los umbrales con que se generó el libro:
 
 | Indicador | Verde | Amarillo | Rojo |
 |---|---|---|---|
-| CPI, SPI, SPI(t) | ≥ `amarillo` (0,95) | entre `rojo` (0,90) y `amarillo` | < `rojo` (0,90) |
-| TCPI | ≤ 1 / `amarillo` (1,05) | hasta 1 / `rojo` (1,11) | > 1 / `rojo` o negativo |
+| CPI, SPI, SPI(t) | De `amarillo_inferior` a `amarillo_superior` (0,95 a 1,05) | De `rojo_inferior` a `amarillo_inferior` (0,90 a 0,95) y de `amarillo_superior` a `rojo_superior` (1,05 a 1,10) | Menor que `rojo_inferior` (0,90) o mayor que `rojo_superior` (1,10) |
+| TCPI | ≤ 1 / `amarillo_inferior` (1,05) | Hasta 1 / `rojo_inferior` (1,11) | > 1 / `rojo_inferior` o negativo |
+
+- En los umbrales exactos se aplica el color más favorable: con los valores por defecto, 0,95 y 1,05
+  son verdes, y 0,90 y 1,10, amarillos.
+- Un índice **por encima** del rango verde también es una alerta. Un CPI alto puede indicar un AC
+  incompleto (costos devengados aún no registrados) o un presupuesto holgado. Un SPI alto puede indicar
+  un avance informado de más o una línea base poco exigente. En ambos casos conviene confirmar los datos
+  antes de informar un buen desempeño.
+- El TCPI usa solo los umbrales inferiores: un TCPI menor que 1 indica que alcanza con una eficiencia
+  menor que la lograda hasta ahora, y no es una alerta.
 
 Mientras no hay AC cargado (por ejemplo, en multi-empresa antes de cargar el AC a mano), los
 indicadores de costo (CV, CPI, ETC, EAC, VAC y TCPI) quedan vacíos.
@@ -113,7 +125,7 @@ o el mes de reporte.
 | Gráfico | Contenido | Qué observar |
 |---|---|---|
 | **Evolución EVM** | PV, EV y AC acumulados y BAC. El PV abarca hasta el fin del plan (o hasta la fecha de corte, si es posterior); EV y AC, hasta el mes de reporte, marcado con una línea vertical. | La distancia vertical entre EV y PV es el SV; entre EV y AC, el CV. Si la curva AC queda por encima de EV, hay sobrecosto. |
-| **Evolución de CPI y SPI** | CPI y SPI acumulados mes a mes hasta la fecha de corte, sobre las zonas roja (< `rojo`), amarilla (`rojo` a `amarillo`) y verde (≥ `amarillo`), y la línea objetivo 1,00. | Tendencia más que valor puntual. En los primeros meses los índices acumulados oscilan mucho porque los montos son pequeños (en el ejemplo, de enero a agosto de 2026). |
+| **Evolución de CPI y SPI** | CPI y SPI acumulados mes a mes hasta la fecha de corte, sobre las zonas del semáforo (de abajo hacia arriba: roja, amarilla, verde, amarilla y roja) y la línea objetivo 1,00. | Tendencia más que valor puntual. En los primeros meses los índices acumulados oscilan mucho porque los montos son pequeños (en el ejemplo, de enero a agosto de 2026). |
 
 ![Desempeño por elemento EDT](img/excel/cdm-cpi-spi-edt.png)
 
@@ -184,6 +196,7 @@ quedan vacíos; en ese caso se debe aumentar `meses`.
 | SPI ≈ 1 al final con SV(t) < 0 | El SPI convergió a 1, pero el proyecto sigue atrasado. | Informar SV(t) y SPI(t). |
 | TCPI (BAC) mucho mayor que el CPI | Terminar dentro del BAC exige una eficiencia muy superior a la histórica. Una regla práctica habitual: si la diferencia supera 0,05–0,10, el BAC es poco realista. | Informar el EAC y evaluar un cambio de línea base o de alcance. |
 | CPI y SPI > 1 | Adelanto y ahorro. | Verificar que no se deba a métodos subjetivos o a un AC incompleto (costos no registrados). |
+| CPI o SPI por encima del rango verde (> 1,05) | Desempeño mejor que el planificado, que el semáforo marca en amarillo o rojo para que se confirme. | Revisar el AC devengado, el avance informado y si el presupuesto o la línea base del paquete son demasiado holgados; explicarlo en `Análisis de desviaciones`. |
 | EV > 0 con AC = 0 en una fila | Costo real aún no registrado (facturas pendientes, AC del ERP). | Completar el AC devengado del mes. |
 | Mucho LOE en el BAC | El LOE no genera variación de cronograma y "diluye" el SPI. | Revisar los métodos ([Métodos de medición](metodos-de-medicion.md#4-guía-para-elegir-el-método)). |
 

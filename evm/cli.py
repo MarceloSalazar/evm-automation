@@ -216,18 +216,21 @@ def _print_update(res, currency: str) -> None:
 
 
 def _print_deviations(res, limit: int = 25) -> None:
-    """Paquetes con SPI o CPI acumulado menor que el umbral amarillo (hoja Análisis de desviaciones)."""
-    if res.threshold is None:
+    """Paquetes con SPI o CPI acumulado fuera del rango verde del semáforo (hoja Análisis de desviaciones)."""
+    th = res.thresholds
+    if th is None:
         return
+    from evm.workbook import fmt_decimal
+    rule = f"SPI o CPI fuera de {fmt_decimal(th.yellow_low)} a {fmt_decimal(th.yellow_high)}"
     found = res.deviations
     if not found:
-        print(f"Paquetes fuera de umbral (SPI o CPI menor que {res.threshold:g}): ninguno.")
+        print(f"Paquetes fuera de umbral ({rule}): ninguno.")
         return
 
     def r(v):
         return "-" if v is None else f"{v:.2f}"
 
-    print(f"Paquetes fuera de umbral (SPI o CPI menor que {res.threshold:g}): {len(found)}"
+    print(f"Paquetes fuera de umbral ({rule}): {len(found)}"
           + ("" if res.dry_run else " (hoja 'Análisis de desviaciones')"))
     for d in found[:limit]:
         print(f"  {d.code:<10} {d.name[:40]:<40}  SPI {r(d.spi):>5}  CPI {r(d.cpi):>5}")

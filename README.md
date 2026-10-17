@@ -23,6 +23,8 @@ simulado.*
 - **Cuadro de Mando** con el mes de reporte seleccionable: BAC, PV, EV, AC, desviaciones, índices con
   semáforo, pronósticos (ETC, EAC, VAC, TCPI) y tres gráficos nativos de Excel.
 - **Indicadores** del proyecto y de cada elemento de la EDT, incluido el **Cronograma Ganado**.
+- **Semáforo** de CPI y SPI con umbrales inferiores y superiores configurables, indicados en el Cuadro
+  de Mando.
 - **Análisis de desviaciones**: cada mes, la lista de paquetes con SPI o CPI fuera de umbral, con
   columnas para la causa, el impacto, la acción correctiva, el responsable y la fecha, que se conservan
   de un mes a otro.

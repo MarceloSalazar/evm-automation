@@ -98,10 +98,16 @@ lista = [
 ]
 
 [semaforo]
-# Umbrales de SPI y CPI: rojo si es menor que "rojo", amarillo si es menor que
-# "amarillo", verde en otro caso.
-rojo = 0.90
-amarillo = 0.95
+# Umbrales comunes de SPI y CPI (se muestran en el Cuadro de Mando):
+#   rojo      si el índice es menor que "rojo_inferior" o mayor que "rojo_superior"
+#   amarillo  si es menor que "amarillo_inferior" o mayor que "amarillo_superior"
+#   verde     entre "amarillo_inferior" y "amarillo_superior" (inclusive)
+# Los paquetes fuera del rango verde se listan en la hoja Análisis de desviaciones.
+# Para no marcar los índices altos, se indican umbrales superiores altos (p. ej. 99).
+rojo_inferior = 0.90
+amarillo_inferior = 0.95
+amarillo_superior = 1.05
+rojo_superior = 1.10
 
 [multiempresa]
 # Reparto del PV, el EV y el AC entre dos empresas (ver docs/multiempresa.md).
