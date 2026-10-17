@@ -14,6 +14,7 @@ rápido están en el [README principal](../README.md).
 | Ver el programa funcionando sin MS Project | [Tutorial con el proyecto de ejemplo](ejemplo-paso-a-paso.md) |
 | Preparar un proyecto real por primera vez | [Preparación en MS Project](preparacion-ms-project.md) → [Presupuesto (BAC)](presupuesto-bac.md) → [Métodos de medición](metodos-de-medicion.md) |
 | Organizar el cierre mensual | [Proceso de reporte EVM](proceso-reporte-evm.md) |
+| Reunir varios archivos de MS Project en un informe | [Varios archivos de MS Project](varios-archivos.md) |
 | Interpretar los indicadores y los gráficos | [Cuadro de Mando e indicadores](cuadro-de-mando.md) |
 | Entender un valor del libro | [Cálculo del PV](calculo-pv.md) y [Cálculo de EV y AC](calculo-ev-ac.md) |
 | Resolver un mensaje de error | [Validaciones y solución de problemas](validaciones-y-problemas.md) |
@@ -41,6 +42,7 @@ rápido están en el [README principal](../README.md).
 | [Presupuesto (BAC) de cada tarea](presupuesto-bac.md) | Recursos de trabajo, materiales y de costo, costo fijo; guardar y verificar la línea base; errores frecuentes. |
 | [Métodos de medición](metodos-de-medicion.md) | 0/100, fórmulas fijas, hitos ponderados, % completado, % físico, unidades, LOE, CPTR y el método de valor acumulado de MS Project. |
 | [Multi-empresa (opcional)](multiempresa.md) | PV, EV y AC de dos empresas: preparación, reparto, cálculo y ejemplo. |
+| [Varios archivos de MS Project (opcional)](varios-archivos.md) | Un informe con los elementos EDT de varios archivos: códigos EDT, `[[proyectos]]`, cierre mensual, cambios de archivos y ejemplo. |
 
 **Cálculos y libro**
 

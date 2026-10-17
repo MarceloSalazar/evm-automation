@@ -238,6 +238,8 @@ y 2 son subtotales.*
 - Se debe usar el **último día del mes**. El PV acumulado a la fecha de corte incluye el mes completo;
   si la fecha de corte es otro día, se advierte.
 - Si la fecha de corte es anterior a la última cargada en el libro, se advierte.
+- Con varios archivos, sin `--fecha-corte` todos deben tener la misma fecha de estado; con
+  `--fecha-corte`, se advierte qué archivos tienen otra ([Varios archivos](varios-archivos.md#6-cierre-mensual)).
 
 ---
 

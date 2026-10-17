@@ -7,12 +7,12 @@ from datetime import date
 from evm.config import ConfigError
 from evm.model import MonthKey
 from evm.wbs import KIND_LEAF, SEV_ERROR, SEV_INFO, SEV_WARN, Issue, Report, ReportRow, fmt_money, iter_subtree, plural
-from evm.workbook import SHEET_LISTS, clean_text, row_key
+from evm.workbook import SHEET_LISTS, book_sources, clean_text, row_key, source_meta, split_key
 
 
 @dataclass
 class PriorRow:
-    key: str                     # UniqueID (o UniqueID-D)
+    key: str                     # UniqueID (o UniqueID-D); con varios archivos, 'P2:UniqueID'
     code: str
     name: str
     uid: int | None
@@ -21,6 +21,7 @@ class PriorRow:
     series: dict[str, dict[MonthKey, float]]
     method: str
     origin_method: str | None = None     # método al generarse el libro (None: libro antiguo)
+    source: str = ""                     # varios archivos: nombre del archivo de la fila
 
     @property
     def method_edited(self) -> bool:
@@ -49,7 +50,8 @@ class PriorData:
     max_level: int | None
     methods_list: list[str]
     multi: bool = False
-    same_project: bool = True
+    # Proyecto de MS Project de cada archivo del libro anterior ({'': nombre} en un libro de un solo archivo)
+    project_names: dict[str, str] = field(default_factory=dict)
     # Resultado de plan_migration: clave de la fila nueva -> datos a escribir
     values: dict[str, dict[str, dict[MonthKey, float]]] = field(default_factory=dict)
     methods: dict[str, str] = field(default_factory=dict)
@@ -73,14 +75,14 @@ def prior_from_book(path, project_name: str) -> PriorData:
         sources = {"EV": book.ev, "AC": book.ac}
     rows = []
     for s in book.input_rows:
-        uid_text = s.key[:-2] if s.key.endswith("-D") else s.key
+        source, uid_text, residual = split_key(s.key)
         # Los meses cargados con 0 se conservan: indican que el mes ya se informó (curvas desde ese mes)
         series = {k: {book.horizon.key(i): v for i, v in enumerate(src[s.row]) if v is not None}
                   for k, src in sources.items()}
         rows.append(PriorRow(
             key=s.key, code=s.code, name=s.name, uid=int(uid_text) if uid_text.isdigit() else None,
-            residual=s.key.endswith("-D"), series={k: v for k, v in series.items() if v},
-            method=book.method[s.row], origin_method=s.origin_method))
+            residual=residual, series={k: v for k, v in series.items() if v},
+            method=book.method[s.row], origin_method=s.origin_method, source=source))
     methods_list = []
     from openpyxl import load_workbook
     wb = load_workbook(path, read_only=True)
@@ -92,9 +94,11 @@ def prior_from_book(path, project_name: str) -> PriorData:
                 methods_list.append(value.strip())
     wb.close()
     level = book.meta.get("nivel_maximo")
+    names = {n: str(source_meta(book.meta, "proyecto", n) or "") for n in book_sources(book.meta)}
     return PriorData(rows=rows, status_date=book.status_date,
                      project_name=str(book.meta.get("proyecto") or ""),
-                     max_level=int(level) if level else None, methods_list=methods_list, multi=book.multi)
+                     max_level=int(level) if level else None, methods_list=methods_list, multi=book.multi,
+                     project_names=names)
 
 
 def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Issue]:
@@ -109,11 +113,29 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
         raise ConfigError("--migrar-desde no se admite entre un libro de una sola empresa y uno multi-empresa: "
                           "el historial de EV y AC no se puede repartir entre empresas. Se debe generar el libro "
                           "nuevo sin --migrar-desde.")
-    prior.same_project = prior.project_name == clean_text(report.project.name)
-    if not prior.same_project:
+    # Mismo proyecto: se compara cada archivo del libro anterior con el archivo del mismo nombre del nuevo
+    new_names = {s.name: s.project.name for s in report.sources} or {"": report.project.name}
+    old_names = prior.project_names or {"": prior.project_name}
+    same = {n: n in new_names and old_names[n] == clean_text(new_names[n]) for n in old_names}
+    if "" in old_names and "" not in new_names:
         issues.append(Issue(SEV_WARN, "", "",
-                            f"El libro anterior corresponde al proyecto '{prior.project_name}' y el nuevo a "
-                            f"'{report.project.name}': los EV/AC se asocian por código EDT."))
+                            f"El libro anterior es de un solo archivo de MS Project ('{old_names['']}') y el nuevo "
+                            "combina varios archivos: los EV/AC se asocian por código EDT."))
+    elif "" in new_names and "" not in old_names:
+        issues.append(Issue(SEV_WARN, "", "",
+                            f"El libro anterior combina varios archivos de MS Project ({', '.join(old_names)}) y el "
+                            "nuevo es de un solo archivo: los EV/AC se asocian por código EDT."))
+    else:
+        for n, ok in same.items():
+            if ok:
+                continue
+            if n not in new_names:
+                text = (f"El archivo '{n}' del libro anterior no forma parte del libro nuevo: los EV/AC de sus "
+                        "filas se asocian por código EDT.")
+            else:
+                text = (f"El libro anterior corresponde al proyecto '{old_names[n]}' y el nuevo a "
+                        f"'{new_names[n]}': los EV/AC se asocian por código EDT.")
+            issues.append(Issue(SEV_WARN, "", "", f"[{n}] {text}" if n else text))
     if prior.max_level and prior.max_level != max_level:
         issues.append(Issue(SEV_WARN, "", "",
                             f"El libro anterior usaba nivel máximo {prior.max_level} y el nuevo {max_level}. Las "
@@ -124,21 +146,21 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
     by_code: dict[str, ReportRow] = {}
     for r in inputs:
         by_code.setdefault(r.code, r)
-    contains: dict[int, ReportRow] = {}
+    contains: dict[tuple[str, int], ReportRow] = {}      # (archivo, UniqueID) -> paquete que contiene la tarea
     for r in inputs:
         if r.kind == KIND_LEAF:
             for n in iter_subtree(r.task):
-                contains.setdefault(n.uid, r)
+                contains.setdefault((r.source, n.uid), r)
 
     used_codes: set[str] = set()
     sources: dict[str, list[tuple[PriorRow, str]]] = {}
     for old in prior.rows:
         target, how = None, ""
-        if prior.same_project:
+        if same.get(old.source):
             if old.key in by_key:
                 target, how = by_key[old.key], "uid"
-            elif old.uid is not None and old.uid in contains:
-                target, how = contains[old.uid], "rama"
+            elif old.uid is not None and (old.source, old.uid) in contains:
+                target, how = contains[(old.source, old.uid)], "rama"
         else:
             cand = by_code.get(old.code)
             if cand is not None and row_key(cand) not in used_codes:

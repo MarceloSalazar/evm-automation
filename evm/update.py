@@ -11,7 +11,7 @@ from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.workbook.properties import CalcProperties
 
-from evm.config import Config
+from evm.config import Config, ConfigError
 from evm.methods import ev_fraction, parse_method
 from evm.model import ProjectData, Task
 from evm.timeline import Horizon
@@ -19,8 +19,8 @@ from evm.wbs import (KIND_RESIDUAL, KIND_SUMMARY, Scope, build_tree, code_level,
                      prune_inactive, select_scope, tolerance)
 from evm.workbook import (COL_BAC, COL_CODE, COL_METHOD, FIRST_MONTH_COL, LEGACY_SHEET_CURVE, SHEET_AC, SHEET_EV,
                           SHEET_META, SHEET_PV, SHEET_SUMMARY, STATUS_CELL, StructRow, WorkbookFormatError,
-                          add_s_curve_chart, clean_text, col, company_sheet, read_meta, read_structure, save_workbook,
-                          write_meta)
+                          add_s_curve_chart, book_sources, clean_text, col, company_sheet, read_meta, read_structure,
+                          save_workbook, source_meta, split_key, write_meta)
 
 
 # ----------------------------------------------------------------------------
@@ -283,6 +283,25 @@ def apply_book_settings(cfg: Config, meta: dict) -> Config:
     return cfg
 
 
+def check_sources(meta: dict, names: list[str]) -> None:
+    """Los archivos de MS Project indicados deben ser los del libro: todos y con los mismos nombres.
+
+    names: nombres de [[proyectos]]; [''] para un solo archivo (--origen).
+    """
+    book = book_sources(meta)
+    if book == names or sorted(book) == sorted(names):
+        return
+    if book == [""]:
+        raise ConfigError("El libro se generó con un solo archivo de MS Project: se debe indicar ese archivo con "
+                          "--origen, con un archivo de configuración sin secciones [[proyectos]].")
+    if names == [""]:
+        raise ConfigError(f"El libro se generó con varios archivos de MS Project ({', '.join(book)}): se deben "
+                          "indicar en secciones [[proyectos]] del archivo de configuración, con los mismos nombres.")
+    raise ConfigError(f"Los archivos de [[proyectos]] ({', '.join(names)}) no coinciden con los del libro "
+                      f"({', '.join(book)}). Se deben indicar todos los archivos del libro, con los mismos nombres; "
+                      "para agregar o quitar un archivo se debe generar un libro nuevo con --migrar-desde.")
+
+
 def check_only(cfg: Config, only: str | None) -> None:
     """En multi-empresa, --solo ac requiere ac_desde_project (el AC se carga a mano)."""
     if cfg.multi_enabled and only == "ac" and not cfg.ac_from_project:
@@ -339,12 +358,14 @@ def book_level(book: BookData, cfg: Config) -> int:
     return int(book.meta.get("nivel_maximo") or cfg.max_level)
 
 
-def _match_tasks(project: ProjectData, book: BookData, cfg: Config) -> tuple[dict[int, Task], list[str], Scope]:
+def _match_tasks(project: ProjectData, book: BookData, cfg: Config,
+                 source: str = "") -> tuple[dict[int, Task], list[str], Scope]:
     """Asocia cada fila del libro con la tarea de MS Project.
 
     Mismo proyecto: por UniqueID (si la tarea ya no existe, la fila se omite).
     Proyecto distinto: por código EDT, sin asignar una tarea a dos filas.
     Se usa la planificación con la que se generó el libro.
+    source: con varios archivos, nombre del archivo; solo se asocian las filas de ese archivo.
     """
     warnings: list[str] = []
     tasks = [t for t in project.tasks if t.outline_level >= 1]
@@ -353,7 +374,7 @@ def _match_tasks(project: ProjectData, book: BookData, cfg: Config) -> tuple[dic
     if not cfg.include_inactive:
         roots, _, _ = prune_inactive(roots)     # el avance de tareas inactivas no cuenta
         active = {t.uid for r in roots for t in iter_subtree(r)}
-    plan_code = str(book.meta.get("planificacion") or "")
+    plan_code = str(source_meta(book.meta, "planificacion", source) or "")
     if cfg.plan and cfg.plan.strip().upper() != plan_code.upper():
         warnings.append(f"El libro se generó para la planificación '{plan_code or 'todas'}': se usa esa "
                         f"planificación y no '{cfg.plan}'.")
@@ -365,16 +386,18 @@ def _match_tasks(project: ProjectData, book: BookData, cfg: Config) -> tuple[dic
         raw = scope.raw_code(t)
         if raw:
             by_code.setdefault(clean_text(pad_code(raw, level) if cfg.pad_wbs else raw), t)
-    same = str(book.meta.get("proyecto") or "") == clean_text(project.name)
+    book_name = source_meta(book.meta, "proyecto", source)
+    same = str(book_name or "") == clean_text(project.name)
     if not same:
-        warnings.append(f"El libro fue generado para el proyecto '{book.meta.get('proyecto')}' y el origen es "
+        warnings.append(f"El libro fue generado para el proyecto '{book_name}' y el origen es "
                         f"'{project.name}': las filas se asocian por código EDT. Se recomienda verificar los "
                         "resultados.")
     out: dict[int, Task] = {}
     used: set[tuple[int, bool]] = set()
     for s in book.structure:
-        residual = s.key.endswith("-D")
-        uid_text = s.key[:-2] if residual else s.key
+        row_source, uid_text, residual = split_key(s.key)
+        if row_source != source:
+            continue
         if same and uid_text.isdigit():
             task = by_uid.get(int(uid_text))
             if task is None:
@@ -488,64 +511,103 @@ def _backup_path(book_path: Path) -> Path:
     return path
 
 
-def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status: date | None = None,
-               only: str | None = None, backup: bool = True, force: bool = False,
+def _tag(source: str, text: str) -> str:
+    """Con varios archivos, el mensaje indica el archivo: '[P2] ...'."""
+    return f"[{source}] {text}" if source else text
+
+
+def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book_path: str | Path,
+               status: date | None = None, only: str | None = None, backup: bool = True, force: bool = False,
                dry_run: bool = False) -> UpdateResult:
+    """Carga el EV y el AC del mes de la fecha de corte.
+
+    projects: el proyecto leído de MS Project o, en un libro con varios archivos, {nombre: proyecto} con
+    todos los archivos de [[proyectos]].
+    """
+    if isinstance(projects, ProjectData):
+        projects = {"": projects}
     book_path = Path(book_path)
     wb = load_workbook(book_path)
     book = read_book(book_path, wb, allow_fix=True)
     check_sheets(wb.sheetnames, book.meta, charts=True)
+    check_sources(book.meta, list(projects))
     cfg = apply_book_settings(cfg, book.meta)
-    warnings: list[str] = list(project.warnings)
+    warnings: list[str] = [_tag(n, w) for n, p in projects.items() for w in p.warnings]
     multi = book.multi
     load_ac = (not multi) or cfg.ac_from_project
     check_only(cfg, only)
 
     if status is None:
-        if project.status_date is None:
+        missing = [n for n, p in projects.items() if p.status_date is None]
+        if missing == [""]:
             raise ValueError("El proyecto no tiene fecha de estado: se debe indicar la fecha de corte con "
                              "--fecha-corte AAAA-MM-DD o definir Proyecto > Fecha de estado en MS Project.")
-        status = project.status_date.date()
+        if missing:
+            raise ValueError(f"{'El archivo' if len(missing) == 1 else 'Los archivos'} {', '.join(missing)} no "
+                             f"{'tiene' if len(missing) == 1 else 'tienen'} fecha de estado: se debe indicar la fecha "
+                             "de corte con --fecha-corte AAAA-MM-DD o definir Proyecto > Fecha de estado en MS "
+                             "Project.")
+        dates = {n: p.status_date.date() for n, p in projects.items()}
+        if len(set(dates.values())) > 1:
+            raise ValueError("Los archivos tienen fechas de estado distintas ("
+                             + ", ".join(f"{n}: {d:%d/%m/%Y}" for n, d in dates.items()) + "): se debe indicar la "
+                             "fecha de corte con --fecha-corte AAAA-MM-DD o definir la misma fecha de estado en MS "
+                             "Project.")
+        status = next(iter(dates.values()))
     idx = book.horizon.index(status)
     if not 0 <= idx < book.horizon.months:
         raise ValueError(f"La fecha de corte {status:%d/%m/%Y} está fuera del horizonte del libro "
                          f"({book.horizon.start:%m/%Y} a {book.horizon.end:%m/%Y}).")
-    if project.status_date is None and project.backend == "xml":
-        warnings.append("El XML no tiene fecha de estado: MS Project calculó el costo real (CRTR) y el CPTR a la "
-                        "fecha en que se guardó el archivo. Se debe definir Proyecto > Fecha de estado antes de "
-                        "exportar.")
+    for n, project in projects.items():
+        if project.status_date is None and project.backend == "xml":
+            warnings.append(_tag(n, "El XML no tiene fecha de estado: MS Project calculó el costo real (CRTR) y el "
+                                    "CPTR a la fecha en que se guardó el archivo. Se debe definir Proyecto > Fecha de "
+                                    "estado antes de exportar."))
     if status != _month_end(status):
         warnings.append("La fecha de corte no es el último día del mes: el PV acumulado incluye el mes completo.")
-    if project.status_date and project.status_date.date() != status:
-        warnings.append(f"La fecha de estado de MS Project ({project.status_date:%d/%m/%Y}) difiere de la fecha de "
-                        f"corte ({status:%d/%m/%Y}). El costo real (CRTR) y el CPTR corresponden a la fecha de "
-                        "estado del proyecto.")
+    for n, project in projects.items():
+        if project.status_date and project.status_date.date() != status:
+            warnings.append(_tag(n, f"La fecha de estado de MS Project ({project.status_date:%d/%m/%Y}) difiere de "
+                                    f"la fecha de corte ({status:%d/%m/%Y}). El costo real (CRTR) y el CPTR "
+                                    "corresponden a la fecha de estado del proyecto."))
     if book.status_date and status < book.status_date:
         warnings.append(f"La fecha de corte ({status:%d/%m/%Y}) es anterior a la última cargada en el libro "
                         f"({book.status_date:%d/%m/%Y}).")
 
-    matches, w, scope = _match_tasks(project, book, cfg)
-    warnings += w
-    unlisted = _unlisted_packages(book, matches, scope, book_level(book, cfg))
-    if only != "ev" and load_ac:
-        warnings += _coverage_warnings(scope, book, matches, unlisted)
-
-    shares: dict[int, float] = {}
+    # Cada archivo asocia sus filas (el UniqueID se repite entre archivos)
+    matches: dict[int, Task] = {}
+    unlisted: dict[int, list[Task]] = {}
+    scopes: dict[str, Scope] = {}
+    shares_of: dict[str, dict[int, float]] = {}
+    level = book_level(book, cfg)
     if multi:
         from evm.companies import ac_by_company, ev_by_company, resolve_shares
-        shares, _ = resolve_shares(scope.roots, cfg)
         sheets = {(k, r): company_sheet(k, book.company_a if r == "A" else book.company_b)
                   for k in (SHEET_EV, SHEET_AC) for r in ("A", "B")}
+    for n, project in projects.items():
+        pcfg = cfg.project_config(n)
+        found, w, scope = _match_tasks(project, book, pcfg, n)
+        warnings += [_tag(n, x) for x in w]
+        extra = _unlisted_packages(book, found, scope, level)
+        if only != "ev" and load_ac:
+            warnings += [_tag(n, x) for x in _coverage_warnings(scope, book, found, extra)]
+        matches.update(found)
+        unlisted.update(extra)
+        scopes[n] = scope
+        if multi:
+            shares_of[n], _ = resolve_shares(scope.roots, pcfg)
 
     rows: list[RowResult] = []
     later_filled: list[str] = []
     later_months: set[int] = set()
     writes: list[tuple[str, int, int, float]] = []   # (hoja, fila, columna, valor)
-    ac_total = 0.0
+    ac_total: dict[str, float] = {}                  # AC acumulado de cada archivo
     for s in book.input_rows:
         task = matches.get(s.row)
         if task is None:
             continue
+        src = split_key(s.key)[0]
+        shares = shares_of.get(src, {})
         bac = book.bac[s.row]
         method_text = book.method[s.row]
         method = parse_method(method_text)
@@ -597,7 +659,7 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
             else:
                 res.ac_cum = (res.ac_cum or 0.0) + cum_value
                 res.ac_month = (res.ac_month or 0.0) + month_value
-                ac_total += cum_value
+                ac_total[src] = ac_total.get(src, 0.0) + cum_value
             if multi:
                 res.by_company[sheet] = month_value
             if month_value < -tolerance(cum_value):
@@ -618,14 +680,17 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
             "los acumulados de esos meses ya no coinciden con MS Project. Se deben revisar esos meses o volver a "
             "cargarlos con 'actualizar' (fecha de corte de cada mes, en orden).")
 
-    reference = _acwp(scope.plan) if scope.plan is not None else project.summary_acwp
-    if only != "ev" and load_ac and reference is not None:
-        diff = reference - ac_total
-        if abs(diff) > tolerance(reference):
-            whose = f"de la planificación '{scope.prefix}'" if scope.plan is not None else "del proyecto"
-            warnings.append(f"El AC cargado ({fmt_money(ac_total)}) difiere del costo real {whose} en MS Project "
-                            f"({fmt_money(reference)}) en {fmt_money(diff)}. Se recomienda revisar las advertencias "
-                            "anteriores (tareas sin fila, costos en tareas resumen).")
+    for n, project in projects.items():
+        scope = scopes[n]
+        reference = _acwp(scope.plan) if scope.plan is not None else project.summary_acwp
+        if only != "ev" and load_ac and reference is not None:
+            loaded = ac_total.get(n, 0.0)
+            diff = reference - loaded
+            if abs(diff) > tolerance(reference):
+                whose = f"de la planificación '{scope.prefix}'" if scope.plan is not None else "del proyecto"
+                warnings.append(_tag(n, f"El AC cargado ({fmt_money(loaded)}) difiere del costo real {whose} en MS "
+                                        f"Project ({fmt_money(reference)}) en {fmt_money(diff)}. Se recomienda revisar "
+                                        "las advertencias anteriores (tareas sin fila, costos en tareas resumen)."))
 
     if book.formula_gaps:
         cells = ", ".join(book.formula_gaps[:8])

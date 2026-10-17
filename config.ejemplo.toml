@@ -77,6 +77,10 @@ moneda = "EUR"
 # Decimales en los montos del libro (0 a 4).
 decimales = 0
 
+# Título del informe (Cuadro de Mando y Resumen). Si se omite, se usa el nombre
+# del proyecto en MS Project (con varios archivos, los nombres unidos con "+").
+# titulo = "Programa de ejemplo"
+
 [metodos]
 # Valores del desplegable de la columna C (método de medición).
 lista = [
@@ -128,3 +132,23 @@ reparto_por_defecto = 50
 # AC-EmpresaB; true = 'actualizar' lo carga desde MS Project (costo real de cada
 # tarea repartido según su empresa).
 ac_desde_project = false
+
+# Varios archivos de MS Project en un mismo libro (ver docs/varios-archivos.md).
+# Sin secciones [[proyectos]], el archivo se indica con --origen (un solo archivo).
+# Con ellas, 'generar' y 'actualizar' leen todos los archivos y no se indica
+# --origen. Los códigos EDT no se deben repetir entre archivos (por ejemplo,
+# 1.0.0 a 8.0.0 en un archivo y 9.0.0 en otro). Una sección por archivo:
+#   nombre        nombre corto y fijo del archivo en el libro (no se debe cambiar)
+#   origen        archivo .mpp o .xml; las rutas relativas se toman desde la
+#                 carpeta de este archivo de configuración
+#   planificacion opcional: reemplaza [exportacion] planificacion ("" = todas)
+#   linea_base    opcional: reemplaza [exportacion] linea_base
+#
+# [[proyectos]]
+# nombre = "P1"
+# origen = 'C:\Programa\Proyecto1.mpp'
+#
+# [[proyectos]]
+# nombre = "P2"
+# origen = 'C:\Programa\Proyecto2.mpp'
+# planificacion = ""

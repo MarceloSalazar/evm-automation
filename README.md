@@ -24,6 +24,8 @@ simulado.*
   semáforo, pronósticos (ETC, EAC, VAC, TCPI) y tres gráficos nativos de Excel.
 - **Indicadores** del proyecto y de cada elemento de la EDT, incluido el **Cronograma Ganado**.
 - Opcional: **multi-empresa**, con el PV, el EV y el AC de dos empresas por separado.
+- Opcional: **varios archivos de MS Project** en un mismo informe, cada uno con sus códigos EDT (por
+  ejemplo, `1.0.0` a `8.0.0` en un archivo y `9.0.0` en otro).
 - Montos en **euros (EUR)** por defecto.
 
 ```mermaid
@@ -103,6 +105,7 @@ El [tutorial](docs/ejemplo-paso-a-paso.md) recorre el ciclo completo con 24 mese
 | Recursos de trabajo, materiales y de costo, costo fijo y línea base | [Presupuesto (BAC) de cada tarea](docs/presupuesto-bac.md) |
 | 0/100, fórmulas fijas, hitos ponderados, % físico, LOE y valor acumulado de MS Project | [Métodos de medición](docs/metodos-de-medicion.md) |
 | PV, EV y AC de dos empresas | [Multi-empresa (opcional)](docs/multiempresa.md) |
+| Varios archivos de MS Project en un mismo informe | [Varios archivos (opcional)](docs/varios-archivos.md) |
 | Origen del PV mensual y estructura de filas | [Cálculo del PV](docs/calculo-pv.md) |
 | EV por método, AC, valor del mes y controles | [Cálculo de EV y AC](docs/calculo-ev-ac.md) |
 | Hojas del libro, reglas de uso y `--migrar-desde` | [El libro Excel](docs/libro-excel.md) |

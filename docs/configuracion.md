@@ -34,6 +34,7 @@ copy config.ejemplo.toml config.toml
 | `[exportacion] metodo_por_defecto` | `"Por definir"` | Método para las filas sin método. |
 | `[exportacion] moneda` | `"EUR"` | Moneda que se muestra en el libro. Con `""` se usa el código de moneda del proyecto en MS Project. |
 | `[exportacion] decimales` | `0` | Decimales de los montos en el libro (0 a 4). |
+| `[exportacion] titulo` | vacío | Título del informe en el `Cuadro de Mando` y en `Resumen`. Vacío = nombre del proyecto en MS Project (con varios archivos, los nombres unidos con `+`). |
 | `[metodos] lista` | ver ejemplo | Opciones de la lista desplegable de la columna C. |
 | `[semaforo] rojo` / `amarillo` | `0.90` / `0.95` | Umbrales de SPI y CPI: rojo si es menor que `rojo`, amarillo si es menor que `amarillo`, verde en otro caso. |
 | `[multiempresa] activar` | `false` | Activa el modo multi-empresa ([Multi-empresa](multiempresa.md)). |
@@ -43,6 +44,10 @@ copy config.ejemplo.toml config.toml
 | `[multiempresa] campo_reparto` | `"% Reparto"` | Campo numérico con el % de la empresa A en las tareas `Ambas`. |
 | `[multiempresa] reparto_por_defecto` | `50` | % de la empresa A cuando el campo de reparto está vacío, es 0 o está fuera de rango, y en las tareas sin empresa. |
 | `[multiempresa] ac_desde_project` | `false` | `false`: el AC de cada empresa se carga a mano. `true`: `actualizar` también lo carga desde MS Project. |
+| `[[proyectos]] nombre` | — | Varios archivos de MS Project en un mismo libro: una sección `[[proyectos]]` por archivo ([Varios archivos](varios-archivos.md)). Nombre corto y fijo del archivo en el libro (hasta 30 caracteres, sin `:` ni `;`). |
+| `[[proyectos]] origen` | — | Archivo `.mpp` o `.xml`. Una ruta relativa se toma desde la carpeta del archivo de configuración. |
+| `[[proyectos]] planificacion` | la de `[exportacion]` | Planificación de ese archivo; `""` exporta todas sus tareas. |
+| `[[proyectos]] linea_base` | la de `[exportacion]` | Línea base de ese archivo. |
 
 Los nombres de campo aceptan el nombre interno en inglés (`Text10`, `Number1`), el nombre en español
 (`Texto10`, `Número1`) o el alias definido en MS Project. Solo se buscan campos de tarea: un campo de
@@ -50,7 +55,8 @@ recurso con el mismo alias no se toma. Cómo crear esos campos se explica en
 [Preparación del proyecto en MS Project](preparacion-ms-project.md#3-campos-personalizados).
 
 Las opciones de la línea de comandos (`--planificacion`, `--linea-base`, `--nivel-max`, `--mes-inicio`,
-`--meses`) reemplazan el valor del archivo de configuración.
+`--meses`) reemplazan el valor del archivo de configuración. Con varios archivos (`[[proyectos]]`),
+`--planificacion` y `--linea-base` no se admiten: se indican en la sección de cada archivo.
 
 El archivo se debe guardar con codificación **UTF-8**, con o sin BOM (en el Bloc de notas: *Guardar
 como*, *Codificación: UTF-8*). Los valores enteros (`meses`, `nivel_maximo`, `decimales`, `linea_base`)
@@ -99,6 +105,28 @@ ambas = "Ambas"
 campo_reparto = "% Reparto"
 reparto_por_defecto = 50
 ac_desde_project = false
+```
+
+**Programa con dos archivos de MS Project**, el primero con planificaciones y el segundo sin ellas
+([Varios archivos](varios-archivos.md)):
+
+```toml
+[campos]
+edt = "Item EDT"
+metodo = "Método EVM"
+
+[exportacion]
+planificacion = "INTERNO"
+titulo = "Programa Norte"
+
+[[proyectos]]
+nombre = "P1"
+origen = 'C:\Programa\Proyecto1.mpp'
+
+[[proyectos]]
+nombre = "P2"
+origen = 'C:\Programa\Proyecto2.mpp'
+planificacion = ""
 ```
 
 **Semáforo más exigente** (rojo por debajo de 0,95 y amarillo por debajo de 0,98):

@@ -24,13 +24,13 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 
 | Opción | Descripción |
 |---|---|
-| `--origen` | Archivo `.mpp` (requiere MS Project), `.xml` de MS Project, o `activo` para usar el proyecto abierto en MS Project. **Obligatoria.** |
-| `--salida` | Libro `.xlsx` a crear. Por defecto `<origen>_EVM.xlsx`. |
+| `--origen` | Archivo `.mpp` (requiere MS Project), `.xml` de MS Project, o `activo` para usar el proyecto abierto en MS Project. **Obligatoria**, salvo con varios archivos (`[[proyectos]]` en la configuración): en ese caso se omite, o se indica `NOMBRE=RUTA` para reemplazar la ruta de un archivo ([Varios archivos](varios-archivos.md)). |
+| `--salida` | Libro `.xlsx` a crear. Por defecto `<origen>_EVM.xlsx`; obligatoria con varios archivos. |
 | `--config` | Archivo de configuración TOML ([Configuración](configuracion.md)). |
 | `--mes-inicio AAAA-MM` | Primer mes del horizonte (mes 1). Por defecto, el mes en que comienza la línea base. |
 | `--meses N` | Cantidad de meses (columnas). Por defecto 120. |
-| `--planificacion CODIGO` | Código EDT de la planificación a exportar (`INTERNO`, `CLIENTE`...). Reemplaza el valor del archivo de configuración; `""` exporta todas. |
-| `--linea-base N` | 0 = Línea base, 1..10 = Línea base N. Por defecto, la que el proyecto usa para el valor acumulado. |
+| `--planificacion CODIGO` | Código EDT de la planificación a exportar (`INTERNO`, `CLIENTE`...). Reemplaza el valor del archivo de configuración; `""` exporta todas. Con varios archivos no se admite: la planificación se indica en cada `[[proyectos]]`. |
+| `--linea-base N` | 0 = Línea base, 1..10 = Línea base N. Por defecto, la que el proyecto usa para el valor acumulado. Con varios archivos no se admite: se indica en cada `[[proyectos]]`. |
 | `--nivel-max N` | Nivel máximo del código EDT. Por defecto 3. |
 | `--motor auto\|com\|xml` | Forma de lectura. `auto` decide por la extensión. |
 | `--migrar-desde libro.xlsx` | Copia al libro nuevo los EV/AC ya cargados, los métodos editados en la columna C y la fecha de corte de un libro anterior ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). |
@@ -64,9 +64,9 @@ python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config con
 
 | Opción | Descripción |
 |---|---|
-| `--origen` | Proyecto con el avance a la fecha de corte (`.mpp`, `.xml` o `activo`). **Obligatoria.** |
+| `--origen` | Proyecto con el avance a la fecha de corte (`.mpp`, `.xml` o `activo`). **Obligatoria**, salvo con varios archivos: se leen todos los de `[[proyectos]]`, y `NOMBRE=RUTA` reemplaza la ruta de un archivo (relativa a la carpeta actual; se puede repetir). |
 | `--libro` | Libro creado con `generar`. **Obligatoria.** |
-| `--fecha-corte AAAA-MM-DD` | Fecha de corte. Por defecto, la fecha de estado del proyecto; si el proyecto no tiene fecha de estado, es obligatoria. Con `.mpp`, el programa fija esa fecha de estado en la copia abierta (no guarda el archivo). |
+| `--fecha-corte AAAA-MM-DD` | Fecha de corte. Por defecto, la fecha de estado del proyecto; si el proyecto no tiene fecha de estado, es obligatoria. Con varios archivos, sin esta opción todos deben tener la misma fecha de estado. Con `.mpp`, el programa fija esa fecha de estado en la copia abierta (no guarda el archivo). |
 | `--solo ev\|ac` | Actualiza solo EV o solo AC. En multi-empresa, `--solo ac` requiere `ac_desde_project = true` ([Multi-empresa](multiempresa.md)). |
 | `--simular` | Muestra el EV y AC calculados para cada fila y los indicadores resultantes, sin modificar el libro. |
 | `--forzar` | Permite actualizar aunque haya valores en meses posteriores. Esos meses no se recalculan: se avisa cuáles quedaron con un acumulado que ya no coincide con MS Project, para revisarlos o volver a cargarlos en orden. |
@@ -124,6 +124,10 @@ python evm_export.py actualizar --origen Programa.mpp --config config.toml --lib
 
 # Nueva línea base: libro nuevo conservando el historial
 python evm_export.py generar --origen Programa.mpp --config config.toml --salida EVM_Programa_LB2.xlsx --migrar-desde EVM_Programa.xlsx
+
+# Varios archivos de MS Project ([[proyectos]] en la configuración): sin --origen
+python evm_export.py generar --config config.toml --salida EVM_Programa.xlsx
+python evm_export.py actualizar --config config.toml --libro EVM_Programa.xlsx
 ```
 
 Si no se activó el entorno virtual, se usa `.venv\Scripts\python.exe` en lugar de `python`.

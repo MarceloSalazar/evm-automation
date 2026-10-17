@@ -213,6 +213,9 @@ proyecto (no con los de recursos o tareas) ([Limitaciones](validaciones-y-proble
   `--origen activo`, o se guarda una copia local `.mpp`.
 - **Varias planificaciones en un archivo** (`INTERNO` y `CLIENTE`): se genera un libro por
   planificación con `--planificacion` ([Cálculo del PV](calculo-pv.md#2-planificación-exportada)).
+- **Un programa en varios archivos** (por ejemplo, `1.0.0` a `8.0.0` en un archivo y `9.0.0` en otro):
+  se reúnen en un mismo libro con secciones `[[proyectos]]`, siempre que los códigos EDT no se repitan
+  entre archivos ([Varios archivos](varios-archivos.md)).
 - **Tareas inactivas** (*Tarea > Desactivar*): no se incluyen, salvo `incluir_inactivas = true`. Es útil
   para conservar alcance descartado sin que afecte el BAC.
 - **Calidad del cronograma:** un cronograma con lógica completa (predecesoras y sucesoras), sin

@@ -118,7 +118,8 @@ recomienda asignar los costos solo a tareas de detalle ([Presupuesto](presupuest
 
 - El libro tiene 120 columnas mensuales por defecto (10 años); se cambia con `meses` o `--meses`.
 - El **mes 1** es, por defecto, el mes de inicio de la línea base; se cambia con `mes_inicio` o
-  `--mes-inicio AAAA-MM`.
+  `--mes-inicio AAAA-MM`. Con varios archivos ([Varios archivos](varios-archivos.md)), es el primer mes
+  con PV de cualquiera de ellos.
 - Si se elige un mes de inicio posterior, el PV de los meses anteriores se **acumula en el mes 1** para
   que la curva acumulada sea correcta.
 - El PV posterior al último mes no aparece en las columnas y se informa en `Validación`; en ese caso se

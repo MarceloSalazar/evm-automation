@@ -128,6 +128,10 @@ Lo que no se puede trasladar se informa como **Error** en `Validación` para car
 se dividieron en varias y tareas eliminadas. Tampoco se admite migrar entre un libro de una sola empresa
 y uno multi-empresa.
 
+Con varios archivos de MS Project, cada fila se asocia por el nombre del archivo y el UniqueID de la
+tarea; al agregar o quitar archivos, o al pasar de un solo archivo a varios, se aplica lo indicado en
+[Varios archivos](varios-archivos.md#7-cambios-de-línea-base-y-de-archivos).
+
 > El PV del libro nuevo corresponde a la nueva línea base: la curva PV de los meses ya informados
 > cambia. Se recomienda conservar el libro anterior como registro de lo informado con la línea base
 > previa y documentar la fecha y el motivo del cambio ([Proceso de reporte](proceso-reporte-evm.md#5-cambios-de-línea-base)).

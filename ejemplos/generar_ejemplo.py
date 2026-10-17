@@ -15,9 +15,14 @@ en el campo EDT (WBS) y también en el campo personalizado "Item EDT".
 Para multi-empresa, el campo "Empresa" indica EmpresaA, EmpresaB o Ambas, y el
 campo "% Reparto" el porcentaje de EmpresaA en las tareas de ambas empresas.
 
+Con --proyecto 2 se genera un segundo proyecto, "Accesos y servicios", con el
+código EDT 9.0.0 y sin planificaciones, para combinarlo con el primero en un
+mismo libro (varios archivos de MS Project, secciones [[proyectos]]).
+
 Uso:
     python ejemplos/generar_ejemplo.py                       # solo línea base
     python ejemplos/generar_ejemplo.py --fecha-estado 2027-06-30 --salida ejemplos/avance_2027-06.xml
+    python ejemplos/generar_ejemplo.py --proyecto 2 --salida ejemplos/proyecto2_ejemplo.xml
 """
 from __future__ import annotations
 
@@ -79,10 +84,8 @@ def add_wd(d: date, n: int) -> date:
     return d
 
 
-def build_program(factor: float = 1.0) -> list[T]:
-    """Programa de 4 elementos de nivel EDT 1, hasta nivel 4, ~5 años."""
-    start = date(2026, 1, 5)
-
+def work_package(start: date, factor: float = 1.0):
+    """Constructor de paquetes de trabajo (nivel 3) a partir del inicio del proyecto."""
     def wp(name, offset_m, dur_d, cost, method="", acts=None):
         s = add_wd(start + timedelta(days=int(offset_m * 30.4)), 1)
         t = T(name, 3, method=method)
@@ -99,7 +102,12 @@ def build_program(factor: float = 1.0) -> list[T]:
         else:
             t.start, t.finish, t.cost = s, add_wd(s, dur_d), cost * factor
         return t
+    return wp
 
+
+def build_program(factor: float = 1.0) -> list[T]:
+    """Programa de 4 elementos de nivel EDT 1, hasta nivel 4, ~5 años."""
+    wp = work_package(date(2026, 1, 5), factor)
     prog = [
         T("Gestión del programa", 1, children=[
             T("Dirección y control", 2, children=[
@@ -180,13 +188,45 @@ def build_plans() -> list[T]:
     return plans
 
 
-def walk(nodes, depth=1, outline="", numbers=()):
+def build_second() -> list[T]:
+    """Segundo proyecto (código EDT 9.0.0, sin planificaciones): accesos y servicios de la obra, ~2 años."""
+    wp = work_package(date(2026, 2, 2))
+    prog = [
+        T("Accesos y servicios", 1, children=[
+            T("Camino de acceso", 2, children=[
+                wp("Diseño del camino", 0, 60, 220_000, "50/50"),
+                wp("Construcción del camino", 3, 200, 2_400_000, "Unidades completadas"),
+            ]),
+            T("Servicios de obra", 2, children=[
+                wp("Suministro eléctrico provisional", 2, 120, 900_000, "% Completado"),
+                wp("Campamento", 1, 0, 0, "Hitos ponderados", acts=[
+                    ("Montaje de módulos", 60, 650_000), ("Hito: módulos habilitados", 0, 0, 60),
+                    ("Servicios del campamento", 40, 250_000), ("Hito: campamento en servicio", 0, 0, 40),
+                ]),
+                wp("Gestión del proyecto de accesos", 0, 500, 380_000, "Avance lineal (LOE)"),
+            ]),
+        ]),
+    ]
+    # Multi-empresa: el camino es de B; los servicios, compartidos 30/70
+    prog[0].children[0].company = "EmpresaB"
+    prog[0].children[1].company, prog[0].children[1].split = "Ambas", 30
+    return prog
+
+
+PROJECTS = {
+    1: ("Programa de ejemplo EVM", "programa_ejemplo.xml", build_plans, 1),
+    2: ("Accesos y servicios (proyecto 2 de ejemplo)", "proyecto2_ejemplo.xml", build_second, 9),
+}
+
+
+def walk(nodes, depth=1, outline="", numbers=(), first=1):
     """Asigna nivel de esquema y código EDT.
 
     Las planificaciones conservan su código (INTERNO / CLIENTE); debajo, los
     elementos se numeran 1.0.0, 1.1.0, 1.1.1 y 1.1.1.1 (solo los que tienen código).
+    first: número del primer elemento de nivel 1 (9 -> 9.0.0).
     """
-    k = 0
+    k = first - 1
     for i, n in enumerate(nodes, start=1):
         n.level = depth
         n.outline = f"{outline}{i}"
@@ -268,8 +308,9 @@ def money(v: float) -> str:
     return text[:-3] if text.endswith(".00") else text
 
 
-def write(nodes: list[T], path: Path, status: date | None) -> None:
-    tasks = list(walk(nodes))
+def write(nodes: list[T], path: Path, status: date | None, project: int = 1) -> None:
+    title, file_name, _build, first = PROJECTS[project]
+    tasks = list(walk(nodes, first=first))
     for r in nodes:
         rollup(r)
     for uid, t in enumerate(tasks, start=1):
@@ -286,8 +327,8 @@ def write(nodes: list[T], path: Path, status: date | None) -> None:
     out = ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
            '<Project xmlns="http://schemas.microsoft.com/project">',
            "\t<SaveVersion>14</SaveVersion>",
-           "\t<Name>programa_ejemplo.xml</Name>",
-           "\t<Title>Programa de ejemplo EVM</Title>",
+           f"\t<Name>{file_name}</Name>",
+           f"\t<Title>{escape(title)}</Title>",
            f"\t<StartDate>{dt(start)}</StartDate>",
            f"\t<FinishDate>{dt(finish, True)}</FinishDate>",
            "\t<CurrencyDigits>2</CurrencyDigits>",
@@ -374,7 +415,7 @@ def write(nodes: list[T], path: Path, status: date | None) -> None:
         lines.append("\t\t</Task>")
         return lines
 
-    out += task_xml(0, 0, "Programa de ejemplo EVM", 0, "0", None)
+    out += task_xml(0, 0, title, 0, "0", None)
     for i, t in enumerate(tasks, start=1):
         out += task_xml(t.uid, i, t.name, t.level, t.wbs, t)
     out += ["\t</Tasks>", "</Project>"]
@@ -390,12 +431,16 @@ def walk_leaves(t: T):
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--salida", default=str(Path(__file__).with_name("programa_ejemplo.xml")))
+    p.add_argument("--proyecto", type=int, choices=sorted(PROJECTS), default=1,
+                   help="1 = programa de ejemplo (por defecto), 2 = segundo proyecto (código EDT 9.0.0)")
+    p.add_argument("--salida", help="archivo XML a crear (por defecto el archivo de ejemplo del proyecto)")
     p.add_argument("--fecha-estado", help="AAAA-MM-DD: agrega avance simulado a esa fecha")
     a = p.parse_args()
     status = date.fromisoformat(a.fecha_estado) if a.fecha_estado else None
-    write(build_plans(), Path(a.salida), status)
-    print(f"Archivo generado: {a.salida}")
+    _title, file_name, build, _first = PROJECTS[a.proyecto]
+    salida = a.salida or str(Path(__file__).with_name(file_name))
+    write(build(), Path(salida), status, a.proyecto)
+    print(f"Archivo generado: {salida}")
 
 
 if __name__ == "__main__":

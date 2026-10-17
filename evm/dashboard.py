@@ -304,7 +304,7 @@ def write_dashboard(ws, report: Report, cfg: Config, lay: _Layout, packages: lis
     tr = lay.total_row
     money = money_format(cfg.decimals)
     money_signed = f"{money};[Red]-{money}"
-    currency = cfg.currency or p.currency_symbol or ""
+    currency = cfg.currency or report.currency or ""
 
     ws.sheet_view.showGridLines = False
     ws.sheet_view.zoomScale = 100
@@ -317,7 +317,7 @@ def write_dashboard(ws, report: Report, cfg: Config, lay: _Layout, packages: lis
     # Encabezado
     for r, value, font, fill, height in (
             (1, "Cuadro de Mando EVM", Font(bold=True, size=20, color="FFFFFF"), FILL_HEADER, 36),
-            (2, p.name, Font(bold=True, size=12, color="FFFFFF"), FILL_HEADER, 22)):
+            (2, report.title, Font(bold=True, size=12, color="FFFFFF"), FILL_HEADER, 22)):
         cell = _merge(ws, r, GRID_FIRST, GRID_LAST)
         put_text(ws, r, GRID_FIRST, value)
         cell.font = font
@@ -325,8 +325,12 @@ def write_dashboard(ws, report: Report, cfg: Config, lay: _Layout, packages: lis
         for c in range(GRID_FIRST, GRID_LAST + 1):
             ws.cell(row=r, column=c).fill = fill
         ws.row_dimensions[r].height = height
-    info = [f"Planificación: {report.plan}" if report.plan else "Planificación: todas",
-            p.baseline_label, f"Moneda: {currency or '-'}"]
+    if report.multi_file:
+        info = ["Archivos: " + "; ".join(f"{s.name} (planificación {s.plan or 'todas'}, {s.project.baseline_label})"
+                                         for s in report.sources), f"Moneda: {currency or '-'}"]
+    else:
+        info = [f"Planificación: {report.plan}" if report.plan else "Planificación: todas",
+                p.baseline_label, f"Moneda: {currency or '-'}"]
     if report.multi:
         info.append(f"Empresas: {report.company_a} y {report.company_b} (valores totales)")
     cell = _merge(ws, 3, GRID_FIRST, GRID_LAST)

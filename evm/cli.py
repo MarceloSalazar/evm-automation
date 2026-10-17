@@ -14,7 +14,7 @@ from pathlib import Path
 
 from evm import __version__
 from evm.config import Config, ConfigError, load_config, parse_date, parse_month
-from evm.wbs import SEV_INFO, TimephasedPVSource, build_report
+from evm.wbs import SEV_INFO, TimephasedPVSource, assemble_report, build_part
 
 log = logging.getLogger("evm")
 
@@ -71,6 +71,41 @@ def _apply_overrides(cfg: Config, args) -> Config:
     return cfg
 
 
+def _sources(cfg: Config, args) -> list[tuple[str, str, Config]]:
+    """Archivos de MS Project a leer: [(nombre, ruta, configuración del archivo)].
+
+    Un solo archivo: [("", --origen, cfg)]. Varios archivos ([[proyectos]]): uno por sección, en su orden;
+    --origen NOMBRE=RUTA reemplaza la ruta de un archivo.
+    """
+    given = args.origen or []
+    if not cfg.projects:
+        if not given:
+            raise ConfigError("Se debe indicar el archivo de MS Project con --origen (o los archivos en secciones "
+                              "[[proyectos]] del archivo de configuración).")
+        if len(given) > 1:
+            raise ConfigError("Para combinar varios archivos de MS Project en un mismo libro, se deben indicar en "
+                              "secciones [[proyectos]] del archivo de configuración (--origen se indica una vez).")
+        return [("", given[0], cfg)]
+    if args.planificacion is not None or args.linea_base is not None:
+        raise ConfigError("Con varios archivos ([[proyectos]]), la planificación y la línea base se indican en la "
+                          "sección [[proyectos]] de cada archivo, no con --planificacion ni --linea-base.")
+    origins = {p.name: p.origin for p in cfg.projects}
+    for item in given:
+        name, sep, path = (x.strip() for x in item.partition("="))
+        if not sep or name not in origins or not path:
+            raise ConfigError(f"--origen '{item}': con varios archivos ([[proyectos]]) se indica NOMBRE=RUTA para "
+                              f"reemplazar la ruta de un archivo, con uno de estos nombres: {', '.join(origins)}.")
+        if path.lower() == "activo":
+            raise ConfigError("Con varios archivos ([[proyectos]]) no se admite 'activo': se debe indicar la ruta del "
+                              "archivo .mpp o .xml.")
+        origins[name] = path
+    return [(p.name, origins[p.name], cfg.project_config(p.name)) for p in cfg.projects]
+
+
+def _reading(name: str, origin: str) -> str:
+    return f"Leyendo {name}: {origin} ..." if name else f"Leyendo {origin} ..."
+
+
 def _print_issues(issues, limit: int = 15) -> None:
     serious = [i for i in issues if i.severity != SEV_INFO]
     infos = [i for i in issues if i.severity == SEV_INFO]
@@ -85,9 +120,16 @@ def _print_issues(issues, limit: int = 15) -> None:
 
 def cmd_generar(args) -> int:
     cfg = _apply_overrides(load_config(args.config), args)
-    salida = Path(args.salida) if args.salida else Path(args.origen).with_name(Path(args.origen).stem + "_EVM.xlsx")
-    if args.origen.lower() == "activo" and not args.salida:
+    files = _sources(cfg, args)
+    origen = files[0][1]
+    if args.salida:
+        salida = Path(args.salida)
+    elif cfg.projects:
+        raise ConfigError("Con varios archivos ([[proyectos]]) se debe indicar el libro a crear con --salida.")
+    elif origen.lower() == "activo":
         salida = Path("EVM.xlsx")
+    else:
+        salida = Path(origen).with_name(Path(origen).stem + "_EVM.xlsx")
     if salida.suffix.lower() != ".xlsx":
         raise ConfigError("La salida debe ser un archivo .xlsx")
     if salida.exists() and not args.sobrescribir:
@@ -99,21 +141,31 @@ def cmd_generar(args) -> int:
     from evm.workbook import check_writable, write_workbook
     if salida.exists():
         check_writable(salida)                  # libro abierto en Excel: se informa antes de leer MS Project
-    print(f"Leyendo {args.origen} ...")
-    with open_project(args.origen, cfg, args.motor, args.visible) as (project, source):
-        report = build_report(project, cfg, source)
+    parts = []
+    for name, origin, pcfg in files:
+        print(_reading(name, origin))
+        with open_project(origin, pcfg, args.motor, args.visible) as (project, source):
+            parts.append(build_part(project, pcfg, source, name))
+    report = assemble_report(parts, cfg)
     prior = None
     if args.migrar_desde:
         from evm.migrate import plan_migration, prior_from_book
-        prior = prior_from_book(args.migrar_desde, project.name)
+        prior = prior_from_book(args.migrar_desde, report.project.name)
         report.issues.extend(plan_migration(report, prior, cfg.max_level))
     write_workbook(report, cfg, salida, prior)
 
     leaves = sum(1 for r in report.rows if r.is_input)
-    print(f"Proyecto: {project.name}")
-    if report.plan:
-        print(f"  Planificación: {report.plan}")
-    print(f"  {project.baseline_label}  |  PV: {report.pv_source}")
+    if report.multi_file:
+        print(f"Informe: {report.title}")
+        for s in report.sources:
+            plan = f"  |  Planificación: {s.plan}" if s.plan else ""
+            print(f"  {s.name}: {s.project.name}{plan}  |  {s.project.baseline_label}  |  PV: {s.pv_source}")
+    else:
+        project = report.project
+        print(f"Proyecto: {project.name}")
+        if report.plan:
+            print(f"  Planificación: {report.plan}")
+        print(f"  {project.baseline_label}  |  PV: {report.pv_source}")
     print(f"  Filas EDT: {len(report.rows)} ({leaves} de ingreso)  |  Nivel máximo: {cfg.max_level}")
     print(f"  Horizonte: {report.horizon.start:%m/%Y} a {report.horizon.end:%m/%Y} ({report.horizon.months} meses)")
     print(f"  BAC total: {report.total_bac:,.2f}")
@@ -165,18 +217,24 @@ def _print_update(res, currency: str) -> None:
 def cmd_actualizar(args) -> int:
     cfg = _apply_overrides(load_config(args.config), args)
     status = parse_date(args.fecha_corte) if args.fecha_corte else None
-    from evm.update import apply_book_settings, book_meta, check_only, run_update
+    from evm.update import apply_book_settings, book_meta, check_only, check_sources, run_update
     # Multi-empresa: se usan los nombres y campos con los que se generó el libro
-    cfg = apply_book_settings(cfg, book_meta(args.libro))
+    meta = book_meta(args.libro)
+    cfg = apply_book_settings(cfg, meta)
+    files = _sources(cfg, args)
+    check_sources(meta, [name for name, _origin, _cfg in files])
     check_only(cfg, args.solo)
     if not args.simular:
         from evm.workbook import check_writable
         check_writable(args.libro)              # libro abierto en Excel: se informa antes de leer MS Project
-    print(f"Leyendo {args.origen} ...")
-    with open_project(args.origen, cfg, args.motor, args.visible, status) as (project, _source):
-        pass
-    res = run_update(project, cfg, args.libro, status, args.solo, backup=not args.sin_respaldo,
-                     force=args.forzar, dry_run=args.simular)
+    projects = {}
+    for name, origin, pcfg in files:
+        print(_reading(name, origin))
+        with open_project(origin, pcfg, args.motor, args.visible, status) as (project, _source):
+            pass
+        projects[name] = project
+    res = run_update(projects if cfg.projects else projects[""], cfg, args.libro, status, args.solo,
+                     backup=not args.sin_respaldo, force=args.forzar, dry_run=args.simular)
     _print_update(res, str(res.book.meta.get("moneda") or "") if res.book else "")
     if args.simular:
         print("Simulación: no se modificó el libro.")
@@ -199,9 +257,11 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="comando", required=True)
 
     def common_source(sp):
-        sp.add_argument("--origen", required=True,
+        sp.add_argument("--origen", action="append",
                         help="archivo .mpp (requiere MS Project instalado), .xml exportado de MS Project, "
-                             "o 'activo' para usar el proyecto abierto en MS Project")
+                             "o 'activo' para usar el proyecto abierto en MS Project. Con varios archivos "
+                             "([[proyectos]] en la configuración) se omite, o se indica NOMBRE=RUTA para reemplazar "
+                             "la ruta de un archivo (se puede repetir)")
         sp.add_argument("--config", help="archivo de configuración TOML (ver config.ejemplo.toml)")
         sp.add_argument("--motor", choices=["auto", "com", "xml"], default="auto",
                         help="forma de lectura (por defecto según la extensión)")
