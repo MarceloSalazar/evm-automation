@@ -13,7 +13,9 @@ Precauciones:
 """
 from __future__ import annotations
 
+import gc
 import logging
+import time
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -37,6 +39,9 @@ MSO_AUTOMATION_SECURITY_FORCE_DISABLE = 3     # sin macros
 ACCRUAL = {1: "inicio", 2: "fin", 3: "prorrateado"}   # PjAccrueAt
 
 PROGID = "MSProject.Application"
+# Espera máxima (segundos) a que responda MS Project: una instancia que se está cerrando (p. ej. la que
+# cerró una ejecución anterior) o que muestra un diálogo rechaza las llamadas por un momento.
+CONNECT_WAIT = 30.0
 
 
 def _dt(v) -> datetime | None:
@@ -63,6 +68,14 @@ def _f(v, default: float = 0.0) -> float:
     except (TypeError, ValueError):
         n = parse_number(v)
         return default if n is None else n
+
+
+def _hresult(exc) -> int:
+    """Código HRESULT de un error COM, sin signo."""
+    code = getattr(exc, "hresult", None)
+    if code is None and getattr(exc, "args", None):
+        code = exc.args[0]
+    return int(code or 0) & 0xFFFFFFFF
 
 
 def _get(obj, name: str, default=None):
@@ -115,24 +128,40 @@ class ComSession:
     def _connect(self) -> None:
         import pywintypes
         import win32com.client
-        raw = None
-        try:
-            raw = win32com.client.GetActiveObject(PROGID)
-            self.started_by_us = False
-        except pywintypes.com_error:
+        deadline = time.monotonic() + CONNECT_WAIT
+        raw, started = None, False
+        while True:
+            if raw is None:
+                try:
+                    raw = win32com.client.GetActiveObject(PROGID)
+                    started = False
+                except pywintypes.com_error:
+                    try:
+                        raw = win32com.client.DispatchEx(PROGID)
+                    except pywintypes.com_error as exc:
+                        raise RuntimeError(
+                            "No se pudo iniciar MS Project por automatización COM. Se debe verificar que MS "
+                            "Project de escritorio esté instalado, o bien exportar el proyecto a XML y usar ese "
+                            "archivo.") from exc
+                    started = True
             try:
-                raw = win32com.client.DispatchEx(PROGID)
+                n_open = int(raw.Projects.Count)        # la instancia responde
+                break
             except pywintypes.com_error as exc:
-                raise RuntimeError(
-                    "No se pudo iniciar MS Project por automatización COM. Se debe verificar que MS Project "
-                    "de escritorio esté instalado, o bien exportar el proyecto a XML y usar ese archivo.") from exc
-            # Si en realidad se conectó a un MS Project abierto por el usuario, no cerrarlo después.
-            user_control = bool(_get(raw, "UserControl", True))
-            try:
-                n_open = int(raw.Projects.Count)
-            except Exception:
-                n_open = 1
-            self.started_by_us = not user_control and n_open == 0
+                # Instancia que se está cerrando (servidor RPC no disponible, 0x800706BA) o que muestra un
+                # diálogo (llamada rechazada): se espera y se vuelve a intentar. Una instancia ajena se vuelve
+                # a buscar (al terminar de cerrarse se inicia otra); la propia se espera (no se inician más).
+                if not started:
+                    raw = None
+                if time.monotonic() >= deadline:
+                    raise RuntimeError(
+                        f"MS Project no responde por automatización COM (código {_hresult(exc):#010x}): puede estar "
+                        "cerrándose o mostrando un diálogo (inicio de sesión, recuperación de archivos...). Se debe "
+                        "abrir MS Project, cerrar el diálogo o esperar a que termine de cerrarse (o cerrarlo desde "
+                        "el Administrador de tareas) y volver a intentar.") from exc
+                time.sleep(1)
+        # Si en realidad se conectó a un MS Project abierto por el usuario, no cerrarlo después.
+        self.started_by_us = started and not bool(_get(raw, "UserControl", True)) and n_open == 0
         # Enlace temprano (más rápido) si está disponible; si falla, enlace dinámico.
         try:
             from win32com.client import gencache
@@ -236,22 +265,31 @@ class ComSession:
                 # otros proyectos en esa instancia (visible), se deja abierta para no descartar su trabajo.
                 remaining = self._open_project_names()
                 if remaining is not None and remaining <= self._opened_names:
+                    # Se liberan antes las referencias a objetos de MS Project: liberarlas con el proceso ya
+                    # cerrado produce errores de RPC (0x800706BA, "el servidor RPC no está disponible").
+                    self._release_objects()
                     try:
                         self.app.Quit(PJ_DO_NOT_SAVE)
                     except Exception:
                         pass
         finally:
-            self._com_tasks.clear()
+            self._release_objects()
             self._opened_names = set()
-            self.project = None
-            self._prev_active = None
             self.app = None
+            gc.collect()
             if self._pythoncom is not None:
                 try:
                     self._pythoncom.CoUninitialize()
                 except Exception:
                     pass
                 self._pythoncom = None
+
+    def _release_objects(self) -> None:
+        """Libera las referencias a tareas y proyectos de MS Project (no a la aplicación)."""
+        self._com_tasks.clear()
+        self.project = None
+        self._prev_active = None
+        gc.collect()
 
     # -- campos ---------------------------------------------------------------
     def _resolve_field(self, name: str):

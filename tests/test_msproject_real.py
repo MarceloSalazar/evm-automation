@@ -18,6 +18,7 @@ Antes de guardar el XML se debe definir la fecha de estado (Proyecto > Fecha de 
 pruebas solo muestran códigos EDT e importes, no nombres de tareas.
 """
 import contextlib
+import faulthandler
 import io
 import os
 import subprocess
@@ -35,10 +36,16 @@ MPP = os.environ.get("EVM_MPP", "")
 XML = os.environ.get("EVM_MPP_XML", "")
 LIMIT = 15
 
+MISSING = [name for name, value in (("EVM_MPP", MPP), ("EVM_MPP_XML", XML)) if not value]
+
 pytestmark = [
     pytest.mark.msproject,
     pytest.mark.skipif(sys.platform != "win32", reason="MS Project solo funciona en Windows"),
-    pytest.mark.skipif(not (MPP and XML), reason="Se deben indicar EVM_MPP y EVM_MPP_XML (ver el docstring)"),
+    pytest.mark.skipif(bool(MISSING), reason=(
+        f"Falta definir {' y '.join(MISSING)} en esta terminal. En PowerShell: "
+        '$env:EVM_MPP = "C:\\ruta\\Programa.mpp"; $env:EVM_MPP_XML = "C:\\ruta\\Programa.xml" '
+        "(en cmd: set EVM_MPP=C:\\ruta\\Programa.mpp). El XML lo guarda MS Project: Archivo > Guardar como > "
+        "Formato XML.")),
 ]
 
 
@@ -64,6 +71,27 @@ def run(*args) -> str:
     return text
 
 
+def wait_until_closed(seconds: float = 60) -> bool:
+    """Espera a que termine el proceso de MS Project (True si terminó)."""
+    deadline = time.monotonic() + seconds
+    while ms_project_running():
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(1)
+    return True
+
+
+@pytest.fixture(scope="module", autouse=True)
+def quiet_faulthandler():
+    """En Windows, faulthandler informa como "Windows fatal exception: code 0x800706ba" los errores de RPC
+    que COM maneja internamente mientras MS Project se cierra; no son fatales. Se desactiva solo aquí."""
+    enabled = faulthandler.is_enabled()
+    faulthandler.disable()
+    yield
+    if enabled:
+        faulthandler.enable()
+
+
 def report(diffs: list[str], what: str) -> str:
     more = f"\n... y {len(diffs) - LIMIT} más" if len(diffs) > LIMIT else ""
     return f"{len(diffs)} diferencias en {what} (COM frente a XML):\n" + "\n".join(diffs[:LIMIT]) + more
@@ -78,19 +106,16 @@ def books(tmp_path_factory):
     d = tmp_path_factory.mktemp("msproject")
     extra = ["--linea-base", os.environ["EVM_LINEA_BASE"]] if os.environ.get("EVM_LINEA_BASE") else []
     result = {"was_running": ms_project_running()}
+    closed = []          # el MS Project iniciado por el programa terminó después de cada paso
     for engine, origin in (("com", MPP), ("xml", XML)):
         book = d / f"EVM_{engine}.xlsx"
-        run("generar", "--origen", origin, "--motor", engine, "--config", config_path(), "--salida", book, *extra)
-        run("actualizar", "--origen", origin, "--motor", engine, "--config", config_path(), "--libro", book,
-            "--sin-respaldo", *extra)
+        for command in (["generar", "--salida", book], ["actualizar", "--libro", book, "--sin-respaldo"]):
+            run(command[0], "--origen", origin, "--motor", engine, "--config", config_path(), *command[1:], *extra)
+            if engine == "com" and not result["was_running"]:
+                # MS Project tarda unos segundos en cerrarse después de Quit: se espera antes del paso siguiente
+                closed.append(wait_until_closed())
         result[engine] = read_book(book)
-    # MS Project tarda unos segundos en cerrarse después de Quit
-    deadline = time.monotonic() + 30
-    running = ms_project_running()
-    while running and not result["was_running"] and time.monotonic() < deadline:
-        time.sleep(1)
-        running = ms_project_running()
-    result["running_after"] = running
+    result["running_after"] = ms_project_running() if result["was_running"] else not all(closed)
     return result
 
 
