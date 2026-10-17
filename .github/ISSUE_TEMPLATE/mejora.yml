@@ -1,0 +1,56 @@
+name: Proponer una mejora
+description: Una función nueva o un cambio en el programa, el libro Excel o la documentación.
+title: "[Mejora] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Las propuestas se describen a partir de la **necesidad** que resuelven. Para cambios grandes conviene acordar el enfoque en este ticket antes de programarlos ([Contribuciones](https://github.com/MarceloSalazar/evm-automation#contribuciones)).
+  - type: textarea
+    id: necesidad
+    attributes:
+      label: Qué necesidad resuelve
+      description: Qué se hace hoy, qué dificultad tiene y a quién afecta.
+      placeholder: Cada mes se arma a mano una tabla con...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Parte del proceso
+      multiple: true
+      options:
+        - Preparación en MS Project
+        - generar (libro y PV)
+        - actualizar o analizar (cierre mensual)
+        - Cuadro de Mando e indicadores
+        - Análisis de desviaciones
+        - Configuración
+        - Documentación o presentación
+        - Otra
+    validations:
+      required: true
+  - type: textarea
+    id: propuesta
+    attributes:
+      label: Propuesta
+      description: Qué debería hacer el programa. Pueden ayudar un ejemplo de la salida esperada o un esquema de la hoja.
+    validations:
+      required: true
+  - type: textarea
+    id: alternativas
+    attributes:
+      label: Alternativas consideradas
+      description: Otras formas de resolverlo, incluso fuera del programa (por ejemplo, en MS Project o en Excel).
+  - type: textarea
+    id: compatibilidad
+    attributes:
+      label: Impacto en libros y configuraciones existentes
+      description: Si la mejora exigiría regenerar los libros ya generados o cambiar el archivo de configuración.
+  - type: checkboxes
+    id: contribucion
+    attributes:
+      label: Contribución
+      options:
+        - label: Se puede enviar un Pull Request con la implementación.

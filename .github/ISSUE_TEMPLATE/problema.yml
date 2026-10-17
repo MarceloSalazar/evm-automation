@@ -1,0 +1,94 @@
+name: Informar un problema
+description: Un error, un mensaje inesperado o un resultado incorrecto del programa o del libro Excel.
+title: "[Problema] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Antes de continuar, se recomienda revisar [Validaciones y solución de problemas](https://github.com/MarceloSalazar/evm-automation/blob/main/docs/validaciones-y-problemas.md) y buscar si ya existe un ticket sobre el mismo tema.
+
+        **El repositorio es público.** No se deben adjuntar archivos `.mpp`, `.xml`, libros Excel ni `config.toml` de proyectos reales con información confidencial (costos, nombres, clientes o proveedores). Se recomienda reproducir el problema con el [proyecto de ejemplo](https://github.com/MarceloSalazar/evm-automation/blob/main/docs/ejemplo-paso-a-paso.md) o reemplazar los datos sensibles.
+  - type: textarea
+    id: descripcion
+    attributes:
+      label: Qué ocurrió
+      description: Descripción del problema y qué se esperaba que ocurriera.
+      placeholder: Al ejecutar actualizar con la fecha de corte de octubre, el AC del paquete 2.1.3 queda en cero, aunque en MS Project el costo real es...
+    validations:
+      required: true
+  - type: textarea
+    id: comando
+    attributes:
+      label: Comando ejecutado
+      description: Comando completo, con sus opciones. Las rutas se pueden abreviar.
+      placeholder: python evm_export.py actualizar --origen Programa.mpp --config config.toml --libro EVM_Programa.xlsx
+      render: powershell
+    validations:
+      required: true
+  - type: textarea
+    id: mensaje
+    attributes:
+      label: Mensaje completo
+      description: Salida del programa. Con `-v` antes del comando se obtiene el detalle técnico (`python evm_export.py -v actualizar ...`).
+      render: text
+  - type: textarea
+    id: pasos
+    attributes:
+      label: Pasos para reproducirlo
+      description: Si es posible, con el proyecto de ejemplo (`ejemplos/programa_ejemplo.xml`) o con un XML reducido.
+      placeholder: |
+        1. python evm_export.py generar --origen ejemplos\programa_ejemplo.xml --config config.toml --salida ejemplo.xlsx
+        2. ...
+  - type: input
+    id: version
+    attributes:
+      label: Versión del programa
+      description: Resultado de `python evm_export.py --version`.
+      placeholder: evm_export 1.5.0
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Versión de Python
+      description: Resultado de `python --version`.
+      placeholder: Python 3.14.8
+  - type: dropdown
+    id: origen
+    attributes:
+      label: Origen de los datos
+      options:
+        - Archivo .mpp (MS Project por automatización COM)
+        - Archivo .xml de MS Project
+        - Proyecto abierto en MS Project (--origen activo)
+        - No aplica (por ejemplo, analizar o un problema del libro)
+    validations:
+      required: true
+  - type: input
+    id: msproject
+    attributes:
+      label: Versión de MS Project
+      description: Solo si se lee un archivo .mpp o el proyecto abierto.
+      placeholder: Microsoft Project Online Desktop Client 2608
+  - type: dropdown
+    id: opciones
+    attributes:
+      label: Funciones en uso
+      multiple: true
+      options:
+        - Planificación (planificacion)
+        - Multi-empresa
+        - Varios archivos de MS Project ([[proyectos]])
+        - --migrar-desde
+        - AC cargado a mano (--solo ev, analizar)
+        - Ninguna de las anteriores
+  - type: checkboxes
+    id: confirmaciones
+    attributes:
+      label: Confirmaciones
+      options:
+        - label: Se revisó la guía de solución de problemas y no hay un ticket sobre el mismo tema.
+          required: true
+        - label: El ticket no incluye información confidencial de proyectos reales.
+          required: true

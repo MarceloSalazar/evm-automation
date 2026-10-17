@@ -135,9 +135,10 @@ Las contribuciones son bienvenidas: informes de problemas, correcciones y propue
 ### Informar un problema
 
 Los problemas y errores se informan abriendo un
-[ticket](https://github.com/MarceloSalazar/evm-automation/issues) (*issue*). Antes de abrirlo se recomienda
-revisar [Validaciones y solución de problemas](docs/validaciones-y-problemas.md) y buscar si ya existe
-un ticket sobre el mismo tema. Un buen informe incluye:
+[ticket](https://github.com/MarceloSalazar/evm-automation/issues/new/choose) (*issue*) con la plantilla
+**Informar un problema**, que pide los datos necesarios. Antes de abrirlo se recomienda revisar
+[Validaciones y solución de problemas](docs/validaciones-y-problemas.md) y buscar si ya existe un ticket
+sobre el mismo tema. Un buen informe incluye:
 
 - la versión del programa (`python evm_export.py --version`), la de Python y la de MS Project, o si se
   usa el XML;
@@ -155,13 +156,14 @@ un ticket sobre el mismo tema. Un buen informe incluye:
 
 ### Proponer una mejora
 
-Las mejoras se proponen también con un ticket: qué necesidad resuelven y en qué parte del proceso de
-reporte (preparación en MS Project, `generar`, cierre mensual, análisis). Para cambios grandes conviene
-acordar el enfoque en el ticket antes de programarlos.
+Las mejoras se proponen también con un ticket, con la plantilla **Proponer una mejora**: qué necesidad
+resuelven y en qué parte del proceso de reporte (preparación en MS Project, `generar`, cierre mensual,
+análisis). Para cambios grandes conviene acordar el enfoque en el ticket antes de programarlos.
 
 ### Enviar un Pull Request
 
-Se aceptan Pull Requests con correcciones de problemas o con mejoras. Buenas prácticas:
+Se aceptan Pull Requests con correcciones de problemas o con mejoras. Al abrirlo, la descripción se
+completa con la plantilla del repositorio, que incluye una lista de control con estas buenas prácticas:
 
 - **Un propósito por Pull Request**, en una rama propia creada desde `main`. Quien no tiene permiso de
   escritura en el repositorio trabaja en un *fork* y abre el Pull Request desde allí. `main` contiene

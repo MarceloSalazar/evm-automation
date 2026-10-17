@@ -30,6 +30,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   en la portada de la presentación.
 - Sección *Contribuciones* en el README: cómo informar problemas, proponer mejoras y enviar Pull
   Requests.
+- Plantillas de GitHub: formularios de tickets para informar un problema y para proponer una mejora, y
+  plantilla de Pull Request con lista de control.
 
 ## [1.5.0] - 2026-10-17 · Análisis de desviaciones y semáforo con umbrales superiores
 
