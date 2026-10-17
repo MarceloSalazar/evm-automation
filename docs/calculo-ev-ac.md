@@ -129,8 +129,9 @@ Avance ponderado = 500.000 / 900.000 = 55,6 %. EV acumulado con cada método:
 
 ### 3.2 Particularidades de algunos métodos
 
-- **Hitos ponderados:** se consideran todos los hitos que dependen de la fila, en cualquier nivel. Si
-  ningún hito tiene peso, todos pesan igual. Si la fila no tiene hitos, se usa *% físico completado*
+- **Hitos ponderados:** se consideran todos los hitos que dependen de la fila, en cualquier nivel. Un
+  peso negativo se toma como 0; si ningún hito tiene peso positivo, todos pesan igual. Si la fila no
+  tiene hitos, se usa *% físico completado*
   cuando alguna subtarea lo tiene registrado y, si no, *% completado*. Cada caso se informa en pantalla.
 - **CPTR de MS Project:** el EV no puede superar el BAC de la fila; si el CPTR lo supera, se limita y
   se informa. Si MS Project calcula el valor acumulado con una línea base distinta de la del informe,
@@ -138,8 +139,10 @@ Avance ponderado = 500.000 / 900.000 = 55,6 %. EV acumulado con cada método:
   se usa `% Completado`.
 - **Avance lineal (LOE):** el EV es igual al PV acumulado de la fila, por lo que la fila nunca tiene
   variación de cronograma (SV = 0, SPI = 1). Sí puede tener variación de costo.
-- **Filas `-D Otros costos`:** se calculan con el avance de las tareas que dependen de la tarea resumen
-  sin pertenecer a sus filas hijas (su costo propio y sus tareas sin código EDT).
+- **Filas `-D Otros costos`:** el avance se mide solo con las tareas que forman la fila (las que
+  dependen de la tarea resumen sin tener fila propia), no con toda la rama de la tarea resumen. Con las
+  fórmulas fijas, la fila comienza cuando comienza alguna de esas tareas y termina cuando terminan todas.
+  Si la fila solo tiene costo propio de la tarea resumen, se usa el avance de la tarea resumen.
 
 ### 3.3 Diferencia con el valor acumulado de MS Project
 
@@ -208,7 +211,8 @@ valor del mes = acumulado a la fecha de corte − Σ valores de los meses anteri
   informa en pantalla para revisarlo.
 - **Repetir** `actualizar` para el mismo mes **reemplaza** el valor de ese mes; no lo duplica.
 - Si hay valores en **meses posteriores** a la fecha de corte, `actualizar` se detiene. Se deben borrar
-  esos valores o usar `--forzar`.
+  esos valores o usar `--forzar`. Con `--forzar` esos meses no se recalculan: se avisa cuáles quedaron
+  con un acumulado que ya no coincide con MS Project, para revisarlos o volver a cargarlos en orden.
 - **Primer `actualizar` con el proyecto ya en ejecución:** todo el EV y el AC acumulados quedan en el
   mes de corte. Si se dispone del historial mensual, se debe cargar antes a mano en los meses
   anteriores; `actualizar` respeta esos valores y solo escribe la diferencia.
@@ -243,12 +247,21 @@ y 2 son subtotales.*
 
 | Control | Qué indica |
 |---|---|
-| Fila cuya tarea ya no existe | La tarea se eliminó o cambió de UniqueID en MS Project: la fila se omite. Si cambió la EDT, se debe regenerar el libro con `--migrar-desde` ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). |
-| Tarea con costo real sin fila en el libro | Costo real de tareas de la planificación que no queda en ninguna fila (por ejemplo, una tarea nueva con código EDT). No se incluye en el AC. |
+| Fila cuya tarea ya no existe o está inactiva | La tarea se eliminó, se desactivó o cambió de UniqueID en MS Project: la fila se omite y se conservan los valores ya cargados. Si cambió la EDT, se debe regenerar el libro con `--migrar-desde` ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). |
+| Tarea con costo real sin fila en el libro | Costo real de tareas de la planificación que no queda en ninguna fila, incluidos los paquetes con código EDT agregados en MS Project después de generar el libro. No se incluye en el AC: se debe regenerar el libro con `--migrar-desde`. |
 | AC total distinto del CRTR del proyecto | Diferencia entre el AC cargado y el costo real del proyecto (o de la planificación) en MS Project. |
 | Libro de otro proyecto | Si el nombre del proyecto no coincide con el del libro, las filas se asocian por código EDT y se recomienda verificar los resultados. |
 | Planificación distinta | `actualizar` usa siempre la planificación con la que se generó el libro. |
 | Celdas convertidas | Celdas de ingreso con texto o fórmulas que se reemplazaron por su valor numérico. |
+| Celdas sin la fórmula del libro | Subtotales, fila TOTAL o suma de las empresas que perdieron su fórmula (por ejemplo, porque se escribió un valor encima): se informan para restaurarlas. |
+
+Antes de leer MS Project, `actualizar` **verifica el libro**: si falta o se renombró una hoja, si se
+insertaron, eliminaron u ordenaron filas en las hojas mensuales (los códigos EDT de la columna A no
+coinciden con los del libro generado) o si se modificaron las hojas ocultas, se detiene sin modificar
+el libro e indica cómo corregirlo. También avisa de inmediato si el libro está abierto en Excel.
+
+El libro se guarda primero en un archivo temporal y luego reemplaza al anterior: si el guardado falla
+(libro abierto en Excel, disco lleno, interrupción), el libro anterior queda intacto.
 
 Al terminar, se muestran los indicadores del proyecto a la fecha de corte, con los mismos cálculos
 que la hoja `Resumen`.
@@ -262,7 +275,7 @@ que la hoja `Resumen`.
 | `--solo ev` | Actualiza solo el EV (el AC se carga a mano, por ejemplo desde el ERP). |
 | `--solo ac` | Actualiza solo el AC. En multi-empresa requiere `ac_desde_project = true`. |
 | `--simular` | Muestra el EV y el AC calculados para cada fila y los indicadores resultantes, sin modificar el libro. |
-| `--forzar` | Permite actualizar aunque haya valores en meses posteriores. |
+| `--forzar` | Permite actualizar aunque haya valores en meses posteriores. Esos meses no se recalculan: se avisa cuáles quedaron con un acumulado que ya no coincide con MS Project, para revisarlos o volver a cargarlos en orden. |
 | `--sin-respaldo` | No crea la copia de respaldo del libro. |
 
 Ejemplo de `--simular` con el proyecto de ejemplo (extracto):

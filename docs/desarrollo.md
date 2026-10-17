@@ -43,9 +43,28 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 - **Cobertura (opcional):** `python -m pip install coverage`, luego
   `python -m coverage run --branch --source=evm -m pytest` y `python -m coverage report -m`.
 
-El lector `.mpp` se prueba con objetos que simulan MS Project. Con MS Project disponible, se recomienda
-una verificación con un proyecto real: comparar el BAC total y el PV de algunos meses con la vista
-*Uso de tareas* (campo *Costo previsto* en la escala temporal mensual).
+### 1.1 Pruebas con MS Project real (opcionales)
+
+El lector `.mpp` se prueba con objetos que simulan MS Project. En un PC con MS Project, las pruebas
+opcionales de `test_msproject_real.py` (marca `msproject`) leen un proyecto real por automatización COM
+y comparan el resultado con el XML que MS Project guarda del mismo proyecto: estructura EDT, métodos,
+BAC, PV mensual, EV y AC a la fecha de corte, y que MS Project quede como estaba (abierto o cerrado).
+
+1. En MS Project se abre el proyecto, se define *Proyecto > Fecha de estado* y se guarda el `.mpp`.
+2. Se guarda una copia en XML: *Archivo > Guardar como*, tipo XML.
+3. Se ejecutan las pruebas:
+
+```powershell
+$env:EVM_MPP = "C:\Proyectos\Programa.mpp"
+$env:EVM_MPP_XML = "C:\Proyectos\Programa.xml"
+python -m pytest -m msproject -v
+```
+
+Opcionales: `EVM_CONFIG` (archivo de configuración; por defecto `config.toml`), `EVM_LINEA_BASE`
+(línea base N) y `EVM_TOLERANCIA_PV` (diferencia admitida en el PV de cada mes, como fracción del BAC
+de la fila; por defecto 0.005). Los mensajes de las pruebas solo muestran códigos EDT e importes.
+Además, se recomienda comparar el BAC total y el PV de algunos meses con la vista *Uso de tareas*
+(campo *Costo previsto* en la escala temporal mensual).
 
 El proyecto de ejemplo (`ejemplos/programa_ejemplo.xml`) y su generador se describen en el
 [tutorial](ejemplo-paso-a-paso.md).

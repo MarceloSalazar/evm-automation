@@ -69,15 +69,18 @@ python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config con
 | `--fecha-corte AAAA-MM-DD` | Fecha de corte. Por defecto, la fecha de estado del proyecto; si el proyecto no tiene fecha de estado, es obligatoria. Con `.mpp`, el programa fija esa fecha de estado en la copia abierta (no guarda el archivo). |
 | `--solo ev\|ac` | Actualiza solo EV o solo AC. En multi-empresa, `--solo ac` requiere `ac_desde_project = true` ([Multi-empresa](multiempresa.md)). |
 | `--simular` | Muestra el EV y AC calculados para cada fila y los indicadores resultantes, sin modificar el libro. |
-| `--forzar` | Permite actualizar aunque haya valores en meses posteriores. |
+| `--forzar` | Permite actualizar aunque haya valores en meses posteriores. Esos meses no se recalculan: se avisa cuáles quedaron con un acumulado que ya no coincide con MS Project, para revisarlos o volver a cargarlos en orden. |
 | `--sin-respaldo` | No crea la copia `<libro>.respaldo-AAAAMMDD-HHMMSS.xlsx` (si ya existe una con ese nombre, se agrega `-2`, `-3`...). |
 | `--config`, `--motor`, `--linea-base`, `--nivel-max`, `--visible` | Igual que en `generar`. |
 | `--planificacion` | No se aplica: `actualizar` usa siempre la planificación con la que se generó el libro (y lo advierte si la configuración indica otra). |
 
 - Repetir `actualizar` para el mismo mes **reemplaza** el valor de ese mes; no lo duplica.
-- `actualizar` controla la consistencia con MS Project (tareas eliminadas, costos sin fila, diferencia
-  de AC con el CRTR del proyecto, celdas con texto o fórmulas) y lo informa en pantalla
-  ([Cálculo de EV y AC](calculo-ev-ac.md#7-controles-de-consistencia)).
+- `actualizar` controla la consistencia con MS Project (tareas eliminadas o inactivas, costos y paquetes
+  nuevos sin fila, diferencia de AC con el CRTR del proyecto, celdas con texto o fórmulas, subtotales
+  sin fórmula) y lo informa en pantalla ([Cálculo de EV y AC](calculo-ev-ac.md#7-controles-de-consistencia)).
+- Antes de leer MS Project verifica el libro (hojas, filas y hojas ocultas) y se detiene sin modificarlo
+  si encuentra un problema; también avisa si el libro está abierto en Excel. El libro se guarda primero
+  en un archivo temporal, de modo que un error al guardar no daña el libro anterior.
 - Al terminar, muestra los indicadores a la fecha de corte, con los mismos cálculos que la hoja
   `Resumen`.
 

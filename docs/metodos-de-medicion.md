@@ -145,8 +145,8 @@ recomendado para paquetes largos porque es **objetivo**.
    ([Presupuesto](presupuesto-bac.md)). El EV del paquete depende de los pesos, no de qué actividad
    tiene el costo.
 4. **Pesos:** campo `Peso hito` (*Número1*) en cada hito. Se recomienda que sumen 100 y que sean
-   proporcionales al presupuesto del trabajo que lleva a cada hito. Si ningún hito tiene peso, todos
-   pesan igual.
+   proporcionales al presupuesto del trabajo que lleva a cada hito. Un peso negativo se toma como 0; si
+   ningún hito tiene peso positivo, todos pesan igual.
 5. **Método:** `Hitos ponderados` en el campo `Método EVM` del paquete.
 6. **Criterio de cumplimiento:** en las *Notas* de cada hito se escribe la evidencia que lo da por
    cumplido (por ejemplo, "plano aprobado por el cliente", "acta de prueba FAT firmada").

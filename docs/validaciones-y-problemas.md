@@ -29,13 +29,14 @@ trasladar o calcular).
 | Tareas con costo pero sin línea base | Tareas agregadas después de guardar la línea base: no aportan PV. Si están aprobadas, guardar la línea base de esas tareas. |
 | Tareas resumen con costo propio | Se agrega una fila `-D Otros costos`. Se recomienda mover el costo a una tarea de detalle. |
 | Línea base de una tarea resumen distinta de la suma de sus subtareas | La línea base no se acumuló en las tareas resumen: guardar la línea base con *Resumir líneas base: en todas las tareas de resumen*. |
-| Distribución mensual de MS Project que no suma el costo de línea base | Costo de línea base editado a mano: se ajusta en forma proporcional. |
+| Distribución mensual de MS Project que no suma el costo de línea base | Costo de línea base editado a mano: se ajusta en forma proporcional; si su signo es opuesto al del costo de línea base, el costo se reparte en forma lineal. |
+| Excepciones de calendario que no se interpretan (por ejemplo, "primer lunes de mayo") | Se omiten; solo afectan el reparto entre meses (motor XML). |
 | Tareas repartidas en forma lineal | Tareas sin distribución mensual en MS Project. |
 | PV anterior al mes 1 o posterior al último mes | Revisar `mes_inicio` y `meses`. |
 | BAC total distinto del costo de línea base del proyecto o de la planificación | Costos fuera de la EDT exportada, tareas inactivas o línea base no acumulada. |
 | Códigos EDT duplicados | Por ejemplo, si no se eligió una planificación y ambas usan los mismos códigos. |
 | Filas sin método de medición | Completar el método en MS Project o en la columna C de la hoja `PV`. |
-| Tareas inactivas excluidas | Informativo (con `incluir_inactivas = false`). |
+| Tareas inactivas excluidas, con su costo | Informativo (con `incluir_inactivas = false`). |
 | Multi-empresa: BAC de cada empresa, tareas sin empresa, valores no reconocidos y `% Reparto` fuera de rango | Completar la columna `Empresa` y revisar los repartos ([Multi-empresa](multiempresa.md#7-validaciones-y-controles)). |
 | `--migrar-desde`: historial no trasladado (`Error`) | Cargar a mano el EV y el AC de esas filas en el libro nuevo. |
 
@@ -51,7 +52,8 @@ trasladar o calcular).
   debe verificar en `Validación` que el BAC total coincida con el del proyecto maestro.
 - **Motor XML:** los tramos que cruzan de mes se reparten con el calendario del proyecto. No se usan los
   calendarios de recursos ni de tareas, y se ignoran las excepciones recurrentes relativas (por ejemplo,
-  "primer lunes del mes" o "último viernes de marzo"). Con `.mpp` no hay esta limitación.
+  "primer lunes del mes" o "último viernes de marzo"), que se informan en `Validación`. Con `.mpp` no hay
+  esta limitación.
 - Si la curva PV no alcanza el BAC dentro del horizonte, la duración planificada y el Cronograma Ganado
   quedan vacíos; en ese caso se debe aumentar `meses`.
 - `% Completado` aplica el porcentaje sobre el BAC, a diferencia del CPTR de MS Project
@@ -60,9 +62,10 @@ trasladar o calcular).
   partir del avance registrado.
 - El libro está pensado para Excel. LibreOffice abre las fórmulas correctamente, pero dibuja como cero
   los meses sin datos de EV y AC en los gráficos.
-- El lector `.mpp` se probó con objetos que simulan MS Project. En el primer uso con un proyecto real se
-  recomienda comparar el BAC total y el PV de algunos meses con la vista *Uso de tareas*
-  ([Presupuesto](presupuesto-bac.md#7-verificar-el-bac-y-el-pv-en-ms-project)).
+- El lector `.mpp` se prueba con objetos que simulan MS Project y, de forma opcional, con un proyecto
+  real ([Desarrollo](desarrollo.md#11-pruebas-con-ms-project-real-opcionales)). En el primer uso con un
+  proyecto real se recomienda comparar el BAC total y el PV de algunos meses con la vista *Uso de
+  tareas* ([Presupuesto](presupuesto-bac.md#7-verificar-el-bac-y-el-pv-en-ms-project)).
 
 ---
 
@@ -78,7 +81,11 @@ trasladar o calcular).
 | El proyecto está en Project Online, SharePoint u OneDrive (se abre desde una dirección web) | Se abre en MS Project y se usa `--origen activo`, o se guarda una copia local `.mpp` y se usa esa ruta. |
 | El `.mpp` se descargó de Internet o del correo y MS Project no lo abre | Windows puede haberlo bloqueado: clic derecho en el archivo > *Propiedades* > *Desbloquear*. |
 | `No se pudo guardar ...` | Si el libro está abierto en Excel, se debe cerrar y repetir el comando. |
-| `Hay valores cargados en meses posteriores a la fecha de corte` | Se deben borrar esos meses en `EV`/`AC` o usar `--forzar`. |
+| `Hay valores cargados en meses posteriores a la fecha de corte` | Se deben borrar esos meses en `EV`/`AC` o usar `--forzar` (y luego revisar o volver a cargar los meses posteriores que se indican). |
+| `La hoja ... no tiene las filas con las que se generó el libro` | Se insertaron, eliminaron u ordenaron filas: se deben deshacer esos cambios o recuperar el libro desde un respaldo. Para cambiar la EDT, se modifica MS Project y se regenera con `--migrar-desde`. |
+| `Falta la hoja ...` o `El dato ... de la hoja oculta _meta no es válido` | Se debe restaurar el nombre original de la hoja o recuperar el libro desde un respaldo. |
+| `Hay celdas sin la fórmula del libro` | Se deben restaurar las fórmulas indicadas (por ejemplo, copiándolas de una celda vecina de la misma fila). |
+| `El archivo de configuración ... no está guardado en UTF-8` | Se debe guardar con codificación UTF-8 (en el Bloc de notas: *Guardar como*, *Codificación: UTF-8*). |
 | `El proyecto no tiene fecha de estado` | Se debe definir la fecha de estado en MS Project o indicar `--fecha-corte`. |
 | `contiene el número ... guardado como texto` | Se debe escribir ese valor como número en Excel, o ejecutar `actualizar`, que lo convierte. |
 | `La celda ... tiene una fórmula sin valor calculado` | Se debe abrir y guardar el libro en Excel, o reemplazar la fórmula de esa celda de ingreso por un número. |

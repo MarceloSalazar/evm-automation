@@ -71,9 +71,13 @@ el acumulado. `actualizar` las completa; también se pueden cargar a mano (por e
 - Las **filas de nivel 1 y 2** con subelementos son **subtotales** (fórmulas `SUM` de sus hijos). Los
   valores se ingresan solo en las filas de nivel 3 o en filas sin hijos.
 - Las filas se pueden **contraer por nivel** con los botones de esquema (1, 2, 3) a la izquierda.
-- **No se deben insertar ni eliminar filas o columnas** en `PV`, `EV`, `AC` ni en las hojas de cada
-  empresa: `actualizar` ubica cada fila por su posición. Para cambiar la EDT se modifica MS Project y se
+- **No se deben insertar, eliminar ni ordenar filas o columnas** en `PV`, `EV`, `AC` ni en las hojas de
+  cada empresa: `actualizar` ubica cada fila por su posición. Si los códigos EDT de la columna A no
+  coinciden con los del libro generado, o si falta una hoja o se modificaron las hojas ocultas,
+  `actualizar` se detiene sin modificar el libro. Para cambiar la EDT se modifica MS Project y se
   vuelve a generar el libro con `--migrar-desde`.
+- No se debe escribir sobre las celdas con fórmulas (subtotales, fila TOTAL o, en multi-empresa, la suma
+  de las empresas): `actualizar` informa las que perdieron su fórmula para restaurarlas.
 - El **método de medición** se puede cambiar en la columna C de la hoja `PV`. Se pueden agregar métodos
   al final de la columna A de la hoja `Listas`, sin dejar filas vacías.
 - Los gráficos no requieren ninguna acción: al cargar valores en `EV` o `AC`, al cambiar la fecha de
@@ -86,8 +90,9 @@ el acumulado. `actualizar` las completa; también se pueden cargar a mano (por e
 - El PV acumulado a la fecha de corte incluye **el mes completo** de esa fecha. Como fecha de corte se
   debe usar el **último día del mes**.
 - `actualizar` guarda una **copia de respaldo** antes de modificar el libro
-  (`<libro>.respaldo-AAAAMMDD-HHMMSS.xlsx`). Se recomienda conservar, además, una copia del libro de
-  cada informe emitido.
+  (`<libro>.respaldo-AAAAMMDD-HHMMSS.xlsx`) y lo guarda primero en un archivo temporal, de modo que un
+  error al guardar no daña el libro anterior. Si el libro está abierto en Excel, avisa antes de leer
+  MS Project. Se recomienda conservar, además, una copia del libro de cada informe emitido.
 
 ---
 

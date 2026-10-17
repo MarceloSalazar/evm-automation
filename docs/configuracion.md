@@ -45,11 +45,16 @@ copy config.ejemplo.toml config.toml
 | `[multiempresa] ac_desde_project` | `false` | `false`: el AC de cada empresa se carga a mano. `true`: `actualizar` también lo carga desde MS Project. |
 
 Los nombres de campo aceptan el nombre interno en inglés (`Text10`, `Number1`), el nombre en español
-(`Texto10`, `Número1`) o el alias definido en MS Project. Cómo crear esos campos se explica en
+(`Texto10`, `Número1`) o el alias definido en MS Project. Solo se buscan campos de tarea: un campo de
+recurso con el mismo alias no se toma. Cómo crear esos campos se explica en
 [Preparación del proyecto en MS Project](preparacion-ms-project.md#3-campos-personalizados).
 
 Las opciones de la línea de comandos (`--planificacion`, `--linea-base`, `--nivel-max`, `--mes-inicio`,
 `--meses`) reemplazan el valor del archivo de configuración.
+
+El archivo se debe guardar con codificación **UTF-8**, con o sin BOM (en el Bloc de notas: *Guardar
+como*, *Codificación: UTF-8*). Los valores enteros (`meses`, `nivel_maximo`, `decimales`, `linea_base`)
+no admiten decimales.
 
 ---
 
