@@ -291,6 +291,20 @@ def test_update_checks_ac_per_file(xml, tmp_path, capsys):
     assert ac["P2"] == pytest.approx(p2.summary_acwp, abs=0.05)
 
 
+def test_update_analysis_of_deviations(xml, tmp_path):
+    """La hoja Análisis de desviaciones asocia cada paquete con su archivo (UniqueID repetidos)."""
+    from evm.analysis import A_BAC, SHEET_ANALYSIS, read_entries
+    _cfg, book = combined_book(xml, tmp_path, months=("jun",))
+    b = read_book(book)
+    rows = {s.key: (s.code, s.row) for s in b.input_rows}
+    ws = load_workbook(book)[SHEET_ANALYSIS]
+    found = read_entries(ws)
+    assert {split_key(e.key)[0] for e in found} == {"P1", "P2"}
+    for i, e in enumerate(found, start=5):
+        code, data_row = rows[e.key]
+        assert e.code == code and ws.cell(i, A_BAC).value == f"='PV'!$D${data_row}"
+
+
 def test_update_indicators_recalculate(xml, tmp_path, recalc):
     _cfg, book = combined_book(xml, tmp_path, months=("jun",))
     out = load_workbook(recalc(book), data_only=True)

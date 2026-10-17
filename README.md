@@ -23,6 +23,9 @@ simulado.*
 - **Cuadro de Mando** con el mes de reporte seleccionable: BAC, PV, EV, AC, desviaciones, índices con
   semáforo, pronósticos (ETC, EAC, VAC, TCPI) y tres gráficos nativos de Excel.
 - **Indicadores** del proyecto y de cada elemento de la EDT, incluido el **Cronograma Ganado**.
+- **Análisis de desviaciones**: cada mes, la lista de paquetes con SPI o CPI fuera de umbral, con
+  columnas para la causa, el impacto, la acción correctiva, el responsable y la fecha, que se conservan
+  de un mes a otro.
 - Opcional: **multi-empresa**, con el PV, el EV y el AC de dos empresas por separado.
 - Opcional: **varios archivos de MS Project** en un mismo informe, cada uno con sus códigos EDT (por
   ejemplo, `1.0.0` a `8.0.0` en un archivo y `9.0.0` en otro).
@@ -110,6 +113,7 @@ El [tutorial](docs/ejemplo-paso-a-paso.md) recorre el ciclo completo con 24 mese
 | EV por método, AC, valor del mes y controles | [Cálculo de EV y AC](docs/calculo-ev-ac.md) |
 | Hojas del libro, reglas de uso y `--migrar-desde` | [El libro Excel](docs/libro-excel.md) |
 | Tablero, gráficos, fórmulas e interpretación | [Cuadro de Mando e indicadores](docs/cuadro-de-mando.md) |
+| Paquetes fuera de umbral: causa, impacto y acción correctiva | [Análisis de desviaciones](docs/analisis-desviaciones.md) |
 | `generar`, `actualizar` y sus opciones | [Comandos y opciones](docs/comandos.md) |
 | `config.toml` | [Configuración](docs/configuracion.md) |
 | Hoja `Validación`, limitaciones y mensajes de error | [Validaciones y solución de problemas](docs/validaciones-y-problemas.md) |

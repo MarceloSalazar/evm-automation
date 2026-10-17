@@ -2,8 +2,9 @@
 
 [Inicio](../README.md) › [Documentación](README.md) › Comandos y opciones
 
-El programa tiene dos comandos: `generar` (crea el libro con el PV) y `actualizar` (carga el EV y el AC
-de un mes). La ayuda se obtiene con:
+El programa tiene tres comandos: `generar` (crea el libro con el PV), `actualizar` (carga el EV y el AC
+de un mes) y `analizar` (actualiza la hoja `Análisis de desviaciones` sin leer MS Project). La ayuda se
+obtiene con:
 
 ```powershell
 python evm_export.py --help
@@ -81,8 +82,10 @@ python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config con
 - Antes de leer MS Project verifica el libro (hojas, filas y hojas ocultas) y se detiene sin modificarlo
   si encuentra un problema; también avisa si el libro está abierto en Excel. El libro se guarda primero
   en un archivo temporal, de modo que un error al guardar no daña el libro anterior.
-- Al terminar, muestra los indicadores a la fecha de corte, con los mismos cálculos que la hoja
-  `Resumen`.
+- Agrega a la hoja `Análisis de desviaciones` los paquetes con SPI o CPI fuera de umbral en el mes de
+  corte, y conserva lo ya escrito ([Análisis de desviaciones](analisis-desviaciones.md)).
+- Al terminar, muestra los paquetes fuera de umbral y los indicadores a la fecha de corte, con los
+  mismos cálculos que la hoja `Resumen`.
 
 Ejemplo de salida:
 
@@ -91,6 +94,15 @@ Leyendo ...\avance_2027-06.xml ...
 Fecha de corte: 30/06/2027 (mes 18 del horizonte)
 Observaciones por fila:
   4.2.2 Cierre administrativo: método no definido: se usó % completado
+Paquetes fuera de umbral (SPI o CPI menor que 0.95): 8 (hoja 'Análisis de desviaciones')
+  1.2.1      Licitación de ingeniería                  SPI  0.00  CPI  0.00
+  1.2.2      Licitación de obras                       SPI  0.50  CPI  0.54
+  2.1.1      Estudios de terreno                       SPI  0.50  CPI  0.54
+  2.1.3      Ingeniería básica civil                   SPI  0.85  CPI  0.93
+  2.1.4      Ingeniería básica eléctrica               SPI  0.85  CPI  0.93
+  2.2.1      Detalle civil                             SPI  0.84  CPI  0.93
+  2.2.2      Detalle mecánico                          SPI  0.86  CPI  0.93
+  2.2.3      Detalle eléctrico y control               SPI  0.84  CPI  0.93
 
 BAC (EUR)              44,210,000
 PV acumulado              5,895,918   % planificado 13.3 %
@@ -107,6 +119,25 @@ Los indicadores y los gráficos se calculan en el libro (hojas 'Cuadro de Mando'
 
 ---
 
+## `analizar`: actualiza el análisis de desviaciones
+
+```powershell
+python evm_export.py analizar --libro EVM_Programa.xlsx
+```
+
+Vuelve a calcular la lista de paquetes fuera de umbral de la hoja `Análisis de desviaciones` para el mes
+de la fecha de corte del libro, con los valores que tiene el libro y **sin leer MS Project**. Se usa
+después de cargar a mano el AC del mes (por ejemplo, del ERP), para incluir los paquetes con CPI fuera
+de umbral ([Análisis de desviaciones](analisis-desviaciones.md#3-cierre-mensual)).
+
+| Opción | Descripción |
+|---|---|
+| `--libro` | Libro creado con `generar`, con al menos un `actualizar`. **Obligatoria.** |
+| `--sin-respaldo` | No crea la copia de respaldo del libro. |
+| `--config` | Solo para libros de versiones anteriores a la 1.5.0: umbrales del semáforo (`[semaforo]`). |
+
+---
+
 ## Ejemplos frecuentes
 
 ```powershell
@@ -119,8 +150,9 @@ python evm_export.py generar --origen Programa.mpp --config config.toml --planif
 # Revisar el cálculo antes de modificar el libro
 python evm_export.py actualizar --origen Programa.mpp --config config.toml --libro EVM_Programa.xlsx --simular
 
-# AC del ERP cargado a mano: actualizar solo el EV
+# AC del ERP cargado a mano: actualizar solo el EV y, después de cargar el AC, analizar las desviaciones
 python evm_export.py actualizar --origen Programa.mpp --config config.toml --libro EVM_Programa.xlsx --solo ev
+python evm_export.py analizar --libro EVM_Programa.xlsx
 
 # Nueva línea base: libro nuevo conservando el historial
 python evm_export.py generar --origen Programa.mpp --config config.toml --salida EVM_Programa_LB2.xlsx --migrar-desde EVM_Programa.xlsx

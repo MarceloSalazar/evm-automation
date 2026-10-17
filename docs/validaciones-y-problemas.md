@@ -39,6 +39,7 @@ trasladar o calcular).
 | Tareas inactivas excluidas, con su costo | Informativo (con `incluir_inactivas = false`). |
 | Multi-empresa: BAC de cada empresa, tareas sin empresa, valores no reconocidos y `% Reparto` fuera de rango | Completar la columna `Empresa` y revisar los repartos ([Multi-empresa](multiempresa.md#7-validaciones-y-controles)). |
 | `--migrar-desde`: historial no trasladado (`Error`) | Cargar a mano el EV y el AC de esas filas en el libro nuevo. |
+| `--migrar-desde`: filas del análisis de desviaciones trasladadas, o cuyo paquete ya no tiene fila | Revisar en `Análisis de desviaciones` el texto que quedó sin valores ([Análisis de desviaciones](analisis-desviaciones.md#5-cambios-de-línea-base)). |
 | Varios archivos: observaciones precedidas por el nombre del archivo (`[P1]`, `[P2]`) y monedas distintas | Revisar cada archivo; si las monedas difieren, indicar `moneda` en `[exportacion]` ([Varios archivos](varios-archivos.md#8-validaciones-y-controles)). |
 
 `actualizar` informa sus controles en pantalla ([Cálculo de EV y AC](calculo-ev-ac.md#7-controles-de-consistencia)).
@@ -108,4 +109,6 @@ trasladar o calcular).
 | `Los archivos tienen fechas de estado distintas ...` | Se debe definir la misma fecha de estado en todos los archivos o indicar `--fecha-corte`. |
 | `El libro se generó con varios archivos de MS Project ...` o `Los archivos de [[proyectos]] ... no coinciden con los del libro` | La configuración debe tener los mismos archivos (y nombres) con que se generó el libro. Para agregar o quitar un archivo se genera un libro nuevo con `--migrar-desde`. |
 | `--origen '...': con varios archivos ([[proyectos]]) se indica NOMBRE=RUTA ...` | Con `[[proyectos]]` no se indica `--origen`, salvo para reemplazar la ruta de un archivo: `--origen P2=C:\ruta\archivo.xml`. |
+| `El libro no tiene fecha de corte ...: se debe ejecutar 'actualizar' antes de 'analizar'` | `analizar` trabaja sobre el mes de la fecha de corte: se debe cargar al menos un mes con `actualizar`. |
+| `Análisis de desviaciones` sin los paquetes con CPI bajo | El AC se cargó a mano después de `actualizar`: se debe ejecutar `analizar` ([Análisis de desviaciones](analisis-desviaciones.md#3-cierre-mensual)). |
 | Las tildes se ven mal en la consola | Solo afecta a la consola, no al libro. Se recomienda usar Windows Terminal o ejecutar `chcp 65001`. |

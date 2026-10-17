@@ -179,7 +179,7 @@ quedan vacíos; en ese caso se debe aumentar `meses`.
 
 | Situación | Lectura habitual | Acción sugerida |
 |---|---|---|
-| CPI < 0,90 sostenido | El sobrecosto no es puntual. Los estudios sobre grandes contratos muestran que, superado el 20 % de avance, el CPI acumulado rara vez mejora de forma significativa. | Revisar el EAC y las causas por paquete (hoja `Indicadores EDT`); plan de acción de costo. |
+| CPI < 0,90 sostenido | El sobrecosto no es puntual. Los estudios sobre grandes contratos muestran que, superado el 20 % de avance, el CPI acumulado rara vez mejora de forma significativa. | Revisar el EAC y las causas por paquete (hojas `Indicadores EDT` y [`Análisis de desviaciones`](analisis-desviaciones.md)); plan de acción de costo. |
 | SPI < 0,90 y SV(t) creciente | Atraso que se acumula. | Revisar el camino crítico en MS Project; el SPI no indica si el atraso afecta la fecha de fin. |
 | SPI ≈ 1 al final con SV(t) < 0 | El SPI convergió a 1, pero el proyecto sigue atrasado. | Informar SV(t) y SPI(t). |
 | TCPI (BAC) mucho mayor que el CPI | Terminar dentro del BAC exige una eficiencia muy superior a la histórica. Una regla práctica habitual: si la diferencia supera 0,05–0,10, el BAC es poco realista. | Informar el EAC y evaluar un cambio de línea base o de alcance. |

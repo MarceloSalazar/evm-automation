@@ -36,7 +36,7 @@ copy config.ejemplo.toml config.toml
 | `[exportacion] decimales` | `0` | Decimales de los montos en el libro (0 a 4). |
 | `[exportacion] titulo` | vacío | Título del informe en el `Cuadro de Mando` y en `Resumen`. Vacío = nombre del proyecto en MS Project (con varios archivos, los nombres unidos con `+`). |
 | `[metodos] lista` | ver ejemplo | Opciones de la lista desplegable de la columna C. |
-| `[semaforo] rojo` / `amarillo` | `0.90` / `0.95` | Umbrales de SPI y CPI: rojo si es menor que `rojo`, amarillo si es menor que `amarillo`, verde en otro caso. |
+| `[semaforo] rojo` / `amarillo` | `0.90` / `0.95` | Umbrales de SPI y CPI: rojo si es menor que `rojo`, amarillo si es menor que `amarillo`, verde en otro caso. Los paquetes con SPI o CPI menor que `amarillo` se listan en [Análisis de desviaciones](analisis-desviaciones.md). Se guardan en el libro al generarlo. |
 | `[multiempresa] activar` | `false` | Activa el modo multi-empresa ([Multi-empresa](multiempresa.md)). |
 | `[multiempresa] campo_empresa` | `"Empresa"` | Campo de texto de MS Project con la empresa de cada tarea (por ejemplo `"Text3"`, o su alias). |
 | `[multiempresa] empresa_a` / `empresa_b` | `"EmpresaA"` / `"EmpresaB"` | Valores de la columna de empresa y sufijo de las hojas de cada empresa (`PV-EmpresaA`...). Máximo 15 caracteres, sin `[ ] : * ? / \ '`. |

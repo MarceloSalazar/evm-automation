@@ -209,9 +209,46 @@ def _print_update(res, currency: str) -> None:
     if res.book is not None and res.book.multi and not res.ac_loaded:
         print(f"  [i] El AC se carga a mano en las hojas 'AC-{res.book.company_a}' y 'AC-{res.book.company_b}'; "
               "los indicadores de costo usan los valores cargados.")
+    _print_deviations(res)
     if res.book is not None:
         print()
         print(format_table(indicators_for(res.book, res.status_date), currency))
+
+
+def _print_deviations(res, limit: int = 25) -> None:
+    """Paquetes con SPI o CPI acumulado menor que el umbral amarillo (hoja Análisis de desviaciones)."""
+    if res.threshold is None:
+        return
+    found = res.deviations
+    if not found:
+        print(f"Paquetes fuera de umbral (SPI o CPI menor que {res.threshold:g}): ninguno.")
+        return
+
+    def r(v):
+        return "-" if v is None else f"{v:.2f}"
+
+    print(f"Paquetes fuera de umbral (SPI o CPI menor que {res.threshold:g}): {len(found)}"
+          + ("" if res.dry_run else " (hoja 'Análisis de desviaciones')"))
+    for d in found[:limit]:
+        print(f"  {d.code:<10} {d.name[:40]:<40}  SPI {r(d.spi):>5}  CPI {r(d.cpi):>5}")
+    if len(found) > limit:
+        print(f"  ... y {len(found) - limit} más")
+
+
+def cmd_analizar(args) -> int:
+    cfg = load_config(args.config)
+    from evm.update import run_analysis
+    from evm.workbook import check_writable
+    check_writable(args.libro)
+    res = run_analysis(cfg, args.libro, backup=not args.sin_respaldo)
+    print(f"Fecha de corte: {res.status_date:%d/%m/%Y} (mes {res.month_index + 1} del horizonte)")
+    for w in res.warnings:
+        print(f"  [!] {w}")
+    _print_deviations(res)
+    if res.backup:
+        print(f"Respaldo: {res.backup}")
+    print(f"Libro actualizado: {Path(args.libro).resolve()}")
+    return 0
 
 
 def cmd_actualizar(args) -> int:
@@ -292,6 +329,14 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--sin-respaldo", action="store_true", help="no crea copia de respaldo del libro")
     a.add_argument("--simular", action="store_true", help="muestra el resultado sin modificar el libro")
     a.set_defaults(func=cmd_actualizar)
+
+    n = sub.add_parser("analizar", help="actualiza la hoja 'Análisis de desviaciones' con los valores del libro, "
+                                        "sin leer MS Project (p. ej. después de cargar a mano el AC del mes)")
+    n.add_argument("--libro", required=True, help="libro .xlsx generado con 'generar'")
+    n.add_argument("--config", help="archivo de configuración TOML (solo se usa el semáforo, en libros de versiones "
+                                    "anteriores a la 1.5.0)")
+    n.add_argument("--sin-respaldo", action="store_true", help="no crea copia de respaldo del libro")
+    n.set_defaults(func=cmd_analizar)
 
     return p
 

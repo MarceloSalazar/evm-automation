@@ -157,6 +157,8 @@ Puntos para observar (detalle en [Cuadro de Mando e indicadores](cuadro-de-mando
    genera variación de cronograma; `3.2.0 Montaje electromecánico` está en el límite inferior porque el
    suministro de equipos aún no cumplió hitos.
 4. **Indicadores EDT:** identifica los paquetes que explican la desviación.
+5. **Análisis de desviaciones:** lista los 12 paquetes fuera de umbral en diciembre de 2027, con
+   columnas para explicar cada uno ([Análisis de desviaciones](analisis-desviaciones.md)).
 
 ![Hoja Indicadores EDT del ejemplo](img/excel/indicadores-edt.png)
 
