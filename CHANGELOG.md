@@ -9,7 +9,29 @@ MENOR para funciones nuevas que no impiden usar los libros ya generados, CORRECC
 MAYOR para cambios que exigen regenerar los libros o cambiar la configuración. La versión instalada se
 consulta con `python evm_export.py --version`.
 
+Los cambios incorporados a `main` que todavía no forman parte de una versión se anotan en
+*Sin publicar*; al publicar la versión siguiente, esa sección pasa a ser su entrada.
+
 ---
+
+## [Sin publicar]
+
+### Nuevas funciones
+
+- Ninguna.
+
+### Correcciones
+
+- Ninguna.
+
+### Otros
+
+- Registro de cambios (este archivo), etiquetas `v1.0.0` a `v1.5.0` y publicaciones en GitHub; versión
+  en la portada de la presentación.
+- Sección *Contribuciones* en el README: cómo informar problemas, proponer mejoras y enviar Pull
+  Requests.
+- Plantillas de GitHub: formularios de tickets para informar un problema y para proponer una mejora, y
+  plantilla de Pull Request con lista de control.
 
 ## [1.5.0] - 2026-10-17 · Análisis de desviaciones y semáforo con umbrales superiores
 
@@ -210,6 +232,7 @@ consulta con `python evm_export.py --version`.
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v1.5.0...HEAD
 [1.5.0]: https://github.com/MarceloSalazar/evm-automation/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/MarceloSalazar/evm-automation/compare/v1.3.2...v1.4.0
 [1.3.2]: https://github.com/MarceloSalazar/evm-automation/compare/v1.3.1...v1.3.2

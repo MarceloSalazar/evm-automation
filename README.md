@@ -128,6 +128,69 @@ El [tutorial](docs/ejemplo-paso-a-paso.md) recorre el ciclo completo con 24 mese
 
 ---
 
+## Contribuciones
+
+Las contribuciones son bienvenidas: informes de problemas, correcciones y propuestas de mejora.
+
+### Informar un problema
+
+Los problemas y errores se informan abriendo un
+[ticket](https://github.com/MarceloSalazar/evm-automation/issues/new/choose) (*issue*) con la plantilla
+**Informar un problema**, que pide los datos necesarios. Antes de abrirlo se recomienda revisar
+[Validaciones y solución de problemas](docs/validaciones-y-problemas.md) y buscar si ya existe un ticket
+sobre el mismo tema. Un buen informe incluye:
+
+- la versión del programa (`python evm_export.py --version`), la de Python y la de MS Project, o si se
+  usa el XML;
+- el comando ejecutado, con sus opciones;
+- el mensaje completo; con `-v` antes del comando se obtiene el detalle técnico
+  (`python evm_export.py -v actualizar ...`);
+- qué se esperaba y qué ocurrió;
+- si es posible, los pasos para reproducirlo con el [proyecto de ejemplo](docs/ejemplo-paso-a-paso.md)
+  o con un XML reducido.
+
+> **El repositorio es público.** No se deben adjuntar archivos `.mpp`, `.xml`, libros Excel ni
+> `config.toml` de proyectos reales con información confidencial (costos, nombres, clientes o
+> proveedores). Se recomienda reproducir el problema con el proyecto de ejemplo o reemplazar los datos
+> sensibles antes de adjuntar un archivo.
+
+### Proponer una mejora
+
+Las mejoras se proponen también con un ticket, con la plantilla **Proponer una mejora**: qué necesidad
+resuelven y en qué parte del proceso de reporte (preparación en MS Project, `generar`, cierre mensual,
+análisis). Para cambios grandes conviene acordar el enfoque en el ticket antes de programarlos.
+
+### Enviar un Pull Request
+
+Se aceptan Pull Requests con correcciones de problemas o con mejoras. Al abrirlo, la descripción se
+completa con la plantilla del repositorio, que incluye una lista de control con estas buenas prácticas:
+
+- **Un propósito por Pull Request**, en una rama propia creada desde `main`. Quien no tiene permiso de
+  escritura en el repositorio trabaja en un *fork* y abre el Pull Request desde allí. `main` contiene
+  solo versiones estables y no admite commits directos.
+- **Pruebas:** `python -m pytest` debe pasar. Cada corrección o función nueva se acompaña de pruebas; en
+  una corrección, una prueba que falle sin ella. Las pruebas y la estructura del código se describen en
+  [Desarrollo](docs/desarrollo.md).
+- **Compatibilidad:** los libros generados con versiones anteriores deben seguir funcionando con
+  `actualizar`. Si un cambio exige regenerarlos o cambiar la configuración, se indica en el Pull
+  Request.
+- **Documentación:** se actualiza el documento de `docs/` que corresponda (el README solo resume) y, si
+  cambia el libro, las capturas. El cambio se anota en la sección *Sin publicar* de
+  [CHANGELOG.md](CHANGELOG.md).
+- **Redacción:** los textos (documentación, mensajes y notas del libro) se escriben en español y en forma
+  impersonal ("se debe revisar"); las siglas EVM se escriben en inglés (SV, CV, SPI, CPI, EAC). El
+  código sigue el estilo del código existente.
+- **Datos:** no se suben libros generados, configuraciones personales ni archivos de proyectos reales.
+- **Descripción:** qué cambia, por qué y cómo se probó, con el ticket relacionado si lo hay
+  (`Closes #<número>`).
+
+Todos los Pull Requests se revisan antes de incorporarse a `main`, y se pueden pedir cambios. El
+responsable del repositorio define el número de versión y publica cada versión con sus notas
+([proceso de versiones](docs/desarrollo.md#31-versiones-y-publicaciones)). Al contribuir, se acepta que el
+aporte se distribuya bajo la licencia MIT del proyecto.
+
+---
+
 ## Licencia
 
 Este programa se distribuye bajo la **licencia MIT** (ver el archivo [LICENSE](LICENSE)): se puede

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentación
+    url: https://github.com/MarceloSalazar/evm-automation/blob/main/docs/README.md
+    about: Uso, configuración, cálculos, validaciones y solución de problemas.
+  - name: Registro de cambios
+    url: https://github.com/MarceloSalazar/evm-automation/blob/main/CHANGELOG.md
+    about: Cambios de cada versión, para verificar si un problema ya se corrigió.
