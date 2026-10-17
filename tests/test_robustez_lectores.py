@@ -15,6 +15,7 @@ import pytest
 
 from evm.config import Config
 from evm.fields import TASK_NUMBER_IDS, TASK_TEXT_IDS, builtin_kind, parse_custom_name, parse_number
+import evm.reader_com as reader_com
 from evm.reader_com import PJ_DO_NOT_SAVE, ComSession, _com_date, _dt, _f
 from evm.reader_xml import XmlFormatError, read_xml
 from evm.timeline import split_segment
@@ -450,6 +451,115 @@ def test_com_open_failure_restores_app_properties(tmp_path, fake_pywintypes):
     s._cleanup()                                              # __enter__ lo llama ante cualquier error
     assert (app.DisplayAlerts, app.AutomationSecurity) == (True, 1)
     assert not [c for c in app.calls if c[0] in ("FileCloseEx", "Quit")] and other.activations == 1
+
+
+RPC_SERVER_UNAVAILABLE = -2147023174      # 0x800706BA con signo, como lo entrega pywin32
+
+
+class ComError(Exception):
+    """pywintypes.com_error simulado (con su HRESULT)."""
+
+    def __init__(self, hresult: int):
+        super().__init__(hresult, "error COM", None, None)
+        self.hresult = hresult
+
+
+class ConnectApp:
+    """Instancia de MS Project para _connect: puede rechazar las primeras llamadas (cerrándose u ocupada)."""
+
+    def __init__(self, count: int = 0, user_control: bool = False, failures: int = 0):
+        self._oleobj_ = self
+        self.UserControl = user_control
+        self.Visible = None
+        self.count, self.failures = count, failures
+
+    @property
+    def Projects(self):
+        if self.failures:
+            self.failures -= 1
+            raise ComError(RPC_SERVER_UNAVAILABLE)
+        return Projects([object()] * self.count)
+
+
+@pytest.fixture()
+def fake_win32com(monkeypatch):
+    """win32com y pywintypes simulados: GetActiveObject y DispatchEx se definen en cada prueba."""
+    pywintypes = types.ModuleType("pywintypes")
+    pywintypes.com_error = ComError
+    client = types.ModuleType("win32com.client")
+    client.gencache = types.SimpleNamespace(EnsureDispatch=lambda obj: obj)
+    client.dynamic = types.SimpleNamespace(Dispatch=lambda obj: obj)
+    package = types.ModuleType("win32com")
+    package.client = client
+    for name, module in (("pywintypes", pywintypes), ("win32com", package), ("win32com.client", client)):
+        monkeypatch.setitem(sys.modules, name, module)
+    monkeypatch.setattr(reader_com.time, "sleep", lambda seconds: None)
+    client.calls = []
+
+    def sequence(name, results):
+        def call(progid):
+            client.calls.append(name)
+            item = results.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return item
+        setattr(client, name, call)
+
+    client.sequence = sequence
+    return client
+
+
+def test_com_connect_waits_for_a_closing_instance(fake_win32com):
+    """Una instancia que se está cerrando (p. ej. la de una ejecución anterior) no se usa: se espera a que
+    termine de cerrarse y se inicia otra."""
+    closing, fresh = ConnectApp(failures=99), ConnectApp(count=0)
+    fake_win32com.sequence("GetActiveObject", [closing, closing, ComError(-2147221021)])
+    fake_win32com.sequence("DispatchEx", [fresh])
+    s = ComSession("programa.mpp")
+    s._connect()
+    assert s.app is fresh and s.started_by_us
+    assert fake_win32com.calls == ["GetActiveObject", "GetActiveObject", "GetActiveObject", "DispatchEx"]
+
+
+def test_com_connect_uses_the_user_instance(fake_win32com):
+    user = ConnectApp(count=1, user_control=True)
+    fake_win32com.sequence("GetActiveObject", [user])
+    s = ComSession("programa.mpp")
+    s._connect()
+    assert s.app is user and not s.started_by_us and fake_win32com.calls == ["GetActiveObject"]
+
+
+def test_com_connect_waits_for_its_own_busy_instance_without_starting_more(fake_win32com):
+    busy = ConnectApp(count=0, failures=2)
+    fake_win32com.sequence("GetActiveObject", [ComError(-2147221021)])
+    fake_win32com.sequence("DispatchEx", [busy])
+    s = ComSession("programa.mpp")
+    s._connect()
+    assert s.app is busy and s.started_by_us
+    assert fake_win32com.calls == ["GetActiveObject", "DispatchEx"]      # no se inician otras instancias
+
+
+def test_com_connect_gives_up_with_a_clear_message(fake_win32com, monkeypatch):
+    monkeypatch.setattr(reader_com, "CONNECT_WAIT", 0.0)
+    fake_win32com.sequence("GetActiveObject", [ConnectApp(failures=99)])
+    s = ComSession("programa.mpp")
+    with pytest.raises(RuntimeError, match="no responde.*0x800706ba"):
+        s._connect()
+
+
+def test_com_cleanup_releases_objects_before_quitting(tmp_path, fake_pywintypes):
+    """Al cerrar MS Project ya no quedan referencias a sus tareas ni al proyecto (liberarlas después produce
+    errores de RPC 0x800706BA)."""
+    origen = str(tmp_path / "programa.mpp")
+    app = SessionApp([], to_open=OpenProject(str(Path(origen).resolve())))
+    s = com_session(app, origen, started_by_us=True)
+    s._open()
+    s._com_tasks[1] = object()
+    seen = {}
+    app.Quit = lambda save: seen.update(project=s.project, tasks=dict(s._com_tasks))
+    s._cleanup()
+    assert seen == {"project": None, "tasks": {}}
+    assert s.app is None
 
 
 def test_com_field_resolution_external_tasks_and_timescale_failure(caplog):
