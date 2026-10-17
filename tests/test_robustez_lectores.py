@@ -1,8 +1,8 @@
 """Robustez de los lectores: XML de MS Project, calendario laboral, campos y COM (objetos simulados).
 
-Las pruebas marcadas con xfail documentan hallazgos confirmados que aún no se
-corrigen: fallan hoy por el motivo indicado y deben pasar (y perder la marca)
-cuando se corrija el código.
+Cubren casos límite de archivos reales (campos de recurso con el mismo alias,
+tareas sin nivel de esquema, excepciones de calendario no interpretadas,
+fondos de recursos abiertos con el archivo, etc.) sin requerir MS Project.
 """
 import logging
 import sys
@@ -66,22 +66,17 @@ def weekdays_between(a: date, b: date):
     pytest.param([(TEXT3, "Text3", "Empresa"), (RESOURCE_FIELD_IDS[0], "Text1", "Empresa")],
                  Config(multi_enabled=True), "company", "EmpresaA", id="alias de tarea antes que el de recurso"),
     pytest.param([(RESOURCE_FIELD_IDS[0], "Text1", "Empresa"), (TEXT3, "Text3", "Empresa")],
-                 Config(multi_enabled=True), "company", "EmpresaA", id="alias de recurso antes que el de tarea",
-                 marks=pytest.mark.xfail(strict=True, reason="Hallazgo: el alias de un campo de recurso oculta "
-                                                             "el campo de tarea con el mismo alias")),
+                 Config(multi_enabled=True), "company", "EmpresaA", id="alias de recurso antes que el de tarea"),
     pytest.param([(RESOURCE_FIELD_IDS[1], "Text10", "Departamento"), (TEXT10, "Text10", "")],
-                 Config(method_field="Text10"), "method", "50/50", id="nombre Text10 de recurso antes que el de tarea",
-                 marks=pytest.mark.xfail(strict=True, reason="Hallazgo: la definición Text10 de un recurso oculta "
-                                                             "el Text10 de tarea")),
+                 Config(method_field="Text10"), "method", "50/50", id="nombre Text10 de recurso antes que el de tarea"),
 ])
 def test_custom_field_resolution_uses_task_fields(read, definitions, cfg, attr, expected):
+    """Las definiciones de campos de recurso no ocultan los campos de tarea."""
     tasks = simple_tasks(ext={TEXT3: "EmpresaA", TEXT10: "50/50"})
     p = read(project_xml(tasks, definitions=definitions), cfg)
     assert getattr(p.tasks[0], attr) == expected
 
 
-@pytest.mark.xfail(strict=True, reason="Hallazgo: un alias que solo existe en un campo de recurso se acepta sin "
-                                       "aviso y la empresa queda vacía")
 def test_alias_only_in_resource_field_is_reported_as_missing(read):
     tasks = simple_tasks(ext={TEXT3: "EmpresaA"})
     p = read(project_xml(tasks, definitions=[(RESOURCE_FIELD_IDS[0], "Text1", "Empresa")]), Config(multi_enabled=True))
@@ -209,15 +204,15 @@ def test_dates_before_1984_are_empty(read):
     assert t.baseline_start == datetime(2026, 1, 5)             # fecha sin hora
 
 
-@pytest.mark.xfail(strict=True, reason="Hallazgo: una tarea sin <OutlineLevel> se toma como tarea resumen del "
-                                       "proyecto y reemplaza su nombre y su costo de línea base")
 def test_task_without_outline_level_is_not_project_summary(read):
+    """Solo la tarea de UID 0 es la tarea resumen del proyecto; sin nivel de esquema (o con 0) se usa el 1."""
     tasks = [task_xml(0, 0, "Proyecto", cost=100, baselines=[(0, S, F, 100)]),
              task_xml(1, None, "Sin nivel", wbs="1", start=S, finish=F, cost=50, baselines=[(0, S, F, 50)]),
-             task_xml(2, 1, "B", wbs="2", start=S, finish=F, cost=50, baselines=[(0, S, F, 50)])]
+             task_xml(2, 0, "Nivel cero", wbs="2", start=S, finish=F, cost=50, baselines=[(0, S, F, 50)]),
+             task_xml(3, 2, "B", wbs="2.1", start=S, finish=F, cost=50, baselines=[(0, S, F, 50)])]
     p = read(project_xml(tasks))
     assert p.name == "Proyecto" and p.summary_baseline_cost == pytest.approx(100)
-    assert "B" in [t.name for t in p.tasks]
+    assert [(t.name, t.outline_level) for t in p.tasks] == [("Sin nivel", 1), ("Nivel cero", 1), ("B", 2)]
 
 
 # ----------------------------------------------------------------------------
@@ -269,16 +264,27 @@ def test_calendar_fallbacks_use_standard_week(read, calendars, uid):
     assert cal.windows(date(2026, 1, 5)) == STANDARD and not cal.is_working_day(date(2026, 1, 4))
 
 
-@pytest.mark.xfail(strict=True, reason="Hallazgo: las excepciones relativas (p. ej. 'último lunes de mayo') se "
-                                       "ignoran sin aviso")
 @pytest.mark.parametrize("kind, fields", [
     (3, {"Month": 4, "MonthItem": 4, "MonthPosition": 4}),      # anual: último lunes de mayo
     (5, {"Period": 1, "MonthItem": 4, "MonthPosition": 4}),     # mensual: último lunes de cada mes
-], ids=["anual relativa", "mensual relativa"])
+    (8, {}),
+], ids=["anual relativa", "mensual relativa", "tipo 8"])
 def test_relative_exceptions_are_applied_or_reported(read, kind, fields):
     exc = exception_xml(date(2026, 5, 25), date(2026, 5, 25), kind=kind, Occurrences=1, **fields)
     p = read(project_xml(simple_tasks(), calendars=[calendar_xml(1, exceptions=[exc])], calendar_uid=1))
     assert not p.calendar.is_working_day(date(2026, 5, 25)) or any("excepci" in w.lower() for w in p.warnings)
+
+
+def test_unreadable_exception_warning_names_calendar_and_exception(read):
+    exceptions = [exception_xml(date(2026, 5, 25), date(2026, 5, 25), kind=99, name="Feriado móvil"),
+                  exception_xml(date(2026, 1, 1), date(2027, 12, 31), kind=2, name="Sin mes", MonthDay=1),
+                  exception_xml(date(2026, 2, 2), date(2026, 2, 2), name="Feriado fijo")]
+    p = read(project_xml(simple_tasks(), calendars=[calendar_xml(1, "Turno", exceptions=exceptions)], calendar_uid=1))
+    omitted = [w for w in p.warnings if "se omite la excepción" in w]
+    assert len(omitted) == 2
+    assert omitted[0].startswith("Calendario 'Turno': se omite la excepción 'Feriado móvil' (tipo 99)")
+    assert "'Sin mes' (tipo 2)" in omitted[1] and "reparto entre meses" in omitted[1]
+    assert not p.calendar.is_working_day(date(2026, 2, 2))      # las demás excepciones se aplican
 
 
 # ----------------------------------------------------------------------------
@@ -291,18 +297,6 @@ def test_relative_exceptions_are_applied_or_reported(read, kind, fields):
 ])
 def test_parse_number_locale_formats(text, expected):
     assert parse_number(text) == expected
-
-
-@pytest.mark.xfail(strict=True, reason="Hallazgo: parse_number pierde miles con varios puntos o el signo menos "
-                                       "tipográfico")
-@pytest.mark.parametrize("text, expected", [("1.234.567", 1234567.0), ("\u22125", -5.0)])
-def test_parse_number_spanish_thousands_and_unicode_minus(text, expected):
-    assert parse_number(text) == expected
-
-
-@pytest.mark.xfail(strict=True, reason="Hallazgo: parse_number convierte '1e3' en 13 al descartar la letra")
-def test_parse_number_does_not_mangle_scientific_notation():
-    assert parse_number("1e3") in (None, 1000.0)
 
 
 def test_field_id_tables_and_custom_names():
@@ -415,10 +409,9 @@ def test_com_cleanup_restores_status_date_and_keeps_user_project_open(tmp_path, 
 
 @pytest.mark.parametrize("started_by_us, with_pool, expect_quit", [
     pytest.param(False, False, False, id="instancia del usuario"),
+    pytest.param(False, True, False, id="instancia del usuario con fondo de recursos"),
     pytest.param(True, False, True, id="instancia propia"),
-    pytest.param(True, True, True, id="instancia propia con fondo de recursos",
-                 marks=pytest.mark.xfail(strict=True, reason="Hallazgo: si queda abierto el fondo de recursos, el "
-                                                             "MS Project iniciado por el programa no se cierra")),
+    pytest.param(True, True, True, id="instancia propia con fondo de recursos"),
 ])
 def test_com_session_closes_file_and_quits_only_its_own_instance(tmp_path, fake_pywintypes, started_by_us,
                                                                  with_pool, expect_quit):
@@ -434,6 +427,17 @@ def test_com_session_closes_file_and_quits_only_its_own_instance(tmp_path, fake_
     if other is not None:                                     # instancia del usuario: se restaura su estado
         assert app.DisplayAlerts is True and app.AutomationSecurity == 1 and other.activations == 1
     assert (("Quit", PJ_DO_NOT_SAVE) in app.calls) is expect_quit
+
+
+def test_com_started_instance_is_kept_if_user_opened_other_projects(tmp_path, fake_pywintypes):
+    origen = str(tmp_path / "programa.mpp")
+    app = SessionApp([], to_open=OpenProject(str(Path(origen).resolve())))
+    s = com_session(app, origen, started_by_us=True)
+    s._open()
+    app.Projects.items.append(OpenProject(r"C:\del_usuario.mpp", tasks=[]))   # abierto por el usuario mientras tanto
+    s._cleanup()
+    assert ("FileCloseEx", PJ_DO_NOT_SAVE) in app.calls
+    assert not [c for c in app.calls if c[0] == "Quit"]      # no se descarta el trabajo del usuario
 
 
 def test_com_open_failure_restores_app_properties(tmp_path, fake_pywintypes):

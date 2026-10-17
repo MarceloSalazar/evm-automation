@@ -15,10 +15,12 @@ from evm.config import Config
 from evm.methods import ev_fraction, parse_method
 from evm.model import ProjectData, Task
 from evm.timeline import Horizon
-from evm.wbs import Scope, build_tree, fmt_money, iter_subtree, pad_code, prune_inactive, select_scope, tolerance
-from evm.workbook import (COL_BAC, COL_METHOD, FIRST_MONTH_COL, LEGACY_SHEET_CURVE, SHEET_AC, SHEET_EV, SHEET_META,
-                          SHEET_PV, SHEET_SUMMARY, STATUS_CELL, StructRow, WorkbookFormatError, add_s_curve_chart,
-                          col, company_sheet, read_meta, read_structure, save_workbook, write_meta)
+from evm.wbs import (KIND_RESIDUAL, KIND_SUMMARY, Scope, build_tree, code_level, fmt_money, iter_subtree, pad_code,
+                     prune_inactive, select_scope, tolerance)
+from evm.workbook import (COL_BAC, COL_CODE, COL_METHOD, FIRST_MONTH_COL, LEGACY_SHEET_CURVE, SHEET_AC, SHEET_EV,
+                          SHEET_META, SHEET_PV, SHEET_SUMMARY, STATUS_CELL, StructRow, WorkbookFormatError,
+                          add_s_curve_chart, clean_text, col, company_sheet, read_meta, read_structure, save_workbook,
+                          write_meta)
 
 
 # ----------------------------------------------------------------------------
@@ -48,6 +50,8 @@ class BookData:
     ev_b: dict[int, list[float | None]] = field(default_factory=dict)
     ac_a: dict[int, list[float | None]] = field(default_factory=dict)
     ac_b: dict[int, list[float | None]] = field(default_factory=dict)
+    # Celdas que deben tener fórmula (subtotales, fila TOTAL, suma de empresas) y tienen un valor
+    formula_gaps: list[str] = field(default_factory=list)
 
     @property
     def input_rows(self) -> list[StructRow]:
@@ -97,6 +101,80 @@ def _as_date(v) -> date | None:
     return None
 
 
+def _company_names(meta: dict) -> tuple[str, str]:
+    return str(meta.get("empresa_a") or ""), str(meta.get("empresa_b") or "")
+
+
+def data_sheets(meta: dict) -> list[str]:
+    """Hojas mensuales del libro: PV, EV y AC y, en multi-empresa, las de cada empresa."""
+    names = [SHEET_PV, SHEET_EV, SHEET_AC]
+    if meta.get("multiempresa"):
+        a, b = _company_names(meta)
+        names += [company_sheet(k, c) for k in (SHEET_PV, SHEET_EV, SHEET_AC) for c in (a, b)]
+    return names
+
+
+def check_sheets(sheetnames: list[str], meta: dict, charts: bool = False) -> None:
+    """Verifica que estén las hojas que el programa lee o escribe (no se deben eliminar ni renombrar).
+
+    charts: también la hoja de datos de los gráficos del Cuadro de Mando (la usa 'actualizar').
+    """
+    from evm.dashboard import SHEET_CHARTDATA, SHEET_DASHBOARD
+    names = [SHEET_SUMMARY] + data_sheets(meta)
+    if charts and SHEET_DASHBOARD in sheetnames:
+        names.append(SHEET_CHARTDATA)
+    companies = set(data_sheets(meta)[3:])
+    for name in names:
+        if name in sheetnames:
+            continue
+        if name in companies:
+            raise WorkbookFormatError(f"Falta la hoja '{name}' del libro multi-empresa.")
+        raise WorkbookFormatError(
+            f"Falta la hoja '{name}' del libro. Las hojas del libro no se deben eliminar ni cambiar de nombre: se "
+            "debe restaurar su nombre original o recuperar el libro desde un respaldo.")
+
+
+def _check_layout(wb, structure: list[StructRow], meta: dict) -> None:
+    """Las filas de las hojas mensuales deben estar donde las ubicó 'generar' ('actualizar' escribe por
+    posición): se compara el código EDT de la columna A con la hoja _estructura."""
+    expected = [(s.row, s.code) for s in structure] + [(meta["fila_total"], "TOTAL")]
+    for name in data_sheets(meta):
+        ws = wb[name]
+        for r, code in expected:
+            value = ws.cell(row=r, column=COL_CODE).value
+            text = "" if value is None else str(value).strip()
+            if text != code.strip():
+                raise WorkbookFormatError(
+                    f"La hoja '{name}' no tiene las filas con las que se generó el libro: la fila {r} debe tener el "
+                    f"código EDT '{code}' y tiene '{text}'. Como 'actualizar' ubica cada fila por su posición, se "
+                    "deben deshacer las filas insertadas, eliminadas u ordenadas en esa hoja (o recuperar el libro "
+                    "desde un respaldo). Para cambiar la EDT se debe modificar MS Project y regenerar el libro con "
+                    "--migrar-desde.")
+
+
+def _formula_gaps(wb, structure: list[StructRow], meta: dict) -> list[str]:
+    """Celdas que deben tener fórmula y tienen un valor o están vacías: subtotales y fila TOTAL de las hojas
+    mensuales (meses y, en PV, el BAC) y, en multi-empresa, todas las filas de las hojas PV, EV y AC (suma de
+    las dos empresas)."""
+    total = meta["fila_total"]
+    months = range(FIRST_MONTH_COL, FIRST_MONTH_COL + meta["meses"])
+    subtotals = [s.row for s in structure if s.kind == KIND_SUMMARY] + [total]
+    every = [s.row for s in structure] + [total]
+    multi = bool(meta.get("multiempresa"))
+    out = []
+    for name in data_sheets(meta):
+        is_total_sheet = multi and name in (SHEET_PV, SHEET_EV, SHEET_AC)
+        is_pv = name == SHEET_PV or name.startswith(SHEET_PV + "-")
+        cols = list(months) + ([COL_BAC] if is_pv else [])
+        ws = wb[name]
+        for r in (every if is_total_sheet else subtotals):
+            for c in cols:
+                value = ws.cell(row=r, column=c).value
+                if not (isinstance(value, str) and value.startswith("=")):
+                    out.append(f"{name}!{col(c)}{r}")
+    return out
+
+
 def read_book(path: str | Path, wb=None, allow_fix: bool = False) -> BookData:
     """Lee un libro generado por este programa.
 
@@ -115,6 +193,9 @@ def read_book(path: str | Path, wb=None, allow_fix: bool = False) -> BookData:
         raise WorkbookFormatError(f"No se pudo abrir '{path.name}' como libro de Excel: {exc}") from exc
     meta = read_meta(wb)
     structure = read_structure(wb)
+    check_sheets(wb.sheetnames, meta)
+    _check_layout(wb, structure, meta)
+    gaps = _formula_gaps(wb, structure, meta)
     horizon = Horizon(meta["horizonte_inicio"], meta["meses"])
     months = horizon.months
     inputs = [s for s in structure if s.is_input]
@@ -149,11 +230,8 @@ def read_book(path: str | Path, wb=None, allow_fix: bool = False) -> BookData:
     method = {s.row: str(ws_pv.cell(row=s.row, column=COL_METHOD).value or "").strip() for s in inputs}
     status = _as_date(wb[SHEET_SUMMARY][STATUS_CELL].value)
     if meta.get("multiempresa"):
-        a, b = str(meta.get("empresa_a") or ""), str(meta.get("empresa_b") or "")
+        a, b = _company_names(meta)
         names = {k: (company_sheet(k, a), company_sheet(k, b)) for k in (SHEET_PV, SHEET_EV, SHEET_AC)}
-        for sheet in [n for pair in names.values() for n in pair]:
-            if sheet not in wb.sheetnames:
-                raise WorkbookFormatError(f"Falta la hoja '{sheet}' del libro multi-empresa.")
         pv_a = zeros(sheet_values(names[SHEET_PV][0], allow_fix))
         pv_b = zeros(sheet_values(names[SHEET_PV][1], allow_fix))
         bac_a, bac_b = bac_values(names[SHEET_PV][0]), bac_values(names[SHEET_PV][1])
@@ -162,11 +240,12 @@ def read_book(path: str | Path, wb=None, allow_fix: bool = False) -> BookData:
         pv = {r: [x + y for x, y in zip(pv_a[r], pv_b[r])] for r in pv_a}
         bac = {r: bac_a[r] + bac_b[r] for r in bac_a}
         return BookData(path, meta, structure, horizon, pv, combine(ev_a, ev_b), combine(ac_a, ac_b), bac, method,
-                        status, fixable, True, a, b, pv_a, bac_a, ev_a, ev_b, ac_a, ac_b)
+                        status, fixable, True, a, b, pv_a, bac_a, ev_a, ev_b, ac_a, ac_b, formula_gaps=gaps)
     pv = zeros(sheet_values(SHEET_PV, allow_fix))
     ev = sheet_values(SHEET_EV, allow_fix)
     ac = sheet_values(SHEET_AC, allow_fix)
-    return BookData(path, meta, structure, horizon, pv, ev, ac, bac_values(SHEET_PV), method, status, fixable)
+    return BookData(path, meta, structure, horizon, pv, ev, ac, bac_values(SHEET_PV), method, status, fixable,
+                    formula_gaps=gaps)
 
 
 def book_meta(path: str | Path) -> dict:
@@ -179,7 +258,9 @@ def book_meta(path: str | Path) -> dict:
     except (zipfile.BadZipFile, InvalidFileException, OSError) as exc:
         raise WorkbookFormatError(f"No se pudo abrir '{path.name}' como libro de Excel: {exc}") from exc
     try:
-        return read_meta(wb)
+        meta = read_meta(wb)
+        check_sheets(wb.sheetnames, meta, charts=True)
+        return meta
     finally:
         wb.close()
 
@@ -253,6 +334,11 @@ def _own_bcwp(task: Task, children: list[Task]) -> float | None:
     return task.bcwp - sum(c.bcwp for c in children)
 
 
+def book_level(book: BookData, cfg: Config) -> int:
+    """Nivel máximo del código EDT con que se generó el libro (libros antiguos: el de la configuración)."""
+    return int(book.meta.get("nivel_maximo") or cfg.max_level)
+
+
 def _match_tasks(project: ProjectData, book: BookData, cfg: Config) -> tuple[dict[int, Task], list[str], Scope]:
     """Asocia cada fila del libro con la tarea de MS Project.
 
@@ -263,8 +349,10 @@ def _match_tasks(project: ProjectData, book: BookData, cfg: Config) -> tuple[dic
     warnings: list[str] = []
     tasks = [t for t in project.tasks if t.outline_level >= 1]
     roots = build_tree(tasks)
+    active: set[int] | None = None
     if not cfg.include_inactive:
         roots, _, _ = prune_inactive(roots)     # el avance de tareas inactivas no cuenta
+        active = {t.uid for r in roots for t in iter_subtree(r)}
     plan_code = str(book.meta.get("planificacion") or "")
     if cfg.plan and cfg.plan.strip().upper() != plan_code.upper():
         warnings.append(f"El libro se generó para la planificación '{plan_code or 'todas'}': se usa esa "
@@ -272,11 +360,12 @@ def _match_tasks(project: ProjectData, book: BookData, cfg: Config) -> tuple[dic
     scope = select_scope(roots, plan_code)
     by_uid = {t.uid: t for t in tasks}
     by_code: dict[str, Task] = {}
+    level = book_level(book, cfg)       # los códigos del libro se completaron con su nivel máximo
     for t in scope.tasks():
         raw = scope.raw_code(t)
         if raw:
-            by_code.setdefault(pad_code(raw, cfg.max_level) if cfg.pad_wbs else raw, t)
-    same = str(book.meta.get("proyecto") or "") == project.name
+            by_code.setdefault(clean_text(pad_code(raw, level) if cfg.pad_wbs else raw), t)
+    same = str(book.meta.get("proyecto") or "") == clean_text(project.name)
     if not same:
         warnings.append(f"El libro fue generado para el proyecto '{book.meta.get('proyecto')}' y el origen es "
                         f"'{project.name}': las filas se asocian por código EDT. Se recomienda verificar los "
@@ -294,6 +383,12 @@ def _match_tasks(project: ProjectData, book: BookData, cfg: Config) -> tuple[dic
                                     "Project; se omite. Si cambió la EDT, se debe regenerar el libro con "
                                     "--migrar-desde.")
                 continue
+            if active is not None and task.uid not in active:
+                if s.is_input:
+                    warnings.append(f"Fila {s.code} '{s.name}': la tarea (UID {uid_text}) está inactiva en MS "
+                                    "Project; se omite y se conservan los valores ya cargados. Si quedó fuera del "
+                                    "alcance, se recomienda regenerar el libro con --migrar-desde.")
+                continue
         else:
             code = s.code[:-2] if residual else s.code
             task = by_code.get(code)
@@ -307,12 +402,13 @@ def _match_tasks(project: ProjectData, book: BookData, cfg: Config) -> tuple[dic
     return out, warnings, scope
 
 
-def _contributors(book: BookData, row: StructRow, task: Task, matches: dict[int, Task]) -> list[Task]:
+def _contributors(book: BookData, row: StructRow, task: Task, matches: dict[int, Task],
+                  unlisted: list[Task] = ()) -> list[Task]:
     """Tareas cuyo costo forma la fila: la rama del paquete, o (fila -D) lo que cuelga de la
-    tarea resumen sin pertenecer a sus filas hijas."""
-    if row.kind != "residual":
+    tarea resumen sin pertenecer a sus filas hijas ni a paquetes agregados después de generar el libro."""
+    if row.kind != KIND_RESIDUAL:
         return list(iter_subtree(task))
-    taken = {n.uid for c in _row_children(book, row, matches) for n in iter_subtree(c)}
+    taken = {n.uid for c in _row_children(book, row, matches) + list(unlisted) for n in iter_subtree(c)}
     return [n for n in iter_subtree(task) if n.uid not in taken]
 
 
@@ -322,7 +418,35 @@ def _row_children(book: BookData, row: StructRow, matches: dict[int, Task]) -> l
             if s.parent_row == row.parent_row and s.kind != "residual" and s.row in matches]
 
 
-def _coverage_warnings(scope: Scope, book: BookData, matches: dict[int, Task], cfg: Config) -> list[str]:
+def _unlisted_packages(book: BookData, matches: dict[int, Task], scope: Scope, level: int) -> dict[int, list[Task]]:
+    """Tareas con código EDT propio (de nivel no mayor al máximo del libro) que cuelgan de la tarea resumen
+    de una fila -D sin tener fila en el libro: se agregaron después de generarlo. Al generar el libro tendrían
+    fila propia, por eso no se suman en la fila -D (fila -> tareas)."""
+    with_row = {t.uid for t in matches.values()}
+    out: dict[int, list[Task]] = {}
+
+    def visit(node: Task, found: list[Task]) -> None:
+        for c in node.children:
+            if c.uid in with_row:
+                continue
+            raw = scope.raw_code(c)
+            if raw and code_level(raw) <= level:
+                found.append(c)
+            else:
+                visit(c, found)         # tarea sin código o de nivel mayor: forma parte de la fila -D
+
+    for s in book.input_rows:
+        task = matches.get(s.row)
+        if s.kind == KIND_RESIDUAL and task is not None:
+            found: list[Task] = []
+            visit(task, found)
+            if found:
+                out[s.row] = found
+    return out
+
+
+def _coverage_warnings(scope: Scope, book: BookData, matches: dict[int, Task],
+                       unlisted: dict[int, list[Task]]) -> list[str]:
     """Costo real de tareas de la planificación que no queda en ninguna fila del libro."""
     covered: set[int] = set()
     for s in book.input_rows:
@@ -330,6 +454,8 @@ def _coverage_warnings(scope: Scope, book: BookData, matches: dict[int, Task], c
         if task is not None:
             # Una fila -D cubre todo lo que cuelga de su tarea resumen y no tiene fila propia.
             covered.update(n.uid for n in iter_subtree(task))
+    for packages in unlisted.values():  # salvo los paquetes con código agregados después de generar el libro
+        covered.difference_update(n.uid for p in packages for n in iter_subtree(p))
     missing = []
     for t in scope.tasks():
         if t.uid in covered:
@@ -339,10 +465,10 @@ def _coverage_warnings(scope: Scope, book: BookData, matches: dict[int, Task], c
             missing.append((t, own))
     warnings = []
     for t, amount in missing[:15]:
-        code = scope.raw_code(t) or "(sin código EDT)"
-        warnings.append(f"{code} '{t.name}': costo real {fmt_money(amount)} sin fila en el libro; no se incluye en "
-                        "el AC. Para incluirlo, la tarea debe tener código EDT y el libro se debe regenerar con "
-                        "--migrar-desde.")
+        code = scope.raw_code(t)
+        how = "el libro" if code else "la tarea debe tener código EDT y el libro"
+        warnings.append(f"{code or '(sin código EDT)'} '{t.name}': costo real {fmt_money(amount)} sin fila en el "
+                        f"libro; no se incluye en el AC. Para incluirlo, {how} se debe regenerar con --migrar-desde.")
     if len(missing) > 15:
         warnings.append(f"... y {len(missing) - 15} tareas más con costo real sin fila en el libro.")
     return warnings
@@ -368,6 +494,7 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
     book_path = Path(book_path)
     wb = load_workbook(book_path)
     book = read_book(book_path, wb, allow_fix=True)
+    check_sheets(wb.sheetnames, book.meta, charts=True)
     cfg = apply_book_settings(cfg, book.meta)
     warnings: list[str] = list(project.warnings)
     multi = book.multi
@@ -399,8 +526,9 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
 
     matches, w, scope = _match_tasks(project, book, cfg)
     warnings += w
+    unlisted = _unlisted_packages(book, matches, scope, book_level(book, cfg))
     if only != "ev" and load_ac:
-        warnings += _coverage_warnings(scope, book, matches, cfg)
+        warnings += _coverage_warnings(scope, book, matches, unlisted)
 
     shares: dict[int, float] = {}
     if multi:
@@ -411,6 +539,7 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
 
     rows: list[RowResult] = []
     later_filled: list[str] = []
+    later_months: set[int] = set()
     writes: list[tuple[str, int, int, float]] = []   # (hoja, fila, columna, valor)
     ac_total = 0.0
     for s in book.input_rows:
@@ -422,20 +551,21 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
         method = parse_method(method_text)
         pv_cum = sum(book.pv[s.row][: idx + 1])
         residual = s.kind == "residual"
-        siblings = _row_children(book, s, matches) if residual else []
+        siblings = _row_children(book, s, matches) + unlisted.get(s.row, []) if residual else []
         bcwp = _own_bcwp(task, siblings) if residual else task.bcwp
         bcwp_base = None
         if task.ev_baseline_cost is not None:       # CPTR calculado con otra línea base
             bcwp_base = task.ev_baseline_cost
             if residual:
                 bcwp_base -= sum(c.ev_baseline_cost or 0.0 for c in siblings)
+        # Tareas que forman la fila: en una fila -D, el avance se mide solo con las tareas sin fila propia
+        contributors = _contributors(book, s, task, matches, unlisted.get(s.row, []))
         frac, note = ev_fraction(method, task, (pv_cum / bac) if bac else 0.0, bac=bac, bcwp=bcwp,
-                                 bcwp_base=bcwp_base)
+                                 bcwp_base=bcwp_base, tasks=contributors if residual else None)
 
         # (tipo, hoja, valor acumulado, serie del libro)
         targets: list[tuple[str, str, float, list]] = []
         if multi:
-            contributors = _contributors(book, s, task, matches)
             bac_a = book.bac_a[s.row]
             pv_cum_a = sum(book.pv_a[s.row][: idx + 1])
             ev_a, ev_b = ev_by_company(method, contributors, shares, (bac_a, bac - bac_a),
@@ -455,9 +585,10 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
         for kind, sheet, cum_value, series in targets:
             if only and only != kind:
                 continue
-            later = [v for v in series[idx + 1:] if v]
+            later = [i for i in range(idx + 1, len(series)) if series[i]]
             if later:
                 later_filled.append(f"{sheet} {s.code}")
+                later_months.update(later)
             prev = sum(v or 0.0 for v in series[:idx])
             month_value = round(cum_value - prev, 2)
             if kind == "ev":
@@ -478,6 +609,14 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
         raise ValueError(
             "Hay valores cargados en meses posteriores a la fecha de corte (" + ", ".join(later_filled[:10]) +
             ("..." if len(later_filled) > 10 else "") + "). Se deben borrar esos valores o usar --forzar.")
+    if later_filled:
+        months = [f"{book.horizon.month_start(i):%m/%Y}" for i in sorted(later_months)]
+        warnings.append(
+            f"Se cargó la fecha de corte {status:%d/%m/%Y} con --forzar, pero hay valores en meses posteriores ("
+            + ", ".join(months[:6]) + ("..." if len(months) > 6 else "") + "; filas " + ", ".join(later_filled[:10])
+            + ("..." if len(later_filled) > 10 else "") + "). Esos valores se calcularon con el acumulado anterior: "
+            "los acumulados de esos meses ya no coinciden con MS Project. Se deben revisar esos meses o volver a "
+            "cargarlos con 'actualizar' (fecha de corte de cada mes, en orden).")
 
     reference = _acwp(scope.plan) if scope.plan is not None else project.summary_acwp
     if only != "ev" and load_ac and reference is not None:
@@ -487,6 +626,14 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
             warnings.append(f"El AC cargado ({fmt_money(ac_total)}) difiere del costo real {whose} en MS Project "
                             f"({fmt_money(reference)}) en {fmt_money(diff)}. Se recomienda revisar las advertencias "
                             "anteriores (tareas sin fila, costos en tareas resumen).")
+
+    if book.formula_gaps:
+        cells = ", ".join(book.formula_gaps[:8])
+        more = f" y {len(book.formula_gaps) - 8} más" if len(book.formula_gaps) > 8 else ""
+        warnings.append(f"Hay celdas sin la fórmula del libro (subtotales, fila TOTAL o suma de las empresas): "
+                        f"{cells}{more}. Los totales e indicadores del libro no coinciden con los que se muestran "
+                        "aquí: se deben restaurar esas fórmulas (por ejemplo, copiándolas de una celda vecina de la "
+                        "misma fila) o recuperar el libro desde un respaldo.")
 
     if book.fixable:
         cells = ", ".join(f"{sh}!{col(c)}{r}" for sh, r, c, _v, _why in book.fixable[:8])
@@ -523,7 +670,12 @@ def run_update(project: ProjectData, cfg: Config, book_path: str | Path, status:
         if backup:
             backup_path = _backup_path(book_path)
             shutil.copy2(book_path, backup_path)
-        save_workbook(wb, book_path)
+        try:
+            save_workbook(wb, book_path)
+        except BaseException:
+            if backup_path is not None:     # el libro no cambió: el respaldo no hace falta
+                backup_path.unlink(missing_ok=True)
+            raise
     book.status_date = status
     return UpdateResult(status, idx, rows, warnings, backup_path, book, dry_run, ac_loaded=load_ac)
 

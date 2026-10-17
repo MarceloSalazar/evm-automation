@@ -56,13 +56,14 @@ def open_project(origen: str, cfg: Config, motor: str, visible: bool = False, st
 
 
 def _apply_overrides(cfg: Config, args) -> Config:
-    if getattr(args, "mes_inicio", None):
+    # Opciones indicadas explícitamente (aunque valgan 0 o ""): se validan, no se ignoran
+    if getattr(args, "mes_inicio", None) is not None:
         cfg.start_month = parse_month(args.mes_inicio)
-    if getattr(args, "meses", None):
+    if getattr(args, "meses", None) is not None:
         cfg.months = args.meses
     if getattr(args, "linea_base", None) is not None:
         cfg.baseline = args.linea_base
-    if getattr(args, "nivel_max", None):
+    if getattr(args, "nivel_max", None) is not None:
         cfg.max_level = args.nivel_max
     if getattr(args, "planificacion", None) is not None:
         cfg.plan = args.planificacion.strip()
@@ -95,7 +96,9 @@ def cmd_generar(args) -> int:
     if args.migrar_desde and Path(args.migrar_desde).resolve() == salida.resolve():
         raise ConfigError("--migrar-desde debe ser un archivo distinto de --salida.")
 
-    from evm.workbook import write_workbook
+    from evm.workbook import check_writable, write_workbook
+    if salida.exists():
+        check_writable(salida)                  # libro abierto en Excel: se informa antes de leer MS Project
     print(f"Leyendo {args.origen} ...")
     with open_project(args.origen, cfg, args.motor, args.visible) as (project, source):
         report = build_report(project, cfg, source)
@@ -166,6 +169,9 @@ def cmd_actualizar(args) -> int:
     # Multi-empresa: se usan los nombres y campos con los que se generó el libro
     cfg = apply_book_settings(cfg, book_meta(args.libro))
     check_only(cfg, args.solo)
+    if not args.simular:
+        from evm.workbook import check_writable
+        check_writable(args.libro)              # libro abierto en Excel: se informa antes de leer MS Project
     print(f"Leyendo {args.origen} ...")
     with open_project(args.origen, cfg, args.motor, args.visible, status) as (project, _source):
         pass

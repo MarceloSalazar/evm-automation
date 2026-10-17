@@ -166,7 +166,7 @@ class TimephasedPVSource(LinearPVSource):
             return self._linear_description
         text = self.base_description
         if self.linear_count:
-            text += f" ({self.linear_count} tareas sin datos mensuales: reparto lineal)"
+            text += f" ({plural(self.linear_count, 'tarea', 'tareas')} sin datos mensuales: reparto lineal)"
         return text
 
     @description.setter
@@ -180,6 +180,14 @@ class TimephasedPVSource(LinearPVSource):
         tp = self.fetch(task) or {}
         total = sum(tp.values())
         if abs(total) < 1e-9:
+            return self.linear_leaf(task)
+        if total * amount < 0:
+            # No se puede ajustar en forma proporcional: el ajuste invertiría el signo de cada mes
+            self.issues.append(Issue(
+                SEV_WARN, task.wbs, task.name,
+                f"La distribución mensual de la línea base en MS Project suma {fmt_money(total)} y el costo de "
+                f"línea base es {fmt_money(amount)} (signo opuesto). El costo de línea base se repartió en forma "
+                "lineal entre el inicio y el fin de la línea base."))
             return self.linear_leaf(task)
         self.timephased_count += 1
         if abs(total - amount) > tolerance(amount):
@@ -355,11 +363,14 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
     # Tareas inactivas (MS Project 2010+): se excluyen con toda su rama
     excluded: dict[int, list[Task]] = {}
     if not cfg.include_inactive:
+        inactive_roots = [r for r in roots if not r.active]
         roots, excluded, removed = prune_inactive(roots)
         if removed:
-            excl_cost = sum(c.baseline_cost for lst in excluded.values() for c in lst)
+            excl_cost = (sum(c.baseline_cost for lst in excluded.values() for c in lst)
+                         + sum(r.baseline_cost for r in inactive_roots))
             issues.append(Issue(SEV_INFO, "", "",
-                                f"Se excluyeron {removed} tareas inactivas (costo de línea base "
+                                f"Se {'excluyó' if removed == 1 else 'excluyeron'} "
+                                f"{plural(removed, 'tarea inactiva', 'tareas inactivas')} (costo de línea base "
                                 f"{fmt_money(excl_cost)}, que no forma parte del BAC)."))
 
     # Planificación (p. ej. INTERNO o CLIENTE): solo las tareas que dependen de ella
@@ -454,20 +465,6 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
                             "tienen línea base: no aportan PV. Si corresponde, se debe actualizar la línea base."))
         for t in no_baseline[:200]:
             issues.append(Issue(SEV_WARN, code_of(t), t.name, f"Sin línea base. Costo actual {fmt_money(t.cost)}."))
-
-    # --- Horizonte -------------------------------------------------------------
-    if cfg.start_month:
-        start = first_of_month(cfg.start_month)
-    else:
-        keys = [k for d in own.values() for k, v in d.items() if v]
-        if keys:
-            y, m = min(keys)
-            start = date(y, m, 1)
-        else:
-            dates = [t.baseline_start or t.start for t in scope.tasks() if (t.baseline_start or t.start)]
-            ref = min(dates) if dates else (project.project_start or datetime.now())
-            start = first_of_month(ref.date() if isinstance(ref, datetime) else ref)
-    horizon = Horizon(start, cfg.months)
 
     # --- Filas del informe -----------------------------------------------------
     rows: list[ReportRow] = []
@@ -635,6 +632,21 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
                                 f"'{cfg.split_field}' = {t.split_a:g} fuera de rango (debe ser mayor que 0 y como "
                                 f"máximo 100): se usa {cfg.split_default:g} %."))
 
+    # --- Horizonte -------------------------------------------------------------
+    # Sin mes de inicio: el primer mes con PV en las filas del libro (las tareas omitidas no cuentan)
+    if cfg.start_month:
+        start = first_of_month(cfg.start_month)
+    else:
+        keys = [k for row in rows if row.is_input for k, v in row.pv.items() if v]
+        if keys:
+            y, m = min(keys)
+            start = date(y, m, 1)
+        else:
+            dates = [t.baseline_start or t.start for t in scope.tasks() if (t.baseline_start or t.start)]
+            ref = min(dates) if dates else (project.project_start or datetime.now())
+            start = first_of_month(ref.date() if isinstance(ref, datetime) else ref)
+    horizon = Horizon(start, cfg.months)
+
     # --- Vectores mensuales ---------------------------------------------------
     total_before = total_after = 0.0
     for row in rows:
@@ -725,9 +737,9 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
     if linear and isinstance(source, TimephasedPVSource):
         if source.timephased_count:
             issues.append(Issue(SEV_INFO, "", "",
-                                f"{linear} tareas no tienen distribución mensual de la línea base en MS Project (p. ej. "
-                                "costo de línea base escrito a mano): su BAC se repartió en forma lineal entre el "
-                                "inicio y el fin de la línea base."))
+                                f"{plural(linear, 'tarea no tiene', 'tareas no tienen')} distribución mensual de la "
+                                "línea base en MS Project (p. ej. costo de línea base escrito a mano): su BAC se "
+                                "repartió en forma lineal entre el inicio y el fin de la línea base."))
         elif project.baseline_found:
             issues.append(Issue(SEV_WARN, "", "",
                                 "MS Project no entregó la distribución mensual de la línea base: el BAC de cada tarea "

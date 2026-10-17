@@ -1,7 +1,7 @@
 """Robustez del libro: actualizar, migrar, escritura, Cuadro de Mando, CLI y configuración.
 
-Las pruebas marcadas con xfail(strict=True) documentan hallazgos confirmados en la revisión: fallan
-hoy por el motivo indicado en `reason` y deben pasar (y perder la marca) cuando se corrija el código.
+Incluye los casos de los problemas detectados en la revisión del código, ya corregidos, para que no
+vuelvan a aparecer.
 """
 import re
 import shutil
@@ -11,7 +11,6 @@ from datetime import date, datetime
 
 import pytest
 from openpyxl import Workbook, load_workbook
-from openpyxl.utils.exceptions import IllegalCharacterError
 from openpyxl.writer.excel import ExcelWriter
 
 from evm import dashboard
@@ -25,11 +24,6 @@ from evm.workbook import FIRST_MONTH_COL, FIRST_ROW, WorkbookFormatError, write_
 
 S, F = datetime(2026, 1, 5, 8), datetime(2026, 3, 27, 17)
 ERROR = "error"     # resultado de una lectura rechazada con WorkbookFormatError
-
-
-def hallazgo(reason: str, raises=AssertionError):
-    """Marca de un hallazgo confirmado: la prueba falla hoy por ese motivo (y solo por ese)."""
-    return pytest.mark.xfail(strict=True, reason=f"Hallazgo: {reason}", raises=raises)
 
 
 # ----------------------------------------------------------------------------
@@ -144,11 +138,7 @@ def residual_tasks():
     return tasks
 
 
-@pytest.mark.parametrize("multi", [
-    pytest.param(False, marks=hallazgo("en una sola empresa el EV de la fila -D usa el avance de toda la tarea "
-                                       "resumen, incluidos los paquetes con fila propia")),
-    True,
-], ids=["una_empresa", "multiempresa"])
+@pytest.mark.parametrize("multi", [False, True], ids=["una_empresa", "multiempresa"])
 def test_residual_row_ev_uses_its_own_tasks(tmp_path, multi):
     cfg = Config(multi_enabled=multi, months=24)
     book = tmp_path / "b.xlsx"
@@ -159,8 +149,6 @@ def test_residual_row_ev_uses_its_own_tasks(tmp_path, multi):
     assert residual.ev_cum == pytest.approx(100)          # su única tarea está terminada
 
 
-@hallazgo("no se detectan filas insertadas en las hojas EV/AC: los valores se escriben en otras filas",
-          raises=pytest.fail.Exception)
 def test_update_rejects_shifted_rows(small_book):
     def insert_row(wb):
         ws = wb["EV"]
@@ -168,16 +156,23 @@ def test_update_rejects_shifted_rows(small_book):
         ws.cell(6, 1, "Nota")
     tamper(small_book, insert_row)
     before = small_book.read_bytes()
-    with pytest.raises(WorkbookFormatError, match="EV"):
+    with pytest.raises(WorkbookFormatError, match=r"hoja 'EV'.*fila 6.*'1\.1\.0'.*'Nota'"):
         run_update(P(progress_tasks()), Config(), small_book, date(2026, 1, 31), backup=False)
     assert small_book.read_bytes() == before
+    with pytest.raises(WorkbookFormatError, match="filas insertadas, eliminadas u ordenadas"):
+        prior_from_book(small_book, "Programa")            # tampoco se migra un historial desplazado
 
 
-@pytest.mark.parametrize("with_residual", [
-    False,
-    pytest.param(True, marks=hallazgo("el costo real de un paquete nuevo con código EDT se suma sin aviso en la "
-                                      "fila -D de su tarea resumen")),
-], ids=["sin_fila_D", "con_fila_D"])
+def test_update_rejects_deleted_rows_in_company_sheet(tmp_path):
+    cfg = Config(multi_enabled=True, months=24)
+    book = tmp_path / "multi.xlsx"
+    make_book(book, P(base_tasks()), cfg)
+    tamper(book, lambda wb: wb["AC-EmpresaA"].delete_rows(6))
+    with pytest.raises(WorkbookFormatError, match="hoja 'AC-EmpresaA'"):
+        run_update(P(progress_tasks()), cfg, book, date(2026, 1, 31), backup=False)
+
+
+@pytest.mark.parametrize("with_residual", [False, True], ids=["sin_fila_D", "con_fila_D"])
 def test_new_coded_package_without_row_warns(tmp_path, with_residual):
     tasks = base_tasks()
     if with_residual:
@@ -190,27 +185,39 @@ def test_new_coded_package_without_row_warns(tmp_path, with_residual):
     now[0].acwp = 500.0
     res = run_update(P(now, summary_acwp=500.0), Config(), book, date(2026, 1, 31), dry_run=True)
     assert any("1.3 'Paquete nuevo'" in w and "--migrar-desde" in w for w in res.warnings)
+    assert all(r.ac_cum == 0 for r in res.rows)              # el costo del paquete nuevo no va a la fila -D
 
 
-@hallazgo("no se detecta una fórmula de la fila TOTAL reemplazada por un valor")
 def test_overwritten_total_formula_is_reported(small_book):
     total = row_of(load_workbook(small_book)["AC"], "TOTAL")
     tamper(small_book, lambda wb: wb["AC"].cell(total, FIRST_MONTH_COL, 0))
-    try:
-        res = run_update(P(progress_tasks()), Config(), small_book, date(2026, 1, 31), backup=False)
-        message = " ".join(res.warnings)
-    except WorkbookFormatError as exc:
-        message = str(exc)
-    assert f"AC!G{total}" in message
+    res = run_update(P(progress_tasks()), Config(), small_book, date(2026, 1, 31), backup=False)
+    gaps = [w for w in res.warnings if "sin la fórmula del libro" in w]
+    assert len(gaps) == 1 and f"AC!G{total}" in gaps[0]
+    assert load_workbook(small_book)["AC"].cell(total, FIRST_MONTH_COL).value == 0   # no se modifica
 
 
-@hallazgo("una tarea desactivada después de generar el libro sigue cargando EV y AC sin aviso")
+def test_overwritten_company_sum_formula_is_reported(tmp_path):
+    cfg = Config(multi_enabled=True, months=24)
+    book = tmp_path / "multi.xlsx"
+    make_book(book, P(base_tasks()), cfg)
+    row = row_of(load_workbook(book)["EV"], "1.1.0")
+    tamper(book, lambda wb: wb["EV"].cell(row, FIRST_MONTH_COL + 1, 5))      # suma de empresas pisada
+    res = run_update(P(progress_tasks()), cfg, book, date(2026, 1, 31), dry_run=True)
+    assert any(f"EV!H{row}" in w for w in res.warnings if "sin la fórmula del libro" in w)
+
+
+def test_untouched_book_reports_no_formula_gaps(small_book):
+    assert read_book(small_book).formula_gaps == []
+
+
 def test_task_made_inactive_after_generation_is_reported(small_book):
     tasks = progress_tasks()
     tasks[2].active = False                                  # C se desactiva en MS Project
     res = run_update(P(tasks, summary_acwp=60.0), Config(), small_book, date(2026, 1, 31), dry_run=True)
-    loaded = {r.code for r in res.rows}
-    assert "1.2.0" not in loaded or any("inactiv" in w.lower() for w in res.warnings)
+    assert {r.code for r in res.rows} == {"1.1.0"}
+    assert any("1.2.0" in w and "inactiva" in w for w in res.warnings)
+    assert not any("difiere" in w for w in res.warnings)    # AC cargado = costo real de las tareas activas
 
 
 def renamed_tasks(shift=0):
@@ -224,12 +231,7 @@ def renamed_tasks(shift=0):
     return tasks
 
 
-@pytest.mark.parametrize("cfg", [
-    Config(),
-    pytest.param(Config(max_level=4), marks=hallazgo("con otro nivel máximo no se asocian las filas de un proyecto "
-                                                     "renombrado (se usa el nivel de la configuración y no el del "
-                                                     "libro)")),
-], ids=["mismo_nivel", "nivel_4"])
+@pytest.mark.parametrize("cfg", [Config(), Config(max_level=4)], ids=["mismo_nivel", "nivel_4"])
 def test_renamed_project_update_matches_by_code(tmp_path, cfg):
     book = tmp_path / "b.xlsx"
     make_book(book, P(renamed_tasks()), SMALL)
@@ -289,6 +291,10 @@ def test_force_allows_loading_an_earlier_month(small_book):
     assert small_book.read_bytes() == before                 # sin --forzar no se modifica
     res = run_update(P(progress_tasks()), Config(), small_book, date(2026, 1, 31), backup=False, force=True)
     assert any("anterior a la última cargada" in w for w in res.warnings)
+    forced = [w for w in res.warnings if "--forzar" in w]
+    assert len(forced) == 1
+    assert "02/2026" in forced[0] and "EV 1.1.0" in forced[0] and "AC 1.2.0" in forced[0]
+    assert "ya no coinciden con MS Project" in forced[0] and "'actualizar'" in forced[0]
     b = read_book(small_book)
     assert b.status_date == date(2026, 1, 31)
     assert b.ev[book_row(b, "1.1.0")][0] == pytest.approx(50)   # EV acumulado a enero (sin meses previos)
@@ -329,8 +335,6 @@ def load_text_in_ac(path, text):
     ("1 234", {1234}),
     ("1.234,5", {1234.5, ERROR}),
     ("1,234.50", {1234.5, ERROR}),
-    pytest.param("1.234", {1234, ERROR}, marks=hallazgo("el texto '1.234' (separador de miles) se lee como 1,234")),
-    pytest.param("nan", {ERROR}, marks=hallazgo("el texto 'nan' se acepta como número y la celda queda vacía")),
 ])
 def test_text_numbers_in_input_cells(small_book, text, accepted):
     assert load_text_in_ac(small_book, text) in accepted
@@ -339,7 +343,6 @@ def test_text_numbers_in_input_cells(small_book, text, accepted):
 # ----------------------------------------------------------------------------
 # Guardado del libro
 # ----------------------------------------------------------------------------
-@hallazgo("el guardado no es atómico: un error durante el guardado destruye el libro")
 def test_failed_save_keeps_original_book(small_book, monkeypatch):
     before = small_book.read_bytes()
 
@@ -351,6 +354,21 @@ def test_failed_save_keeps_original_book(small_book, monkeypatch):
         run_update(P(progress_tasks()), Config(), small_book, date(2026, 1, 31), backup=False)
     monkeypatch.undo()
     assert small_book.read_bytes() == before
+    assert [p.name for p in small_book.parent.iterdir()] == ["b.xlsx"]     # sin archivos temporales
+
+
+def test_failed_generation_keeps_existing_book(small_book, monkeypatch):
+    before = small_book.read_bytes()
+
+    def fail(self, ws):
+        raise OSError("disco lleno (simulado)")
+
+    monkeypatch.setattr(ExcelWriter, "write_worksheet", fail)
+    with pytest.raises(OSError, match="simulado"):
+        make_book(small_book, P(progress_tasks()), SMALL)       # como generar --sobrescribir
+    monkeypatch.undo()
+    assert small_book.read_bytes() == before
+    assert [p.name for p in small_book.parent.iterdir()] == ["b.xlsx"]
 
 
 def lock_on_save(monkeypatch):
@@ -368,7 +386,6 @@ def test_locked_book_reports_clear_error(small_book, monkeypatch):
     assert small_book.read_bytes() == before
 
 
-@hallazgo("con el libro bloqueado queda un respaldo huérfano en cada intento")
 def test_locked_book_leaves_no_orphan_backup(small_book, monkeypatch):
     lock_on_save(monkeypatch)
     with pytest.raises(PermissionError):
@@ -388,6 +405,21 @@ def test_real_windows_lock_reports_clear_error(small_book):
     finally:
         handle.Close()
     assert small_book.read_bytes() == before
+    assert [p.name for p in small_book.parent.iterdir()] == ["b.xlsx"]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="bloqueo de archivos de Windows")
+def test_real_windows_lock_is_reported_before_reading_the_project(example_book, example_files, capsys):
+    win32file = pytest.importorskip("win32file")
+    handle = win32file.CreateFile(str(example_book), win32file.GENERIC_READ, win32file.FILE_SHARE_READ, None,
+                                  win32file.OPEN_EXISTING, 0, None)
+    try:
+        rc, out, err = run_cli(capsys, "actualizar", "--origen", example_files["jun"], "--config",
+                               example_files["config"], "--libro", example_book)
+    finally:
+        handle.Close()
+    assert rc == 2 and "se debe cerrar" in err and "Leyendo" not in out
+    assert backups(example_book.parent) == []
 
 
 # ----------------------------------------------------------------------------
@@ -415,11 +447,10 @@ def _meta(key, value=None, delete=False):
 
 
 @pytest.mark.parametrize("mutate", [
-    pytest.param(_rename_ev, id="hoja_EV_renombrada", marks=hallazgo("hoja EV renombrada: error inesperado (KeyError)")),
-    pytest.param(_delete("Resumen"), id="sin_Resumen", marks=hallazgo("hoja Resumen eliminada: error inesperado")),
-    pytest.param(_delete("_graficos"), id="sin_graficos", marks=hallazgo("hoja _graficos eliminada: error inesperado")),
-    pytest.param(_meta("horizonte_inicio", "2026-01-01"), id="inicio_como_texto",
-                 marks=hallazgo("inicio del horizonte guardado como texto en _meta: error inesperado")),
+    pytest.param(_rename_ev, id="hoja_EV_renombrada"),
+    pytest.param(_delete("Resumen"), id="sin_Resumen"),
+    pytest.param(_delete("_graficos"), id="sin_graficos"),
+    pytest.param(_meta("horizonte_inicio", "2026-01-01"), id="inicio_como_texto"),
     pytest.param(_meta("meses", "abc"), id="meses_no_numerico"),
     pytest.param(_meta("fila_total", delete=True), id="falta_fila_total"),
     pytest.param(_delete("_meta"), id="sin_meta"),
@@ -427,11 +458,24 @@ def _meta(key, value=None, delete=False):
 def test_tampered_book_fails_with_format_error(example_book, example_files, capsys, mutate):
     tamper(example_book, mutate)
     before = example_book.read_bytes()
-    rc, _out, err = run_cli(capsys, "actualizar", "--origen", example_files["jun"], "--config",
+    rc, out, err = run_cli(capsys, "actualizar", "--origen", example_files["jun"], "--config",
                             example_files["config"], "--libro", example_book, "--sin-respaldo")
     assert example_book.read_bytes() == before
     assert "inesperado" not in err and "ERROR:" in err
     assert rc == 2
+    assert "Leyendo" not in out                             # se informa antes de leer MS Project
+
+
+def test_legacy_book_without_dashboard_still_updates(small_book):
+    """Libros anteriores a la versión 1.3.0: sin Cuadro de Mando ni _graficos, con hoja 'Curva S'."""
+    def legacy(wb):
+        del wb["Cuadro de Mando"]
+        del wb["_graficos"]
+        wb["Evolución mensual"].title = "Curva S"
+    tamper(small_book, legacy)
+    res = run_update(P(progress_tasks()), Config(), small_book, date(2026, 1, 31), backup=False)
+    assert {r.code for r in res.rows} == {"1.1.0", "1.2.0"}
+    assert chart_count(small_book) == 1
 
 
 def test_missing_company_sheet_in_multi_book(tmp_path):
@@ -468,16 +512,12 @@ def test_update_roundtrip_preserves_workbook_features(small_book):
     assert chart_count(small_book) == 3
 
 
-@pytest.mark.parametrize("months", [
-    1, 14, 336,
-    pytest.param(337, marks=hallazgo("eje de fechas sin paso para más de 336 meses", raises=StopIteration)),
-    pytest.param(600, marks=hallazgo("eje de fechas sin paso para más de 336 meses", raises=StopIteration)),
-])
+@pytest.mark.parametrize("months", [1, 14, 336, 337, 600, 1000])
 def test_date_axis_supports_every_horizon(months):
-    assert dashboard._date_axis(months).majorUnit >= 1
+    step = dashboard._date_axis(months).majorUnit
+    assert step >= 1 and (months / step <= 14 or step == 60)
 
 
-@hallazgo("un plan de más de 336 meses impide generar el libro (StopIteration)", raises=StopIteration)
 def test_generate_and_update_book_beyond_336_months(tmp_path):
     tasks = base_tasks()
     tasks[1].baseline_finish = datetime(2055, 12, 28, 17)       # 30 años de plan
@@ -489,7 +529,6 @@ def test_generate_and_update_book_beyond_336_months(tmp_path):
 
 
 @pytest.mark.parametrize("where", ["tarea", "proyecto"])
-@hallazgo("un carácter de control en un nombre impide generar el libro", raises=IllegalCharacterError)
 def test_control_characters_in_names(tmp_path, where):
     tasks, name = base_tasks(), "Programa"
     if where == "tarea":
@@ -500,8 +539,11 @@ def test_control_characters_in_names(tmp_path, where):
     make_book(book, P(tasks, name=name), SMALL)
     ws = load_workbook(book)["PV"]
     assert ws.cell(row_of(ws, "1.1.0"), 2).value == ("Bcampana" if where == "tarea" else "B")
+    meta = read_book(book).meta
+    assert meta["proyecto"] == ("Programa" if where == "tarea" else "ProgVT")
     res = run_update(P(progress_tasks(), name=name), Config(), book, date(2026, 1, 31), dry_run=True)
     assert not any("fue generado para el proyecto" in w for w in res.warnings)
+    assert {r.code for r in res.rows} == {"1.1.0", "1.2.0"}
 
 
 # ----------------------------------------------------------------------------
@@ -548,7 +590,6 @@ def test_migration_values_after_new_horizon_end_are_accumulated(tmp_path):
     assert any("después del último mes" in i.message for i in rep.issues)
 
 
-@hallazgo("los EV/AC anteriores al nuevo mes 1 se acumulan en ese mes sin aviso")
 def test_migration_values_before_new_horizon_start_warn(tmp_path):
     old = old_book_with_ev(tmp_path / "old.xlsx")
     new = tmp_path / "new.xlsx"
@@ -556,10 +597,10 @@ def test_migration_values_before_new_horizon_start_warn(tmp_path):
                     prior=prior_from_book(old, "Programa"))
     b = read_book(new)
     assert sum(book_totals(b)[1]) == pytest.approx(35)        # el total se conserva
-    assert any("EV/AC" in i.message and "antes" in i.message for i in rep.issues)
+    assert b.ev[book_row(b, "1.1.0")][:2] == [30, 5]           # enero y febrero, en el mes 1 (abril)
+    assert any("EV/AC por 30.00" in i.message and "antes del primer mes" in i.message for i in rep.issues)
 
 
-@hallazgo("la migración descarta los meses cargados con 0")
 def test_migration_keeps_explicit_zero_months(tmp_path):
     old = tmp_path / "old.xlsx"
     make_book(old, P(base_tasks()), SMALL)
@@ -574,6 +615,20 @@ def test_migration_keeps_explicit_zero_months(tmp_path):
     row = book_row(a, "1.1.0")
     assert a.ev[row][:2] == [0.0, 50.0]
     assert b.ev[book_row(b, "1.1.0")][:2] == [0.0, 50.0]
+    assert b.ev[book_row(b, "1.1.0")][2] is None                # los meses sin cargar siguen vacíos
+
+
+def test_migration_zero_only_rows_are_not_reported_as_lost(tmp_path):
+    old = tmp_path / "old.xlsx"
+    make_book(old, P(base_tasks()), SMALL)
+    no_progress = base_tasks()
+    for t in no_progress:
+        t.acwp = 0.0
+    run_update(P(no_progress), Config(), old, date(2026, 1, 31), backup=False)       # solo ceros
+    prior = prior_from_book(old, "Programa")
+    rep = make_book(tmp_path / "new.xlsx", P(base_tasks()[:2]), SMALL, prior=prior)  # C eliminada
+    assert prior.unmatched == [] and prior.matched == 0
+    assert not any(i.severity == "Error" for i in rep.issues)
 
 
 # ----------------------------------------------------------------------------
@@ -611,15 +666,16 @@ def test_cli_unexpected_errors(tmp_path, capsys, monkeypatch, error, code, messa
         assert "-v" in err                                   # indica cómo ver el detalle técnico
 
 
-@pytest.mark.parametrize("option", [
-    pytest.param(["--meses", "0"], id="meses_0"),
-    pytest.param(["--nivel-max", "0"], id="nivel_max_0"),
+@pytest.mark.parametrize("option, message", [
+    pytest.param(["--meses", "0"], "meses debe estar entre", id="meses_0"),
+    pytest.param(["--nivel-max", "0"], "nivel_maximo debe estar entre", id="nivel_max_0"),
+    pytest.param(["--mes-inicio", ""], "Mes inválido", id="mes_inicio_vacio"),
 ])
-@hallazgo("--meses 0 y --nivel-max 0 se ignoran en silencio (se usan 120 meses y nivel 3)")
-def test_cli_rejects_zero_overrides(tmp_path, capsys, example_files, option):
-    rc, _out, err = run_cli(capsys, "generar", "--origen", example_files["base"], "--config",
-                            example_files["config"], "--salida", tmp_path / "x.xlsx", *option)
-    assert rc == 2 and "debe estar entre" in err
+def test_cli_rejects_zero_overrides(tmp_path, capsys, example_files, option, message):
+    rc, out, err = run_cli(capsys, "generar", "--origen", example_files["base"], "--config",
+                           example_files["config"], "--salida", tmp_path / "x.xlsx", *option)
+    assert rc == 2 and message in err
+    assert "Leyendo" not in out and not (tmp_path / "x.xlsx").exists()
 
 
 # ----------------------------------------------------------------------------
@@ -633,9 +689,7 @@ def test_cli_rejects_zero_overrides(tmp_path, capsys, example_files, option):
     pytest.param(b'[exportacion]\ndecimales = 5\n', "decimales", id="decimales_5"),
     pytest.param(b'[semaforo]\nrojo = 0.97\namarillo = 0.95\n', "umbrales", id="umbrales_invertidos"),
     pytest.param(b'[campos\n', "Error de sintaxis", id="sintaxis"),
-    pytest.param('[campos]\nmetodo = "Método EVM"\n'.encode("cp1252"), "UTF-8", id="ansi_cp1252",
-                 marks=hallazgo("un archivo en ANSI produce un error de decodificación en inglés",
-                                raises=UnicodeDecodeError)),
+    pytest.param('[campos]\nmetodo = "Método EVM"\n'.encode("cp1252"), "UTF-8", id="ansi_cp1252"),
     # Sección que no es tabla y enteros con decimales: ver test_robustez_calculo.py
 ])
 def test_config_rejects_invalid_files(tmp_path, content, message):
@@ -650,8 +704,6 @@ def test_config_missing_file(tmp_path):
         load_config(tmp_path / "no_existe.toml")
 
 
-@hallazgo("un archivo UTF-8 con BOM (Bloc de notas, PowerShell 5.1) se rechaza como error de sintaxis",
-          raises=ConfigError)
 def test_config_accepts_utf8_with_bom(tmp_path):
     path = tmp_path / "config.toml"
     path.write_bytes('[campos]\nmetodo = "Método EVM"\n'.encode("utf-8-sig"))

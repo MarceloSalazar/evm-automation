@@ -127,11 +127,12 @@ def _weekdays(r, parent) -> tuple[dict[int, list[Window]], list[tuple[date, date
     return week, legacy
 
 
-def _exception_days(r, ex) -> list[date]:
+def _exception_days(r, ex) -> list[date] | None:
+    """Días de una excepción del calendario; None si no se puede interpretar."""
     tp = ex.find(r.q("TimePeriod"))
     a, b = r.date(tp, "FromDate"), r.date(tp, "ToDate")
     if a is None or b is None:
-        return []
+        return None
     a, b = a.date(), b.date()
     try:
         kind = int(r.text(ex, "Type") or 1)
@@ -152,7 +153,7 @@ def _exception_days(r, ex) -> list[date]:
             month = int(r.text(ex, "Month")) + 1
             mday = int(r.text(ex, "MonthDay"))
         except ValueError:
-            return []
+            return None
         for y in range(a.year, b.year + 1):
             if 1 <= month <= 12:
                 dd = date(y, month, min(mday, _cal.monthrange(y, month)[1]))
@@ -162,7 +163,7 @@ def _exception_days(r, ex) -> list[date]:
         try:
             mday = int(r.text(ex, "MonthDay"))
         except ValueError:
-            return []
+            return None
         y, m = a.year, a.month
         while date(y, m, 1) <= b:
             dd = date(y, m, min(mday, _cal.monthrange(y, m)[1]))
@@ -185,12 +186,16 @@ def _exception_days(r, ex) -> list[date]:
                     if mask & (1 << i) and a <= dd <= b:
                         days.append(dd)
             w += 1
-    # tipos 3 y 5 (anual y mensual relativas, p. ej. 'primer lunes') no se interpretan
+    else:               # tipos 3 y 5 (anual y mensual relativas, p. ej. 'primer lunes') y otros
+        return None
     return days
 
 
-def calendar_from_xml(r, root, uid: int | None) -> WorkCalendar | None:
-    """Calendario del proyecto (con herencia del calendario base) o None si no existe."""
+def calendar_from_xml(r, root, uid: int | None, warnings: list[str] | None = None) -> WorkCalendar | None:
+    """Calendario del proyecto (con herencia del calendario base) o None si no existe.
+
+    Las excepciones que no se pueden interpretar se omiten y se informan en `warnings`.
+    """
     cals = root.find(r.q("Calendars"))
     if cals is None or uid is None:
         return None
@@ -240,7 +245,18 @@ def calendar_from_xml(r, root, uid: int | None) -> WorkCalendar | None:
                 wins = _windows(r, ex) if working else []
                 if working and not wins:
                     wins = list(STANDARD_DAY)
-                for d in _exception_days(r, ex):
+                days = _exception_days(r, ex)
+                if days is None:
+                    if warnings is not None:
+                        name = r.text(ex, "Name")
+                        label = f"'{name}'" if name else "sin nombre"
+                        warnings.append(
+                            f"Calendario '{r.text(c, 'Name')}': se omite la excepción {label} "
+                            f"(tipo {r.text(ex, 'Type') or '?'}) porque su periodicidad no se interpreta. Solo "
+                            "afecta el reparto entre meses de los tramos de datos escalonados que cruzan de un mes "
+                            "a otro y de las tareas repartidas en forma lineal.")
+                    continue
+                for d in days:
                     cal.exceptions[d] = wins
     for d in range(7):
         cal.weekly.setdefault(d, list(STANDARD_DAY) if d < 5 else [])

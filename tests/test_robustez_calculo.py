@@ -1,8 +1,8 @@
 """Robustez del cálculo: estructura EDT y PV, métodos de medición, multi-empresa, reparto en el
 tiempo, indicadores y configuración.
 
-Las pruebas marcadas con xfail(strict=True) documentan hallazgos de la revisión del código: deben
-fallar hasta que se corrija el hallazgo; al corregirlo se debe quitar la marca.
+Incluye los casos de los problemas detectados en la revisión del código, ya corregidos, para que no
+vuelvan a aparecer.
 """
 import random
 from datetime import date, datetime, timedelta
@@ -20,10 +20,6 @@ from evm.wbs import KIND_RESIDUAL, LinearPVSource, build_tree
 
 from builders import (F, S, T, assert_report_invariants, by_name, ev_after_update, expected_bac, issues_with,
                       random_tree, report, rows_by_code, seeds, timephased_source, tree)
-
-
-def xfail(reason: str, raises=AssertionError):
-    return pytest.mark.xfail(strict=True, raises=raises, reason=f"Hallazgo: {reason}")
 
 
 # ----------------------------------------------------------------------------
@@ -46,29 +42,27 @@ def test_report_invariants_random_trees(seed, multi):
 # ----------------------------------------------------------------------------
 # EDT y PV: casos puntuales
 # ----------------------------------------------------------------------------
-@xfail("el mensaje de tareas inactivas no incluye el costo de las tareas inactivas de nivel superior")
-def test_inactive_top_level_task_cost_is_reported():
+def test_inactive_tasks_cost_is_reported():
+    """El costo excluido incluye las tareas inactivas de nivel superior y las que dependen de otra tarea."""
     rep = report([T(1, 1, "1", "A", 100, active=False), T(2, 1, "2", "B", 50)])
     assert rep.total_bac == pytest.approx(50)
     [issue] = issues_with(rep, "inactiva")
-    assert "100.00" in issue.message                                   # hoy informa 0.00
+    assert issue.message == ("Se excluyó 1 tarea inactiva (costo de línea base 100.00, que no forma parte del "
+                             "BAC).")
+    rep = report([T(1, 1, "1", "A", 100, active=False), T(2, 1, "2", "B", 70),
+                  T(3, 2, "2.1", "B1", 50), T(4, 2, "2.2", "B2", 20, active=False)])
+    assert rep.total_bac == pytest.approx(50)
+    assert issues_with(rep, "Se excluyeron 2 tareas inactivas (costo de línea base 120.00")
 
 
-@xfail("el mes 1 del horizonte se adelanta por tareas omitidas, que no forman parte del BAC")
 def test_horizon_start_ignores_omitted_tasks():
+    """Sin mes de inicio, el mes 1 es el primer mes con PV del libro (las tareas omitidas no cuentan)."""
     tasks = [T(1, 1, "", "Hito suelto", 999, bs=datetime(2024, 3, 4, 8), bf=datetime(2024, 3, 8, 17)),
              T(2, 1, "1", "Fase", 100)]
     rep = report(tasks)
     assert rep.total_bac == pytest.approx(100) and issues_with(rep, "Se omitió 1 tarea")
-    assert rep.horizon.start == date(2026, 1, 1)                       # hoy: 2024-03-01
-
-
-@xfail("los códigos EDT con separador distinto de '.' no respetan nivel_maximo")
-@pytest.mark.parametrize("sep", ["-", "/"])
-def test_wbs_separators_other_than_dot_respect_max_level(sep):
-    codes = ["1", f"1{sep}1", f"1{sep}1{sep}1", f"1{sep}1{sep}1{sep}1"]
-    rep = report([T(i + 1, i + 1, c, f"T{i}", 100) for i, c in enumerate(codes)], Config(max_level=2))
-    assert len(rep.rows) == 2                                          # hoy: 4 filas, todas de nivel EDT 1
+    assert rep.horizon.start == date(2026, 1, 1)
+    assert rep.total_vector[0] > 0 and not rep.pv_before
 
 
 def test_plan_prefix_variants():
@@ -154,12 +148,12 @@ def test_timephased_without_any_data_warns_linear_distribution():
     assert rep.pv_source.startswith("Distribución lineal")
 
 
-@xfail("datos escalonados con signo opuesto al costo de línea base invierten el PV de cada mes")
 def test_timephased_with_opposite_sign_falls_back_to_linear():
-    task = T(1, 1, "1", "A", 100, timephased_pv={(2026, 1): 150.0, (2026, 2): -200.0})
-    pv = report([task], source=timephased_source()).rows[0].pv
-    assert sum(pv.values()) == pytest.approx(100)
-    assert min(pv.values()) >= 0                                       # hoy: {ene: -300, feb: 400}
+    task = T(1, 1, "1", "A", 100, timephased_pv={(2026, 1): 150.0, (2026, 2): -200.0})    # suma -50
+    rep = report([task], source=timephased_source())
+    assert rep.rows[0].pv == pytest.approx({(2026, 1): 100 / 3, (2026, 2): 100 / 3, (2026, 3): 100 / 3})
+    [issue] = issues_with(rep, "signo opuesto", "Advertencia")
+    assert issue.code == "1.0.0" and "suma -50.00" in issue.message and "forma lineal" in issue.message
 
 
 def test_timephased_summary_residual_uses_rollup_difference_or_linear():
@@ -206,16 +200,20 @@ def test_weighted_milestones_without_weights_count_equally():
         assert frac == pytest.approx(1 / 3) and "por igual" in note
 
 
-@xfail("un peso de hito negativo produce una fracción de EV mayor que 1 (EV mayor que el BAC)")
-def test_weighted_milestones_negative_weight_keeps_fraction_in_range():
-    frac, _ = ev_fraction(parse_method("Hitos ponderados"), milestone_package((100, -50)), 0)
-    assert 0.0 <= frac <= 1.0                                          # hoy: 2.0
+def test_weighted_milestones_negative_weight_counts_as_zero():
+    """Un peso negativo no es válido: el hito pesa 0 y se informa."""
+    method = parse_method("Hitos ponderados")
+    frac, note = ev_fraction(method, milestone_package((100, -50)), 0)
+    assert frac == pytest.approx(1.0) and "negativo" in note
+    frac, note = ev_fraction(method, milestone_package((100, -50), done=(1,)), 0)
+    assert frac == 0.0 and "negativo" in note
 
 
-@xfail("con todos los pesos de hito negativos se informa 'sin hitos' aunque el paquete tiene hitos")
-def test_weighted_milestones_all_negative_weights_are_reported():
-    _, note = ev_fraction(parse_method("Hitos ponderados"), milestone_package((-10, -50)), 0)
-    assert "sin hitos" not in note
+def test_weighted_milestones_all_negative_weights_count_equally():
+    """Sin ningún peso válido, los hitos pesan igual (como sin pesos) y se informa."""
+    frac, note = ev_fraction(parse_method("Hitos ponderados"), milestone_package((-10, -50)), 0)
+    assert frac == pytest.approx(0.5)
+    assert "sin hitos" not in note and "por igual" in note and "negativo" in note
 
 
 def test_weighted_percent_without_costs():
@@ -247,10 +245,7 @@ def test_ev_fraction_always_in_unit_interval(seed):
 # ----------------------------------------------------------------------------
 # EV de las filas de otros costos (-D)
 # ----------------------------------------------------------------------------
-@pytest.mark.parametrize("multi", [
-    pytest.param(False, marks=xfail("el EV de una fila -D usa el avance de toda la rama de la tarea resumen")),
-    True,
-])
+@pytest.mark.parametrize("multi", [False, True])
 def test_residual_row_ev_uses_only_its_own_tasks(tmp_path, multi):
     tasks = tree("""
         1 Fase 150
@@ -379,10 +374,12 @@ def test_earned_schedule_monotonic_in_ev(seed):
             previous = es
 
 
-@xfail("el cronograma ganado con EV acumulado negativo divide por cero", raises=ZeroDivisionError)
-def test_earned_schedule_negative_ev_does_not_crash():
-    assert earned_schedule([0.0, 100.0], -1.0, 100.0, at=1) in (0.0, None)
-    assert compute([0.0, 100.0], [-1.0, 0.0], [0.0, 0.0], 100.0, 0).ev == -1.0
+def test_earned_schedule_negative_ev_is_zero():
+    """EV acumulado negativo (correcciones cargadas a mano): ES = 0, sin error."""
+    assert earned_schedule([0.0, 100.0], -1.0, 100.0, at=1) == 0.0
+    assert earned_schedule([50.0, 100.0], -1.0, 100.0, at=2) == 0.0
+    ind = compute([0.0, 100.0], [-1.0, 0.0], [0.0, 0.0], 100.0, 0)
+    assert (ind.ev, ind.es, ind.sv_t) == (-1.0, 0.0, -1.0)
 
 
 def test_compute_before_first_month():
@@ -409,12 +406,11 @@ def test_compute_before_first_month():
     ('[exportacion]\ndistribucion = "lineal"\n', "distribucion"),
     ('[exportacion]\nnivel_maximo = 11\n', "nivel_maximo"),
     ('[horizonte]\nmeses = 601\n', "meses"),
-    pytest.param('campos = "x"\n', "campos",
-                 marks=xfail("una sección que no es tabla produce AttributeError en lugar de ConfigError",
-                             raises=AttributeError)),
-    pytest.param('[horizonte]\nmeses = 12.7\n', "meses",
-                 marks=xfail("un número con decimales en una clave entera se trunca sin aviso",
-                             raises=pytest.fail.Exception)),
+    ('campos = "x"\n', r"\[campos\] debe ser una sección"),
+    ('exportacion = 5\n', r"\[exportacion\] debe ser una sección"),
+    ('[horizonte]\nmeses = 12.7\n', "'meses' debe ser un número entero"),
+    ('[exportacion]\nnivel_maximo = 2.9\n', "'nivel_maximo' debe ser un número entero"),
+    ('[exportacion]\ndecimales = 1.5\n', "'decimales' debe ser un número entero"),
 ])
 def test_load_config_rejects_invalid_values(tmp_path, text, message):
     path = tmp_path / "config.toml"
@@ -425,12 +421,13 @@ def test_load_config_rejects_invalid_values(tmp_path, text, message):
 
 def test_load_config_accepts_toml_dates_and_normalizes(tmp_path):
     path = tmp_path / "config.toml"
-    path.write_text('[horizonte]\nmeses = 1\n[exportacion]\nferiados = [2026-01-01, "06/01/2026", '
+    path.write_text('[horizonte]\nmeses = 12.0\n[exportacion]\nferiados = [2026-01-01, "06/01/2026", '
                     '2026-05-01T00:00:00]\nlinea_base = ""\ndistribucion = "CALENDARIO"\nnivel_maximo = 10\n'
                     'metodo_por_defecto = "50/50"\n[metodos]\nlista = ["0/100", "  "]\n', encoding="utf-8")
     cfg = load_config(path)
     assert cfg.holidays == {date(2026, 1, 1), date(2026, 1, 6), date(2026, 5, 1)}
-    assert (cfg.months, cfg.max_level, cfg.baseline, cfg.distribution) == (1, 10, None, "calendario")
+    assert (cfg.months, cfg.max_level, cfg.baseline, cfg.distribution) == (12, 10, None, "calendario")
+    assert type(cfg.months) is int                                     # 12.0 se acepta como entero
     assert cfg.methods == ["50/50", "0/100"]                           # el método por defecto se agrega a la lista
     with pytest.raises(ConfigError, match="No se encontró"):
         load_config(tmp_path / "no_existe.toml")

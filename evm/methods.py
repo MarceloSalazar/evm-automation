@@ -83,9 +83,15 @@ def is_complete(task: Task) -> bool:
     return task.percent_complete >= 100 or (task.actual_finish is not None and task.percent_complete >= 99.5)
 
 
-def weighted_percent(task: Task, physical: bool = False) -> float:
-    """% de avance ponderado por el costo de línea base de las tareas de detalle (0..1)."""
-    leaves = _leaves(task)
+def weighted_percent(task: Task, physical: bool = False, leaves: list[Task] | None = None) -> float:
+    """% de avance ponderado por el costo de línea base de las tareas de detalle (0..1).
+
+    leaves: tareas de detalle a ponderar cuando la fila no abarca toda la rama de `task`
+    (fila -D de otros costos); por defecto, todas las de la rama.
+    """
+    whole_branch = leaves is None
+    if leaves is None:
+        leaves = _leaves(task)
     pct = (lambda t: t.physical_percent_complete) if physical else (lambda t: t.percent_complete)
 
     def clamp(v: float) -> float:
@@ -97,12 +103,15 @@ def weighted_percent(task: Task, physical: bool = False) -> float:
     if total <= 0:
         # Sin costos para ponderar: % completado de MS Project de la tarea (acumulado por
         # duración); el % físico no se acumula en las tareas resumen, se promedia.
-        return clamp(sum(pct(t) for t in leaves) / len(leaves)) if physical else clamp(pct(task))
+        if physical or not whole_branch:
+            return clamp(sum(pct(t) for t in leaves) / len(leaves))
+        return clamp(pct(task))
     return clamp(sum(max(t.baseline_cost, 0.0) * pct(t) for t in leaves) / total)
 
 
 def ev_fraction(method: Method, task: Task, pv_fraction: float, bac: float | None = None,
-                bcwp: float | None = None, bcwp_base: float | None = None) -> tuple[float, str]:
+                bcwp: float | None = None, bcwp_base: float | None = None,
+                tasks: list[Task] | None = None) -> tuple[float, str]:
     """Fracción del BAC de la fila ganada a la fecha de corte y una nota explicativa.
 
     pv_fraction: PV acumulado / BAC a la fecha de corte (para avance lineal/LOE).
@@ -110,17 +119,34 @@ def ev_fraction(method: Method, task: Task, pv_fraction: float, bac: float | Non
                  (para el método "CPTR de MS Project").
     bcwp_base:   costo de la línea base con que MS Project calculó el CPTR, si es
                  distinta de la línea base del informe (fracción = CPTR / bcwp_base).
+    tasks:       tareas que forman la fila cuando no es toda la rama de `task`: en una fila -D,
+                 la tarea resumen y las tareas sin fila propia. El avance se mide solo con sus
+                 tareas de detalle; si no tiene ninguna (solo costo propio de la tarea resumen),
+                 con el avance de la tarea resumen.
     """
+    leaves = [t for t in tasks if not t.children] if tasks else []
+    if not leaves:
+        leaves = None
+
+    def complete() -> bool:
+        return all(is_complete(t) for t in leaves) if leaves else is_complete(task)
+
+    def started() -> bool:
+        return any(is_started(t) for t in leaves) if leaves else is_started(task)
+
+    def percent(physical: bool = False) -> float:
+        return weighted_percent(task, physical, leaves)
+
     if method.kind == FIXED:
-        if is_complete(task):
+        if complete():
             return 1.0, ""
-        if is_started(task):
+        if started():
             return method.start_fraction, ""
         return 0.0, ""
     if method.kind == PCT:
-        return weighted_percent(task), ""
+        return percent(), ""
     if method.kind in (PHYSICAL, UNITS):
-        return weighted_percent(task, physical=True), ""
+        return percent(physical=True), ""
     if method.kind == PROJECT_BCWP:
         value = bcwp if bcwp is not None else task.bcwp
         base = bcwp_base if bcwp_base is not None else (bac if bac is not None else task.baseline_cost)
@@ -129,26 +155,30 @@ def ev_fraction(method: Method, task: Task, pv_fraction: float, bac: float | Non
             return max(0.0, min(1.0, value / base)), note
         if value is not None and not base:
             return 0.0, ""
-        return weighted_percent(task), "MS Project no informó CPTR: se usó % completado"
+        return percent(), "MS Project no informó CPTR: se usó % completado"
     if method.kind == LOE:
         return max(0.0, min(1.0, pv_fraction)), ""
     if method.kind == MILESTONES:
-        milestones = [d for d in _descendants(task) if d.milestone]
+        milestones = [d for d in (leaves if leaves else _descendants(task)) if d.milestone]
         if milestones:
-            weights = [(d, d.milestone_weight) for d in milestones]
-            if all(w is None or w == 0 for _, w in weights):
+            # Un peso negativo no es válido: el hito pesa 0. Sin ningún peso positivo, todos pesan igual.
+            negative = any((d.milestone_weight or 0.0) < 0 for d in milestones)
+            weights = [(d, max(float(d.milestone_weight or 0.0), 0.0)) for d in milestones]
+            if not any(w > 0 for _, w in weights):
                 weights = [(d, 1.0) for d in milestones]
-                note = "hitos sin peso definido: se ponderaron por igual"
+                note = ("hitos sin peso válido (pesos negativos): se ponderaron por igual" if negative
+                        else "hitos sin peso definido: se ponderaron por igual")
             else:
-                weights = [(d, float(w or 0.0)) for d, w in weights]
-                note = ""
+                note = "hitos con peso negativo: se tomaron con peso 0" if negative else ""
             total = sum(w for _, w in weights)
             if total > 0:
                 done = sum(w for d, w in weights if is_complete(d))
                 return done / total, note
-        if task.physical_percent_complete > 0 or any(t.physical_percent_complete > 0 for t in _leaves(task)):
-            return weighted_percent(task, physical=True), "sin hitos: se usó % físico completado"
-        return weighted_percent(task), "sin hitos ni % físico completado: se usó % completado"
+        physical = (any(t.physical_percent_complete > 0 for t in leaves) if leaves else
+                    task.physical_percent_complete > 0 or any(t.physical_percent_complete > 0 for t in _leaves(task)))
+        if physical:
+            return percent(physical=True), "sin hitos: se usó % físico completado"
+        return percent(), "sin hitos ni % físico completado: se usó % completado"
     # Por definir / no reconocido
     note = "método no definido" if method.kind == UNDEFINED else f"método no reconocido '{method.text}'"
-    return weighted_percent(task), note + ": se usó % completado"
+    return percent(), note + ": se usó % completado"

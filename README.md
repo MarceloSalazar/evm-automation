@@ -170,7 +170,7 @@ Para ver mensajes de diagnóstico se agrega `-v` **antes** del comando:
 | `--fecha-corte AAAA-MM-DD` | Fecha de corte. Por defecto, la fecha de estado del proyecto; si el proyecto no tiene fecha de estado, es obligatoria. Con `.mpp`, el programa fija esa fecha de estado en la copia abierta (no guarda el archivo). |
 | `--solo ev\|ac` | Actualiza solo EV o solo AC. En multi-empresa, `--solo ac` requiere `ac_desde_project = true` (sección 9). |
 | `--simular` | Muestra el EV y AC calculados para cada fila y los indicadores resultantes, sin modificar el libro. |
-| `--forzar` | Permite actualizar aunque haya valores en meses posteriores. |
+| `--forzar` | Permite actualizar aunque haya valores en meses posteriores. Esos meses no se recalculan: se avisa cuáles quedaron con un acumulado que ya no coincide con MS Project, para revisarlos o volver a cargarlos en orden. |
 | `--sin-respaldo` | No crea la copia `<libro>.respaldo-AAAAMMDD-HHMMSS.xlsx` (si ya existe una con ese nombre, se agrega `-2`, `-3`...). |
 | `--config`, `--motor`, `--linea-base`, `--nivel-max`, `--visible` | Igual que en `generar`. |
 | `--planificacion` | No se aplica: `actualizar` usa siempre la planificación con la que se generó el libro (y lo advierte si la configuración indica otra). |
@@ -179,10 +179,22 @@ Repetir `actualizar` para el mismo mes **reemplaza** el valor de ese mes; no lo 
 
 `actualizar` también controla la consistencia con MS Project y lo informa en pantalla:
 
-- Filas cuya tarea ya no existe (se omiten) y tareas con costo que no tienen fila en el libro.
+- Filas cuya tarea ya no existe o está inactiva (se omiten y se conservan los valores ya cargados) y
+  tareas con costo que no tienen fila en el libro, incluidos los paquetes con código EDT agregados en
+  MS Project después de generar el libro.
 - Diferencia entre el AC total cargado y el costo real (CRTR) del proyecto en MS Project.
 - Celdas de ingreso con números guardados como texto o con fórmulas: se reemplazan por su valor
   numérico, porque Excel no suma texto y la biblioteca no puede recalcular fórmulas.
+- Celdas de subtotales, de la fila TOTAL o de la suma de las empresas que perdieron su fórmula (por
+  ejemplo, porque se escribió un valor encima): se informan para restaurarlas.
+
+Antes de leer MS Project, `actualizar` verifica el libro: si falta o se renombró una hoja, si se
+insertaron, eliminaron u ordenaron filas en las hojas mensuales (los códigos EDT de la columna A no
+coinciden con los del libro generado) o si se modificaron las hojas ocultas, se detiene sin modificar
+el libro e indica cómo corregirlo. También avisa de inmediato si el libro está abierto en Excel.
+
+El libro se guarda primero en un archivo temporal y luego reemplaza al anterior: si el guardado falla
+(libro abierto en Excel, disco lleno, interrupción), el libro anterior queda intacto.
 
 Al terminar, muestra en pantalla los indicadores a la fecha de corte, con los mismos cálculos que la
 hoja `Resumen`.
@@ -221,7 +233,11 @@ Se debe copiar `config.ejemplo.toml` como `config.toml` y ajustarlo. Todas las c
 | `[multiempresa] ac_desde_project` | `false` | `false`: el AC de cada empresa se carga a mano. `true`: `actualizar` también lo carga desde MS Project. |
 
 Los nombres de campo aceptan el nombre interno en inglés (`Text10`, `Number1`), el nombre en
-español (`Texto10`, `Número1`) o el alias definido en MS Project.
+español (`Texto10`, `Número1`) o el alias definido en MS Project. Solo se buscan campos de tarea: un
+campo de recurso con el mismo alias no se toma.
+
+El archivo se debe guardar con codificación UTF-8 (con o sin BOM). Los valores enteros (`meses`,
+`nivel_maximo`, `decimales`, `linea_base`) no admiten decimales.
 
 ---
 
@@ -352,7 +368,7 @@ que se puede modificar) y escribe la diferencia con los meses anteriores en el m
 |---|---|
 | `0/100` | 0 hasta terminar; BAC al terminar (% completado = 100). |
 | `50/50`, `25/75`, `20/80` (cualquier `X/Y`) | X % del BAC al comenzar (fecha de comienzo real o avance > 0); 100 % al terminar. |
-| `Hitos ponderados` | BAC × Σ pesos de los hitos cumplidos / Σ pesos. Los hitos son subtareas hito de la fila, con su peso en el campo `peso_hito`. Sin pesos, todos pesan igual. Sin hitos, usa % físico completado si alguna subtarea lo tiene registrado; si no, % completado. |
+| `Hitos ponderados` | BAC × Σ pesos de los hitos cumplidos / Σ pesos. Los hitos son subtareas hito de la fila, con su peso en el campo `peso_hito`. Un peso negativo se toma como 0; sin ningún peso positivo, todos pesan igual. Sin hitos, usa % físico completado si alguna subtarea lo tiene registrado; si no, % completado. |
 | `% Completado` | BAC × % completado de las subtareas, **ponderado por su costo de línea base**. |
 | `% Físico completado` | Igual, con el campo *% físico completado* de MS Project. |
 | `Unidades completadas` | BAC × *% físico completado* (allí se registra el cociente unidades hechas / unidades totales). |
@@ -361,6 +377,10 @@ que se puede modificar) y escribe la diferencia con los meses anteriores en el m
 | `Por definir` u otro texto | Se usa `% Completado` y se informa. |
 
 Las fórmulas fijas se reconocen también escritas con `%` (`50%/50%`, `0% / 100%`).
+
+En las filas `-D Otros costos`, el avance se mide solo con las tareas que forman la fila (las que no
+tienen fila propia), no con toda la rama de la tarea resumen. Si la fila solo tiene costo propio de la
+tarea resumen, se usa el avance de la tarea resumen.
 
 **AC**: es el **CRTR (ACWP)** de MS Project a la fecha de estado. Para filas de nivel 3 con
 subtareas es la suma de ellas. El costo real cargado directamente en una tarea resumen de nivel 1 o 2,
@@ -543,11 +563,14 @@ La hoja **Validación** (y la consola) informa, entre otros:
 - Tareas resumen con costo propio (se agrega una fila de otros costos).
 - Línea base de una tarea resumen distinta de la suma de sus subtareas (línea base no acumulada).
 - Distribución mensual de MS Project que no suma el costo de línea base (costo de línea base editado
-  a mano): se ajusta en forma proporcional.
+  a mano): se ajusta en forma proporcional; si su signo es opuesto al del costo de línea base, el costo
+  se reparte en forma lineal.
+- Excepciones de calendario que no se interpretan (por ejemplo, "primer lunes de mayo"): se omiten y
+  se informan; solo afectan el reparto entre meses (motor XML).
 - PV anterior al mes 1 (acumulado en el mes 1) o posterior al mes 120 (fuera de las columnas).
 - BAC total distinto del costo de línea base del proyecto o de la planificación.
 - Códigos EDT duplicados (por ejemplo, si no se eligió una planificación y ambas usan los mismos
-  códigos), filas sin método de medición, tareas inactivas excluidas.
+  códigos), filas sin método de medición, tareas inactivas excluidas (con su costo).
 - Multi-empresa: BAC de cada empresa, tareas sin empresa, valores de empresa no reconocidos y
   `% Reparto` fuera de rango.
 
@@ -584,7 +607,11 @@ La hoja **Validación** (y la consola) informa, entre otros:
 | El proyecto está en Project Online, SharePoint u OneDrive (se abre desde una dirección web) | Se abre en MS Project y se usa `--origen activo`, o se guarda una copia local `.mpp` y se usa esa ruta. |
 | El `.mpp` se descargó de Internet o del correo y MS Project no lo abre | Windows puede haberlo bloqueado: clic derecho en el archivo > *Propiedades* > *Desbloquear*. |
 | `No se pudo guardar ...` | Si el libro está abierto en Excel, se debe cerrar y repetir el comando. |
-| `Hay valores cargados en meses posteriores a la fecha de corte` | Se deben borrar esos meses en `EV`/`AC` o usar `--forzar`. |
+| `Hay valores cargados en meses posteriores a la fecha de corte` | Se deben borrar esos meses en `EV`/`AC` o usar `--forzar` (y luego revisar o volver a cargar los meses posteriores que se indican). |
+| `La hoja ... no tiene las filas con las que se generó el libro` | Se insertaron, eliminaron u ordenaron filas: se deben deshacer esos cambios o recuperar el libro desde un respaldo. Para cambiar la EDT, se modifica MS Project y se regenera con `--migrar-desde`. |
+| `Falta la hoja ...` o `El dato ... de la hoja oculta _meta no es válido` | Se debe restaurar el nombre original de la hoja o recuperar el libro desde un respaldo. |
+| `Hay celdas sin la fórmula del libro` | Se deben restaurar las fórmulas indicadas (por ejemplo, copiándolas de una celda vecina de la misma fila). |
+| `El archivo de configuración ... no está guardado en UTF-8` | Se debe guardar con codificación UTF-8 (en el Bloc de notas: *Guardar como > Codificación: UTF-8*). |
 | `El proyecto no tiene fecha de estado` | Se debe definir *Proyecto > Fecha de estado* en MS Project o indicar `--fecha-corte`. |
 | `contiene el número ... guardado como texto` | Se debe escribir ese valor como número en Excel, o ejecutar `actualizar`, que lo convierte. |
 | `La celda ... tiene una fórmula sin valor calculado` | Se debe abrir y guardar el libro en Excel, o reemplazar la fórmula de esa celda de ingreso por un número. |

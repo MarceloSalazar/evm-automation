@@ -569,7 +569,8 @@ def _legend(chart) -> None:
 
 
 def _date_axis(months: int) -> DateAxis:
-    step = next(s for s in (1, 2, 3, 6, 12, 24) if months / s <= 14)
+    # Paso entre rótulos: a lo sumo 14 rótulos (horizontes de hasta 840 meses; luego, cada 5 años)
+    step = next((s for s in (1, 2, 3, 6, 12, 24, 36, 48, 60) if months / s <= 14), 60)
     axis = DateAxis(crossAx=100)
     axis.baseTimeUnit = "months"
     axis.majorUnit = step
