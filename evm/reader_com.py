@@ -88,6 +88,7 @@ class ComSession:
         self._pythoncom = None
         self._prev_active = None            # proyecto activo antes de empezar (si ya había uno abierto)
         self._saved_app_props: dict[str, object] = {}
+        self._opened_names: set[str] = set()    # proyectos que abrió FileOpenEx (el archivo, el fondo de recursos...)
 
     # -- conexión -------------------------------------------------------------
     def __enter__(self) -> "ComSession":
@@ -171,6 +172,7 @@ class ComSession:
         import pywintypes
         # pythoncom.Empty (no Missing): pywin32 corta la lista de argumentos en el primer Missing.
         e = self._pythoncom.Empty
+        before = self._open_project_names() or set()
         try:
             # Name, ReadOnly, ..., NoAuto, ..., openPool, ..., IgnoreReadOnlyRecommended, ..., DoNotLoadFromEnterprise
             ok = app.FileOpenEx(full, True, e, e, e, e, True, e, e, e, e, PJ_POOL_READ_ONLY, e, e, True, e, True)
@@ -180,6 +182,15 @@ class ComSession:
             raise RuntimeError(f"MS Project no pudo abrir {full}.")
         self.project = app.ActiveProject
         self.opened_by_us = True
+        self._opened_names = (self._open_project_names() or set()) - before
+
+    def _open_project_names(self) -> set[str] | None:
+        """Rutas (en minúsculas) de los proyectos abiertos en MS Project; None si no se pueden leer."""
+        try:
+            projects = self.app.Projects
+            return {str(_get(projects.Item(i), "FullName", "")).lower() for i in range(1, int(projects.Count) + 1)}
+        except Exception:
+            return None
 
     def _activate(self) -> None:
         """Las llamadas a nivel de aplicación (cálculo, alias de campos) actúan sobre el proyecto activo."""
@@ -220,13 +231,18 @@ class ComSession:
                     except Exception:
                         pass
             if self.app is not None and self.started_by_us:
-                try:
-                    if int(self.app.Projects.Count) == 0:   # no cerrar si hay otros proyectos abiertos
+                # MS Project iniciado por el programa: se cierra si solo quedan abiertos proyectos que abrió el
+                # programa (p. ej. el fondo de recursos que se abre junto con el archivo). Si el usuario abrió
+                # otros proyectos en esa instancia (visible), se deja abierta para no descartar su trabajo.
+                remaining = self._open_project_names()
+                if remaining is not None and remaining <= self._opened_names:
+                    try:
                         self.app.Quit(PJ_DO_NOT_SAVE)
-                except Exception:
-                    pass
+                    except Exception:
+                        pass
         finally:
             self._com_tasks.clear()
+            self._opened_names = set()
             self.project = None
             self._prev_active = None
             self.app = None

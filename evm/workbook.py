@@ -1,6 +1,10 @@
 """Generación y lectura del libro Excel de Valor Ganado."""
 from __future__ import annotations
 
+import io
+import os
+import shutil
+import tempfile
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
@@ -13,6 +17,7 @@ from openpyxl.comments import Comment
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.utils.datetime import from_excel
 from openpyxl.workbook.defined_name import DefinedName
 from openpyxl.workbook.properties import CalcProperties
 from openpyxl.worksheet.datavalidation import DataValidation
@@ -758,21 +763,25 @@ def _write_validation(ws, report: Report) -> None:
     ws.auto_filter.ref = f"A3:D{max(4, 3 + len(report.issues))}"
 
 
+def _append_texts(ws, values: list) -> None:
+    """Agrega una fila con los textos limpios (sin caracteres de control) y siempre como texto."""
+    ws.append([clean_text(v) for v in values])
+    _texts_in_last_row(ws)
+
+
 def _write_structure(ws, report: Report, lay: _Layout) -> None:
     ws.append(["fila", "clave", "edt", "nivel", "tipo", "fila_padre", "actividad", "metodo_origen"])
     for row in report.rows:
-        ws.append([lay.r(row), row_key(row) if row.is_input else str(row.task.uid), row.code, row.level,
-                   row.kind, lay.r(row.parent) if row.parent else None, row.name,
-                   row.method if row.is_input else None])
-        _texts_in_last_row(ws)
+        _append_texts(ws, [lay.r(row), row_key(row) if row.is_input else str(row.task.uid), row.code, row.level,
+                           row.kind, lay.r(row.parent) if row.parent else None, row.name,
+                           row.method if row.is_input else None])
 
 
 def write_meta(ws, meta: dict) -> None:
     ws.delete_rows(1, ws.max_row)
     ws.append(["clave", "valor"])
     for k, v in meta.items():
-        ws.append([k, v])
-        _texts_in_last_row(ws)
+        _append_texts(ws, [k, v])
 
 
 def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
@@ -866,19 +875,54 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
 
     wb.calculation = CalcProperties(fullCalcOnLoad=True)
     wb.properties.creator = "evm_export"
-    wb.properties.title = f"EVM - {p.name}"
+    wb.properties.title = clean_text(f"EVM - {p.name}")
     save_workbook(wb, path)
     return meta
 
 
+def _save_error(path: Path) -> str:
+    return f"No se pudo guardar '{path}'. Si el libro está abierto en Excel, se debe cerrar y volver a intentar."
+
+
 def save_workbook(wb, path: str | Path) -> None:
+    """Guarda el libro sin riesgo de dañarlo: escribe un archivo temporal en la misma carpeta y luego
+    reemplaza el libro. Si el guardado falla (libro abierto en Excel, disco lleno, interrupción), el
+    libro anterior queda intacto y el archivo temporal se elimina."""
+    path = Path(path)
+    tmp = None
+    try:
+        buffer = io.BytesIO()
+        wb.save(buffer)                       # se arma el libro en memoria: un error no toca el disco
+        fd, name = tempfile.mkstemp(prefix=f"~{path.stem}.", suffix=".tmp", dir=path.parent)
+        tmp = Path(name)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(buffer.getbuffer())
+        if path.exists():
+            try:
+                shutil.copymode(path, tmp)
+            except OSError:
+                pass
+        os.replace(tmp, path)
+        tmp = None
+    except PermissionError as exc:
+        raise PermissionError(_save_error(path)) from exc
+    finally:
+        if tmp is not None:
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
+def check_writable(path: str | Path) -> None:
+    """Verifica que un libro existente se pueda reemplazar (no está abierto en Excel), antes de leer
+    MS Project, para no esperar la lectura y fallar al guardar."""
     path = Path(path)
     try:
-        wb.save(path)
+        with open(path, "r+b"):
+            pass
     except PermissionError as exc:
-        raise PermissionError(
-            f"No se pudo guardar '{path}'. Si el libro está abierto en Excel, se debe cerrar y volver a "
-            "intentar.") from exc
+        raise PermissionError(_save_error(path)) from exc
 
 
 # ----------------------------------------------------------------------------
@@ -924,12 +968,30 @@ def read_meta(wb) -> dict:
     for k in ("horizonte_inicio", "meses", "primera_fila", "fila_total"):
         if k not in meta:
             raise WorkbookFormatError(f"Falta el dato '{k}' en la hoja _meta.")
+
+    def invalid(k: str) -> WorkbookFormatError:
+        return WorkbookFormatError(f"El dato '{k}' de la hoja oculta _meta no es válido ({meta[k]!r}). Esa hoja no "
+                                   "se debe modificar: se debe recuperar el libro desde un respaldo.")
+
     hs = meta["horizonte_inicio"]
-    meta["horizonte_inicio"] = hs.date() if isinstance(hs, datetime) else hs
-    meta["meses"] = int(meta["meses"])
+    if isinstance(hs, (int, float)) and not isinstance(hs, bool):
+        try:
+            hs = from_excel(hs)                 # fecha guardada como número de serie
+        except (ValueError, OverflowError):
+            raise invalid("horizonte_inicio") from None
+    if isinstance(hs, datetime):
+        hs = hs.date()
+    if not isinstance(hs, date):
+        raise invalid("horizonte_inicio")
+    meta["horizonte_inicio"] = hs
+    for k in ("meses", "primera_fila", "fila_total") + (("nivel_maximo",) if meta.get("nivel_maximo") else ()):
+        try:
+            meta[k] = int(meta[k])
+        except (TypeError, ValueError):
+            raise invalid(k) from None
+    if not 1 <= meta["meses"] <= 16384 - FIRST_MONTH_COL:
+        raise invalid("meses")
     meta["multiempresa"] = _as_bool(meta.get("multiempresa"))
-    meta["primera_fila"] = int(meta["primera_fila"])
-    meta["fila_total"] = int(meta["fila_total"])
     return meta
 
 
@@ -939,7 +1001,11 @@ def read_structure(wb) -> list[StructRow]:
         if not vals or vals[0] is None:
             continue
         fila, key, code, level, kind, parent, name, origin = (list(vals) + [None] * 8)[:8]
-        out.append(StructRow(int(fila), str(key), str(code or ""), int(level or 0), str(kind),
-                             int(parent) if parent else None, str(name or ""),
-                             None if len(vals) < 8 else str(origin or "")))
+        try:
+            out.append(StructRow(int(fila), str(key), str(code or ""), int(level or 0), str(kind),
+                                 int(parent) if parent else None, str(name or ""),
+                                 None if len(vals) < 8 else str(origin or "")))
+        except (TypeError, ValueError):
+            raise WorkbookFormatError(f"La hoja oculta _estructura no es válida (fila {fila!r}). Esa hoja no se "
+                                      "debe modificar: se debe recuperar el libro desde un respaldo.") from None
     return out

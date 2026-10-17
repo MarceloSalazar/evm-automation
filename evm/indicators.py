@@ -25,8 +25,11 @@ def earned_schedule(cum_pv: list[float], ev: float, bac: float, at: int | None =
 
     Si el EV coincide con un tramo plano de la curva PV (meses sin PV), cualquier
     momento del tramo es válido: se toma el más cercano al tiempo transcurrido AT.
-    Devuelve None si la curva PV no alcanza el EV dentro del horizonte.
+    Devuelve None si la curva PV no alcanza el EV dentro del horizonte y 0 si el EV es negativo
+    (correcciones cargadas a mano).
     """
+    if ev < -EPS:
+        return 0.0
     if ev >= bac - EPS:
         return planned_duration(cum_pv, bac)
     lo = sum(1 for v in cum_pv if v < ev - EPS)     # meses con PV acumulado < EV
@@ -39,6 +42,8 @@ def earned_schedule(cum_pv: list[float], ev: float, bac: float, at: int | None =
         return None
     pv_c = cum_pv[c - 1] if c > 0 else 0.0
     pv_next = cum_pv[c]
+    if pv_next == pv_c:         # solo con una curva PV no creciente (PV mensual negativo)
+        return float(c)
     return c + (ev - pv_c) / (pv_next - pv_c)
 
 

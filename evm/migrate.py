@@ -7,7 +7,7 @@ from datetime import date
 from evm.config import ConfigError
 from evm.model import MonthKey
 from evm.wbs import KIND_LEAF, SEV_ERROR, SEV_INFO, SEV_WARN, Issue, Report, ReportRow, fmt_money, iter_subtree, plural
-from evm.workbook import SHEET_LISTS, row_key
+from evm.workbook import SHEET_LISTS, clean_text, row_key
 
 
 @dataclass
@@ -33,7 +33,8 @@ class PriorRow:
 
     @property
     def has_values(self) -> bool:
-        return any(self.series.values())
+        """True si tiene algún valor distinto de 0 (los meses cargados con 0 también se trasladan)."""
+        return any(v for data in self.series.values() for v in data.values())
 
     def total(self, kind: str) -> float:
         """Suma de las series de EV o de AC."""
@@ -73,7 +74,9 @@ def prior_from_book(path, project_name: str) -> PriorData:
     rows = []
     for s in book.input_rows:
         uid_text = s.key[:-2] if s.key.endswith("-D") else s.key
-        series = {k: {book.horizon.key(i): v for i, v in enumerate(src[s.row]) if v} for k, src in sources.items()}
+        # Los meses cargados con 0 se conservan: indican que el mes ya se informó (curvas desde ese mes)
+        series = {k: {book.horizon.key(i): v for i, v in enumerate(src[s.row]) if v is not None}
+                  for k, src in sources.items()}
         rows.append(PriorRow(
             key=s.key, code=s.code, name=s.name, uid=int(uid_text) if uid_text.isdigit() else None,
             residual=s.key.endswith("-D"), series={k: v for k, v in series.items() if v},
@@ -106,7 +109,7 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
         raise ConfigError("--migrar-desde no se admite entre un libro de una sola empresa y uno multi-empresa: "
                           "el historial de EV y AC no se puede repartir entre empresas. Se debe generar el libro "
                           "nuevo sin --migrar-desde.")
-    prior.same_project = prior.project_name == report.project.name
+    prior.same_project = prior.project_name == clean_text(report.project.name)
     if not prior.same_project:
         issues.append(Issue(SEV_WARN, "", "",
                             f"El libro anterior corresponde al proyecto '{prior.project_name}' y el nuevo a "
@@ -148,7 +151,7 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
         sources.setdefault(row_key(target), []).append((old, how))
 
     horizon = report.horizon
-    clamped = 0.0
+    clamped = early = 0.0
     for key, lst in sources.items():
         target = by_key[key]
         merged: dict[str, dict[MonthKey, float]] = {}
@@ -159,6 +162,8 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
                     i = horizon.index(k)
                     if i >= horizon.months:
                         clamped += abs(v)
+                    elif i < 0:
+                        early += abs(v)
                     i = min(max(i, 0), horizon.months - 1)
                     nk = horizon.key(i)
                     merged[kind][nk] = merged[kind].get(nk, 0.0) + v
@@ -171,7 +176,8 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
                                     "(asociada por código EDT)."))
         if any(merged.values()):
             prior.values[key] = merged
-            prior.matched += 1
+            if any(v for data in merged.values() for v in data.values()):
+                prior.matched += 1
         # El método editado en Excel en el libro anterior se conserva si la asociación es uno a uno.
         # Si el método cambió en MS Project (y no se editó en Excel), se usa el nuevo.
         if len(lst) == 1 and lst[0][1] in ("uid", "codigo"):
@@ -193,6 +199,10 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
         if undefined:
             issues.append(Issue(SEV_INFO, "", "", f"{plural(undefined, 'fila', 'filas')} sin método de medición "
                                                   "definido (columna C)."))
+    if early > 0.005:
+        issues.append(Issue(SEV_WARN, "", "",
+                            f"Hay EV/AC por {fmt_money(early)} cargados antes del primer mes del nuevo horizonte "
+                            f"({horizon.start:%m/%Y}): se acumularon en el mes 1."))
     if clamped > 0.005:
         issues.append(Issue(SEV_WARN, "", "",
                             f"Hay EV/AC por {fmt_money(clamped)} cargados después del último mes del nuevo horizonte: "

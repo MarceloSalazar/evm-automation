@@ -48,17 +48,34 @@ def find_soffice():
 
 
 @pytest.fixture(scope="session")
-def recalc():
-    """Devuelve una función que recalcula un .xlsx con LibreOffice (o salta la prueba)."""
+def recalc(tmp_path_factory):
+    """Devuelve una función que recalcula un .xlsx con LibreOffice (o salta la prueba).
+
+    Se usa un perfil de LibreOffice propio de la sesión de pruebas: con el perfil del
+    usuario, si LibreOffice está abierto, la conversión termina sin error pero no se hace.
+    """
     soffice = find_soffice()
     if not soffice:
         pytest.skip("LibreOffice no está instalado: no se verifican las fórmulas")
+    profile = tmp_path_factory.mktemp("perfil_libreoffice").as_uri()
 
     def run(path: Path) -> Path:
         out = path.parent / "recalc"
         out.mkdir(exist_ok=True)
-        subprocess.run([soffice, "--headless", "--calc", "--convert-to", "xlsx", "--outdir", str(out), str(path)],
-                       check=True, capture_output=True, timeout=240)
-        return out / path.name
+        result = out / path.name
+        result.unlink(missing_ok=True)
+        proc = subprocess.run([soffice, f"-env:UserInstallation={profile}", "--headless", "--calc",
+                               "--convert-to", "xlsx", "--outdir", str(out), str(path)],
+                              capture_output=True, timeout=240)
+        if not result.exists():
+            raise RuntimeError(f"LibreOffice no recalculó {path.name}: {proc.stderr.decode(errors='replace')}")
+        return result
 
     return run
+
+
+def pytest_collection_modifyitems(items):
+    """Marca como 'libreoffice' las pruebas que recalculan libros (se omiten con -m "not libreoffice")."""
+    for item in items:
+        if "recalc" in getattr(item, "fixturenames", ()):
+            item.add_marker(pytest.mark.libreoffice)

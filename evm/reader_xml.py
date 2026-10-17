@@ -28,6 +28,10 @@ def timephased_baseline_cost_type(baseline: int) -> int:
 # FixedCostAccrual en MSPDI: 1 = comienzo, 2 = fin, 3 = prorrateado
 _ACCRUAL = {"1": "inicio", "2": "fin", "3": "prorrateado"}
 
+# Prefijo de FieldID de los campos de tarea (los de recurso usan 0x0C40xxxx y los de asignación
+# 0x0F40xxxx); <ExtendedAttributes> define los campos personalizados de todas esas entidades.
+_TASK_FIELD_PREFIX = 0x0B400000
+
 
 class XmlFormatError(ValueError):
     pass
@@ -134,7 +138,8 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
                 fid = int(r.text(ea, "FieldID"))
             except ValueError:
                 continue
-            defs[fid] = (r.text(ea, "FieldName"), r.text(ea, "Alias"))
+            if (fid & 0xFFFF0000) == _TASK_FIELD_PREFIX:     # solo campos de tarea, como con COM
+                defs[fid] = (r.text(ea, "FieldName"), r.text(ea, "Alias"))
 
     wbs_ref = _resolve(cfg.wbs_field, defs) or ("elem", "WBS")
     if cfg.wbs_field and _resolve(cfg.wbs_field, defs) is None:
@@ -161,7 +166,7 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
         cal_uid = int(r.text(root, "CalendarUID"))
     except ValueError:
         cal_uid = None
-    calendar = calendar_from_xml(r, root, cal_uid) or WorkCalendar()
+    calendar = calendar_from_xml(r, root, cal_uid, warnings) or WorkCalendar()
     calendar.add_holidays(cfg.holidays)
 
     # Línea base: la indicada en la configuración o la usada por el proyecto para el valor acumulado
@@ -192,7 +197,7 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
         try:
             uid = int(r.text(el, "UID"))
             tid = int(r.text(el, "ID", "0") or 0)
-            level = int(r.text(el, "OutlineLevel", "0") or 0)
+            level = int(r.text(el, "OutlineLevel") or 1) or 1      # sin nivel (o 0) => 1, como con COM
         except ValueError:
             continue
 
@@ -224,7 +229,7 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
         has_bl = bl_start is not None or bl_finish is not None
         any_baseline = any_baseline or has_bl or bool(bl_cost)
 
-        if level == 0:
+        if uid == 0:                    # tarea resumen del proyecto
             summary_bl_cost = bl_cost
             summary_cost = r.money(el, "Cost")
             summary_acwp = r.money_opt(el, "ACWP")

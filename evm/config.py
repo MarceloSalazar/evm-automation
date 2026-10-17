@@ -149,9 +149,19 @@ def _get(section: dict, key: str, default, kind):
         raise ConfigError(f"'{key}' debe ser true o false.")
     if kind in (int, float) and (isinstance(value, bool) or not isinstance(value, (int, float))):
         raise ConfigError(f"'{key}' debe ser numérico.")
+    if kind is int and isinstance(value, float) and not value.is_integer():
+        raise ConfigError(f"'{key}' debe ser un número entero (sin decimales).")
     if kind is str and not isinstance(value, str):
         raise ConfigError(f"'{key}' debe ser texto.")
     return kind(value)
+
+
+def _section(data: dict, name: str) -> dict:
+    value = data.get(name, {})
+    if not isinstance(value, dict):
+        raise ConfigError(f"[{name}] debe ser una sección: una línea [{name}] seguida de sus claves "
+                          f"(se encontró '{name} = ...').")
+    return value
 
 
 def load_config(path: str | Path | None) -> Config:
@@ -163,21 +173,26 @@ def load_config(path: str | Path | None) -> Config:
     if not path.is_file():
         raise ConfigError(f"No se encontró el archivo de configuración: {path}")
     try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8-sig")       # admite UTF-8 con BOM (Bloc de notas)
+    except UnicodeDecodeError as exc:
+        raise ConfigError(f"El archivo de configuración {path} no está guardado en UTF-8. Se debe guardar con "
+                          "codificación UTF-8 (en el Bloc de notas: Guardar como > Codificación: UTF-8).") from exc
+    try:
+        data = tomllib.loads(text)
     except tomllib.TOMLDecodeError as exc:
         raise ConfigError(f"Error de sintaxis en {path}: {exc}") from exc
 
-    campos = data.get("campos", {})
+    campos = _section(data, "campos")
     cfg.wbs_field = _get(campos, "edt", cfg.wbs_field, str).strip() or "WBS"
     cfg.method_field = _get(campos, "metodo", cfg.method_field, str).strip()
     cfg.milestone_weight_field = _get(campos, "peso_hito", cfg.milestone_weight_field, str).strip()
 
-    hor = data.get("horizonte", {})
+    hor = _section(data, "horizonte")
     start = _get(hor, "mes_inicio", "", str).strip()
     cfg.start_month = parse_month(start) if start else None
     cfg.months = _get(hor, "meses", cfg.months, int)
 
-    exp = data.get("exportacion", {})
+    exp = _section(data, "exportacion")
     cfg.plan = _get(exp, "planificacion", cfg.plan, str).strip()
     cfg.max_level = _get(exp, "nivel_maximo", cfg.max_level, int)
     if exp.get("linea_base") not in (None, ""):
@@ -194,18 +209,18 @@ def load_config(path: str | Path | None) -> Config:
     cfg.currency = _get(exp, "moneda", cfg.currency, str).strip()
     cfg.decimals = _get(exp, "decimales", cfg.decimals, int)
 
-    met = data.get("metodos", {})
+    met = _section(data, "metodos")
     lista = met.get("lista")
     if lista is not None:
         if not isinstance(lista, list) or not all(isinstance(x, str) for x in lista):
             raise ConfigError("[metodos] lista debe ser una lista de textos.")
         cfg.methods = [x.strip() for x in lista if x.strip()]
 
-    sem = data.get("semaforo", {})
+    sem = _section(data, "semaforo")
     cfg.threshold_red = _get(sem, "rojo", cfg.threshold_red, float)
     cfg.threshold_yellow = _get(sem, "amarillo", cfg.threshold_yellow, float)
 
-    mul = data.get("multiempresa", {})
+    mul = _section(data, "multiempresa")
     cfg.multi_enabled = _get(mul, "activar", cfg.multi_enabled, bool)
     cfg.company_field = _get(mul, "campo_empresa", cfg.company_field, str).strip()
     cfg.company_a = _get(mul, "empresa_a", cfg.company_a, str).strip()
