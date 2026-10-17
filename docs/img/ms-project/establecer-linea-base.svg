@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="462" viewBox="0 0 940 462" role="img" aria-label="Esquema del cuadro Establecer línea base de MS Project">
+<title>Esquema del cuadro Establecer línea base de MS Project</title>
+<rect x="0" y="0" width="940" height="462" rx="0" fill="#FFFFFF" stroke="none" stroke-width="1.0"/>
+<rect x="15" y="40" width="440" height="372" rx="0" fill="#FFFFFF" stroke="#A6A6A6" stroke-width="1"/>
+<rect x="15" y="40" width="440" height="26" rx="0" fill="#F3F3F3" stroke="none" stroke-width="1.0"/>
+<text x="235.0" y="57" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1F1F1F" text-anchor="middle">Establecer línea base</text>
+<text x="441" y="57" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11" font-weight="normal" fill="#444444" text-anchor="middle">✕</text>
+<text x="235.0" y="32" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="13" font-weight="bold" fill="#2F7A3A" text-anchor="middle">Línea base inicial</text>
+<circle cx="41" cy="92" r="6" fill="#FFFFFF" stroke="#555555" stroke-width="1"/>
+<circle cx="41" cy="92" r="3" fill="#222222" stroke="none" stroke-width="1.0"/>
+<text x="53" y="96" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Establecer línea base</text>
+<rect x="75" y="106" width="300" height="22" rx="0" fill="#FFFFFF" stroke="#7A7A7A" stroke-width="0.9"/>
+<text x="81" y="121.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Línea base</text>
+<text x="365" y="121.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11" font-weight="normal" fill="#444444" text-anchor="middle">▾</text>
+<circle cx="41" cy="156" r="6" fill="#FFFFFF" stroke="#555555" stroke-width="1"/>
+<text x="53" y="160" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Establecer plan provisional</text>
+<text x="75" y="184" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#8A8A8A" text-anchor="start">Copiar:</text>
+<rect x="125" y="170" width="250" height="22" rx="0" fill="#FFFFFF" stroke="#7A7A7A" stroke-width="0.9"/>
+<text x="131" y="185.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Comienzo/Fin</text>
+<text x="365" y="185.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11" font-weight="normal" fill="#444444" text-anchor="middle">▾</text>
+<text x="75" y="212" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#8A8A8A" text-anchor="start">En:</text>
+<rect x="125" y="198" width="250" height="22" rx="0" fill="#FFFFFF" stroke="#7A7A7A" stroke-width="0.9"/>
+<text x="131" y="213.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Comienzo1/Fin1</text>
+<text x="365" y="213.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11" font-weight="normal" fill="#444444" text-anchor="middle">▾</text>
+<text x="35" y="252" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Para:</text>
+<circle cx="61" cy="270" r="6" fill="#FFFFFF" stroke="#555555" stroke-width="1"/>
+<circle cx="61" cy="270" r="3" fill="#222222" stroke="none" stroke-width="1.0"/>
+<text x="73" y="274" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="bold" fill="#1F1F1F" text-anchor="start">Proyecto completo</text>
+<circle cx="61" cy="292" r="6" fill="#FFFFFF" stroke="#555555" stroke-width="1"/>
+<text x="73" y="296" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Tareas seleccionadas</text>
+<text x="75" y="320" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#8A8A8A" text-anchor="start">Resumir líneas base:</text>
+<rect x="85" y="332" width="12" height="12" rx="0" fill="#FFFFFF" stroke="#555555" stroke-width="1"/>
+<text x="103" y="342" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Para todas las tareas de resumen</text>
+<rect x="85" y="352" width="12" height="12" rx="0" fill="#FFFFFF" stroke="#555555" stroke-width="1"/>
+<text x="103" y="362" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">De subtareas a tareas de resumen seleccionadas</text>
+<rect x="265" y="378" width="80" height="24" rx="2" fill="#FDFDFD" stroke="#2F7A3A" stroke-width="1.4"/>
+<text x="305.0" y="394.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="middle">Aceptar</text>
+<rect x="355" y="378" width="80" height="24" rx="2" fill="#FDFDFD" stroke="#8A8A8A" stroke-width="0.9"/>
+<text x="395.0" y="394.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="middle">Cancelar</text>
+<rect x="49" y="256" width="164" height="26" rx="3" fill="none" stroke="#C00000" stroke-width="2.2"/>
+<circle cx="225" cy="269" r="11" fill="#C00000" stroke="#FFFFFF" stroke-width="1.5"/>
+<text x="225" y="273.5" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="12.5" font-weight="bold" fill="#FFFFFF" text-anchor="middle">1</text>
+<rect x="485" y="40" width="440" height="372" rx="0" fill="#FFFFFF" stroke="#A6A6A6" stroke-width="1"/>
+<rect x="485" y="40" width="440" height="26" rx="0" fill="#F3F3F3" stroke="none" stroke-width="1.0"/>
+<text x="705.0" y="57" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1F1F1F" text-anchor="middle">Establecer línea base</text>
+<text x="911" y="57" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11" font-weight="normal" fill="#444444" text-anchor="middle">✕</text>
+<text x="705.0" y="32" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="13" font-weight="bold" fill="#2F7A3A" text-anchor="middle">Agregar tareas nuevas aprobadas</text>
+<circle cx="511" cy="92" r="6" fill="#FFFFFF" stroke="#555555" stroke-width="1"/>
+<circle cx="511" cy="92" r="3" fill="#222222" stroke="none" stroke-width="1.0"/>
+<text x="523" y="96" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Establecer línea base</text>
+<rect x="545" y="106" width="300" height="22" rx="0" fill="#FFFFFF" stroke="#7A7A7A" stroke-width="0.9"/>
+<text x="551" y="121.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Línea base (último guardado el 30/01/2026)</text>
+<text x="835" y="121.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11" font-weight="normal" fill="#444444" text-anchor="middle">▾</text>
+<circle cx="511" cy="156" r="6" fill="#FFFFFF" stroke="#555555" stroke-width="1"/>
+<text x="523" y="160" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Establecer plan provisional</text>
+<text x="545" y="184" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#8A8A8A" text-anchor="start">Copiar:</text>
+<rect x="595" y="170" width="250" height="22" rx="0" fill="#FFFFFF" stroke="#7A7A7A" stroke-width="0.9"/>
+<text x="601" y="185.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Comienzo/Fin</text>
+<text x="835" y="185.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11" font-weight="normal" fill="#444444" text-anchor="middle">▾</text>
+<text x="545" y="212" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#8A8A8A" text-anchor="start">En:</text>
+<rect x="595" y="198" width="250" height="22" rx="0" fill="#FFFFFF" stroke="#7A7A7A" stroke-width="0.9"/>
+<text x="601" y="213.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Comienzo1/Fin1</text>
+<text x="835" y="213.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11" font-weight="normal" fill="#444444" text-anchor="middle">▾</text>
+<text x="505" y="252" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Para:</text>
+<circle cx="531" cy="270" r="6" fill="#FFFFFF" stroke="#555555" stroke-width="1"/>
+<text x="543" y="274" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Proyecto completo</text>
+<circle cx="531" cy="292" r="6" fill="#FFFFFF" stroke="#555555" stroke-width="1"/>
+<circle cx="531" cy="292" r="3" fill="#222222" stroke="none" stroke-width="1.0"/>
+<text x="543" y="296" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="bold" fill="#1F1F1F" text-anchor="start">Tareas seleccionadas</text>
+<text x="545" y="320" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Resumir líneas base:</text>
+<rect x="555" y="332" width="12" height="12" rx="0" fill="#FFFFFF" stroke="#555555" stroke-width="1"/>
+<text x="561" y="342" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="12" font-weight="bold" fill="#222222" text-anchor="middle">✓</text>
+<text x="573" y="342" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Para todas las tareas de resumen</text>
+<rect x="555" y="352" width="12" height="12" rx="0" fill="#FFFFFF" stroke="#555555" stroke-width="1"/>
+<text x="573" y="362" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">De subtareas a tareas de resumen seleccionadas</text>
+<rect x="735" y="378" width="80" height="24" rx="2" fill="#FDFDFD" stroke="#2F7A3A" stroke-width="1.4"/>
+<text x="775.0" y="394.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="middle">Aceptar</text>
+<rect x="825" y="378" width="80" height="24" rx="2" fill="#FDFDFD" stroke="#8A8A8A" stroke-width="0.9"/>
+<text x="865.0" y="394.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="middle">Cancelar</text>
+<rect x="519" y="278" width="184" height="26" rx="3" fill="none" stroke="#C00000" stroke-width="2.2"/>
+<rect x="549" y="326" width="234" height="24" rx="3" fill="none" stroke="#C00000" stroke-width="2.2"/>
+<circle cx="715" cy="291" r="11" fill="#C00000" stroke="#FFFFFF" stroke-width="1.5"/>
+<text x="715" y="295.5" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="12.5" font-weight="bold" fill="#FFFFFF" text-anchor="middle">2</text>
+<circle cx="797" cy="338" r="11" fill="#C00000" stroke="#FFFFFF" stroke-width="1.5"/>
+<text x="797" y="342.5" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="12.5" font-weight="bold" fill="#FFFFFF" text-anchor="middle">3</text>
+<text x="930" y="454" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="10" font-weight="normal" fill="#7F7F7F" text-anchor="end" font-style="italic">Esquema ilustrativo, no es una captura de MS Project. Los textos pueden variar según la versión.</text>
+</svg>

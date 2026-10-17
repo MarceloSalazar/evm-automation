@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="500" viewBox="0 0 720 500" role="img" aria-label="Esquema del cuadro Editar tabla de búsqueda de MS Project">
+<title>Esquema del cuadro Editar tabla de búsqueda de MS Project</title>
+<rect x="0" y="0" width="720" height="500" rx="0" fill="#FFFFFF" stroke="none" stroke-width="1.0"/>
+<rect x="10" y="10" width="700" height="460" rx="0" fill="#FFFFFF" stroke="#A6A6A6" stroke-width="1"/>
+<rect x="10" y="10" width="700" height="26" rx="0" fill="#F3F3F3" stroke="none" stroke-width="1.0"/>
+<text x="360.0" y="27" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1F1F1F" text-anchor="middle">Editar tabla de búsqueda para Método EVM</text>
+<text x="696" y="27" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11" font-weight="normal" fill="#444444" text-anchor="middle">✕</text>
+<rect x="30" y="46" width="640" height="26" rx="0" fill="#F2F2F2" stroke="none" stroke-width="1.0"/>
+<text x="45.0" y="63.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11" font-weight="bold" fill="#333333" text-anchor="middle"></text>
+<text x="155.0" y="63.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11" font-weight="bold" fill="#333333" text-anchor="middle">Valor</text>
+<text x="460.0" y="63.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11" font-weight="bold" fill="#333333" text-anchor="middle">Descripción</text>
+<text x="45.0" y="88.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="middle">1</text>
+<text x="66" y="88.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">0/100</text>
+<text x="256" y="88.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Paquetes que empiezan y terminan en el mismo mes</text>
+<text x="45.0" y="112.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="middle">2</text>
+<text x="66" y="112.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">50/50</text>
+<text x="256" y="112.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Paquetes de hasta 2 meses</text>
+<text x="45.0" y="136.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="middle">3</text>
+<text x="66" y="136.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">25/75</text>
+<text x="256" y="136.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Hasta 2 meses, costo concentrado al final</text>
+<text x="45.0" y="160.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="middle">4</text>
+<text x="66" y="160.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">20/80</text>
+<text x="256" y="160.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Hasta 2 meses, costo concentrado al final</text>
+<text x="45.0" y="184.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="middle">5</text>
+<text x="66" y="184.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Hitos ponderados</text>
+<text x="256" y="184.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Paquetes largos: al menos un hito por mes</text>
+<text x="45.0" y="208.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="middle">6</text>
+<text x="66" y="208.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">% Completado</text>
+<text x="256" y="208.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Avance por duración (% completado)</text>
+<text x="45.0" y="232.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="middle">7</text>
+<text x="66" y="232.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">% Físico completado</text>
+<text x="256" y="232.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Avance físico medido (% físico completado)</text>
+<text x="45.0" y="256.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="middle">8</text>
+<text x="66" y="256.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Unidades completadas</text>
+<text x="256" y="256.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Unidades hechas / totales en % físico completado</text>
+<text x="45.0" y="280.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="middle">9</text>
+<text x="66" y="280.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Avance lineal (LOE)</text>
+<text x="256" y="280.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Gestión y soporte: EV = PV</text>
+<text x="45.0" y="304.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="middle">10</text>
+<text x="66" y="304.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">CPTR de MS Project</text>
+<text x="256" y="304.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Valor acumulado calculado por MS Project</text>
+<line x1="30" y1="46" x2="30" y2="312" stroke="#D4D4D4" stroke-width="1.0"/>
+<line x1="60" y1="46" x2="60" y2="312" stroke="#D4D4D4" stroke-width="1.0"/>
+<line x1="250" y1="46" x2="250" y2="312" stroke="#D4D4D4" stroke-width="1.0"/>
+<line x1="670" y1="46" x2="670" y2="312" stroke="#D4D4D4" stroke-width="1.0"/>
+<line x1="30" y1="46" x2="670" y2="46" stroke="#D4D4D4" stroke-width="1.0"/>
+<line x1="30" y1="72" x2="670" y2="72" stroke="#D4D4D4" stroke-width="1.0"/>
+<line x1="30" y1="96" x2="670" y2="96" stroke="#D4D4D4" stroke-width="1.0"/>
+<line x1="30" y1="120" x2="670" y2="120" stroke="#D4D4D4" stroke-width="1.0"/>
+<line x1="30" y1="144" x2="670" y2="144" stroke="#D4D4D4" stroke-width="1.0"/>
+<line x1="30" y1="168" x2="670" y2="168" stroke="#D4D4D4" stroke-width="1.0"/>
+<line x1="30" y1="192" x2="670" y2="192" stroke="#D4D4D4" stroke-width="1.0"/>
+<line x1="30" y1="216" x2="670" y2="216" stroke="#D4D4D4" stroke-width="1.0"/>
+<line x1="30" y1="240" x2="670" y2="240" stroke="#D4D4D4" stroke-width="1.0"/>
+<line x1="30" y1="264" x2="670" y2="264" stroke="#D4D4D4" stroke-width="1.0"/>
+<line x1="30" y1="288" x2="670" y2="288" stroke="#D4D4D4" stroke-width="1.0"/>
+<line x1="30" y1="312" x2="670" y2="312" stroke="#D4D4D4" stroke-width="1.0"/>
+<rect x="34" y="332" width="12" height="12" rx="0" fill="#FFFFFF" stroke="#555555" stroke-width="1"/>
+<text x="52" y="342" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Utilizar un valor de la tabla como entrada predeterminada para el campo</text>
+<rect x="34" y="356" width="12" height="12" rx="0" fill="#FFFFFF" stroke="#555555" stroke-width="1"/>
+<text x="52" y="366" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Permitir introducir elementos adicionales en los campos</text>
+<rect x="28" y="350" width="364" height="24" rx="3" fill="none" stroke="#C00000" stroke-width="2.2"/>
+<circle cx="404" cy="362" r="11" fill="#C00000" stroke="#FFFFFF" stroke-width="1.5"/>
+<text x="404" y="366.5" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="12.5" font-weight="bold" fill="#FFFFFF" text-anchor="middle">1</text>
+<text x="420" y="366" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="start">Desmarcado: solo se admiten los valores de la lista</text>
+<rect x="610" y="386" width="80" height="24" rx="2" fill="#FDFDFD" stroke="#2F7A3A" stroke-width="1.4"/>
+<text x="650.0" y="402.0" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="11.5" font-weight="normal" fill="#1F1F1F" text-anchor="middle">Cerrar</text>
+<text x="710" y="492" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="10" font-weight="normal" fill="#7F7F7F" text-anchor="end" font-style="italic">Esquema ilustrativo, no es una captura de MS Project. Los textos pueden variar según la versión.</text>
+</svg>
