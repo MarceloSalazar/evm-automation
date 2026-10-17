@@ -122,6 +122,7 @@ El [tutorial](docs/ejemplo-paso-a-paso.md) recorre el ciclo completo con 24 mese
 | Siglas EVM y campos de MS Project en español | [Glosario](docs/glosario.md) |
 | Microsoft, PMI, GAO y otras referencias | [Recursos externos](docs/recursos-externos.md) |
 | Pruebas, estructura del código y flujo del repositorio | [Desarrollo](docs/desarrollo.md) |
+| Cambios de cada versión | [Registro de cambios](CHANGELOG.md) |
 
 Índice completo: [docs/README.md](docs/README.md).
 

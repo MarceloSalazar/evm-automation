@@ -10,7 +10,7 @@ Información para quien modifica el programa o la documentación.
 
 1. [Pruebas automáticas](#1-pruebas-automáticas)
 2. [Estructura del código](#2-estructura-del-código)
-3. [Flujo de trabajo del repositorio](#3-flujo-de-trabajo-del-repositorio)
+3. [Flujo de trabajo del repositorio](#3-flujo-de-trabajo-del-repositorio) (incluye versiones y publicaciones)
 4. [Documentación e imágenes](#4-documentación-e-imágenes)
 
 ---
@@ -133,6 +133,35 @@ gh pr create --base main --fill
   archivos de proyectos reales: el repositorio es público.
 - Todos los textos (documentación, mensajes y notas del libro) se escriben en forma impersonal, por
   ejemplo "se debe habilitar" en lugar de "habilítelo".
+
+### 3.1 Versiones y publicaciones
+
+Cada cambio de versión (`__version__` en `evm/__init__.py`, con el formato descrito en
+[CHANGELOG.md](../CHANGELOG.md)) se acompaña, en el mismo Pull Request, de:
+
+1. Una entrada nueva al principio de [CHANGELOG.md](../CHANGELOG.md): `## [X.Y.Z] - AAAA-MM-DD · Título`,
+   con las secciones **Nuevas funciones**, **Correcciones** y **Otros** (con "Ninguna." si una sección
+   no tiene cambios), y el enlace de comparación al final del archivo.
+2. La versión en la portada de la presentación y su PDF:
+
+   ```powershell
+   python docs\herramientas\version_presentacion.py
+   ```
+
+Después de fusionar el Pull Request en `main`, se crea la etiqueta en ese commit y la publicación en
+GitHub con el título y las notas de la versión:
+
+```powershell
+git switch main
+git pull
+git tag -a vX.Y.Z -m "Versión X.Y.Z"
+git push origin vX.Y.Z
+python docs\herramientas\notas_version.py X.Y.Z > notas.md
+gh release create vX.Y.Z --title "$(python docs\herramientas\notas_version.py X.Y.Z --titulo)" --notes-file notas.md
+```
+
+`notas_version.py` verifica que la versión tenga las tres secciones. Los cambios que no modifican la
+versión (por ejemplo, solo documentación) se incluyen en la entrada de la versión siguiente.
 
 ---
 
