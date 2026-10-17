@@ -13,6 +13,7 @@ venv/
 /config.toml
 *.xlsx
 *.png
+!docs/img/**/*.png
 *.mpp
 /*.xml
 ~$*

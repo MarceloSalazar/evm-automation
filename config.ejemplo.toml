@@ -100,7 +100,7 @@ rojo = 0.90
 amarillo = 0.95
 
 [multiempresa]
-# Reparto del PV, el EV y el AC entre dos empresas (ver README, sección 9).
+# Reparto del PV, el EV y el AC entre dos empresas (ver docs/multiempresa.md).
 # Desactivado por defecto. Con activar = true, el libro agrega las hojas de cada
 # empresa (PV-EmpresaA, EV-EmpresaA, AC-EmpresaA y las de EmpresaB); las hojas
 # PV, EV y AC son la suma de las dos empresas.
