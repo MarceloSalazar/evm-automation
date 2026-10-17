@@ -11,6 +11,7 @@ from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.workbook.properties import CalcProperties
 
+from evm import analysis
 from evm.config import Config, ConfigError
 from evm.methods import ev_fraction, parse_method
 from evm.model import ProjectData, Task
@@ -336,6 +337,8 @@ class UpdateResult:
     book: BookData | None = None
     dry_run: bool = False
     ac_loaded: bool = True              # False en multi-empresa con AC cargado a mano
+    deviations: list = field(default_factory=list)   # paquetes fuera de umbral (analysis.Deviation)
+    thresholds: object | None = None                 # umbrales del semáforo (workbook.Thresholds)
 
 
 def _acwp(t: Task) -> float:
@@ -719,6 +722,10 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
         x, y = pair[0][r][i], pair[1][r][i]
         total[r][i] = None if x is None and y is None else (x or 0.0) + (y or 0.0)
 
+    # Paquetes fuera de umbral en el mes de corte (con el EV y el AC que quedan en el libro)
+    th = analysis.thresholds(book.meta, cfg)
+    found = analysis.deviations(book, idx, th)
+
     backup_path = None
     if not dry_run:
         for sheet, r, c, v, _why in book.fixable:
@@ -730,19 +737,66 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
         meta.pop("meses_grafico", None)
         meta["ultima_actualizacion"] = datetime.now().replace(microsecond=0)
         write_meta(wb[SHEET_META], meta)
+        _write_analysis(wb, book, idx, found, th)
         _refresh_charts(wb, book, idx, meta)
-        wb.calculation = CalcProperties(fullCalcOnLoad=True)
-        if backup:
-            backup_path = _backup_path(book_path)
-            shutil.copy2(book_path, backup_path)
-        try:
-            save_workbook(wb, book_path)
-        except BaseException:
-            if backup_path is not None:     # el libro no cambió: el respaldo no hace falta
-                backup_path.unlink(missing_ok=True)
-            raise
+        backup_path = _save(wb, book_path, backup)
     book.status_date = status
-    return UpdateResult(status, idx, rows, warnings, backup_path, book, dry_run, ac_loaded=load_ac)
+    return UpdateResult(status, idx, rows, warnings, backup_path, book, dry_run, ac_loaded=load_ac,
+                        deviations=found, thresholds=th)
+
+
+def _save(wb, book_path: Path, backup: bool) -> Path | None:
+    """Guarda el libro (fórmulas recalculadas al abrirlo) con una copia de respaldo previa, si se pide."""
+    wb.calculation = CalcProperties(fullCalcOnLoad=True)
+    backup_path = None
+    if backup:
+        backup_path = _backup_path(book_path)
+        shutil.copy2(book_path, backup_path)
+    try:
+        save_workbook(wb, book_path)
+    except BaseException:
+        if backup_path is not None:     # el libro no cambió: el respaldo no hace falta
+            backup_path.unlink(missing_ok=True)
+        raise
+    return backup_path
+
+
+def _write_analysis(wb, book: BookData, idx: int, found: list, th) -> None:
+    """Agrega a la hoja Análisis de desviaciones los paquetes fuera de umbral del mes idx (la crea en los
+    libros de versiones anteriores), conservando el texto ya escrito."""
+    entries = analysis.read_entries(wb[analysis.SHEET_ANALYSIS]) if analysis.SHEET_ANALYSIS in wb.sheetnames else []
+    month = book.horizon.month_start(idx)
+    entries = analysis.refresh(entries, found, month)
+    analysis.write_sheet(wb, entries, {s.key: s.row for s in book.input_rows}, book.horizon.months, th,
+                         int(book.meta.get("decimales") or 0), month, len(found))
+
+
+def run_analysis(cfg: Config, book_path: str | Path, backup: bool = True) -> UpdateResult:
+    """Comando 'analizar': actualiza la hoja Análisis de desviaciones con los valores del libro, sin leer MS
+    Project (por ejemplo, después de cargar a mano el AC del mes)."""
+    book_path = Path(book_path)
+    wb = load_workbook(book_path)
+    book = read_book(book_path, wb, allow_fix=True)
+    check_sheets(wb.sheetnames, book.meta, charts=True)
+    if book.status_date is None:
+        raise ValueError("El libro no tiene fecha de corte (hoja Resumen, celda B5): se debe ejecutar 'actualizar' "
+                         "antes de 'analizar'.")
+    idx = book.horizon.index(book.status_date)
+    if not 0 <= idx < book.horizon.months:
+        raise ValueError(f"La fecha de corte {book.status_date:%d/%m/%Y} está fuera del horizonte del libro.")
+    warnings = []
+    if book.fixable:
+        cells = ", ".join(f"{sh}!{col(c)}{r}" for sh, r, c, _v, _why in book.fixable[:8])
+        more = f" y {len(book.fixable) - 8} más" if len(book.fixable) > 8 else ""
+        warnings.append(f"Se reemplazaron por su valor numérico celdas de ingreso con texto o fórmulas: {cells}{more}.")
+        for sheet, r, c, v, _why in book.fixable:
+            wb[sheet].cell(row=r, column=c, value=v)
+    th = analysis.thresholds(book.meta, cfg)
+    found = analysis.deviations(book, idx, th)
+    _write_analysis(wb, book, idx, found, th)
+    _refresh_charts(wb, book, idx, book.meta)
+    backup_path = _save(wb, book_path, backup)
+    return UpdateResult(book.status_date, idx, [], warnings, backup_path, book, deviations=found, thresholds=th)
 
 
 def _refresh_charts(wb, book: BookData, idx: int, meta: dict) -> None:

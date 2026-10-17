@@ -696,7 +696,7 @@ def _write_summary(ws, report: Report, cfg: Config, lay: _Layout, generated: dat
         ws.cell(row=r, column=1).font = FONT_NOTE
 
     for ref in ("B22", "B23", "B38"):
-        _traffic_light(ws, ref, cfg)
+        _traffic_light(ws, ref, Thresholds.from_config(cfg))
     ws.column_dimensions["A"].width = 42
     ws.column_dimensions["B"].width = 20
     ws.column_dimensions["C"].width = 70
@@ -705,13 +705,70 @@ def _write_summary(ws, report: Report, cfg: Config, lay: _Layout, generated: dat
             "EDT: hoja 'Indicadores EDT'.").font = FONT_NOTE
 
 
-def _traffic_light(ws, rng: str, cfg: Config) -> None:
+@dataclass(frozen=True)
+class Thresholds:
+    """Umbrales comunes del semáforo de SPI y CPI. Rojo: menor que red_low o mayor que red_high; amarillo:
+    menor que yellow_low o mayor que yellow_high; verde: entre yellow_low y yellow_high (inclusive)."""
+
+    red_low: float
+    yellow_low: float
+    yellow_high: float
+    red_high: float
+
+    META_KEYS = ("semaforo_rojo_inferior", "semaforo_amarillo_inferior", "semaforo_amarillo_superior",
+                 "semaforo_rojo_superior")
+
+    @classmethod
+    def from_config(cls, cfg: Config) -> "Thresholds":
+        return cls(cfg.threshold_red, cfg.threshold_yellow, cfg.threshold_yellow_upper, cfg.threshold_red_upper)
+
+    @classmethod
+    def from_meta(cls, meta: dict, cfg: Config) -> "Thresholds":
+        """Los umbrales con que se generó el libro (libros de versiones anteriores: los de la configuración)."""
+        try:
+            return cls(*(float(meta[k]) for k in cls.META_KEYS))
+        except (KeyError, TypeError, ValueError):
+            return cls.from_config(cfg)
+
+    def meta(self) -> dict:
+        return dict(zip(self.META_KEYS, (self.red_low, self.yellow_low, self.yellow_high, self.red_high)))
+
+    def light(self, value: float | None) -> str:
+        """'Rojo', 'Amarillo', 'Verde' ('' sin valor)."""
+        if value is None:
+            return ""
+        if value < self.red_low or value > self.red_high:
+            return "Rojo"
+        if value < self.yellow_low or value > self.yellow_high:
+            return "Amarillo"
+        return "Verde"
+
+    def bands(self) -> list[tuple[str, str]]:
+        """Escala del semáforo, de menor a mayor: (texto, color)."""
+        f = fmt_decimal
+        return [(f"< {f(self.red_low)}", "Rojo"), (f"{f(self.red_low)} a {f(self.yellow_low)}", "Amarillo"),
+                (f"{f(self.yellow_low)} a {f(self.yellow_high)}", "Verde"),
+                (f"{f(self.yellow_high)} a {f(self.red_high)}", "Amarillo"), (f"> {f(self.red_high)}", "Rojo")]
+
+    def describe(self) -> str:
+        """'verde de 0,95 a 1,05; amarillo de 0,90 a 0,95 y de 1,05 a 1,10; rojo fuera de 0,90 a 1,10'."""
+        f = fmt_decimal
+        return (f"verde de {f(self.yellow_low)} a {f(self.yellow_high)}; amarillo de {f(self.red_low)} a "
+                f"{f(self.yellow_low)} y de {f(self.yellow_high)} a {f(self.red_high)}; rojo por debajo de "
+                f"{f(self.red_low)} o por encima de {f(self.red_high)}")
+
+
+def fmt_decimal(v: float) -> str:
+    """Número con dos decimales y coma decimal: 0.9 -> '0,90'."""
+    return f"{v:.2f}".replace(".", ",")
+
+
+def _traffic_light(ws, rng: str, th: Thresholds) -> None:
+    """Semáforo (formato condicional) de un rango de índices SPI o CPI."""
     first = rng.split(":")[0].replace("$", "")
-    red, yellow = cfg.threshold_red, cfg.threshold_yellow
-    ws.conditional_formatting.add(rng, FormulaRule(
-        formula=[f'AND(ISNUMBER({first}),{first}<{red})'], fill=FILL_RED, stopIfTrue=True))
-    ws.conditional_formatting.add(rng, FormulaRule(
-        formula=[f'AND(ISNUMBER({first}),{first}<{yellow})'], fill=FILL_YELLOW, stopIfTrue=True))
+    for low, high, fill in ((th.red_low, th.red_high, FILL_RED), (th.yellow_low, th.yellow_high, FILL_YELLOW)):
+        ws.conditional_formatting.add(rng, FormulaRule(
+            formula=[f'AND(ISNUMBER({first}),OR({first}<{low!r},{first}>{high!r}))'], fill=fill, stopIfTrue=True))
     ws.conditional_formatting.add(rng, FormulaRule(
         formula=[f'ISNUMBER({first})'], fill=FILL_GREEN, stopIfTrue=True))
 
@@ -758,7 +815,7 @@ def _write_indicators(ws, report: Report, cfg: Config, lay: _Layout) -> None:
                     ws.cell(row=r, column=c_).fill = FILL_L1 if row.level == 1 else FILL_L2
             ws.row_dimensions[r].outline_level = min(7, max(0, row.level - 1))
     last = lay.total_row
-    _traffic_light(ws, f"J{FIRST_ROW}:K{last}", cfg)
+    _traffic_light(ws, f"J{FIRST_ROW}:K{last}", Thresholds.from_config(cfg))
     for c_, w in {1: 12, 2: 46, 3: 20}.items():
         ws.column_dimensions[col(c_)].width = w
     for c_ in range(4, 17):
@@ -810,7 +867,7 @@ def write_meta(ws, meta: dict) -> None:
 def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
                    generated: datetime | None = None) -> dict:
     """Crea el libro Excel completo y lo guarda en `path`. Devuelve los metadatos."""
-    from evm import dashboard
+    from evm import analysis, dashboard
     generated = generated or datetime.now()
     lay = _Layout(report)
     wb = Workbook()
@@ -853,6 +910,9 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     packages = dashboard.chart_packages((lay.r(r), r.code, r.level, r.kind) for r in report.rows)
     dashboard.write_chart_data(ws_charts, cfg, lay, packages)
     dashboard.write_dashboard(ws_dash, report, cfg, lay, packages, status)
+    analysis.write_sheet(wb, prior.analysis if prior is not None else [],
+                         {row_key(r): lay.r(r) for r in report.rows if r.is_input}, lay.months,
+                         Thresholds.from_config(cfg), cfg.decimals)
 
     wb.defined_names[NAME_STATUS] = DefinedName(NAME_STATUS, attr_text=f"'{SHEET_SUMMARY}'!$B$5")
     wb.defined_names[NAME_START] = DefinedName(NAME_START, attr_text=f"'{SHEET_SUMMARY}'!$B$7")
@@ -883,6 +943,7 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
         "fila_total": lay.total_row,
         "nivel_maximo": cfg.max_level,
         "decimales": cfg.decimals,
+        **Thresholds.from_config(cfg).meta(),
         "generado": generated.replace(microsecond=0),
         "multiempresa": bool(report.multi),
     }

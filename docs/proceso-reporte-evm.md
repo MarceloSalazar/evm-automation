@@ -106,10 +106,10 @@ flowchart TD
     U2 --> V
     V -- "No" --> P1
     V -- "Sí" --> U3["actualizar<br/>(con --solo ev si el AC es del ERP)"]
-    U3 --> AC2["Si el AC es del ERP:<br/>cargarlo en la hoja AC"]
+    U3 --> AC2["Si el AC es del ERP:<br/>cargarlo en la hoja AC<br/>y ejecutar analizar"]
     AC2 --> AN["Analizar Cuadro de Mando<br/>e Indicadores EDT"]
     U3 --> AN
-    AN --> X["Explicar desviaciones<br/>fuera de umbral"]
+    AN --> X["Explicar desviaciones fuera de umbral<br/>(hoja Análisis de desviaciones)"]
     X --> EAC["Revisar EAC y acciones"]
     EAC --> INF(["Informe mensual"])
 ```
@@ -148,10 +148,12 @@ gantt
 4. Ejecutar **`actualizar --simular`** y revisar las observaciones por fila: métodos no definidos,
    valores del mes negativos, tareas sin fila, diferencias de AC.
 5. Ejecutar **`actualizar`** (con `--solo ev` si el AC proviene del ERP) y, si corresponde, cargar el
-   AC del mes en la hoja `AC`.
+   AC del mes en la hoja `AC` y ejecutar **`analizar`** para completar la lista de paquetes fuera de
+   umbral ([Análisis de desviaciones](analisis-desviaciones.md#3-cierre-mensual)).
 6. **Abrir el libro** y revisar el `Cuadro de Mando` (mes de reporte = mes de corte) e `Indicadores EDT`.
 7. **Analizar las desviaciones** de los paquetes fuera de umbral: causa, impacto en plazo y costo, y
-   acción correctiva con responsable y fecha.
+   acción correctiva con responsable y fecha, en la hoja
+   [Análisis de desviaciones](analisis-desviaciones.md), que los lista y conserva el texto de cada mes.
 8. **Revisar el EAC**: comparar los pronósticos del libro con la estimación de los responsables de
    paquete ([Cuadro de Mando](cuadro-de-mando.md#2-mes-de-reporte-y-método-eac)).
 9. **Emitir el informe** (el `Cuadro de Mando` se imprime en una página) y archivar una copia del libro
@@ -245,7 +247,7 @@ flowchart TD
 - [ ] Costo real del mes: calculado en MS Project o recibido de Finanzas (devengado).
 - [ ] `actualizar --simular` revisado: sin métodos `Por definir`, sin valores del mes negativos sin
       explicar, sin tareas con costo fuera del libro.
-- [ ] `actualizar` ejecutado; AC del ERP cargado si corresponde.
-- [ ] Cuadro de Mando revisado; paquetes fuera de umbral analizados en `Indicadores EDT`.
+- [ ] `actualizar` ejecutado; AC del ERP cargado y `analizar` ejecutado si corresponde.
+- [ ] Cuadro de Mando revisado; paquetes fuera de umbral explicados en `Análisis de desviaciones`.
 - [ ] EAC revisado y acciones correctivas definidas.
 - [ ] Informe emitido y copia del libro archivada.

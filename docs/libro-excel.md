@@ -31,6 +31,7 @@ carga el EV y el AC de cada mes en ese mismo libro.
 | **PV-EmpresaA**, **EV-EmpresaA**, **AC-EmpresaA** y las de EmpresaB | Solo en modo multi-empresa: valores de cada empresa. Las hojas `PV`, `EV` y `AC` son la suma de las dos ([Multi-empresa](multiempresa.md)). |
 | **Evolución mensual** | Tabla mensual del proyecto (datos de la curva S). |
 | **Indicadores EDT** | Indicadores de cada elemento de la EDT a la fecha de corte. |
+| **Análisis de desviaciones** | Paquetes fuera de umbral de cada mes, con causa, impacto, acción correctiva, responsable y fecha ([Análisis de desviaciones](analisis-desviaciones.md)). |
 | **Validación** | Advertencias de la exportación ([Validaciones](validaciones-y-problemas.md#1-validaciones)). |
 | **Listas** | Métodos de medición del desplegable de la columna C y su regla de cálculo. |
 | `_graficos`, `_estructura`, `_meta` | Hojas ocultas con los datos de los gráficos y los datos que usan `actualizar` y `--migrar-desde`. **No se deben modificar.** |
@@ -156,6 +157,13 @@ y porcentajes planificado, completado y gastado, con semáforo en SPI y CPI. Per
 paquetes explican la desviación del proyecto.
 
 ![Hoja Indicadores EDT](img/excel/indicadores-edt.png)
+
+### Análisis de desviaciones
+
+Paquetes de trabajo con SPI o CPI en amarillo o rojo (por debajo o por encima del rango verde) en el
+mes de corte, que `actualizar` (o
+`analizar`) agrega cada mes, con columnas amarillas para explicar cada desviación. El texto se conserva
+al actualizar y con `--migrar-desde`. Ver [Análisis de desviaciones](analisis-desviaciones.md).
 
 ### Validación
 

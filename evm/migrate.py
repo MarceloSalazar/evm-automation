@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 
+from evm.analysis import A_CODE, A_KEY, A_MONTH, A_NAME, A_ORIGIN, SHEET_ANALYSIS, TEXT_COLS, read_entries
 from evm.config import ConfigError
 from evm.model import MonthKey
 from evm.wbs import KIND_LEAF, SEV_ERROR, SEV_INFO, SEV_WARN, Issue, Report, ReportRow, fmt_money, iter_subtree, plural
@@ -52,6 +53,7 @@ class PriorData:
     multi: bool = False
     # Proyecto de MS Project de cada archivo del libro anterior ({'': nombre} en un libro de un solo archivo)
     project_names: dict[str, str] = field(default_factory=dict)
+    analysis: list = field(default_factory=list)     # filas de la hoja Análisis de desviaciones (analysis.Entry)
     # Resultado de plan_migration: clave de la fila nueva -> datos a escribir
     values: dict[str, dict[str, dict[MonthKey, float]]] = field(default_factory=dict)
     methods: dict[str, str] = field(default_factory=dict)
@@ -92,13 +94,42 @@ def prior_from_book(path, project_name: str) -> PriorData:
                 break                   # la lista termina en la primera fila vacía
             if len(value.strip()) <= 60:
                 methods_list.append(value.strip())
+    analysis = read_entries(wb[SHEET_ANALYSIS]) if SHEET_ANALYSIS in wb.sheetnames else []
     wb.close()
     level = book.meta.get("nivel_maximo")
     names = {n: str(source_meta(book.meta, "proyecto", n) or "") for n in book_sources(book.meta)}
     return PriorData(rows=rows, status_date=book.status_date,
                      project_name=str(book.meta.get("proyecto") or ""),
                      max_level=int(level) if level else None, methods_list=methods_list, multi=book.multi,
-                     project_names=names)
+                     project_names=names, analysis=analysis)
+
+
+def _migrate_analysis(prior: PriorData, key_map: dict[str, str]) -> list[Issue]:
+    """Las filas del análisis de desviaciones pasan a la fila nueva de su paquete. Si el paquete ya no tiene
+    fila, el texto se conserva como fila sin valores (sin clave, para no asociarla a otra fila)."""
+    issues: list[Issue] = []
+    moved = 0
+    for e in prior.analysis:
+        if not e.key:
+            continue
+        if e.key in key_map:
+            e.key = key_map[e.key]
+            moved += 1
+            continue
+        raw = [None] * (A_KEY - 1)
+        raw[A_MONTH - 1], raw[A_CODE - 1], raw[A_NAME - 1] = e.month, e.code, e.name
+        raw[A_ORIGIN - 1] = "Fila inexistente en el libro nuevo"
+        for c_, v in zip(TEXT_COLS, e.texts):
+            raw[c_ - 1] = v
+        e.key, e.raw = "", raw
+        if e.has_text:
+            issues.append(Issue(SEV_WARN, e.code, e.name,
+                                f"Análisis de desviaciones de {e.month:%m/%Y}: el paquete ya no tiene fila en el libro "
+                                "nuevo; el texto se conservó, sin valores."))
+    if moved:
+        issues.append(Issue(SEV_INFO, "", "", f"Se {'trasladó' if moved == 1 else 'trasladaron'} "
+                                              f"{plural(moved, 'fila', 'filas')} del análisis de desviaciones."))
+    return issues
 
 
 def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Issue]:
@@ -154,6 +185,7 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
 
     used_codes: set[str] = set()
     sources: dict[str, list[tuple[PriorRow, str]]] = {}
+    key_map: dict[str, str] = {}            # clave de la fila anterior -> clave de la fila nueva
     for old in prior.rows:
         target, how = None, ""
         if same.get(old.source):
@@ -171,6 +203,8 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
                 prior.unmatched.append(old)
             continue
         sources.setdefault(row_key(target), []).append((old, how))
+        key_map[old.key] = row_key(target)
+    issues += _migrate_analysis(prior, key_map)
 
     horizon = report.horizon
     clamped = early = 0.0

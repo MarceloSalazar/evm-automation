@@ -16,6 +16,7 @@ rápido están en el [README principal](../README.md).
 | Organizar el cierre mensual | [Proceso de reporte EVM](proceso-reporte-evm.md) |
 | Reunir varios archivos de MS Project en un informe | [Varios archivos de MS Project](varios-archivos.md) |
 | Interpretar los indicadores y los gráficos | [Cuadro de Mando e indicadores](cuadro-de-mando.md) |
+| Explicar las desviaciones del mes | [Análisis de desviaciones](analisis-desviaciones.md) |
 | Entender un valor del libro | [Cálculo del PV](calculo-pv.md) y [Cálculo de EV y AC](calculo-ev-ac.md) |
 | Resolver un mensaje de error | [Validaciones y solución de problemas](validaciones-y-problemas.md) |
 | Presentar el programa al equipo de proyecto | [Presentación de 30 minutos](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) |
@@ -32,7 +33,7 @@ rápido están en el [README principal](../README.md).
 | [Proceso de reporte EVM](proceso-reporte-evm.md) | Puesta en marcha, cierre mensual, cambios de línea base, roles, calendario, buenas prácticas y lista de control. |
 | [Comandos y opciones](comandos.md) | `generar` y `actualizar`, todas sus opciones y ejemplos de salida. |
 | [Configuración](configuracion.md) | Claves del archivo `config.toml` y ejemplos. |
-| [Presentación para el equipo de proyecto](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) | 35 diapositivas para unos 30 minutos, con notas para el presentador: conceptos EVM, preparación en MS Project (incluida la línea base), `generar` y `actualizar`, Cuadro de Mando y cierre mensual. Se abre con PowerPoint o LibreOffice Impress. |
+| [Presentación para el equipo de proyecto](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) | 36 diapositivas para unos 30 minutos, con notas para el presentador: conceptos EVM y semáforo, preparación en MS Project (incluida la línea base), `generar` y `actualizar`, Cuadro de Mando, análisis de desviaciones y cierre mensual. Se abre con PowerPoint o LibreOffice Impress. |
 
 **Preparación en MS Project**
 
@@ -52,6 +53,7 @@ rápido están en el [README principal](../README.md).
 | [Cálculo de EV y AC](calculo-ev-ac.md) | Datos que se leen, EV por método, AC, valor del mes, fecha de corte y controles. |
 | [El libro Excel](libro-excel.md) | Hojas, reglas de uso y `--migrar-desde`. |
 | [Cuadro de Mando e indicadores](cuadro-de-mando.md) | Tablero, gráficos, fórmulas, Cronograma Ganado y cómo leer los indicadores. |
+| [Análisis de desviaciones](analisis-desviaciones.md) | Paquetes fuera de umbral de cada mes, causa, impacto y acción correctiva; comando `analizar`. |
 
 **Referencia**
 

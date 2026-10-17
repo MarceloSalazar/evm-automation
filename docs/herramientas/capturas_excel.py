@@ -52,6 +52,22 @@ SINGLE = [
     ("cdm-mes-anterior", "Cuadro de Mando", "$B$1:$U$44", {"date": ("E5", dt.datetime(2027, 6, 1))}),
     ("cdm-eac-alternativo", "Cuadro de Mando", "$B$1:$U$23",
      {"date": ("E5", dt.datetime(2027, 12, 1)), "value": ("R5", "AC + (BAC - EV) / (CPI × SPI)")}),
+    # Análisis de desviaciones de diciembre de 2027, con el texto de dos paquetes como ejemplo
+    # (filas: 1.1.1 por encima del rango verde, 2.2.1 y 3.2.1 por debajo)
+    ("analisis-desviaciones", "Análisis de desviaciones", "$A$1:$R$21",
+     {"landscape": True, "values": [
+         ("N5", "Dos puestos de la PMO sin cubrir desde octubre."),
+         ("O5", "Ahorro de costo, con riesgo de menor control del programa."),
+         ("P5", "Cubrir los puestos vacantes de la PMO."),
+         ("Q5", "Director del Programa"), ("R5", dt.datetime(2028, 1, 15)),
+         ("N15", "Planos de los proveedores de equipos recibidos con 6 semanas de atraso."),
+         ("O15", "Atraso de 1 mes en la emisión para construcción; sin impacto en costo."),
+         ("P15", "Reforzar el equipo de detalle con 2 proyectistas hasta marzo."),
+         ("Q15", "Jefe de Ingeniería"), ("R15", dt.datetime(2028, 1, 31)),
+         ("N21", "Retraso en la fabricación (FAT reprogramado)."),
+         ("O21", "Riesgo de atraso del montaje mecánico; penalidad al proveedor."),
+         ("P21", "Inspección semanal en fábrica y plan de recuperación del proveedor."),
+         ("Q21", "Jefe de Compras"), ("R21", dt.datetime(2028, 2, 15))]}),
 ]
 MULTI = [
     ("multi-pv-empresa-a", "PV-EmpresaA", "$A$1:$P$41", {"landscape": True, "headings": True}),
@@ -64,7 +80,7 @@ SEVERAL = [
     ("varios-validacion", "Validación", "$A$1:$D$8", {"landscape": True}),
 ]
 # Números de las zonas del Cuadro de Mando: (n, x, y) en píxeles de la captura a 130 ppp
-MARKS = [(1, 58, 122), (2, 700, 122), (3, 262, 180), (4, 257, 291), (5, 104, 401),
+MARKS = [(1, 58, 122), (2, 700, 122), (3, 262, 180), (4, 257, 291), (5, 104, 410),
          (6, 120, 545), (7, 612, 545), (8, 150, 916), (9, 960, 884)]
 DPI = 130
 
@@ -187,6 +203,8 @@ def export(book: Path, items: list, pdftoppm: str, tmp: Path) -> None:
             if "value" in opts:
                 cell, value = opts["value"]
                 ws.Range(cell).Value = value
+            for cell, value in opts.get("values", []):
+                ws.Range(cell).Value = value.replace(tzinfo=dt.timezone.utc) if isinstance(value, dt.datetime) else value
             xl.CalculateFull()
             xl.PrintCommunication = False
             ps = ws.PageSetup

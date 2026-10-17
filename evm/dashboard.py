@@ -13,7 +13,9 @@ from datetime import date
 
 from openpyxl.chart import AreaChart, BarChart, LineChart, Reference, ScatterChart, Series
 from openpyxl.chart.axis import ChartLines, DateAxis
+from openpyxl.chart.data_source import NumData
 from openpyxl.chart.label import DataLabelList
+from openpyxl.chart.legend import LegendEntry
 from openpyxl.chart.marker import Marker
 from openpyxl.chart.shapes import GraphicalProperties
 from openpyxl.chart.text import RichText, Text
@@ -32,7 +34,8 @@ from evm.wbs import KIND_RESIDUAL, Report
 from evm.workbook import (C_AC, C_ACN, C_DATE, C_EV, C_EVN, C_PVC, CURVE_FIRST_ROW, CUT_MONTH_CELL, DARK,
                           FILL_GREEN, FILL_HEADER, FILL_INPUT, FILL_RED, FILL_YELLOW, FMT_DATE, FMT_RATIO,
                           MONTHNUM_ROW, NAME_START, NAME_STATUS, SHEET_AC, SHEET_CURVE, SHEET_EV, SHEET_PV,
-                          SHEET_SUMMARY, _Layout, _traffic_light, col, money_format, put_text)
+                          SHEET_SUMMARY, Thresholds, _Layout, _traffic_light, col, fmt_decimal, money_format,
+                          put_text)
 
 SHEET_DASHBOARD = "Cuadro de Mando"
 SHEET_CHARTDATA = "_graficos"
@@ -58,11 +61,14 @@ ROW_CHARTS_END = 44
 ROW_SCATTER = 47                        # gráfico 3 y tabla de elementos EDT
 ROW_SCATTER_END = 72
 
-# Hoja _graficos: parámetros (A1:B7), cuadrantes (D1:F5), serie mensual y elementos EDT (desde la fila 11)
+# Hoja _graficos: parámetros (A1:B9), cuadrantes (D1:F5), serie mensual y elementos EDT (desde la fila 11).
+# Las columnas no se deben mover: 'actualizar' vuelve a crear los gráficos de libros de versiones anteriores
+# con estas mismas columnas. Las bandas superiores del semáforo (versión 1.5.0) van después de los elementos EDT.
 D_HEADER_ROW, D_FIRST_ROW = 10, 11
 (M_NUM, M_DATE, M_PV, M_EV, M_AC, M_BAC, M_MARK, M_CPI, M_SPI, M_RED, M_YELLOW, M_GREEN, M_TARGET,
  M_CPI_RAW, M_SPI_RAW) = range(1, 16)
 (P_CODE, P_LEVEL, P_BAC, P_PV, P_EV, P_AC, P_CPI_RAW, P_SPI_RAW, P_CPI, P_SPI) = range(17, 27)
+M_YELLOW_HIGH, M_RED_HIGH = 27, 28
 
 ACCENT_BAC, ACCENT_PV, ACCENT_EV, ACCENT_AC = "7F7F7F", "1F4E79", "548235", "C00000"
 COLOR_CPI, COLOR_SPI = "1F4E79", "ED7D31"
@@ -121,12 +127,9 @@ def _month_cum(sheet: str, row: int, lay: _Layout) -> str:
     return f'SUMIFS({months},{nums},"<="&{NAME_REPORT_N})'
 
 
-def _fmt_threshold(v: float) -> str:
-    return f"{v:.2f}".replace(".", ",")
-
-
 def write_chart_data(ws, cfg: Config, lay: _Layout, packages: list[ChartPackage]) -> None:
     """Hoja oculta con los datos de los gráficos (fórmulas que dependen del mes de reporte)."""
+    th = Thresholds.from_config(cfg)
     tr = lay.total_row
     sel = NAME_REPORT
     cut = f"'{SHEET_SUMMARY}'!${CUT_MONTH_CELL[0]}${CUT_MONTH_CELL[1:]}"
@@ -136,12 +139,14 @@ def write_chart_data(ws, cfg: Config, lay: _Layout, packages: list[ChartPackage]
                                 f'IF({sel}="",{cut},IF({cut}="",{si},MIN({si},{cut})))))),"")'),
         ("Escala mínima de CPI y SPI", INDEX_MIN),
         ("Escala máxima de CPI y SPI", INDEX_MAX),
-        ("Umbral rojo", cfg.threshold_red),
-        ("Umbral amarillo", cfg.threshold_yellow),
+        ("Umbral rojo inferior", th.red_low),
+        ("Umbral amarillo inferior", th.yellow_low),
         ("BAC", f"='{SHEET_PV}'!$D${tr}"),
         ("Altura de la marca del mes de reporte",
          f'=IF(B1="",0,MAX(B6,{_month_cum(SHEET_PV, tr, lay)},{_month_cum(SHEET_EV, tr, lay)},'
          f'{_month_cum(SHEET_AC, tr, lay)}))'),
+        ("Umbral amarillo superior", th.yellow_high),
+        ("Umbral rojo superior", th.red_high),
     ]
     for i, (label, value) in enumerate(params, start=1):
         ws.cell(row=i, column=1, value=label)
@@ -164,12 +169,15 @@ def write_chart_data(ws, cfg: Config, lay: _Layout, packages: list[ChartPackage]
         ws.cell(row=i, column=8, value=x)
         ws.cell(row=i, column=9, value=y)
 
-    red, yellow = _fmt_threshold(cfg.threshold_red), _fmt_threshold(cfg.threshold_yellow)
+    f = fmt_decimal
     heads = {M_NUM: "Mes N°", M_DATE: "Mes", M_PV: "PV acumulado", M_EV: "EV acumulado", M_AC: "AC acumulado",
              M_BAC: "BAC", M_MARK: "Mes de reporte", M_CPI: "CPI acumulado", M_SPI: "SPI acumulado",
-             M_RED: f"Zona roja (< {red})", M_YELLOW: f"Zona amarilla ({red} a {yellow})",
-             M_GREEN: f"Zona verde (≥ {yellow})", M_TARGET: "Objetivo (1,00)", M_CPI_RAW: "CPI (valor)",
-             M_SPI_RAW: "SPI (valor)"}
+             M_RED: f"Zona roja (< {f(th.red_low)} o > {f(th.red_high)})",
+             M_YELLOW: f"Zona amarilla ({f(th.red_low)} a {f(th.yellow_low)} o {f(th.yellow_high)} a "
+                       f"{f(th.red_high)})",
+             M_GREEN: f"Zona verde ({f(th.yellow_low)} a {f(th.yellow_high)})", M_TARGET: "Objetivo (1,00)",
+             M_CPI_RAW: "CPI (valor)", M_SPI_RAW: "SPI (valor)", M_YELLOW_HIGH: "Zona amarilla superior",
+             M_RED_HIGH: "Zona roja superior"}
     for c, text in heads.items():
         ws.cell(row=D_HEADER_ROW, column=c, value=text)
     curve = f"'{SHEET_CURVE}'"
@@ -195,9 +203,12 @@ def write_chart_data(ws, cfg: Config, lay: _Layout, packages: list[ChartPackage]
             M_SPI_RAW: f"=IFERROR({L(M_EV)}{r}/{L(M_PV)}{r},NA())",
             M_CPI: f"=IF(ISNUMBER({L(M_CPI_RAW)}{r}),MAX($B$2,MIN($B$3,{L(M_CPI_RAW)}{r})),NA())",
             M_SPI: f"=IF(ISNUMBER({L(M_SPI_RAW)}{r}),MAX($B$2,MIN($B$3,{L(M_SPI_RAW)}{r})),NA())",
+            # Bandas apiladas: roja hasta el rojo inferior, amarilla, verde, amarilla y roja hasta la escala máxima
             M_RED: "=$B$4",
             M_YELLOW: "=$B$5-$B$4",
-            M_GREEN: "=$B$3-$B$5",
+            M_GREEN: "=MAX(0,MIN($B$3,$B$8)-$B$5)",
+            M_YELLOW_HIGH: "=MAX(0,MIN($B$3,$B$9)-MIN($B$3,$B$8))",
+            M_RED_HIGH: "=MAX(0,$B$3-MIN($B$3,$B$9))",
             M_TARGET: 1,
         }
         for c, v in cells.items():
@@ -286,6 +297,23 @@ def _card(ws, row: int, c1: int, c2: int, label: str, value, fmt: str, caption=N
     if caption_fmt:
         cap.number_format = caption_fmt
     return f"${col(c1)}${row + 1}"
+
+
+def _threshold_scale(ws, row: int, th: Thresholds) -> None:
+    """Escala del semáforo de CPI y SPI (umbrales de la configuración con que se generó el libro)."""
+    ws.row_dimensions[row].height = 15
+    label = _merge(ws, row, GRID_FIRST, 4, "Semáforo CPI y SPI")
+    label.font = Font(bold=True, size=8, color=DARK)
+    label.alignment = Alignment(horizontal="right", vertical="center")
+    fills = {"Rojo": FILL_RED, "Amarillo": FILL_YELLOW, "Verde": FILL_GREEN}
+    white = Side(style="thin", color="FFFFFF")
+    for (c1, c2), (text, color) in zip(((5, 7), (8, 10), (11, 14), (15, 17), (18, 21)), th.bands()):
+        cell = _merge(ws, row, c1, c2, text)
+        cell.font = Font(bold=color == "Verde", size=8, color=DARK)
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        for c in range(c1, c2 + 1):
+            ws.cell(row=row, column=c).fill = fills[color]
+            ws.cell(row=row, column=c).border = Border(left=white if c == c1 else None)
 
 
 def _tcpi_light(ws, ref: str, cfg: Config) -> None:
@@ -425,10 +453,10 @@ def write_dashboard(ws, report: Report, cfg: Config, lay: _Layout, packages: lis
                 "EV / PV  ·  < 1: atraso")
     ws.cell(row=16, column=2, value=f'=IFERROR({cv}/{ev},"")')
     ws.cell(row=16, column=7, value=f'=IFERROR({sv}/{pv},"")')
+    th = Thresholds.from_config(cfg)
     for ref in (cpi, spi):
-        _traffic_light(ws, ref.replace("$", ""), cfg)
-
-    ws.row_dimensions[17].height = 10
+        _traffic_light(ws, ref.replace("$", ""), th)
+    _threshold_scale(ws, 17, th)
     _section(ws, 18, "Pronósticos")
     m = NAME_EAC_METHOD
     eac = _card(
@@ -447,8 +475,8 @@ def write_dashboard(ws, report: Report, cfg: Config, lay: _Layout, packages: lis
     for ref in (tcpi_bac, tcpi_eac):
         _tcpi_light(ws, ref.replace("$", ""), cfg)
 
-    # Gráficos
-    ws.row_dimensions[22].height = 10
+    # Gráficos (la fila 22 es más baja para compensar la escala del semáforo de la fila 17)
+    ws.row_dimensions[22].height = 5
     _section(ws, 23, "Evolución en el tiempo")
     ws.row_dimensions[24].height = 6
     ws.row_dimensions[ROW_CHARTS_END].height = 10
@@ -491,10 +519,10 @@ def write_dashboard(ws, report: Report, cfg: Config, lay: _Layout, packages: lis
                 cell.fill = FILL_LEVEL1
     if packages:
         last = hr + len(packages)
-        _traffic_light(ws, f"S{hr + 1}:T{last}", cfg)
+        _traffic_light(ws, f"S{hr + 1}:T{last}", th)
     note_row = max(ROW_SCATTER_END, hr + len(packages)) + 1
     note = _merge(ws, note_row, GRID_FIRST, GRID_LAST,
-                  f"Gráficos de índices: escala de {_fmt_threshold(INDEX_MIN)} a {_fmt_threshold(INDEX_MAX)}; los "
+                  f"Gráficos de índices: escala de {fmt_decimal(INDEX_MIN)} a {fmt_decimal(INDEX_MAX)}; los "
                   "valores fuera de escala se dibujan en el límite de la escala (los valores exactos están en la "
                   "tabla). Gráfico CPI-SPI: el centro es (1, 1); a la derecha, costo menor que el presupuestado; "
                   "arriba, avance mayor que el planificado.")
@@ -661,9 +689,11 @@ def _index_chart(data, months: int):
         s.smooth = False
         s.graphicalProperties = GraphicalProperties(ln=_line(color, width, dash))
         _marker(s, marker, color, months <= 36)
-    # Bandas de alarma (área apilada detrás de las líneas)
+    # Bandas de alarma (área apilada detrás de las líneas). Las bandas superiores no llevan leyenda: la de las
+    # bandas inferiores indica los dos rangos de cada color.
     area = AreaChart(grouping="stacked")
-    for c, color in ((M_RED, "F4CCCC"), (M_YELLOW, "FFF2CC"), (M_GREEN, "E2EFDA")):
+    for c, color in ((M_RED, "F4CCCC"), (M_YELLOW, "FFF2CC"), (M_GREEN, "E2EFDA"), (M_YELLOW_HIGH, "FFF2CC"),
+                     (M_RED_HIGH, "F4CCCC")):
         area.add_data(Reference(data, min_col=c, min_row=D_HEADER_ROW, max_row=last), titles_from_data=True)
         area.series[-1].graphicalProperties = GraphicalProperties(solidFill=color, ln=LineProperties(noFill=True))
     x = _date_axis(months)
@@ -679,6 +709,14 @@ def _index_chart(data, months: int):
     area.set_categories(cats)
     line += area
     _legend(line)
+    hidden = len(line.series) + len(area.series) - 2       # las dos últimas series: bandas superiores
+    line.legend.legendEntry = [LegendEntry(idx=i, delete=True) for i in (hidden, hidden + 1)]
+    # Excel solo respeta las entradas de leyenda eliminadas si todas las series tienen caché de valores; una
+    # caché vacía alcanza (al abrir el libro, Excel recalcula y dibuja los valores de la hoja)
+    for s in list(line.series) + list(area.series):
+        s.val.numRef.numCache = NumData(ptCount=0)
+        if s.cat is not None and s.cat.numRef is not None:
+            s.cat.numRef.numCache = NumData(ptCount=0)
     return line
 
 
