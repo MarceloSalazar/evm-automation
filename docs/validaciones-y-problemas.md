@@ -39,6 +39,7 @@ trasladar o calcular).
 | Tareas inactivas excluidas, con su costo | Informativo (con `incluir_inactivas = false`). |
 | Multi-empresa: BAC de cada empresa, tareas sin empresa, valores no reconocidos y `% Reparto` fuera de rango | Completar la columna `Empresa` y revisar los repartos ([Multi-empresa](multiempresa.md#7-validaciones-y-controles)). |
 | `--migrar-desde`: historial no trasladado (`Error`) | Cargar a mano el EV y el AC de esas filas en el libro nuevo. |
+| Varios archivos: observaciones precedidas por el nombre del archivo (`[P1]`, `[P2]`) y monedas distintas | Revisar cada archivo; si las monedas difieren, indicar `moneda` en `[exportacion]` ([Varios archivos](varios-archivos.md#8-validaciones-y-controles)). |
 
 `actualizar` informa sus controles en pantalla ([Cálculo de EV y AC](calculo-ev-ac.md#7-controles-de-consistencia)).
 
@@ -49,7 +50,11 @@ trasladar o calcular).
 - El modo `.mpp` requiere MS Project de escritorio en Windows. Sin él, se debe usar el XML.
 - El programa no guarda cambios en el archivo de MS Project: lo abre en modo solo lectura.
 - **Proyectos maestros con subproyectos insertados:** el grupo de recursos se abre en solo lectura; se
-  debe verificar en `Validación` que el BAC total coincida con el del proyecto maestro.
+  debe verificar en `Validación` que el BAC total coincida con el del proyecto maestro. Para reunir
+  varios archivos en un informe se recomiendan las secciones `[[proyectos]]`
+  ([Varios archivos](varios-archivos.md)).
+- **Varios archivos:** los códigos EDT no se pueden repetir entre archivos, todos se actualizan con la
+  misma fecha de corte y no se admite `--origen activo`.
 - **Motor XML:** los tramos que cruzan de mes se reparten con el calendario del proyecto. No se usan los
   calendarios de recursos ni de tareas, y se ignoran las excepciones recurrentes relativas (por ejemplo,
   "primer lunes del mes" o "último viernes de marzo"), que se informan en `Validación`. Con `.mpp` no hay
@@ -99,4 +104,8 @@ trasladar o calcular).
 | `--migrar-desde no se admite entre un libro de una sola empresa y uno multi-empresa` | Se debe generar el libro nuevo sin `--migrar-desde` y cargar a mano el historial que se necesite. |
 | `No se encontró el campo de empresa ...` | Se debe revisar `campo_empresa` en `[multiempresa]`: nombre del campo (`Text3`) o su alias en MS Project. |
 | Los indicadores aparecen vacíos al abrir el libro | El libro se abrió en vista protegida o en una vista previa: se debe habilitar la edición para que Excel calcule las fórmulas. |
+| `El código EDT ... está en los archivos ... y ...` | Varios archivos: cada código EDT debe estar en un solo archivo. Se deben corregir los códigos EDT o la planificación de cada archivo en `[[proyectos]]` ([Varios archivos](varios-archivos.md#3-preparación-en-ms-project)). |
+| `Los archivos tienen fechas de estado distintas ...` | Se debe definir la misma fecha de estado en todos los archivos o indicar `--fecha-corte`. |
+| `El libro se generó con varios archivos de MS Project ...` o `Los archivos de [[proyectos]] ... no coinciden con los del libro` | La configuración debe tener los mismos archivos (y nombres) con que se generó el libro. Para agregar o quitar un archivo se genera un libro nuevo con `--migrar-desde`. |
+| `--origen '...': con varios archivos ([[proyectos]]) se indica NOMBRE=RUTA ...` | Con `[[proyectos]]` no se indica `--origen`, salvo para reemplazar la ruta de un archivo: `--origen P2=C:\ruta\archivo.xml`. |
 | Las tildes se ven mal en la consola | Solo afecta a la consola, no al libro. Se recomienda usar Windows Terminal o ejecutar `chcp 65001`. |

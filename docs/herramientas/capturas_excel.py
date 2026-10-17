@@ -1,8 +1,9 @@
 """Regenera las capturas del libro Excel que usa la documentación (docs/img/excel).
 
 Pasos:
-1. Genera el libro del proyecto de ejemplo (una empresa y multi-empresa) en una
-   carpeta temporal y simula 24 cierres mensuales (enero de 2026 a diciembre de 2027).
+1. Genera el libro del proyecto de ejemplo (una empresa, multi-empresa y combinado con
+   el segundo proyecto de ejemplo) en una carpeta temporal y simula 24 cierres
+   mensuales (enero de 2026 a diciembre de 2027).
 2. Abre cada libro con Excel por automatización COM, sin mostrarlo y en solo lectura,
    exporta cada zona a PDF y la convierte a PNG con pdftoppm (Poppler).
 3. Agrega los números de las zonas a la captura del Cuadro de Mando.
@@ -57,6 +58,11 @@ MULTI = [
     ("multi-ev-empresa-b", "EV-EmpresaB", "$A$1:$AD$41", {"landscape": True, "headings": True, "hide": "G:R"}),
     ("multi-validacion", "Validación", "$A$1:$D$8", {"landscape": True}),
 ]
+SEVERAL = [
+    ("varios-cdm", "Cuadro de Mando", "$B$1:$U$23", {}),
+    ("varios-pv", "PV", "$A$1:$P$49", {"landscape": True, "headings": True, "hide_rows": "5:33"}),
+    ("varios-validacion", "Validación", "$A$1:$D$8", {"landscape": True}),
+]
 # Números de las zonas del Cuadro de Mando: (n, x, y) en píxeles de la captura a 130 ppp
 MARKS = [(1, 58, 122), (2, 700, 122), (3, 262, 180), (4, 257, 291), (5, 104, 401),
          (6, 120, 545), (7, 612, 545), (8, 150, 916), (9, 960, 884)]
@@ -68,27 +74,38 @@ def run(*args: str) -> None:
     subprocess.run([sys.executable, *args], cwd=ROOT, check=True, env=env, stdout=subprocess.DEVNULL)
 
 
-def build_books(work: Path) -> tuple[Path, Path]:
-    """Libros del ejemplo (una empresa y multi-empresa) con 24 meses de avance."""
+def build_books(work: Path) -> tuple[Path, Path, Path]:
+    """Libros del ejemplo (una empresa, multi-empresa y dos archivos) con 24 meses de avance."""
     text = (ROOT / "config.ejemplo.toml").read_text(encoding="utf-8")
     text = re.sub(r'^metodo = ""', 'metodo = "Método EVM"', text, flags=re.M)
     text = re.sub(r'^peso_hito = ""', 'peso_hito = "Peso hito"', text, flags=re.M)
     single_cfg, multi_cfg = work / "config.toml", work / "config_multi.toml"
+    several_cfg = work / "config_varios.toml"
     single_cfg.write_text(text, encoding="utf-8")
+    examples = (ROOT / "ejemplos").as_posix()
+    several_cfg.write_text(text + f'\n[[proyectos]]\nnombre = "P1"\norigen = "{examples}/programa_ejemplo.xml"\n'
+                           f'\n[[proyectos]]\nnombre = "P2"\norigen = "{examples}/proyecto2_ejemplo.xml"\n'
+                           'planificacion = ""\n', encoding="utf-8")
     text = re.sub(r"^activar = false", "activar = true", text, flags=re.M)
     text = re.sub(r"^ac_desde_project = false", "ac_desde_project = true", text, flags=re.M)
     multi_cfg.write_text(text, encoding="utf-8")
     origin = str(Path("ejemplos") / "programa_ejemplo.xml")     # relativa: es la que muestra la hoja Resumen
-    books = (work / "EVM_Ejemplo.xlsx", work / "EVM_Multi.xlsx")
+    books = (work / "EVM_Ejemplo.xlsx", work / "EVM_Multi.xlsx", work / "EVM_Varios.xlsx")
     for cfg, book in zip((single_cfg, multi_cfg), books):
         run("evm_export.py", "generar", "--origen", origin, "--config", str(cfg), "--salida", str(book))
+    run("evm_export.py", "generar", "--config", str(several_cfg), "--salida", str(books[2]))
     for y, m in MONTHS:
         status = f"{y:04d}-{m:02d}-{calendar.monthrange(y, m)[1]:02d}"
         progress = work / f"avance_{y:04d}-{m:02d}.xml"
+        progress2 = work / f"avance2_{y:04d}-{m:02d}.xml"
         run(str(ROOT / "ejemplos" / "generar_ejemplo.py"), "--fecha-estado", status, "--salida", str(progress))
+        run(str(ROOT / "ejemplos" / "generar_ejemplo.py"), "--proyecto", "2", "--fecha-estado", status,
+            "--salida", str(progress2))
         for cfg, book in zip((single_cfg, multi_cfg), books):
             run("evm_export.py", "actualizar", "--origen", str(progress), "--config", str(cfg),
                 "--libro", str(book), "--sin-respaldo")
+        run("evm_export.py", "actualizar", "--origen", f"P1={progress}", "--origen", f"P2={progress2}",
+            "--config", str(several_cfg), "--libro", str(books[2]), "--sin-respaldo")
     return books
 
 
@@ -160,6 +177,8 @@ def export(book: Path, items: list, pdftoppm: str, tmp: Path) -> None:
                 prepared.add(sheet)
             if "hide" in opts:
                 ws.Range(opts["hide"]).EntireColumn.Hidden = True
+            if "hide_rows" in opts:
+                ws.Range(opts["hide_rows"]).EntireRow.Hidden = True
             if "width" in opts:
                 ws.Columns(opts["width"][0]).ColumnWidth = opts["width"][1]
             if "date" in opts:
@@ -187,6 +206,8 @@ def export(book: Path, items: list, pdftoppm: str, tmp: Path) -> None:
             print(f"  {name}.png")
             if "hide" in opts:
                 ws.Range(opts["hide"]).EntireColumn.Hidden = False
+            if "hide_rows" in opts:
+                ws.Range(opts["hide_rows"]).EntireRow.Hidden = False
         wb.Close(SaveChanges=False)
     finally:
         xl.UseSystemSeparators, xl.DecimalSeparator, xl.ThousandsSeparator = original
@@ -212,10 +233,11 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as tmp_dir:
         work = Path(tmp_dir)
         print("Generando los libros del ejemplo (24 meses)...")
-        single, multi = build_books(work)
+        single, multi, several = build_books(work)
         print("Exportando capturas a", OUT)
         export(single, SINGLE, pdftoppm, work)
         export(multi, MULTI, pdftoppm, work)
+        export(several, SEVERAL, pdftoppm, work)
         annotate()
 
 

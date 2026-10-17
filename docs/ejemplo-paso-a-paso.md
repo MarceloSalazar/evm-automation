@@ -192,5 +192,9 @@ planificación (BAC un 15 % mayor).
 XML, `ac_desde_project = true`) en `[multiempresa]`, se genera un libro nuevo y se repiten las
 actualizaciones. Ver [Multi-empresa](multiempresa.md).
 
+**Dos archivos de MS Project.** El segundo proyecto de ejemplo (`ejemplos\proyecto2_ejemplo.xml`, código
+EDT `9.0.0`) se combina con el programa de ejemplo en un mismo libro. Ver el ejemplo de
+[Varios archivos](varios-archivos.md#9-ejemplo-con-dos-archivos).
+
 Los archivos `config.toml`, `*.xlsx` y los XML de la carpeta raíz no se suben al repositorio (están en
 `.gitignore`).

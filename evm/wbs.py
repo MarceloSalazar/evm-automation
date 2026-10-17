@@ -50,6 +50,7 @@ class ReportRow:
     pv_a: dict[MonthKey, float] = field(default_factory=dict)
     vector_a: list[float] = field(default_factory=list, repr=False)
     bac_a: float = 0.0
+    source: str = ""            # varios archivos: nombre del archivo de la tarea ([[proyectos]])
 
     @property
     def is_input(self) -> bool:
@@ -57,8 +58,18 @@ class ReportRow:
 
 
 @dataclass
-class Report:
+class Source:
+    """Archivo de MS Project incluido en el informe."""
+
+    name: str                   # nombre del archivo en [[proyectos]]; "" = informe de un solo archivo
     project: ProjectData
+    plan: str = ""              # código EDT de la planificación exportada ("" = todo el proyecto)
+    pv_source: str = ""         # descripción de la fuente del PV mensual
+
+
+@dataclass
+class Report:
+    project: ProjectData        # varios archivos: el primero (los datos de cada uno están en sources)
     horizon: Horizon
     rows: list[ReportRow]
     roots: list[ReportRow]
@@ -72,6 +83,26 @@ class Report:
     multi: bool = False         # multi-empresa activado
     company_a: str = ""
     company_b: str = ""
+    sources: list[Source] = field(default_factory=list)
+    title: str = ""             # título del informe
+    currency: str = ""          # moneda de MS Project (se usa si la configuración no indica 'moneda')
+
+    @property
+    def multi_file(self) -> bool:
+        """True si el informe combina archivos de [[proyectos]] (las claves de las filas llevan su nombre)."""
+        return any(s.name for s in self.sources)
+
+
+@dataclass
+class ReportPart:
+    """Filas de un archivo de MS Project, antes de combinar los archivos y fijar el horizonte."""
+
+    source: Source
+    rows: list[ReportRow]
+    roots: list[ReportRow]
+    issues: list[Issue]         # observaciones de la lectura y de la estructura EDT
+    checks: list[Issue]         # controles finales (tareas omitidas, BAC, códigos duplicados...)
+    first_date: date | None     # inicio del horizonte si ninguna fila tiene PV
 
 
 # ----------------------------------------------------------------------------
@@ -356,6 +387,15 @@ def select_scope(roots: list[Task], plan_code: str) -> Scope:
 # Informe
 # ----------------------------------------------------------------------------
 def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
+    """Informe de un solo archivo de MS Project."""
+    return assemble_report([build_part(project, cfg, source)], cfg)
+
+
+def build_part(project: ProjectData, cfg: Config, source: PVSource, name: str = "") -> ReportPart:
+    """Filas EDT y PV (por mes calendario) de un archivo de MS Project.
+
+    name: nombre del archivo en [[proyectos]] ("" = informe de un solo archivo).
+    """
     issues: list[Issue] = [Issue(SEV_WARN, "", "", w) for w in project.warnings]
     tasks = [t for t in project.tasks if t.outline_level >= 1]
     roots = build_tree(tasks)
@@ -632,6 +672,109 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
                                 f"'{cfg.split_field}' = {t.split_a:g} fuera de rango (debe ser mayor que 0 y como "
                                 f"máximo 100): se usa {cfg.split_default:g} %."))
 
+    # --- Controles del archivo ------------------------------------------------
+    checks: list[Issue] = []
+    if omitted:
+        omitted_cost = sum(sum(own.get(n.uid, {}).values()) for n in omitted)
+        checks.append(Issue(SEV_WARN if omitted_cost > 0.005 else SEV_INFO, "", "",
+                            f"Se {'omitió' if len(omitted) == 1 else 'omitieron'} "
+                            f"{plural(len(omitted), 'tarea', 'tareas')} sin código EDT que no depende"
+                            f"{'' if len(omitted) == 1 else 'n'} de ningún elemento EDT (costo de línea base "
+                            f"{fmt_money(omitted_cost)}, que no forma parte del BAC)."))
+    if not rows:
+        checks.append(Issue(SEV_WARN, "", "",
+                            "Ninguna tarea tiene código EDT: el libro no tiene filas. Se debe revisar el campo EDT "
+                            "configurado ([campos] edt) y la planificación elegida."))
+
+    part_bac = sum(r.bac for r in rows if r.is_input)
+    reference = scope.plan.baseline_cost if scope.plan is not None else project.summary_baseline_cost
+    if reference is not None and project.baseline_found:
+        if abs(reference - part_bac) > tolerance(reference):
+            whose = f"de la planificación '{scope.prefix}'" if scope.plan is not None else "del proyecto"
+            checks.append(Issue(SEV_WARN, "", "",
+                                f"El BAC total exportado ({fmt_money(part_bac)}) difiere del costo de línea base "
+                                f"{whose} en MS Project ({fmt_money(reference)})."))
+
+    seen: set[str] = set()
+    for row in rows:
+        if row.code in seen:
+            checks.append(Issue(SEV_WARN, row.code, row.name,
+                                "Código EDT duplicado." + ("" if scope.plan is not None else
+                                                           " Si el proyecto tiene varias planificaciones, se "
+                                                           "debe elegir una con 'planificacion'.")))
+        else:
+            seen.add(row.code)
+
+    if aggregated:
+        checks.append(Issue(SEV_INFO, "", "",
+                            f"{plural(aggregated, 'tarea', 'tareas')} sin código EDT o de nivel EDT mayor a "
+                            f"{cfg.max_level} se {'agregó' if aggregated == 1 else 'agregaron'} en su elemento EDT "
+                            "superior."))
+    linear = getattr(source, "linear_count", 0)
+    if linear and isinstance(source, TimephasedPVSource):
+        if source.timephased_count:
+            checks.append(Issue(SEV_INFO, "", "",
+                                f"{plural(linear, 'tarea no tiene', 'tareas no tienen')} distribución mensual de la "
+                                "línea base en MS Project (p. ej. costo de línea base escrito a mano): su BAC se "
+                                "repartió en forma lineal entre el inicio y el fin de la línea base."))
+        elif project.baseline_found:
+            checks.append(Issue(SEV_WARN, "", "",
+                                "MS Project no entregó la distribución mensual de la línea base: el BAC de cada tarea "
+                                "se repartió en forma lineal entre el inicio y el fin de la línea base."))
+
+    for row in rows:
+        row.source = name
+    dates = [t.baseline_start or t.start for t in scope.tasks() if (t.baseline_start or t.start)]
+    ref = min(dates) if dates else project.project_start
+    first_date = (ref.date() if isinstance(ref, datetime) else ref) if ref else None
+    return ReportPart(Source(name, project, scope.prefix, source.description), rows, report_roots, issues, checks,
+                      first_date)
+
+
+def _code_order(row: ReportRow) -> tuple:
+    """Orden de los elementos de nivel superior de varios archivos: por código EDT numérico (1.0.0 < 9.0.0 <
+    10.0.0); los códigos no numéricos van al final, en su orden."""
+    segments = row.code.split(".")
+    if all(x.strip().isdigit() for x in segments):
+        return (0, tuple(int(x) for x in segments))
+    return (1, ())
+
+
+def _block(row: ReportRow):
+    """La fila y sus descendientes, en el orden del libro."""
+    yield row
+    for c in row.children:
+        yield from _block(c)
+
+
+def _tagged(part: ReportPart, issues: list[Issue]) -> list[Issue]:
+    """Con varios archivos, cada observación indica el archivo: '[P2] ...'."""
+    name = part.source.name
+    if not name:
+        return list(issues)
+    return [Issue(i.severity, i.code, i.name, f"[{name}] {i.message}") for i in issues]
+
+
+def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:
+    """Combina las filas de uno o varios archivos, fija el horizonte y calcula los vectores mensuales."""
+    issues = [i for part in parts for i in _tagged(part, part.issues)]
+    if len(parts) > 1:
+        # Las hojas identifican cada fila por su código EDT: un código no puede estar en dos archivos
+        owner: dict[str, str] = {}
+        for part in parts:
+            for row in part.rows:
+                other = owner.setdefault(row.code, part.source.name)
+                if other != part.source.name:
+                    raise ConfigError(
+                        f"El código EDT '{row.code}' está en los archivos '{other}' y '{part.source.name}'. Con "
+                        "varios archivos de MS Project, cada código EDT debe estar en un solo archivo (p. ej. 1.0.0 a "
+                        "8.0.0 en uno y 9.0.0 en otro): se deben revisar los códigos EDT o la planificación de cada "
+                        "archivo en [[proyectos]].")
+        roots = sorted((r for part in parts for r in part.roots), key=_code_order)
+        rows = [x for root in roots for x in _block(root)]
+    else:
+        roots, rows = list(parts[0].roots), list(parts[0].rows)
+
     # --- Horizonte -------------------------------------------------------------
     # Sin mes de inicio: el primer mes con PV en las filas del libro (las tareas omitidas no cuentan)
     if cfg.start_month:
@@ -642,9 +785,8 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
             y, m = min(keys)
             start = date(y, m, 1)
         else:
-            dates = [t.baseline_start or t.start for t in scope.tasks() if (t.baseline_start or t.start)]
-            ref = min(dates) if dates else (project.project_start or datetime.now())
-            start = first_of_month(ref.date() if isinstance(ref, datetime) else ref)
+            firsts = [p.first_date for p in parts if p.first_date]
+            start = first_of_month(min(firsts) if firsts else datetime.now().date())
     horizon = Horizon(start, cfg.months)
 
     # --- Vectores mensuales ---------------------------------------------------
@@ -676,11 +818,11 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
         row.pv_before = sum(c.pv_before for c in row.children)
         row.pv_after = sum(c.pv_after for c in row.children)
 
-    for r in report_roots:
+    for r in roots:
         fill_summary(r)
 
-    total_vector = [sum(r.vector[i] for r in report_roots) for i in range(horizon.months)]
-    total_bac = sum(r.bac for r in report_roots)
+    total_vector = [sum(r.vector[i] for r in roots) for i in range(horizon.months)]
+    total_bac = sum(r.bac for r in roots)
 
     if total_before > 0.005:
         issues.append(Issue(SEV_WARN, "", "",
@@ -693,65 +835,38 @@ def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
                             "'meses'."))
 
     # --- Controles -------------------------------------------------------------
-    if omitted:
-        omitted_cost = sum(sum(own.get(n.uid, {}).values()) for n in omitted)
-        issues.append(Issue(SEV_WARN if omitted_cost > 0.005 else SEV_INFO, "", "",
-                            f"Se {'omitió' if len(omitted) == 1 else 'omitieron'} "
-                            f"{plural(len(omitted), 'tarea', 'tareas')} sin código EDT que no depende"
-                            f"{'' if len(omitted) == 1 else 'n'} de ningún elemento EDT (costo de línea base "
-                            f"{fmt_money(omitted_cost)}, que no forma parte del BAC)."))
-    if not rows:
-        issues.append(Issue(SEV_WARN, "", "",
-                            "Ninguna tarea tiene código EDT: el libro no tiene filas. Se debe revisar el campo EDT "
-                            "configurado ([campos] edt) y la planificación elegida."))
-
-    reference = scope.plan.baseline_cost if scope.plan is not None else project.summary_baseline_cost
-    if reference is not None and project.baseline_found:
-        if abs(reference - total_bac) > tolerance(reference):
-            whose = f"de la planificación '{scope.prefix}'" if scope.plan is not None else "del proyecto"
-            issues.append(Issue(SEV_WARN, "", "",
-                                f"El BAC total exportado ({fmt_money(total_bac)}) difiere del costo de línea base "
-                                f"{whose} en MS Project ({fmt_money(reference)})."))
-
-    seen: set[str] = set()
-    for row in rows:
-        if row.code in seen:
-            issues.append(Issue(SEV_WARN, row.code, row.name,
-                                "Código EDT duplicado." + ("" if scope.plan is not None else
-                                                           " Si el proyecto tiene varias planificaciones, se "
-                                                           "debe elegir una con 'planificacion'.")))
-        else:
-            seen.add(row.code)
-
-    if aggregated:
-        issues.append(Issue(SEV_INFO, "", "",
-                            f"{plural(aggregated, 'tarea', 'tareas')} sin código EDT o de nivel EDT mayor a "
-                            f"{cfg.max_level} se {'agregó' if aggregated == 1 else 'agregaron'} en su elemento EDT "
-                            "superior."))
+    for part in parts:
+        issues += _tagged(part, part.checks)
     if cfg.multi_enabled:
-        bac_a = sum(r.bac_a for r in report_roots)
+        bac_a = sum(r.bac_a for r in roots)
         issues.append(Issue(SEV_INFO, "", "",
                             f"Multi-empresa: BAC de {cfg.company_a} {fmt_money(bac_a)}; BAC de {cfg.company_b} "
                             f"{fmt_money(total_bac - bac_a)}."))
-    linear = getattr(source, "linear_count", 0)
-    if linear and isinstance(source, TimephasedPVSource):
-        if source.timephased_count:
-            issues.append(Issue(SEV_INFO, "", "",
-                                f"{plural(linear, 'tarea no tiene', 'tareas no tienen')} distribución mensual de la "
-                                "línea base en MS Project (p. ej. costo de línea base escrito a mano): su BAC se "
-                                "repartió en forma lineal entre el inicio y el fin de la línea base."))
-        elif project.baseline_found:
-            issues.append(Issue(SEV_WARN, "", "",
-                                "MS Project no entregó la distribución mensual de la línea base: el BAC de cada tarea "
-                                "se repartió en forma lineal entre el inicio y el fin de la línea base."))
     undefined = [r for r in rows if r.is_input and r.method.strip().lower() in ("", "por definir", "a definir")]
     if undefined:
         issues.append(Issue(SEV_INFO, "", "",
                             f"{plural(len(undefined), 'fila', 'filas')} sin método de medición definido "
                             "(columna C)."))
 
-    return Report(project=project, horizon=horizon, rows=rows, roots=report_roots, issues=issues,
+    sources = [p.source for p in parts]
+    symbols = {s.name: s.project.currency_symbol for s in sources if s.project.currency_symbol}
+    currency = next(iter(symbols.values()), "")
+    if not cfg.currency and len(set(symbols.values())) > 1:
+        issues.append(Issue(SEV_WARN, "", "",
+                            "Los archivos tienen monedas distintas en MS Project ("
+                            + ", ".join(f"{k}: {v}" for k, v in symbols.items()) + f"): el libro muestra {currency}. "
+                            "Se debe indicar la moneda en [exportacion] moneda."))
+    if len(sources) > 1 or sources[0].name:
+        pv_source = "  |  ".join(f"{s.name}: {s.pv_source}" for s in sources)
+        title = cfg.title or " + ".join(dict.fromkeys(s.project.name for s in sources))
+        plan = ""
+    else:
+        pv_source, plan = sources[0].pv_source, sources[0].plan
+        title = cfg.title or sources[0].project.name
+
+    return Report(project=sources[0].project, horizon=horizon, rows=rows, roots=roots, issues=issues,
                   total_vector=total_vector, total_bac=total_bac, pv_before=total_before,
-                  pv_after=total_after, pv_source=source.description, plan=scope.prefix,
+                  pv_after=total_after, pv_source=pv_source, plan=plan,
                   multi=cfg.multi_enabled, company_a=cfg.company_a if cfg.multi_enabled else "",
-                  company_b=cfg.company_b if cfg.multi_enabled else "")
+                  company_b=cfg.company_b if cfg.multi_enabled else "", sources=sources, title=title,
+                  currency=currency)

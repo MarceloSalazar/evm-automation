@@ -42,6 +42,7 @@ SHEET_VALID = "Validación"
 SHEET_LISTS = "Listas"
 SHEET_STRUCT = "_estructura"
 SHEET_META = "_meta"
+META_SOURCES = "proyectos"          # _meta: nombres de los archivos de un libro con varios archivos ("P1;P2")
 
 TITLE_ROW, INFO_ROW, MONTHNUM_ROW, HEADER_ROW, FIRST_ROW = 1, 2, 3, 4, 5
 COL_CODE, COL_NAME, COL_METHOD, COL_BAC, COL_START, COL_FINISH = 1, 2, 3, 4, 5, 6
@@ -110,8 +111,18 @@ METHOD_HELP = {
 
 
 def row_key(row: ReportRow) -> str:
-    """Clave estable de una fila de ingreso: UniqueID de la tarea en MS Project."""
-    return f"{row.task.uid}-D" if row.kind == KIND_RESIDUAL else str(row.task.uid)
+    """Clave estable de una fila: UniqueID de la tarea en MS Project ('123', o '123-D' en una fila de otros
+    costos). Con varios archivos, el UniqueID se repite entre archivos: la clave lleva el nombre del archivo
+    ('P2:123')."""
+    key = f"{row.task.uid}-D" if row.kind == KIND_RESIDUAL else str(row.task.uid)
+    return f"{row.source}:{key}" if row.source else key
+
+
+def split_key(key: str) -> tuple[str, str, bool]:
+    """Partes de una clave de fila: (archivo, UniqueID, fila de otros costos). 'P2:123-D' -> ('P2', '123', True)."""
+    source, _, rest = str(key).rpartition(":")
+    residual = rest.endswith("-D")
+    return source, rest[:-2] if residual else rest, residual
 
 
 def money_format(decimals: int) -> str:
@@ -231,11 +242,20 @@ class _Layout:
 
 def _info_line(report: Report, cfg: Config, generated: datetime) -> str:
     p = report.project
-    cur = cfg.currency or p.currency_symbol or "-"
-    plan = f"Planificación: {report.plan}  |  " if report.plan else ""
+    cur = cfg.currency or report.currency or "-"
     companies = f"Empresas: {report.company_a} y {report.company_b}  |  " if report.multi else ""
-    return (f"Proyecto: {p.name}  |  {plan}{companies}Origen: {Path(p.source).name}  |  {p.baseline_label}  |  "
+    if report.multi_file:
+        files = ", ".join(f"{s.name} = {Path(s.project.source).name}" for s in report.sources)
+        return (f"Informe: {report.title}  |  {companies}Archivos: {files}  |  Moneda: {cur}  |  "
+                f"Generado: {generated:%d/%m/%Y %H:%M}")
+    plan = f"Planificación: {report.plan}  |  " if report.plan else ""
+    return (f"Proyecto: {report.title}  |  {plan}{companies}Origen: {Path(p.source).name}  |  {p.baseline_label}  |  "
             f"Moneda: {cur}  |  Generado: {generated:%d/%m/%Y %H:%M}")
+
+
+def per_file(report: Report, value) -> str:
+    """Dato de cada archivo de un informe con varios archivos: 'P1: valor  |  P2: valor'."""
+    return "  |  ".join(f"{s.name}: {value(s)}" for s in report.sources)
 
 
 def company_sheet(kind: str, company: str) -> str:
@@ -390,7 +410,8 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
     # Fila de total
     tr = lay.total_row
     ws.cell(row=tr, column=COL_CODE, value="TOTAL")
-    ws.cell(row=tr, column=COL_NAME, value="Total proyecto" + (f" - {company}" if company else ""))
+    total = "Total programa" if report.multi_file else "Total proyecto"
+    ws.cell(row=tr, column=COL_NAME, value=total + (f" - {company}" if company else ""))
     root_rows = [lay.r(x) for x in report.roots]
     for c_ in [COL_BAC] + list(range(lay.first_col, lay.last_col + 1)):
         L = col(c_)
@@ -571,7 +592,8 @@ def _write_summary(ws, report: Report, cfg: Config, lay: _Layout, generated: dat
     p = report.project
     tr = lay.total_row
     ws.cell(row=1, column=1, value="Informe de Valor Ganado (EVM)").font = FONT_TITLE
-    put_text(ws, 2, 1, p.name).font = Font(bold=True, size=12)
+    put_text(ws, 2, 1, report.title).font = Font(bold=True, size=12)
+    several = report.multi_file
 
     def section(r: int, text: str) -> None:
         for c_ in (1, 2, 3):
@@ -596,18 +618,19 @@ def _write_summary(ws, report: Report, cfg: Config, lay: _Layout, generated: dat
     ws["A8"] = "Meses del horizonte"
     ws["B8"] = report.horizon.months
     ws["A9"] = "Moneda"
-    put_text(ws, 9, 2, cfg.currency or p.currency_symbol or "-")
+    put_text(ws, 9, 2, cfg.currency or report.currency or "-")
     ws["A10"] = "Línea base"
-    put_text(ws, 10, 2, p.baseline_label)
-    ws["A11"] = "Origen"
-    put_text(ws, 11, 2, str(p.source))
+    put_text(ws, 10, 2, per_file(report, lambda s: s.project.baseline_label) if several else p.baseline_label)
+    ws["A11"] = "Origen" if not several else "Archivos de MS Project"
+    put_text(ws, 11, 2, per_file(report, lambda s: s.project.source) if several else str(p.source))
     ws["A12"] = "Fuente del PV mensual"
     put_text(ws, 12, 2, report.pv_source)
     ws["A13"] = "Generado"
     ws["B13"] = generated.replace(microsecond=0)
     ws["B13"].number_format = "dd/mm/yyyy hh:mm"
     ws["A14"] = "Planificación"
-    put_text(ws, 14, 2, report.plan or "Todas (sin filtro)")
+    put_text(ws, 14, 2, per_file(report, lambda s: s.plan or "todas") if several
+             else report.plan or "Todas (sin filtro)")
 
     pv_tot = lay.month_range(SHEET_PV, tr)
     ev_tot = lay.month_range(SHEET_EV, tr)
@@ -772,7 +795,7 @@ def _append_texts(ws, values: list) -> None:
 def _write_structure(ws, report: Report, lay: _Layout) -> None:
     ws.append(["fila", "clave", "edt", "nivel", "tipo", "fila_padre", "actividad", "metodo_origen"])
     for row in report.rows:
-        _append_texts(ws, [lay.r(row), row_key(row) if row.is_input else str(row.task.uid), row.code, row.level,
+        _append_texts(ws, [lay.r(row), row_key(row), row.code, row.level,
                            row.kind, lay.r(row.parent) if row.parent else None, row.name,
                            row.method if row.is_input else None])
 
@@ -839,19 +862,21 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     dashboard.define_names(wb, lay)
     cutoff = report.horizon.index(status) + 1 if status else None
     dashboard.add_dashboard_charts(wb, packages, lay.months, dashboard.plan_end_month(report.total_vector),
-                                   cutoff, report.total_bac, cfg.currency or report.project.currency_symbol or "")
+                                   cutoff, report.total_bac, cfg.currency or report.currency or "")
     wb.active = 0
 
     p = report.project
+    several = report.multi_file
     meta = {
         "version": __version__,
-        "proyecto": p.name,
-        "origen": str(p.source),
-        "motor": p.backend,
-        "linea_base": p.baseline_label,
+        "proyecto": report.title if several else p.name,
+        "titulo": report.title,
+        "origen": per_file(report, lambda s: s.project.source) if several else str(p.source),
+        "motor": per_file(report, lambda s: s.project.backend) if several else p.backend,
+        "linea_base": per_file(report, lambda s: s.project.baseline_label) if several else p.baseline_label,
         "fuente_pv": report.pv_source,
         "planificacion": report.plan,
-        "moneda": cfg.currency or p.currency_symbol or "",
+        "moneda": cfg.currency or report.currency or "",
         "horizonte_inicio": report.horizon.start,
         "meses": report.horizon.months,
         "primera_fila": FIRST_ROW,
@@ -871,11 +896,18 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
             "reparto_por_defecto": cfg.split_default,
             "ac_desde_project": bool(cfg.ac_from_project),
         })
+    if several:
+        # Datos de cada archivo: 'actualizar' y --migrar-desde asocian las filas de cada uno por su nombre
+        meta[META_SOURCES] = ";".join(s.name for s in report.sources)
+        for s in report.sources:
+            meta.update({f"proyecto.{s.name}": s.project.name, f"origen.{s.name}": str(s.project.source),
+                         f"motor.{s.name}": s.project.backend, f"linea_base.{s.name}": s.project.baseline_label,
+                         f"planificacion.{s.name}": s.plan})
     write_meta(ws_meta, meta)
 
     wb.calculation = CalcProperties(fullCalcOnLoad=True)
     wb.properties.creator = "evm_export"
-    wb.properties.title = clean_text(f"EVM - {p.name}")
+    wb.properties.title = clean_text(f"EVM - {report.title}")
     save_workbook(wb, path)
     return meta
 
@@ -993,6 +1025,18 @@ def read_meta(wb) -> dict:
         raise invalid("meses")
     meta["multiempresa"] = _as_bool(meta.get("multiempresa"))
     return meta
+
+
+def book_sources(meta: dict) -> list[str]:
+    """Nombres de los archivos de MS Project del libro (['P1', 'P2']); [''] en un libro de un solo archivo."""
+    names = [n for n in str(meta.get(META_SOURCES) or "").split(";") if n]
+    return names or [""]
+
+
+def source_meta(meta: dict, key: str, source: str):
+    """Dato de _meta de un archivo del libro ('proyecto', 'planificacion'...). Libro de un solo archivo: el dato
+    general."""
+    return meta.get(f"{key}.{source}") if source else meta.get(key)
 
 
 def read_structure(wb) -> list[StructRow]:

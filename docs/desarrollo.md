@@ -29,6 +29,7 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 | `test_robustez_lectores.py` | Lectura del XML (campos, líneas base, calendarios y excepciones) y del `.mpp` con objetos que simulan MS Project. |
 | `test_robustez_libro.py` | `actualizar`, `--migrar-desde`, libros modificados a mano, errores de la línea de comandos y del archivo de configuración. |
 | `test_proyectos_aleatorios.py` | Proyectos aleatorios de punta a punta (`generar`, varias fechas de corte, migración y recálculo). |
+| `test_varios_archivos.py` | Varios archivos de MS Project (`[[proyectos]]`): el libro combinado coincide, fila por fila, con el libro de cada archivo (también en multi-empresa, con UniqueID repetidos entre archivos); errores de configuración y de la línea de comandos, fechas de estado y `--migrar-desde`. |
 | Resto | Casos del programa de ejemplo, Cuadro de Mando, multi-empresa y planificación. |
 
 - **LibreOffice:** si está instalado, las pruebas marcadas `libreoffice` recalculan las fórmulas del
@@ -67,7 +68,8 @@ Además, se recomienda comparar el BAC total y el PV de algunos meses con la vis
 (campo *Costo previsto* en la escala temporal mensual).
 
 El proyecto de ejemplo (`ejemplos/programa_ejemplo.xml`) y su generador se describen en el
-[tutorial](ejemplo-paso-a-paso.md).
+[tutorial](ejemplo-paso-a-paso.md). El segundo proyecto de ejemplo (`ejemplos/proyecto2_ejemplo.xml`,
+para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyecto 2`.
 
 ---
 
@@ -82,7 +84,7 @@ El proyecto de ejemplo (`ejemplos/programa_ejemplo.xml`) y su generador se descr
 | `evm/reader_com.py` | Lectura de `.mpp` con MS Project (COM). |
 | `evm/reader_xml.py`, `evm/workcalendar.py` | Lectura del XML de MS Project y de su calendario. |
 | `evm/fields.py` | Identificación de campos personalizados (Texto1..30, Número1..20 y alias). |
-| `evm/wbs.py` | Estructura EDT hasta el nivel máximo y PV por fila. |
+| `evm/wbs.py` | Estructura EDT hasta el nivel máximo y PV por fila; combinación de varios archivos y horizonte. |
 | `evm/companies.py` | Multi-empresa: parte de cada empresa por tarea y reparto del EV y el AC. |
 | `evm/timeline.py` | Horizonte mensual y repartos en el tiempo. |
 | `evm/workbook.py` | Escritura del libro Excel y de sus indicadores. |

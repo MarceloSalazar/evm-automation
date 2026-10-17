@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from pathlib import Path
 
@@ -65,6 +65,19 @@ def parse_date(text: str) -> date:
 
 
 @dataclass
+class ProjectSpec:
+    """Archivo de MS Project de un informe con varios archivos (sección [[proyectos]])."""
+
+    name: str                       # nombre corto y fijo del archivo en el libro (p. ej. "P1")
+    origin: str                     # archivo .mpp o .xml
+    plan: str | None = None         # planificación de este archivo; None = la de [exportacion]
+    baseline: int | None = None     # línea base de este archivo; None = la de [exportacion]
+
+
+MAX_PROJECT_NAME = 30
+
+
+@dataclass
 class Config:
     # [campos] -- campos de MS Project a leer
     wbs_field: str = "WBS"                # WBS | OutlineNumber | Text1..Text30 | alias
@@ -104,7 +117,20 @@ class Config:
     split_default: float = 50.0
     ac_from_project: bool = False         # AC por empresa desde MS Project (si no, se carga a mano)
 
+    # [[proyectos]] -- varios archivos de MS Project en un mismo libro (vacío = un solo archivo)
+    projects: list[ProjectSpec] = field(default_factory=list)
+    title: str = ""                       # [exportacion] titulo: título del informe ("" = nombre del proyecto)
+
     source_file: str = ""                 # ruta del TOML leído (informativo)
+
+    def project_config(self, name: str) -> "Config":
+        """Configuración para leer un archivo de [[proyectos]]: su planificación y su línea base (la general si el
+        archivo no las indica)."""
+        spec = next((p for p in self.projects if p.name == name), None)
+        if spec is None:
+            return self
+        return replace(self, plan=self.plan if spec.plan is None else spec.plan,
+                       baseline=self.baseline if spec.baseline is None else spec.baseline)
 
     def validate(self) -> None:
         if not 1 <= self.max_level <= 10:
@@ -139,6 +165,25 @@ class Config:
                 raise ConfigError("[multiempresa] ambas debe tener un valor distinto de los nombres de las empresas.")
             if not 0 <= self.split_default <= 100:
                 raise ConfigError("[multiempresa] reparto_por_defecto debe estar entre 0 y 100.")
+        if self.projects:
+            from evm.fields import same_name
+            seen: list[str] = []
+            for p in self.projects:
+                if not p.name:
+                    raise ConfigError("[[proyectos]]: cada archivo debe tener un 'nombre' (p. ej. \"P1\").")
+                if len(p.name) > MAX_PROJECT_NAME or any(ch in p.name for ch in ":;"):
+                    raise ConfigError(f"[[proyectos]] nombre = '{p.name}': debe tener como máximo {MAX_PROJECT_NAME} "
+                                      "caracteres, sin ':' ni ';'.")
+                if any(same_name(p.name, n) for n in seen):
+                    raise ConfigError(f"[[proyectos]]: el nombre '{p.name}' está repetido.")
+                seen.append(p.name)
+                if not p.origin:
+                    raise ConfigError(f"[[proyectos]] '{p.name}': falta 'origen' (archivo .mpp o .xml).")
+                if p.origin.strip().lower() == "activo":
+                    raise ConfigError(f"[[proyectos]] '{p.name}': con varios archivos no se admite 'activo'; se debe "
+                                      "indicar la ruta del archivo .mpp o .xml.")
+                if p.baseline is not None and not 0 <= p.baseline <= 10:
+                    raise ConfigError(f"[[proyectos]] '{p.name}': linea_base debe estar entre 0 y 10.")
 
 
 def _get(section: dict, key: str, default, kind):
@@ -162,6 +207,29 @@ def _section(data: dict, name: str) -> dict:
         raise ConfigError(f"[{name}] debe ser una sección: una línea [{name}] seguida de sus claves "
                           f"(se encontró '{name} = ...').")
     return value
+
+
+def _projects(data: dict, base: Path) -> list[ProjectSpec]:
+    """Secciones [[proyectos]]: un archivo de MS Project por sección. Las rutas relativas se toman desde la
+    carpeta del archivo de configuración."""
+    items = data.get("proyectos")
+    if items is None:
+        return []
+    if not isinstance(items, list) or not all(isinstance(x, dict) for x in items):
+        raise ConfigError("Los archivos de MS Project se indican con una sección [[proyectos]] (con dos corchetes) "
+                          "por archivo, cada una con 'nombre' y 'origen'.")
+    out = []
+    for item in items:
+        name = _get(item, "nombre", "", str).strip()
+        origin = _get(item, "origen", "", str).strip()
+        if origin and origin.lower() != "activo" and not Path(origin).is_absolute():
+            origin = str(base / origin)
+        plan = _get(item, "planificacion", None, str)
+        baseline = None
+        if item.get("linea_base") not in (None, ""):
+            baseline = _get(item, "linea_base", 0, int)
+        out.append(ProjectSpec(name, origin, plan.strip() if plan is not None else None, baseline))
+    return out
 
 
 def load_config(path: str | Path | None) -> Config:
@@ -208,6 +276,7 @@ def load_config(path: str | Path | None) -> Config:
     cfg.default_method = _get(exp, "metodo_por_defecto", cfg.default_method, str).strip()
     cfg.currency = _get(exp, "moneda", cfg.currency, str).strip()
     cfg.decimals = _get(exp, "decimales", cfg.decimals, int)
+    cfg.title = _get(exp, "titulo", cfg.title, str).strip()
 
     met = _section(data, "metodos")
     lista = met.get("lista")
@@ -229,6 +298,8 @@ def load_config(path: str | Path | None) -> Config:
     cfg.split_field = _get(mul, "campo_reparto", cfg.split_field, str).strip()
     cfg.split_default = _get(mul, "reparto_por_defecto", cfg.split_default, float)
     cfg.ac_from_project = _get(mul, "ac_desde_project", cfg.ac_from_project, bool)
+
+    cfg.projects = _projects(data, path.parent)
 
     cfg.source_file = str(path)
     cfg.validate()
