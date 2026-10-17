@@ -139,9 +139,10 @@ gh pr create --base main --fill
 Cada cambio de versión (`__version__` en `evm/__init__.py`, con el formato descrito en
 [CHANGELOG.md](../CHANGELOG.md)) se acompaña, en el mismo Pull Request, de:
 
-1. Una entrada nueva al principio de [CHANGELOG.md](../CHANGELOG.md): `## [X.Y.Z] - AAAA-MM-DD · Título`,
-   con las secciones **Nuevas funciones**, **Correcciones** y **Otros** (con "Ninguna." si una sección
-   no tiene cambios), y el enlace de comparación al final del archivo.
+1. La entrada de la versión en [CHANGELOG.md](../CHANGELOG.md): la sección *Sin publicar* pasa a ser
+   `## [X.Y.Z] - AAAA-MM-DD · Título`, con las secciones **Nuevas funciones**, **Correcciones** y
+   **Otros** (con "Ninguna." si una sección no tiene cambios); arriba se agrega una sección *Sin publicar*
+   vacía y al final del archivo se actualizan los enlaces de comparación.
 2. La versión en la portada de la presentación y su PDF:
 
    ```powershell
@@ -161,7 +162,8 @@ gh release create vX.Y.Z --title "$(python docs\herramientas\notas_version.py X.
 ```
 
 `notas_version.py` verifica que la versión tenga las tres secciones. Los cambios que no modifican la
-versión (por ejemplo, solo documentación) se incluyen en la entrada de la versión siguiente.
+versión (por ejemplo, solo documentación) se anotan en la sección *Sin publicar* del CHANGELOG, en el
+mismo Pull Request, y forman parte de la entrada de la versión siguiente.
 
 ---
 
