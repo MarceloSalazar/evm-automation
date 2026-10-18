@@ -35,6 +35,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - Documentación de los métodos de medición: dónde se define el método y dónde se calcula el EV
   (MS Project, programa y Excel), y proceso para definir y aprobar el método de cada paquete (roles,
   pasos, criterio de medición, cambios de método y registro de los métodos aprobados).
+- Presentación (37 diapositivas): nueva diapositiva *Cómo se define el método de cada paquete* y, en *El
+  libro Excel*, el método se define en MS Project y la columna C solo se edita para cambios aprobados.
 
 ## [1.5.0] - 2026-10-17 · Análisis de desviaciones y semáforo con umbrales superiores
 
