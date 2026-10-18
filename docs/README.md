@@ -41,7 +41,7 @@ rápido están en el [README principal](../README.md).
 |---|---|
 | [Preparación del proyecto en MS Project](preparacion-ms-project.md) | Lista de control, código EDT, campos personalizados, línea base, fecha de estado, registro del avance y XML. |
 | [Presupuesto (BAC) de cada tarea](presupuesto-bac.md) | Recursos de trabajo, materiales y de costo, costo fijo; guardar y verificar la línea base; errores frecuentes. |
-| [Métodos de medición](metodos-de-medicion.md) | 0/100, fórmulas fijas, hitos ponderados, % completado, % físico, unidades, LOE, CPTR y el método de valor acumulado de MS Project. |
+| [Métodos de medición](metodos-de-medicion.md) | 0/100, fórmulas fijas, hitos ponderados, % completado, % físico, unidades, LOE y CPTR; dónde se define el método y dónde se calcula el EV; guía y proceso para definir el método de cada paquete; método de valor acumulado de MS Project. |
 | [Multi-empresa (opcional)](multiempresa.md) | PV, EV y AC de dos empresas: preparación, reparto, cálculo y ejemplo. |
 | [Varios archivos de MS Project (opcional)](varios-archivos.md) | Un informe con los elementos EDT de varios archivos: códigos EDT, `[[proyectos]]`, cierre mensual, cambios de archivos y ejemplo. |
 

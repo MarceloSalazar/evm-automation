@@ -4,8 +4,9 @@
 
 El **método de medición** (técnica de valor ganado) define cómo se convierte el avance de un paquete de
 trabajo en **valor ganado (EV)**. Se elige uno por paquete al planificar y se mantiene durante toda su
-ejecución. Este documento describe los métodos que admite el programa, cómo se configuran y cómo se
-registra el avance en MS Project para cada uno, y cómo usar el método de valor acumulado propio de
+ejecución. Este documento describe los métodos que admite el programa, dónde se define el método y
+dónde se calcula el EV, cómo se configuran y cómo se registra el avance en MS Project para cada uno,
+cómo elegir y aprobar el método de cada paquete, y cómo usar el método de valor acumulado propio de
 MS Project.
 
 > Las imágenes de MS Project son **esquemas ilustrativos**, no capturas. Los nombres de menú
@@ -18,6 +19,9 @@ MS Project.
 
 1. [Resumen de los métodos](#1-resumen-de-los-métodos)
 2. [Configurar el método de cada paquete](#2-configurar-el-método-de-cada-paquete)
+   - [2.1 Dónde se define y dónde se calcula](#21-dónde-se-define-y-dónde-se-calcula)
+   - [2.2 En MS Project: campo personalizado «Método EVM»](#22-en-ms-project-campo-personalizado-método-evm)
+   - [2.3 En Excel: columna C de la hoja PV](#23-en-excel-columna-c-de-la-hoja-pv)
 3. [Los métodos en detalle](#3-los-métodos-en-detalle)
    - [3.1 0/100](#31-0100)
    - [3.2 Fórmulas fijas 50/50, 25/75 y 20/80](#32-fórmulas-fijas-5050-2575-y-2080)
@@ -28,8 +32,13 @@ MS Project.
    - [3.7 Avance lineal (LOE)](#37-avance-lineal-loe)
    - [3.8 CPTR de MS Project](#38-cptr-de-ms-project)
 4. [Guía para elegir el método](#4-guía-para-elegir-el-método)
-5. [Método del valor acumulado de MS Project (opcional)](#5-método-del-valor-acumulado-de-ms-project-opcional)
-6. [Buenas prácticas](#6-buenas-prácticas)
+5. [Proceso para definir el método de cada paquete](#5-proceso-para-definir-el-método-de-cada-paquete)
+   - [5.1 Roles](#51-roles)
+   - [5.2 Pasos](#52-pasos)
+   - [5.3 Cambios de método](#53-cambios-de-método)
+   - [5.4 Registro de los métodos](#54-registro-de-los-métodos)
+6. [Método del valor acumulado de MS Project (opcional)](#6-método-del-valor-acumulado-de-ms-project-opcional)
+7. [Buenas prácticas](#7-buenas-prácticas)
 
 ---
 
@@ -57,7 +66,62 @@ El detalle del cálculo (ponderación por costo, valor del mes, controles) está
 El método se puede definir en MS Project (recomendado: queda junto al cronograma y se traslada a cada
 libro nuevo) o directamente en Excel, en la columna C de la hoja `PV`.
 
-### 2.1 En MS Project: campo personalizado «Método EVM»
+### 2.1 Dónde se define y dónde se calcula
+
+Con la configuración recomendada, el método de cada paquete se define en MS Project, pero el EV no lo
+calcula MS Project ni Excel: lo calcula el programa al ejecutar `actualizar`, con el avance registrado
+en MS Project y la regla del método. Excel recibe el EV y el AC de cada mes y calcula con fórmulas el resto del informe.
+
+```mermaid
+flowchart LR
+    subgraph MSP["MS Project"]
+        M1["Método EVM<br/>y Peso hito"]
+        M2["Avance del mes<br/>(% completado, % físico,<br/>hitos, fechas reales)"]
+    end
+    subgraph PRG["Programa"]
+        G["generar"]
+        U["actualizar<br/>EV y AC de cada paquete<br/>según su método"]
+    end
+    subgraph XL["Libro Excel"]
+        C["Columna C de la hoja PV<br/>(método del cálculo)"]
+        V["Hojas EV y AC<br/>(valor del mes)"]
+        F["Fórmulas: acumulados,<br/>índices, pronósticos,<br/>semáforos y gráficos"]
+    end
+    M1 --> G --> C
+    C --> U
+    M2 --> U
+    U --> V --> F
+```
+
+| Qué | Dónde |
+|---|---|
+| Método de cada paquete (dato de referencia) | MS Project: campo `Método EVM` y, en los hitos, `Peso hito` ([2.2](#22-en-ms-project-campo-personalizado-método-evm)). |
+| Avance del mes | MS Project: *% completado*, *% físico completado*, hitos al 100 % y fechas reales, en las tareas de detalle y los hitos ([Preparación en MS Project](preparacion-ms-project.md#7-fecha-de-estado-y-registro-del-avance)). |
+| Método que usa el cálculo | Excel: columna C de la hoja `PV`, que `generar` copia de MS Project ([2.3](#23-en-excel-columna-c-de-la-hoja-pv)). |
+| EV y AC acumulados de cada paquete | El programa, al ejecutar `actualizar`, que escribe el valor del mes en las hojas `EV` y `AC` ([Cálculo de EV y AC](calculo-ev-ac.md#3-ev-acumulado-de-cada-fila)). |
+| Acumulados, índices, pronósticos, semáforos y gráficos | Excel, con fórmulas ([Cuadro de Mando e indicadores](cuadro-de-mando.md)). |
+| Valor acumulado de MS Project (CPTR) | MS Project. El programa lo usa solo en los paquetes con `CPTR de MS Project` ([sección 6](#6-método-del-valor-acumulado-de-ms-project-opcional)). |
+
+El reparto responde a los datos que tiene cada herramienta:
+
+- **MS Project** ofrece solo dos métodos de valor acumulado, *% completado* y *% físico completado*:
+  no tiene `0/100`, fórmulas fijas ni hitos ponderados. Se pueden imitar registrando el *% físico
+  completado* según la regla de cada paquete, pero es un trabajo manual y propenso a errores
+  ([sección 6.2](#62-formas-de-trabajo)).
+- **Excel** tiene una fila por paquete: no tiene las subtareas, los hitos cumplidos, los pesos ni las
+  fechas reales que necesita la regla del método.
+- **El programa** lee ese detalle de MS Project y escribe en Excel el resultado de cada paquete. En un
+  paquete con subtareas, el avance es el promedio de las subtareas ponderado por su costo de línea base
+  ([Cálculo de EV y AC](calculo-ev-ac.md#31-avance-ponderado-por-costo)).
+
+> **Importante:** `actualizar` usa el método de la **columna C**, no el de MS Project, y no compara los
+> dos. Un cambio de método en MS Project posterior a `generar` no se aplica hasta regenerar el libro con
+> `--migrar-desde`, y un método editado en la columna C prevalece sobre el de MS Project al regenerar.
+> Para que no difieran, MS Project es la referencia: la columna C solo se edita para aplicar un cambio
+> aprobado, que se escribe también en MS Project con el mismo valor
+> ([5.3 Cambios de método](#53-cambios-de-método)).
+
+### 2.2 En MS Project: campo personalizado «Método EVM»
 
 1. Clic derecho en el encabezado de una columna > **Campos personalizados** (también en *Proyecto >
    Campos personalizados*).
@@ -80,12 +144,14 @@ libro nuevo) o directamente en Excel, en la columna C de la hoja `PV`.
 Para el método `Hitos ponderados` se crea, de la misma forma, un campo **Número** (por ejemplo
 *Número1*) con el nombre `Peso hito`, y en `config.toml` se indica `peso_hito = "Peso hito"`.
 
-### 2.2 En Excel: columna C de la hoja `PV`
+### 2.3 En Excel: columna C de la hoja `PV`
 
-La columna C tiene una lista desplegable con los métodos de la hoja `Listas`. Se puede cambiar en
-cualquier momento; `actualizar` usa el valor de la columna C. Al regenerar el libro con
-`--migrar-desde`, el método se conserva solo si fue **editado en Excel**; si no, se toma el de
-MS Project.
+La columna C tiene una lista desplegable con los métodos de la hoja `Listas`, y es el método que usa
+`actualizar`. Se puede cambiar en cualquier momento, pero el cambio queda solo en el libro: si el
+método se define en MS Project, un cambio en la columna C se escribe también allí
+([2.1](#21-dónde-se-define-y-dónde-se-calcula)). Al regenerar el libro con `--migrar-desde`, el método
+se conserva solo si fue **editado en Excel**; si no, se toma el de MS Project. Si el proyecto no usa el
+campo `Método EVM`, la columna C es la única referencia del método.
 
 Las filas sin método reciben `metodo_por_defecto` (`Por definir`) y se informan en `Validación`.
 También se reconocen otros textos: fórmulas con `%` (`50%/50%`), cualquier `X/Y` con X + Y = 100
@@ -245,7 +311,7 @@ BAC de la fila.
 
 **Cuándo usarlo:** cuando el avance se gestiona con el método de valor acumulado de MS Project y se
 quiere que el libro coincida exactamente con las tablas de valor acumulado de MS Project
-([sección 5](#5-método-del-valor-acumulado-de-ms-project-opcional)).
+([sección 6](#6-método-del-valor-acumulado-de-ms-project-opcional)).
 
 **Cómo calcula MS Project el CPTR** (según el *Método de valor acumulado* de la tarea):
 
@@ -293,14 +359,116 @@ flowchart TD
 
 ---
 
-## 5. Método del valor acumulado de MS Project (opcional)
+## 5. Proceso para definir el método de cada paquete
+
+El método de cada paquete se define durante la planificación, antes de guardar la línea base, y se
+aprueba con ella: forma parte del plan contra el que se mide el avance y, como la línea base, solo se
+cambia por control de cambios.
+
+### 5.1 Roles
+
+Los roles son los del [Proceso de reporte EVM](proceso-reporte-evm.md#2-roles):
+
+| Rol | Participación |
+|---|---|
+| **Planificador / Control de proyectos (PMO)** | Propone el método de cada paquete con la [guía](#4-guía-para-elegir-el-método), lo carga en MS Project y verifica el libro. |
+| **Responsable de paquete** | Confirma el método y define el criterio de medición de su paquete. |
+| **Jefe de Proyecto / Jefe de Programa** | Revisa el conjunto y aprueba los métodos junto con la línea base. |
+| **Cliente** | Conoce los criterios de medición de los paquetes que se le informan y, si el contrato lo prevé, los acepta. |
+
+### 5.2 Pasos
+
+```mermaid
+flowchart TD
+    A["Paso 1: Revisar los paquetes<br/>de la EDT"] --> B["Paso 2: Proponer el método<br/>(PMO)"]
+    B --> C["Paso 3: Definir el criterio de medición<br/>con el responsable de paquete"]
+    C --> D{"Paso 4: ¿El conjunto<br/>es razonable?"}
+    D -- "No" --> B
+    D -- "Sí" --> E["Paso 5: Aprobar con<br/>la línea base"]
+    E --> F["Paso 6: Cargar en<br/>MS Project"]
+    F --> G["Paso 7: Verificar con generar<br/>y actualizar --simular"]
+```
+
+1. **Revisar los paquetes de la EDT.** El método se asigna a cada paquete de trabajo (nivel 3 del código
+   EDT, o nivel 1 o 2 sin subelementos), no a sus tareas de detalle ni a sus hitos. Cada paquete debe
+   tener un responsable, su presupuesto y una duración acotada. Un paquete largo sin entregables
+   intermedios conviene dividirlo antes de recurrir a un método subjetivo.
+2. **Proponer el método.** El Planificador propone un método por paquete con la
+   [guía para elegir el método](#4-guía-para-elegir-el-método), según la duración y el tipo de trabajo.
+3. **Definir el criterio de medición.** Con cada responsable de paquete se confirma el método y se
+   define cómo se mide:
+
+   | Método | Qué se define |
+   |---|---|
+   | `0/100` y fórmulas fijas | Qué hecho marca el comienzo del paquete y qué evidencia lo da por terminado. |
+   | `Hitos ponderados` | Los hitos, su peso (que sumen 100, proporcionales al presupuesto del trabajo que lleva a cada hito) y la evidencia que da cada hito por cumplido. |
+   | `% Físico completado` | Qué se mide (por ejemplo, planos emitidos sobre el total) y de dónde sale la medición. |
+   | `Unidades completadas` | La unidad, la cantidad total y la fuente de la medición mensual. |
+   | `% Completado` | Por qué no hay una medida física mejor. |
+   | `Avance lineal (LOE)` | Por qué el paquete no tiene entregables medibles. |
+   | `CPTR de MS Project` | El *Método de valor acumulado* de sus tareas y, si el *% físico completado* se registra según la regla de otro método, cuál ([sección 6.2](#62-formas-de-trabajo)). |
+
+4. **Revisar el conjunto.** Antes de aprobar se revisa:
+   - la parte del BAC medida con `Avance lineal (LOE)` y con `% Completado`. Conviene acordar un tope:
+     el LOE aporta SPI = 1 y diluye los índices del proyecto, y el *% completado* mide la duración
+     transcurrida, no el trabajo realizado;
+   - que los paquetes con `Hitos ponderados` tengan al menos un hito por mes;
+   - que ningún paquete de varios meses quede con `0/100`.
+
+   Si ya se generó un libro de prueba, filtrando la columna C de la hoja `PV` por método, la barra de
+   estado de Excel muestra la suma del BAC (columna D) de ese método.
+5. **Aprobar.** El Jefe de Proyecto o de Programa aprueba los métodos junto con la línea base, y se
+   registran en el plan de gestión ([5.4](#54-registro-de-los-métodos)). Si el EVM se informa al
+   cliente, es buena práctica acordar con él los criterios de medición, sobre todo en la planificación
+   que se le informa (por ejemplo, `CLIENTE`).
+6. **Cargar en MS Project** el método en el campo `Método EVM`, con lista cerrada
+   ([2.2](#22-en-ms-project-campo-personalizado-método-evm)); los pesos en `Peso hito`; y el criterio de
+   medición en las *Notas* del paquete o de cada hito. Si se exportan dos planificaciones (`INTERNO` y
+   `CLIENTE`), se completa en los paquetes de las dos.
+7. **Verificar con el programa.** Después de `generar`, la hoja `Validación` no debe informar filas sin
+   método de medición, y la columna C de la hoja `PV` debe coincidir con los métodos aprobados. En el
+   primer cierre, `actualizar --simular` muestra las observaciones por fila; por ejemplo, un paquete con
+   `Hitos ponderados` sin hitos, que se mide con *% físico completado* o *% completado*.
+
+### 5.3 Cambios de método
+
+El método se mantiene durante toda la ejecución del paquete. Un cambio se trata como un cambio de línea
+base: se justifica y se aprueba por control de cambios, preferentemente antes de que el paquete
+comience. Para aplicar un cambio aprobado:
+
+1. Se cambia el método en MS Project (campo `Método EVM`) y se actualiza el criterio en las *Notas*.
+2. Se escribe el mismo método en la columna C de la hoja `PV`, para que se aplique en el próximo
+   `actualizar` sin regenerar el libro. Si en el mismo cambio se regenera el libro con
+   `--migrar-desde` (por ejemplo, por una nueva línea base), este paso no es necesario.
+3. En el próximo `actualizar`, el EV acumulado del paquete se recalcula con el método nuevo y toda la
+   diferencia queda en el mes de corte: puede resultar un valor del mes negativo o mayor que el
+   habitual ([Cálculo de EV y AC](calculo-ev-ac.md#5-del-valor-acumulado-al-valor-del-mes)). El salto se
+   explica en el informe y, si el paquete queda fuera de umbral, en
+   [Análisis de desviaciones](analisis-desviaciones.md).
+
+### 5.4 Registro de los métodos
+
+Los métodos aprobados se registran en una tabla del plan de gestión del proyecto (o en un anexo), que
+sirve de referencia para medir el avance cada mes y para explicar el informe. Ejemplo con paquetes del
+[proyecto de ejemplo](ejemplo-paso-a-paso.md):
+
+| Paquete | Responsable | BAC (€) | Método | Criterio de medición |
+|---|---|---:|---|---|
+| 1.1.1 Oficina de gestión del programa (PMO) | Jefe de Programa | 1.800.000 | `Avance lineal (LOE)` | Soporte durante todo el programa, sin entregables medibles. |
+| 2.1.2 Diseño conceptual | Jefe de ingeniería | 600.000 | `Hitos ponderados` | Bases aprobadas (30), alternativa seleccionada (30) e informe aprobado por el cliente (40). |
+| 2.2.1 Detalle civil | Jefe de ingeniería | 1.600.000 | `% Físico completado` | Planos emitidos para construcción sobre el total del listado de planos. |
+| 3.1.1 Movimiento de tierras | Jefe de obra | 3.200.000 | `Unidades completadas` | m³ excavados según la medición topográfica mensual, sobre 40.000 m³. |
+
+---
+
+## 6. Método del valor acumulado de MS Project (opcional)
 
 MS Project calcula su propio valor ganado, que llama **valor acumulado** (campo **CPTR**), con el
 campo **Método de valor acumulado** de cada tarea: **% completado** (por defecto) o **% físico
 completado**. Usarlo es opcional: el programa calcula los métodos de la sección 3 por su cuenta a partir
 del avance registrado.
 
-### 5.1 Configuración
+### 6.1 Configuración
 
 1. **Para el proyecto** (valor por defecto de las tareas nuevas y línea base del valor acumulado):
    *Archivo > Opciones > Avanzadas > Opciones de valor acumulado para este proyecto*:
@@ -320,7 +488,7 @@ del avance registrado.
    acumulado**. MS Project usa la [terminología en español](glosario.md) CPTP (PV), CPTR (EV) y CRTR
    (AC).
 
-### 5.2 Formas de trabajo
+### 6.2 Formas de trabajo
 
 | Forma | Configuración | Ventajas | Desventajas |
 |---|---|---|---|
@@ -344,16 +512,19 @@ tarea; para paquetes con subtareas e hitos se recomienda la forma A.
 
 ---
 
-## 6. Buenas prácticas
+## 7. Buenas prácticas
 
-- Definir el método de cada paquete **antes** de comenzarlo y mantenerlo durante toda su ejecución.
+- Definir el método de cada paquete **antes** de comenzarlo, aprobarlo con la línea base y mantenerlo
+  durante toda su ejecución ([sección 5](#5-proceso-para-definir-el-método-de-cada-paquete)).
 - Preferir métodos **objetivos**: hitos con criterio de aceptación, cantidades medidas, fórmulas fijas
   para paquetes cortos. Evitar porcentajes estimados sin evidencia.
 - Paquetes de duración acotada: un paquete muy largo con `% Completado` esconde los problemas hasta el
   final.
 - Limitar el `Avance lineal (LOE)` a las actividades de soporte.
 - Documentar el criterio de medición de cada paquete (en las *Notas* de la tarea o en un anexo del plan
-  de gestión) y revisarlo con los responsables de paquete.
+  de gestión, [5.4](#54-registro-de-los-métodos)) y revisarlo con los responsables de paquete.
+- Mantener MS Project como referencia del método: la columna C de la hoja `PV` solo se edita para
+  aplicar un cambio aprobado, que se escribe también en MS Project.
 - Revisar cada mes, con `actualizar --simular`, las observaciones por fila: métodos no definidos,
   respaldo por falta de hitos o de CPTR, valores del mes negativos.
 

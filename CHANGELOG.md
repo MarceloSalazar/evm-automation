@@ -32,6 +32,9 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   Requests.
 - Plantillas de GitHub: formularios de tickets para informar un problema y para proponer una mejora, y
   plantilla de Pull Request con lista de control.
+- Documentación de los métodos de medición: dónde se define el método y dónde se calcula el EV
+  (MS Project, programa y Excel), y proceso para definir y aprobar el método de cada paquete (roles,
+  pasos, criterio de medición, cambios de método y registro de los métodos aprobados).
 
 ## [1.5.0] - 2026-10-17 · Análisis de desviaciones y semáforo con umbrales superiores
 

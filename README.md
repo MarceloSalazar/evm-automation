@@ -108,7 +108,7 @@ El [tutorial](docs/ejemplo-paso-a-paso.md) recorre el ciclo completo con 24 mese
 | Puesta en marcha, cierre mensual, cambios de línea base y buenas prácticas | [Proceso de reporte EVM](docs/proceso-reporte-evm.md) |
 | Código EDT, campos personalizados, línea base, fecha de estado y avance | [Preparación en MS Project](docs/preparacion-ms-project.md) |
 | Recursos de trabajo, materiales y de costo, costo fijo y línea base | [Presupuesto (BAC) de cada tarea](docs/presupuesto-bac.md) |
-| 0/100, fórmulas fijas, hitos ponderados, % físico, LOE y valor acumulado de MS Project | [Métodos de medición](docs/metodos-de-medicion.md) |
+| 0/100, fórmulas fijas, hitos ponderados, % físico, LOE y valor acumulado de MS Project; cómo elegir y aprobar el método de cada paquete | [Métodos de medición](docs/metodos-de-medicion.md) |
 | PV, EV y AC de dos empresas | [Multi-empresa (opcional)](docs/multiempresa.md) |
 | Varios archivos de MS Project en un mismo informe | [Varios archivos (opcional)](docs/varios-archivos.md) |
 | Origen del PV mensual y estructura de filas | [Cálculo del PV](docs/calculo-pv.md) |

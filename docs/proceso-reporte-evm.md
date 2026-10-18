@@ -59,8 +59,8 @@ acciones.
 | Rol | Responsabilidad en el ciclo EVM |
 |---|---|
 | **Jefe de Proyecto / Jefe de Programa** | Dueño del informe. Aprueba la línea base y los métodos de medición, ejecuta o supervisa `actualizar`, analiza las desviaciones y propone acciones y EAC. |
-| **Responsables de paquete** (cuentas de control) | Informan el avance físico de sus paquetes con evidencia objetiva (entregables, hitos, cantidades) y explican las desviaciones que superan los umbrales. |
-| **Planificador / Control de proyectos (PMO)** | Mantiene el cronograma en MS Project: registra el avance, fija la fecha de estado, guarda las líneas base aprobadas y verifica la hoja `Validación`. |
+| **Responsables de paquete** (cuentas de control) | Confirman el método y definen el criterio de medición de sus paquetes, informan el avance físico con evidencia objetiva (entregables, hitos, cantidades) y explican las desviaciones que superan los umbrales. |
+| **Planificador / Control de proyectos (PMO)** | Propone el método de medición de cada paquete. Mantiene el cronograma en MS Project: carga los métodos aprobados, registra el avance, fija la fecha de estado, guarda las líneas base aprobadas y verifica la hoja `Validación`. |
 | **Finanzas / Administración** | Entrega el costo real devengado del período (ERP), con la misma fecha de corte, y las estimaciones de costos devengados no facturados. |
 | **Dirección / Cliente** | Recibe el informe, aprueba los cambios de línea base y las acciones correctivas. |
 
@@ -74,15 +74,16 @@ costo real y el análisis tengan un responsable claro.
 1. **Preparar el proyecto en MS Project** ([Preparación en MS Project](preparacion-ms-project.md)):
    - EDT con códigos hasta el nivel 3 (paquetes de trabajo);
    - costos asignados a las tareas de detalle ([Presupuesto (BAC)](presupuesto-bac.md));
-   - método de medición de cada paquete y, si corresponde, hitos con peso
-     ([Métodos de medición](metodos-de-medicion.md)).
+   - método de medición de cada paquete y, si corresponde, hitos con peso, definidos y aprobados con el
+     [proceso de Métodos de medición](metodos-de-medicion.md#5-proceso-para-definir-el-método-de-cada-paquete).
 2. **Guardar la línea base** aprobada.
 3. **Configurar** `config.toml` ([Configuración](configuracion.md)).
 4. **Generar el libro** y revisar la hoja `Validación`; corregir en MS Project lo que corresponda y
    volver a generar.
 5. **Verificar** el BAC total y el PV de algunos meses contra MS Project
    ([Cálculo del PV](calculo-pv.md#7-verificación-del-pv)).
-6. **Revisar los métodos** de la columna C de la hoja `PV` con los responsables de paquete.
+6. **Verificar los métodos** de la columna C de la hoja `PV`: deben coincidir con los aprobados, sin
+   filas `Por definir`.
 7. Si el proyecto ya está en ejecución: cargar el **historial mensual** de EV y AC, si existe, antes del
    primer `actualizar` ([Cálculo de EV y AC](calculo-ev-ac.md#5-del-valor-acumulado-al-valor-del-mes)).
 
