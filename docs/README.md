@@ -33,7 +33,7 @@ rápido están en el [README principal](../README.md).
 | [Proceso de reporte EVM](proceso-reporte-evm.md) | Puesta en marcha, cierre mensual, cambios de línea base, roles, calendario, buenas prácticas y lista de control. |
 | [Comandos y opciones](comandos.md) | `generar` y `actualizar`, todas sus opciones y ejemplos de salida. |
 | [Configuración](configuracion.md) | Claves del archivo `config.toml` y ejemplos. |
-| [Presentación para el equipo de proyecto](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) | 36 diapositivas para unos 30 minutos, con notas para el presentador: conceptos EVM y semáforo, preparación en MS Project (incluida la línea base), `generar` y `actualizar`, Cuadro de Mando, análisis de desviaciones y cierre mensual. Se abre con PowerPoint o LibreOffice Impress. |
+| [Presentación para el equipo de proyecto](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) | 37 diapositivas para unos 30 minutos, con notas para el presentador: conceptos EVM y semáforo, preparación en MS Project (incluidas la línea base y la definición del método de medición), `generar` y `actualizar`, Cuadro de Mando, análisis de desviaciones y cierre mensual. Se abre con PowerPoint o LibreOffice Impress. |
 
 **Preparación en MS Project**
 
@@ -41,7 +41,7 @@ rápido están en el [README principal](../README.md).
 |---|---|
 | [Preparación del proyecto en MS Project](preparacion-ms-project.md) | Lista de control, código EDT, campos personalizados, línea base, fecha de estado, registro del avance y XML. |
 | [Presupuesto (BAC) de cada tarea](presupuesto-bac.md) | Recursos de trabajo, materiales y de costo, costo fijo; guardar y verificar la línea base; errores frecuentes. |
-| [Métodos de medición](metodos-de-medicion.md) | 0/100, fórmulas fijas, hitos ponderados, % completado, % físico, unidades, LOE, CPTR y el método de valor acumulado de MS Project. |
+| [Métodos de medición](metodos-de-medicion.md) | 0/100, fórmulas fijas, hitos ponderados, % completado, % físico, unidades, LOE y CPTR; dónde se define el método y dónde se calcula el EV; guía y proceso para definir el método de cada paquete; método de valor acumulado de MS Project. |
 | [Multi-empresa (opcional)](multiempresa.md) | PV, EV y AC de dos empresas: preparación, reparto, cálculo y ejemplo. |
 | [Varios archivos de MS Project (opcional)](varios-archivos.md) | Un informe con los elementos EDT de varios archivos: códigos EDT, `[[proyectos]]`, cierre mensual, cambios de archivos y ejemplo. |
 
@@ -63,7 +63,7 @@ rápido están en el [README principal](../README.md).
 | [Glosario](glosario.md) | Siglas EVM y su equivalencia con los campos de MS Project en español (CPTP, CPTR, CRTR...). |
 | [Registro de cambios](../CHANGELOG.md) | Cambios de cada versión: nuevas funciones, correcciones y otros. |
 | [Recursos externos](recursos-externos.md) | Documentación de Microsoft, estándares y guías de buenas prácticas. |
-| [Desarrollo](desarrollo.md) | Pruebas automáticas, estructura del código, flujo del repositorio e imágenes de la documentación. |
+| [Desarrollo](desarrollo.md) | Pruebas automáticas, estructura del código, flujo del repositorio, versiones, instalador de Windows e imágenes de la documentación. |
 
 ---
 

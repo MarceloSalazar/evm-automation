@@ -18,3 +18,7 @@ venv/
 /*.xml
 ~$*
 salida/
+
+# Instalador de Windows (instalador\construir.py)
+/build/
+/dist/

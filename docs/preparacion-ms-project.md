@@ -135,6 +135,9 @@ Cada opción, su configuración paso a paso y su efecto en la curva PV se explic
 - Para `Hitos ponderados`: hitos (duración 0) como subtareas del paquete, con su peso en `Peso hito`.
 - Opcional: *Método de valor acumulado* de MS Project (*% completado* o *% físico completado*).
 
+El método de cada paquete se elige con la
+[guía](metodos-de-medicion.md#4-guía-para-elegir-el-método) y se aprueba con la línea base
+([proceso para definir el método](metodos-de-medicion.md#5-proceso-para-definir-el-método-de-cada-paquete)).
 Detalle y ejemplos en [Métodos de medición](metodos-de-medicion.md).
 
 ---

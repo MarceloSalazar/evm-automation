@@ -214,7 +214,7 @@ Antes de cambiar la línea base vigente, se recomienda guardar una copia en *Lí
 ### 6.4 Qué línea base usa el programa
 
 Por defecto, la que el proyecto usa para el **valor acumulado** (*Archivo > Opciones > Avanzadas >
-Opciones de valor acumulado para este proyecto*, ver [Métodos de medición](metodos-de-medicion.md#5-método-del-valor-acumulado-de-ms-project-opcional)).
+Opciones de valor acumulado para este proyecto*, ver [Métodos de medición](metodos-de-medicion.md#6-método-del-valor-acumulado-de-ms-project-opcional)).
 Se puede elegir otra con `linea_base` en la [configuración](configuracion.md) o con `--linea-base N`.
 
 > **No** se debe volver a guardar la línea base de todo el proyecto cada mes: el PV pasaría a coincidir
