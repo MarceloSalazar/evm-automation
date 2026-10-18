@@ -26,6 +26,25 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Otros
 
+- Ninguna.
+
+## [1.5.1] - 2026-10-19 · Método de medición documentado e instalador para Windows
+
+### Nuevas funciones
+
+- Ninguna.
+
+### Correcciones
+
+- Ninguna.
+
+### Otros
+
+- **Instalador para Windows** (`ExportadorEVM-1.5.1-instalador.exe`), adjunto a la publicación de
+  GitHub: instala el programa sin Python y sin permisos de administrador, con los comandos `evm_export` y
+  `generar_ejemplo`, la configuración y el proyecto de ejemplo, un acceso a la consola en el menú Inicio
+  y la opción de agregar el programa al PATH del usuario. Se genera con `python instalador\construir.py`
+  (PyInstaller e Inno Setup), que además prueba los ejecutables con el proyecto de ejemplo.
 - Registro de cambios (este archivo), etiquetas `v1.0.0` a `v1.5.0` y publicaciones en GitHub; versión
   en la portada de la presentación.
 - Sección *Contribuciones* en el README: cómo informar problemas, proponer mejoras y enviar Pull
@@ -237,7 +256,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v1.5.0...HEAD
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/MarceloSalazar/evm-automation/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/MarceloSalazar/evm-automation/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/MarceloSalazar/evm-automation/compare/v1.3.2...v1.4.0
 [1.3.2]: https://github.com/MarceloSalazar/evm-automation/compare/v1.3.1...v1.3.2
