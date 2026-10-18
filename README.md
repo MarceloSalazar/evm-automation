@@ -44,12 +44,36 @@ flowchart LR
 
 ## Requisitos e instalación
 
-- Windows con **Python 3.11 o posterior** (probado con Python 3.13 y 3.14.8).
+- **Windows** 10 u 11 de 64 bits.
 - Para leer archivos **`.mpp`**: **MS Project de escritorio** instalado en la misma PC: Standard o
   Professional 2016 o posterior, incluida la versión de suscripción que Windows muestra como
   *Microsoft Project Online Desktop Client*. El programa lo controla por automatización COM.
 - Sin MS Project en la PC, se debe guardar el proyecto como **XML** desde MS Project
   (*Archivo > Guardar como*, tipo XML) y usar ese archivo.
+
+### Opción 1: instalador para Windows (sin Python)
+
+1. Descargar `ExportadorEVM-X.Y.Z-instalador.exe` de la
+   [última publicación](https://github.com/MarceloSalazar/evm-automation/releases/latest).
+2. Ejecutarlo. No requiere permisos de administrador: se instala para el usuario actual en
+   `%LOCALAPPDATA%\Programs\Exportador EVM`. El instalador no tiene firma digital, por lo que Windows
+   puede mostrar el aviso "Windows protegió su PC": se continúa con *Más información > Ejecutar de todas
+   formas*.
+3. Abrir **Exportador EVM (consola)** desde el menú Inicio: abre una consola en la carpeta Documentos con
+   el comando `evm_export` disponible. Con la opción *Agregar evm_export al PATH* del instalador, el
+   comando funciona también en cualquier consola nueva.
+
+Con el instalador, los comandos de la documentación se escriben con `evm_export` en lugar de
+`python evm_export.py` (por ejemplo, `evm_export generar --origen ...`), y el generador del ejemplo con
+`generar_ejemplo` en lugar de `python ejemplos\generar_ejemplo.py`. La configuración de ejemplo
+(`config.ejemplo.toml`) y el proyecto de ejemplo (`ejemplos\programa_ejemplo.xml`) están en la carpeta
+del programa; la consola muestra el comando para copiar la configuración a la carpeta de trabajo. Para
+actualizar a una versión nueva se ejecuta su instalador; el programa se desinstala desde
+*Configuración > Aplicaciones*.
+
+### Opción 2: desde el código fuente (Python)
+
+Requiere **Python 3.11 o posterior** (probado con Python 3.13 y 3.14.8).
 
 ```powershell
 git clone https://github.com/MarceloSalazar/evm-automation.git
@@ -121,7 +145,7 @@ El [tutorial](docs/ejemplo-paso-a-paso.md) recorre el ciclo completo con 24 mese
 | Hoja `Validación`, limitaciones y mensajes de error | [Validaciones y solución de problemas](docs/validaciones-y-problemas.md) |
 | Siglas EVM y campos de MS Project en español | [Glosario](docs/glosario.md) |
 | Microsoft, PMI, GAO y otras referencias | [Recursos externos](docs/recursos-externos.md) |
-| Pruebas, estructura del código y flujo del repositorio | [Desarrollo](docs/desarrollo.md) |
+| Pruebas, estructura del código, flujo del repositorio, versiones e instalador de Windows | [Desarrollo](docs/desarrollo.md) |
 | Cambios de cada versión | [Registro de cambios](CHANGELOG.md) |
 
 Índice completo: [docs/README.md](docs/README.md).

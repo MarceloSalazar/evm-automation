@@ -10,7 +10,8 @@ Información para quien modifica el programa o la documentación.
 
 1. [Pruebas automáticas](#1-pruebas-automáticas)
 2. [Estructura del código](#2-estructura-del-código)
-3. [Flujo de trabajo del repositorio](#3-flujo-de-trabajo-del-repositorio) (incluye versiones y publicaciones)
+3. [Flujo de trabajo del repositorio](#3-flujo-de-trabajo-del-repositorio) (incluye versiones,
+   publicaciones e [instalador de Windows](#32-instalador-de-windows))
 4. [Documentación e imágenes](#4-documentación-e-imágenes)
 
 ---
@@ -95,6 +96,7 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/update.py` | Comando `actualizar` y lectura del libro. |
 | `evm/migrate.py` | Traslado de EV, AC y métodos al regenerar el libro (`--migrar-desde`). |
 | `evm/indicators.py` | Indicadores que se muestran en pantalla (mismos cálculos que la hoja `Resumen`). |
+| `instalador/` | Instalador de Windows: `construir.py`, especificación de PyInstaller, script de Inno Setup y consola ([3.2](#32-instalador-de-windows)). |
 
 ```mermaid
 flowchart LR
@@ -161,9 +163,56 @@ python docs\herramientas\notas_version.py X.Y.Z > notas.md
 gh release create vX.Y.Z --title "$(python docs\herramientas\notas_version.py X.Y.Z --titulo)" --notes-file notas.md
 ```
 
+Por último, desde ese mismo commit etiquetado, se genera el instalador de Windows y se adjunta a la
+publicación ([3.2](#32-instalador-de-windows)):
+
+```powershell
+python instalador\construir.py
+gh release upload vX.Y.Z dist\ExportadorEVM-X.Y.Z-instalador.exe
+```
+
 `notas_version.py` verifica que la versión tenga las tres secciones. Los cambios que no modifican la
 versión (por ejemplo, solo documentación) se anotan en la sección *Sin publicar* del CHANGELOG, en el
 mismo Pull Request, y forman parte de la entrada de la versión siguiente.
+
+### 3.2 Instalador de Windows
+
+Cada publicación incluye `ExportadorEVM-X.Y.Z-instalador.exe`, que instala el programa sin Python. Lo
+genera `instalador\construir.py`:
+
+1. Crea la primera vez un entorno virtual en `build\instalador\venv` con las dependencias de
+   `requirements.txt` y PyInstaller. El programa se empaqueta con la versión de Python que ejecuta el
+   script.
+2. Genera con PyInstaller la carpeta `ExportadorEVM`, con `evm_export.exe` y `generar_ejemplo.exe` y la
+   versión del programa en sus propiedades (`instalador\ExportadorEVM.spec`).
+3. Prueba los ejecutables con el proyecto de ejemplo: `--version`, `generar`, avance simulado,
+   `actualizar` y `analizar`. Si una prueba falla, se detiene.
+4. Compila con Inno Setup el instalador (`instalador\ExportadorEVM.iss`) en la carpeta `dist`.
+
+Avisa, sin detenerse, si hay cambios sin confirmar o si el commit no tiene la etiqueta `vX.Y.Z`: el
+instalador publicado debe corresponder exactamente a la versión. Las carpetas `build` y `dist` no se
+suben al repositorio.
+
+Requisitos: Windows con Python 3.11 o posterior, conexión a internet la primera vez (pip) e
+[Inno Setup 6](https://jrsoftware.org/isinfo.php), que se puede instalar sin permisos de administrador
+con `winget install JRSoftware.InnoSetup --scope user`. Si `ISCC.exe` no está en una carpeta
+habitual, su ruta se indica en la variable de entorno `ISCC`.
+
+El instalador:
+
+- se instala para el usuario actual en `%LOCALAPPDATA%\Programs\Exportador EVM`, sin permisos de
+  administrador, y aparece en *Configuración > Aplicaciones* para desinstalarlo;
+- copia los ejecutables, `config.ejemplo.toml`, `ejemplos\programa_ejemplo.xml`, la licencia y el
+  CHANGELOG;
+- crea en el menú Inicio la **consola** (`consola.cmd`: abre una consola en Documentos con
+  `evm_export` disponible), un enlace a la documentación y el desinstalador;
+- ofrece agregar la carpeta del programa al PATH del usuario. Al desinstalar, la quita y deja el PATH
+  como estaba;
+- al instalar una versión nueva, reemplaza la anterior en la misma carpeta (mismo `AppId`).
+
+El instalador no tiene firma digital, por lo que Windows puede mostrar el aviso de SmartScreen
+"Windows protegió su PC". La lectura de `.mpp` por COM necesita MS Project de escritorio, igual que
+con Python; sin MS Project se usa el XML.
 
 ---
 

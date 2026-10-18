@@ -12,6 +12,9 @@ python evm_export.py generar --help
 python evm_export.py actualizar --help
 ```
 
+Con el [instalador de Windows](../README.md#opción-1-instalador-para-windows-sin-python), el programa se
+ejecuta con `evm_export` en lugar de `python evm_export.py` (por ejemplo, `evm_export generar --help`).
+
 Para ver mensajes de diagnóstico se agrega `-v` **antes** del comando:
 `python evm_export.py -v generar ...`
 

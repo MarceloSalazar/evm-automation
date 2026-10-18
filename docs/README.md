@@ -63,7 +63,7 @@ rápido están en el [README principal](../README.md).
 | [Glosario](glosario.md) | Siglas EVM y su equivalencia con los campos de MS Project en español (CPTP, CPTR, CRTR...). |
 | [Registro de cambios](../CHANGELOG.md) | Cambios de cada versión: nuevas funciones, correcciones y otros. |
 | [Recursos externos](recursos-externos.md) | Documentación de Microsoft, estándares y guías de buenas prácticas. |
-| [Desarrollo](desarrollo.md) | Pruebas automáticas, estructura del código, flujo del repositorio e imágenes de la documentación. |
+| [Desarrollo](desarrollo.md) | Pruebas automáticas, estructura del código, flujo del repositorio, versiones, instalador de Windows e imágenes de la documentación. |
 
 ---
 
