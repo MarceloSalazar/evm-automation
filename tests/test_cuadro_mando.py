@@ -93,6 +93,7 @@ def test_dashboard_sheet_and_selectors(book):
     assert ws.page_setup.orientation == "portrait" and ws.sheet_properties.pageSetUpPr.fitToPage
 
 
+@pytest.mark.modo("costo")
 def test_dashboard_charts(book, example_files):
     xml = charts(book)
     assert len(xml) == 3
@@ -172,6 +173,7 @@ def recalc_with(book, recalc, month=None, method=None):
     return load_workbook(recalc(book), data_only=True)
 
 
+@pytest.mark.modo("costo")
 def test_dashboard_values_recalculate(book, example_files, recalc):
     update(book, example_files, "jun")
     update(book, example_files, "jul")

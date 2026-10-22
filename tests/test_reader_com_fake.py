@@ -13,6 +13,8 @@ from evm.reader_com import PJ_TIMESCALE_MONTHS, TS_BASELINE_COST, ComSession
 from evm.timeline import add_months
 from evm.wbs import KIND_LEAF, build_report
 
+pytestmark = pytest.mark.modo("costo")
+
 UTC = timezone.utc
 
 

@@ -20,8 +20,11 @@ edt = "Item EDT"
 # (por ejemplo "Text10", o su alias "Método EVM"). Vacío = no se lee.
 metodo = ""
 
-# Campo numérico con el peso de cada hito para el método "Hitos ponderados"
-# (por ejemplo "Number1" o su alias "Peso hito"). Vacío = hitos con igual peso.
+# Campo numérico con el peso de cada hito (por ejemplo "Number1" o su alias
+# "Peso hito"). Vacío = no se lee: los hitos no tienen valor propio y, en el
+# método "Hitos ponderados", pesan igual.
+# En el modo porcentaje, el peso es el % del BAC de la fila que se imputa en el
+# mes del hito; el resto se reparte entre las tareas según su duración.
 peso_hito = ""
 
 [horizonte]
@@ -33,6 +36,17 @@ mes_inicio = "2026-01"
 meses = 120
 
 [exportacion]
+# Modo de cálculo del PV y del EV:
+#   "porcentaje" (por defecto) MS Project no tiene importes: da el % planificado
+#                y el % ganado de cada fila, por la duración de la línea base de
+#                sus tareas y el peso de sus hitos. El BAC de cada fila se ingresa
+#                en el libro (columna D de la hoja PV, o de PV-EmpresaA y
+#                PV-EmpresaB) y el PV y el EV son el BAC × el %. El AC se carga
+#                a mano.
+#   "costo"      el PV y el BAC salen del costo de línea base de MS Project y el
+#                AC del costo real (ver docs/presupuesto-bac.md).
+modo = "porcentaje"
+
 # Planificación a exportar: código EDT de alto nivel de la tarea que la contiene
 # ("INTERNO" o "CLIENTE"). Se exportan solo las tareas que dependen de ella.
 # Si se omite esta clave, se exportan todas las tareas del proyecto.
@@ -43,7 +57,8 @@ planificacion = "INTERNO"
 # elemento de este nivel.
 nivel_maximo = 3
 
-# Línea base que define el PV y el BAC: 0 = "Línea base", 1..10 = "Línea base N".
+# Línea base que define el PV (sus fechas y, en el modo costo, su costo):
+# 0 = "Línea base", 1..10 = "Línea base N".
 # Si se omite, se usa la línea base que el proyecto tiene configurada para el
 # valor acumulado (Archivo > Opciones > Avanzadas > Opciones de valor acumulado).
 # linea_base = 0
@@ -54,14 +69,16 @@ rellenar_edt = true
 # Incluir tareas inactivas (MS Project 2010 o posterior).
 incluir_inactivas = false
 
-# Reparto en el tiempo de las tareas que no tienen distribución mensual de la
-# línea base en MS Project (p. ej. costo de línea base escrito a mano):
+# Reparto en el tiempo de la duración de cada tarea (modo porcentaje) o, en el
+# modo costo, de las tareas que no tienen distribución mensual de la línea base
+# en MS Project (p. ej. costo de línea base escrito a mano):
 #   "habiles"    proporcional al tiempo laborable del calendario
 #   "calendario" proporcional a los días corridos
 distribucion = "habiles"
 
 # Feriados adicionales. Con XML se agregan al calendario del proyecto; con .mpp
-# solo afectan el reparto lineal (MS Project usa sus propios calendarios).
+# se usan para repartir la duración de las tareas (modo porcentaje) y en el
+# reparto lineal (modo costo), con un calendario de lunes a viernes.
 feriados = [
   # "2026-12-25",
   # "2027-01-01",
@@ -82,20 +99,20 @@ decimales = 0
 # titulo = "Programa de ejemplo"
 
 [metodos]
-# Valores del desplegable de la columna C (método de medición).
-lista = [
-  "Por definir",
-  "0/100",
-  "50/50",
-  "25/75",
-  "20/80",
-  "Hitos ponderados",
-  "% Completado",
-  "% Físico completado",
-  "Unidades completadas",
-  "Avance lineal (LOE)",
-  "CPTR de MS Project",
-]
+# Valores del desplegable de la columna C (método de medición). Sin la clave se
+# usa esta lista; en el modo costo incluye además "CPTR de MS Project".
+# lista = [
+#   "Por definir",
+#   "0/100",
+#   "50/50",
+#   "25/75",
+#   "20/80",
+#   "Hitos ponderados",
+#   "% Completado",
+#   "% Físico completado",
+#   "Unidades completadas",
+#   "Avance lineal (LOE)",
+# ]
 
 [semaforo]
 # Umbrales comunes de SPI y CPI (se muestran en el Cuadro de Mando):
@@ -113,7 +130,9 @@ rojo_superior = 1.10
 # Reparto del PV, el EV y el AC entre dos empresas (ver docs/multiempresa.md).
 # Desactivado por defecto. Con activar = true, el libro agrega las hojas de cada
 # empresa (PV-EmpresaA, EV-EmpresaA, AC-EmpresaA y las de EmpresaB); las hojas
-# PV, EV y AC son la suma de las dos empresas.
+# PV, EV y AC son la suma de las dos empresas. En el modo porcentaje, el BAC de
+# cada empresa se ingresa en su hoja PV y cada una tiene su % planificado y su %
+# ganado, según las tareas en las que participa.
 activar = false
 
 # Campo de texto de MS Project con la empresa de cada tarea (por ejemplo "Text3",
@@ -134,9 +153,10 @@ campo_reparto = "% Reparto"
 # rango, y en las tareas sin empresa.
 reparto_por_defecto = 50
 
-# AC de cada empresa: false = se carga a mano en las hojas AC-EmpresaA y
-# AC-EmpresaB; true = 'actualizar' lo carga desde MS Project (costo real de cada
-# tarea repartido según su empresa).
+# AC de cada empresa (solo en el modo costo; en el modo porcentaje siempre se
+# carga a mano): false = se carga a mano en las hojas AC-EmpresaA y AC-EmpresaB;
+# true = 'actualizar' lo carga desde MS Project (costo real de cada tarea
+# repartido según su empresa).
 ac_desde_project = false
 
 # Varios archivos de MS Project en un mismo libro (ver docs/varios-archivos.md).

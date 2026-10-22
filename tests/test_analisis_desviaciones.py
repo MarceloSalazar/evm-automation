@@ -11,6 +11,8 @@ from evm.cli import main
 from evm.update import read_book
 from evm.workbook import FIRST_MONTH_COL, FIRST_ROW
 
+pytestmark = pytest.mark.modo("costo")
+
 JUN, JUL = date(2027, 6, 1), date(2027, 7, 1)
 JUNE_COUNT = 13         # paquetes fuera de 0,95 a 1,05 en junio de 2027 (8 por debajo y 5 por encima)
 

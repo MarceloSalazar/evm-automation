@@ -12,6 +12,18 @@ except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore[no-redef]
 
 
+# Modo de cálculo del PV y del EV.
+# porcentaje: MS Project da el % planificado y el % ganado de cada fila (por la duración de la línea base de sus
+#             tareas y el peso de sus hitos); el importe es el BAC que se ingresa en el libro multiplicado por el %.
+# costo:      el PV y el BAC salen del costo de línea base de MS Project y el EV es el BAC × la fracción ganada.
+MODE_PERCENT = "porcentaje"
+MODE_COST = "costo"
+MODES = (MODE_PERCENT, MODE_COST)
+DEFAULT_MODE = MODE_PERCENT
+
+# Método que solo existe en el modo costo (el CPTR de MS Project necesita costos).
+METHOD_BCWP = "CPTR de MS Project"
+
 # Lista de métodos de medición ofrecida en el desplegable de la columna C.
 DEFAULT_METHODS = [
     "Por definir",
@@ -24,8 +36,22 @@ DEFAULT_METHODS = [
     "% Físico completado",
     "Unidades completadas",
     "Avance lineal (LOE)",
-    "CPTR de MS Project",
+    METHOD_BCWP,
 ]
+
+
+def parse_mode(text: str) -> str:
+    """Modo de cálculo: 'porcentaje' o 'costo' (también 'coste')."""
+    value = (text or "").strip().lower()
+    if value == "coste":
+        value = MODE_COST
+    if value not in MODES:
+        raise ConfigError(f"modo = '{text}' no es válido: debe ser \"porcentaje\" (por defecto) o \"costo\".")
+    return value
+
+
+def _default_mode() -> str:
+    return DEFAULT_MODE
 
 
 class ConfigError(ValueError):
@@ -89,6 +115,7 @@ class Config:
     months: int = 120
 
     # [exportacion]
+    mode: str = field(default_factory=_default_mode)   # "porcentaje" (por defecto) | "costo"
     plan: str = ""                        # código EDT de la planificación (p. ej. INTERNO); "" = todas
     max_level: int = 3
     baseline: int | None = None           # 0 = Línea base; 1..10 = Línea base N; None = la del proyecto
@@ -100,8 +127,8 @@ class Config:
     currency: str = "EUR"                 # "" = código de moneda del proyecto en MS Project
     decimals: int = 0
 
-    # [metodos]
-    methods: list[str] = field(default_factory=lambda: list(DEFAULT_METHODS))
+    # [metodos] -- None = lista por defecto del modo (sin "CPTR de MS Project" en el modo porcentaje)
+    methods_list: list[str] | None = None
 
     # [semaforo] -- umbrales comunes de SPI y CPI. Rojo: menor que el rojo inferior o mayor que el rojo
     # superior; amarillo: menor que el amarillo inferior o mayor que el amarillo superior; verde: entre ambos
@@ -126,6 +153,17 @@ class Config:
 
     source_file: str = ""                 # ruta del TOML leído (informativo)
 
+    @property
+    def percent_mode(self) -> bool:
+        return self.mode == MODE_PERCENT
+
+    @property
+    def methods(self) -> list[str]:
+        """Métodos del desplegable de la columna C: los de [metodos] lista o los del modo."""
+        if self.methods_list is not None:
+            return self.methods_list
+        return [m for m in DEFAULT_METHODS if not (self.percent_mode and m == METHOD_BCWP)]
+
     def project_config(self, name: str) -> "Config":
         """Configuración para leer un archivo de [[proyectos]]: su planificación y su línea base (la general si el
         archivo no las indica)."""
@@ -136,6 +174,7 @@ class Config:
                        baseline=self.baseline if spec.baseline is None else spec.baseline)
 
     def validate(self) -> None:
+        self.mode = parse_mode(self.mode)
         if not 1 <= self.max_level <= 10:
             raise ConfigError("nivel_maximo debe estar entre 1 y 10.")
         if not 1 <= self.months <= 600:
@@ -151,7 +190,7 @@ class Config:
             raise ConfigError("Los umbrales del semáforo deben cumplir 0 < rojo_inferior <= amarillo_inferior < "
                               "amarillo_superior <= rojo_superior (por defecto 0,90 / 0,95 / 1,05 / 1,10).")
         if self.default_method and self.default_method not in self.methods:
-            self.methods.insert(0, self.default_method)
+            self.methods_list = [self.default_method] + self.methods
         if self.multi_enabled:
             from evm.fields import same_name
             for key, name in (("empresa_a", self.company_a), ("empresa_b", self.company_b)):
@@ -266,6 +305,7 @@ def load_config(path: str | Path | None) -> Config:
     cfg.months = _get(hor, "meses", cfg.months, int)
 
     exp = _section(data, "exportacion")
+    cfg.mode = parse_mode(_get(exp, "modo", cfg.mode, str))
     cfg.plan = _get(exp, "planificacion", cfg.plan, str).strip()
     cfg.max_level = _get(exp, "nivel_maximo", cfg.max_level, int)
     if exp.get("linea_base") not in (None, ""):
@@ -288,7 +328,7 @@ def load_config(path: str | Path | None) -> Config:
     if lista is not None:
         if not isinstance(lista, list) or not all(isinstance(x, str) for x in lista):
             raise ConfigError("[metodos] lista debe ser una lista de textos.")
-        cfg.methods = [x.strip() for x in lista if x.strip()]
+        cfg.methods_list = [x.strip() for x in lista if x.strip()]
 
     sem = _section(data, "semaforo")
     for key, alias in (("rojo_inferior", "rojo"), ("amarillo_inferior", "amarillo")):

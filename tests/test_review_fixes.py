@@ -13,6 +13,8 @@ from evm.update import book_totals, read_book, run_update
 from evm.wbs import KIND_RESIDUAL, LinearPVSource, build_report, build_tree
 from evm.workbook import FIRST_MONTH_COL, FIRST_ROW, WorkbookFormatError, _sum_formula, write_workbook
 
+pytestmark = pytest.mark.modo("costo")
+
 S, F = datetime(2026, 1, 5, 8), datetime(2026, 3, 27, 17)
 
 

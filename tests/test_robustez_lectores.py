@@ -562,6 +562,7 @@ def test_com_cleanup_releases_objects_before_quitting(tmp_path, fake_pywintypes)
     assert s.app is None
 
 
+@pytest.mark.modo("costo")
 def test_com_field_resolution_external_tasks_and_timescale_failure(caplog):
     caplog.set_level(logging.WARNING, logger="evm.reader_com")
     company_fid = 188744000                                   # constante devuelta por FieldNameToFieldConstant

@@ -9,6 +9,8 @@ from evm.reader_xml import read_xml
 from evm.update import book_totals, read_book, run_update
 from evm.workbook import FIRST_MONTH_COL, FIRST_ROW, HEADER_ROW
 
+pytestmark = pytest.mark.modo("costo")
+
 
 @pytest.fixture()
 def book(tmp_path, example_files):

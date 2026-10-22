@@ -43,6 +43,7 @@ SHEET_LISTS = "Listas"
 SHEET_STRUCT = "_estructura"
 SHEET_META = "_meta"
 META_SOURCES = "proyectos"          # _meta: nombres de los archivos de un libro con varios archivos ("P1;P2")
+PCT_PREFIX = "% "                   # modo porcentaje: hojas '% PV' y '% EV' (o '% PV-EmpresaA'...)
 
 TITLE_ROW, INFO_ROW, MONTHNUM_ROW, HEADER_ROW, FIRST_ROW = 1, 2, 3, 4, 5
 COL_CODE, COL_NAME, COL_METHOD, COL_BAC, COL_START, COL_FINISH = 1, 2, 3, 4, 5, 6
@@ -88,6 +89,7 @@ FMT_DATE = "dd/mm/yyyy"
 FMT_MONTH = "mmm-yyyy"
 FMT_RATIO = "0.00"
 FMT_PCT = "0.0%"
+FMT_PCT_MONTH = '0.0%;-0.0%;""'      # % del mes sin mostrar los meses en 0
 
 METHOD_HELP = {
     "Por definir": "Aún no se asignó método. Para calcular el EV se usa % completado.",
@@ -109,6 +111,21 @@ METHOD_HELP = {
                           "el 'Método del valor acumulado' de cada tarea (% completado o % físico completado).",
 }
 
+# Modo porcentaje: reglas que cambian (el avance se pondera por la duración de las tareas y el peso de los hitos)
+METHOD_HELP_PERCENT = {
+    "Hitos ponderados": "% ganado = suma de los 'Peso hito' de los hitos cumplidos / suma de todos los pesos. Para "
+                        "paquetes de 3 o más meses, con al menos un hito por mes; los pesos deben sumar 100.",
+    "% Completado": "% ganado = % completado de MS Project de las subtareas (mide % de duración), ponderado por su "
+                    "duración de línea base; un hito cuenta su 'Peso hito' al cumplirse.",
+    "% Físico completado": "% ganado = '% físico completado' de MS Project de las subtareas (avance medido "
+                           "objetivamente), ponderado por su duración de línea base y el peso de los hitos.",
+    "Unidades completadas": "% ganado = unidades terminadas / unidades totales. El cociente se registra en "
+                            "'% físico completado' de MS Project.",
+    "Avance lineal (LOE)": "Nivel de esfuerzo: % ganado = % planificado (EV = PV). No genera variación de plazo; "
+                           "conviene limitarlo.",
+    "CPTR de MS Project": "No se usa en el modo porcentaje (necesita costos): se calcula como % completado.",
+}
+
 
 def row_key(row: ReportRow) -> str:
     """Clave estable de una fila: UniqueID de la tarea en MS Project ('123', o '123-D' en una fila de otros
@@ -127,6 +144,12 @@ def split_key(key: str) -> tuple[str, str, bool]:
 
 def money_format(decimals: int) -> str:
     return "#,##0" if decimals <= 0 else "#,##0." + "0" * decimals
+
+
+def money_format_hide_zero(decimals: int) -> str:
+    """Formato de importe que no muestra los ceros (meses calculados como BAC × % sin valor)."""
+    m = money_format(decimals)
+    return f'{m};-{m};""'
 
 
 def col(c: int) -> str:
@@ -263,6 +286,16 @@ def company_sheet(kind: str, company: str) -> str:
     return f"{kind}-{company}"
 
 
+def pct_sheet(kind: str, company: str = "") -> str:
+    """Modo porcentaje: hoja con el % planificado o ganado de cada mes: '% PV' o '% PV-EmpresaA'."""
+    return PCT_PREFIX + (company_sheet(kind, company) if company else kind)
+
+
+def role_key(kind: str, role: str | None) -> str:
+    """Serie de una hoja para --migrar-desde: 'EV', 'EV-A'..."""
+    return kind if not role else f"{kind}-{role}"
+
+
 def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
                       generated: datetime, prior=None, role: str | None = None) -> None:
     """Escribe una hoja mensual (PV, EV o AC).
@@ -273,13 +306,24 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
     multi_total = report.multi and role is None
     company = {"A": report.company_a, "B": report.company_b}.get(role or "", "")
     is_pv = kind == SHEET_PV
-    input_sheet = not is_pv and not multi_total          # celdas amarillas de ingreso
+    percent = report.percent
+    # Modo porcentaje: PV y EV = BAC × % de la hoja '% PV' o '% EV'; el BAC se ingresa en la columna D
+    by_pct = percent and kind in (SHEET_PV, SHEET_EV) and not multi_total
+    pct_name = pct_sheet(kind, company) if by_pct else ""
+    bac_input = percent and is_pv and not multi_total
+    input_sheet = not is_pv and not multi_total and not by_pct    # celdas amarillas de ingreso
     month_key = kind if role is None else f"{kind}-{role}"   # serie para --migrar-desde
 
     names = {SHEET_PV: "Valor Planificado (PV)", SHEET_EV: "Valor Ganado (EV)", SHEET_AC: "Costo Real (AC)"}
     if multi_total:
         title = (f"{names[kind]} por mes: suma de las hojas {company_sheet(kind, report.company_a)} y "
                  f"{company_sheet(kind, report.company_b)}")
+    elif bac_input:
+        title = (f"{names[kind]} por mes" + (f"  -  {company}" if company else "") +
+                 f"  -  BAC × % planificado (hoja '{pct_name}'); el BAC se debe ingresar en las celdas amarillas")
+    elif by_pct:
+        title = (f"{names[kind]} por mes" + (f"  -  {company}" if company else "") +
+                 f"  -  BAC × % ganado (hoja '{pct_name}'), que 'actualizar' calcula desde MS Project")
     elif is_pv:
         title = f"{names[kind]} por mes" + (f"  -  {company}" if company else "")
     elif kind == SHEET_EV and role:
@@ -289,6 +333,7 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
         title = (f"{names[kind]} por mes" + (f"  -  {company}" if company else "") +
                  "  -  en las celdas amarillas se debe ingresar el valor DEL MES (no acumulado)")
     money = money_format(cfg.decimals)
+    month_money = money_format_hide_zero(cfg.decimals) if percent and kind != SHEET_AC else money
     ws.cell(row=TITLE_ROW, column=1, value=title).font = FONT_TITLE
     put_text(ws, INFO_ROW, 1, _info_line(report, cfg, generated)).font = FONT_NOTE
 
@@ -312,7 +357,7 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
         c.font = FONT_HEADER
         c.alignment = Alignment(horizontal="center", vertical="center")
         c.border = BORDER
-    if is_pv and role is None and report.pv_before > 0.005:
+    if is_pv and role is None and report.pv_before > 0.005 and not percent:
         ws.cell(row=HEADER_ROW, column=lay.first_col).comment = Comment(
             f"El mes 1 incluye {report.pv_before:,.2f} de PV planificado antes del inicio del horizonte.",
             "evm_export")
@@ -353,6 +398,12 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
                 ws.cell(row=r, column=c_, value=f'=IF({ref}="","",{ref})')
         if is_pv and multi_total:
             ws.cell(row=r, column=COL_BAC, value=sum_of_companies(col(COL_BAC), r))
+        elif bac_input and row.is_input:
+            bac_cell = ws.cell(row=r, column=COL_BAC)
+            value = prior.bac_for(row_key(row), role or "") if prior is not None else None
+            if value is not None:
+                bac_cell.value = round(value, 2)
+            bac_cell.fill = FILL_INPUT
         elif is_pv:
             if row.is_input:
                 ws.cell(row=r, column=COL_BAC, value=round(row_bac(row), 2))
@@ -371,6 +422,10 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
         if multi_total:
             for i in range(lay.months):
                 ws.cell(row=r, column=lay.first_col + i, value=sum_of_companies(col(lay.first_col + i), r))
+        elif row.is_input and by_pct:
+            for i in range(lay.months):
+                L = col(lay.first_col + i)
+                ws.cell(row=r, column=lay.first_col + i, value=f"=$D{r}*'{pct_name}'!{L}{r}")
         elif row.is_input:
             if is_pv:
                 for i, v in enumerate(round_preserving_total(row_vector(row), 2)):
@@ -390,7 +445,7 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
                 L = col(lay.first_col + i)
                 ws.cell(row=r, column=lay.first_col + i, value=_sum_formula(L, refs_rows, lay.block(row)))
         for i in range(lay.months):
-            ws.cell(row=r, column=lay.first_col + i).number_format = money
+            ws.cell(row=r, column=lay.first_col + i).number_format = month_money
         tot = ws.cell(row=r, column=lay.total_col,
                       value=f"=SUM({col(lay.first_col)}{r}:{col(lay.last_col)}{r})")
         tot.number_format = money
@@ -419,7 +474,7 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
             value = sum_of_companies(L, tr)
         else:
             value = _sum_formula(L, root_rows, (FIRST_ROW, lay.last_row))
-        ws.cell(row=tr, column=c_, value=value).number_format = money
+        ws.cell(row=tr, column=c_, value=value).number_format = money if c_ == COL_BAC else month_money
     ws.cell(row=tr, column=lay.total_col,
             value=f"=SUM({col(lay.first_col)}{tr}:{col(lay.last_col)}{tr})").number_format = money
     for c_ in range(1, lay.total_col + 1):
@@ -454,28 +509,157 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
     ws.sheet_format.outlineLevelRow = min(7, max([r.level - 1 for r in report.rows] + [0]))
 
 
+def _write_pct_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
+                     generated: datetime, prior=None, role: str | None = None) -> None:
+    """Modo porcentaje: hoja '% PV' o '% EV' (de cada empresa en multi-empresa).
+
+    Filas de ingreso: el % del mes (no acumulado) que calcula 'generar' (% PV) o 'actualizar' (% EV) desde MS
+    Project; no se editan. Filas de nivel 1 y 2 y TOTAL: el % ponderado por el BAC (importe / BAC).
+    """
+    company = {"A": report.company_a, "B": report.company_b}.get(role or "", "")
+    amount = company_sheet(kind, company) if company else kind
+    is_pv = kind == SHEET_PV
+    if is_pv:
+        title = ("% planificado por mes" + (f"  -  {company}" if company else "") +
+                 "  -  calculado por 'generar' desde MS Project (duración de la línea base y peso de los hitos)")
+    else:
+        title = ("% ganado por mes" + (f"  -  {company}" if company else "") +
+                 "  -  valor DEL MES (no acumulado) que 'actualizar' calcula desde MS Project")
+    ws.cell(row=TITLE_ROW, column=1, value=title).font = FONT_TITLE
+    put_text(ws, INFO_ROW, 1, _info_line(report, cfg, generated)).font = FONT_NOTE
+    ws.cell(row=MONTHNUM_ROW, column=COL_FINISH, value="Mes N°").font = FONT_BOLD
+    ws.cell(row=MONTHNUM_ROW, column=COL_FINISH).alignment = Alignment(horizontal="right")
+    for i in range(lay.months):
+        c = ws.cell(row=MONTHNUM_ROW, column=lay.first_col + i, value=i + 1)
+        c.alignment = Alignment(horizontal="center")
+        c.font = FONT_BOLD
+    _header(ws, HEADER_ROW, [
+        (COL_CODE, "Código EDT"), (COL_NAME, "Actividad"), (COL_METHOD, "Método de medición"),
+        (COL_BAC, "BAC (Presupuesto)" + (f" {company}" if company else "")),
+        (COL_START, "Fecha inicio Plan (PV)"), (COL_FINISH, "Fecha fin Plan (PV)"),
+        (lay.total_col, "Total horizonte" if is_pv else "% ganado acumulado"),
+    ])
+    for i, d in enumerate(lay.month_dates):
+        c = ws.cell(row=HEADER_ROW, column=lay.first_col + i, value=d)
+        c.number_format = FMT_MONTH
+        c.fill = FILL_HEADER
+        c.font = FONT_HEADER
+        c.alignment = Alignment(horizontal="center", vertical="center")
+        c.border = BORDER
+    money = money_format(cfg.decimals)
+    series = role_key(pct_sheet(kind), role)            # serie para --migrar-desde ('% EV-A')
+    for row in report.rows:
+        r = lay.r(row)
+        put_text(ws, r, COL_CODE, row.code)
+        put_text(ws, r, COL_NAME, row.name).alignment = Alignment(indent=max(0, row.level - 1))
+        for c_ in (COL_METHOD, COL_START, COL_FINISH):
+            ref = f"'{SHEET_PV}'!{col(c_)}{r}"
+            ws.cell(row=r, column=c_, value=f'=IF({ref}="","",{ref})')
+        ref = f"'{amount}'!{col(COL_BAC)}{r}"
+        ws.cell(row=r, column=COL_BAC, value=f'=IF({ref}="","",{ref})').number_format = money
+        ws.cell(row=r, column=COL_START).number_format = FMT_DATE
+        ws.cell(row=r, column=COL_FINISH).number_format = FMT_DATE
+        if row.is_input:
+            if is_pv:
+                for i, v in enumerate(row.pct_vec.get(role or "", [])):
+                    if abs(v) > 1e-12:
+                        ws.cell(row=r, column=lay.first_col + i, value=v)
+            elif prior is not None:
+                for k, v in prior.values_for(row_key(row), series).items():
+                    i = report.horizon.index(k)
+                    if 0 <= i < lay.months:
+                        ws.cell(row=r, column=lay.first_col + i, value=v)
+        else:
+            for i in range(lay.months):
+                L = col(lay.first_col + i)
+                ws.cell(row=r, column=lay.first_col + i,
+                        value=f"=IFERROR('{amount}'!{L}{r}/'{amount}'!$D{r},\"\")")
+        for i in range(lay.months):
+            ws.cell(row=r, column=lay.first_col + i).number_format = FMT_PCT_MONTH
+        ws.cell(row=r, column=lay.total_col,
+                value=f"=SUM({col(lay.first_col)}{r}:{col(lay.last_col)}{r})").number_format = FMT_PCT
+        font = FONT_BOLD if row.kind == KIND_SUMMARY else (FONT_ITALIC if row.kind == KIND_RESIDUAL else None)
+        fill = FILL_L1 if (row.kind == KIND_SUMMARY and row.level == 1) else (
+            FILL_L2 if row.kind == KIND_SUMMARY else None)
+        for c_ in range(1, lay.total_col + 1):
+            cell = ws.cell(row=r, column=c_)
+            if font:
+                cell.font = font
+            if fill:
+                cell.fill = fill
+        ws.row_dimensions[r].outline_level = min(7, max(0, row.level - 1))
+
+    tr = lay.total_row
+    ws.cell(row=tr, column=COL_CODE, value="TOTAL")
+    total = "Total programa" if report.multi_file else "Total proyecto"
+    ws.cell(row=tr, column=COL_NAME, value=total + (f" - {company}" if company else ""))
+    ref = f"'{amount}'!{col(COL_BAC)}{tr}"
+    ws.cell(row=tr, column=COL_BAC, value=f'=IF({ref}="","",{ref})').number_format = money
+    for i in range(lay.months):
+        L = col(lay.first_col + i)
+        ws.cell(row=tr, column=lay.first_col + i,
+                value=f"=IFERROR('{amount}'!{L}{tr}/'{amount}'!$D{tr},\"\")").number_format = FMT_PCT_MONTH
+    ws.cell(row=tr, column=lay.total_col,
+            value=f"=SUM({col(lay.first_col)}{tr}:{col(lay.last_col)}{tr})").number_format = FMT_PCT
+    for c_ in range(1, lay.total_col + 1):
+        cell = ws.cell(row=tr, column=c_)
+        cell.fill = FILL_TOTAL
+        cell.font = FONT_BOLD
+        cell.border = Border(top=Side(style="medium", color=DARK))
+    if is_pv:
+        # Filas de ingreso cuyo % planificado no suma 100 % (p. ej. tareas sin fechas o fuera del horizonte),
+        # por bloques de filas de ingreso consecutivas
+        total_col = col(lay.total_col)
+        inputs = sorted(lay.r(x) for x in report.rows if x.is_input)
+        blocks: list[list[int]] = []
+        for r in inputs:
+            if blocks and r == blocks[-1][-1] + 1:
+                blocks[-1].append(r)
+            else:
+                blocks.append([r])
+        for b in blocks:
+            ws.conditional_formatting.add(f"{total_col}{b[0]}:{total_col}{b[-1]}", FormulaRule(
+                formula=[f"ABS({total_col}{b[0]}-1)>0.0001"], fill=FILL_RED))
+
+    widths = {COL_CODE: 12, COL_NAME: 48, COL_METHOD: 20, COL_BAC: 16, COL_START: 12, COL_FINISH: 12}
+    for c_, w in widths.items():
+        ws.column_dimensions[col(c_)].width = w
+    for i in range(lay.months):
+        ws.column_dimensions[col(lay.first_col + i)].width = 11
+    ws.column_dimensions[col(lay.total_col)].width = 15
+    ws.freeze_panes = ws.cell(row=FIRST_ROW, column=lay.first_col)
+    ws.sheet_properties.outlinePr = Outline(summaryBelow=False, summaryRight=False)
+    ws.sheet_format.outlineLevelRow = min(7, max([r.level - 1 for r in report.rows] + [0]))
+
+
 def _method_list(cfg: Config) -> list[str]:
     return cfg.methods or ["Por definir"]
 
 
-def _write_lists(ws, methods: list[str]) -> None:
+def _write_lists(ws, methods: list[str], percent: bool = False) -> None:
     _header(ws, 1, [(1, "Métodos de medición"), (2, "Descripción / regla de cálculo")])
+    help_texts = {**METHOD_HELP, **METHOD_HELP_PERCENT} if percent else METHOD_HELP
     for i, m in enumerate(methods, start=2):
         put_text(ws, i, 1, m)
-        ws.cell(row=i, column=2, value=METHOD_HELP.get(m, ""))
+        ws.cell(row=i, column=2, value=help_texts.get(m, ""))
     ws.column_dimensions["A"].width = 24
     ws.column_dimensions["B"].width = 110
     ws.column_dimensions["D"].width = 70
     ws.cell(row=1, column=4, value="Se pueden agregar métodos al final de la columna A, sin dejar filas vacías: "
             "aparecen en el desplegable de la columna C de la hoja PV. Para calcular el EV se reconocen: "
             "fórmulas fijas X/Y (0/100, 50/50...), hitos ponderados, % completado, % físico completado, "
-            "unidades completadas, avance lineal (LOE) y CPTR de MS Project. Otros textos se calculan "
-            "como % completado.").font = FONT_NOTE
+            "unidades completadas, avance lineal (LOE)" + ("" if percent else " y CPTR de MS Project") +
+            ". Otros textos se calculan como % completado.").font = FONT_NOTE
     ws.cell(row=1, column=4).alignment = Alignment(wrap_text=True, vertical="top")
 
 
 def input_sheets(report: Report, kind: str) -> list[str]:
-    """Hojas donde se cargan los valores de EV o AC (las de cada empresa en multi-empresa)."""
+    """Hojas donde se cargan los valores de EV o AC (las de cada empresa en multi-empresa). En el modo
+    porcentaje, el EV se carga como % ganado en las hojas '% EV'."""
+    if report.percent and kind == SHEET_EV:
+        if report.multi:
+            return [pct_sheet(kind, report.company_a), pct_sheet(kind, report.company_b)]
+        return [pct_sheet(kind)]
     if report.multi:
         return [company_sheet(kind, report.company_a), company_sheet(kind, report.company_b)]
     return [kind]
@@ -642,7 +826,9 @@ def _write_summary(ws, report: Report, cfg: Config, lay: _Layout, generated: dat
 
     section(15, "Indicadores a la fecha de corte")
     rows = [
-        (16, "BAC - Presupuesto a la conclusión", f"='{SHEET_PV}'!D{tr}", money, "Suma del presupuesto de línea base."),
+        (16, "BAC - Presupuesto a la conclusión", f"='{SHEET_PV}'!D{tr}", money,
+         "Suma del BAC ingresado en la columna D de la hoja PV." if report.percent
+         else "Suma del presupuesto de línea base."),
         (17, "PV - Valor planificado acumulado", cum(pv_tot), money, "Trabajo planificado hasta la fecha de corte."),
         (18, "EV - Valor ganado acumulado", cum(ev_tot), money, "Valor del trabajo realizado."),
         (19, "AC - Costo real acumulado", cum(ac_tot), money, "Costo incurrido."),
@@ -875,11 +1061,15 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     ws_dash.title = dashboard.SHEET_DASHBOARD
     ws_sum = wb.create_sheet(SHEET_SUMMARY)
     data_sheets = []                     # (hoja, tipo, empresa)
+    pct_sheets = []                      # modo porcentaje: hojas '% PV' y '% EV'
     for kind in (SHEET_PV, SHEET_EV, SHEET_AC):
         data_sheets.append((wb.create_sheet(kind), kind, None))
-        if report.multi:
-            for role, company in (("A", report.company_a), ("B", report.company_b)):
-                data_sheets.append((wb.create_sheet(company_sheet(kind, company)), kind, role))
+        roles = (("A", report.company_a), ("B", report.company_b)) if report.multi else ()
+        for role, company in roles:
+            data_sheets.append((wb.create_sheet(company_sheet(kind, company)), kind, role))
+        if report.percent and kind != SHEET_AC:
+            for role, company in roles or ((None, ""),):
+                pct_sheets.append((wb.create_sheet(pct_sheet(kind, company)), kind, role))
     ws_curve = wb.create_sheet(SHEET_CURVE)
     ws_ind = wb.create_sheet(SHEET_IND)
     ws_val = wb.create_sheet(SHEET_VALID)
@@ -899,9 +1089,11 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
         if r.is_input and m and m not in methods:
             methods.append(m)
 
-    _write_lists(ws_lists, methods)
+    _write_lists(ws_lists, methods, report.percent)
     for ws, kind, role in data_sheets:
         _write_data_sheet(ws, kind, report, cfg, lay, generated, prior, role)
+    for ws, kind, role in pct_sheets:
+        _write_pct_sheet(ws, kind, report, cfg, lay, generated, prior, role)
     _write_curve(ws_curve, report, cfg, lay)
     _write_summary(ws_sum, report, cfg, lay, generated, status)
     _write_indicators(ws_ind, report, cfg, lay)
@@ -921,8 +1113,12 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
         NAME_METHODS, attr_text=f"OFFSET('{SHEET_LISTS}'!$A$2,0,0,MAX(1,COUNTA('{SHEET_LISTS}'!$A:$A)-1),1)")
     dashboard.define_names(wb, lay)
     cutoff = report.horizon.index(status) + 1 if status else None
-    dashboard.add_dashboard_charts(wb, packages, lay.months, dashboard.plan_end_month(report.total_vector),
-                                   cutoff, report.total_bac, cfg.currency or report.currency or "")
+    if report.percent:      # % planificado (fracciones): último mes con algún %
+        plan_end = max((i + 1 for i, v in enumerate(report.total_vector) if abs(v) > 1e-9), default=0)
+    else:
+        plan_end = dashboard.plan_end_month(report.total_vector)
+    dashboard.add_dashboard_charts(wb, packages, lay.months, plan_end, cutoff, report.total_bac,
+                                   cfg.currency or report.currency or "")
     wb.active = 0
 
     p = report.project
@@ -945,6 +1141,7 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
         "decimales": cfg.decimals,
         **Thresholds.from_config(cfg).meta(),
         "generado": generated.replace(microsecond=0),
+        "modo": report.mode,
         "multiempresa": bool(report.multi),
     }
     if report.multi:

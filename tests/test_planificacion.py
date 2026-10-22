@@ -11,6 +11,8 @@ from evm.reader_xml import read_xml
 from evm.update import book_totals, read_book, run_update
 from evm.wbs import KIND_LEAF, KIND_RESIDUAL, KIND_SUMMARY, LinearPVSource, build_report, code_level
 
+pytestmark = pytest.mark.modo("costo")
+
 S, F = datetime(2026, 1, 5, 8), datetime(2026, 3, 27, 17)
 
 

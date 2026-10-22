@@ -22,6 +22,8 @@ from evm.update import book_totals, read_book, run_update
 from evm.wbs import LinearPVSource, build_report
 from evm.workbook import FIRST_MONTH_COL, FIRST_ROW, WorkbookFormatError, write_workbook
 
+pytestmark = pytest.mark.modo("costo")
+
 S, F = datetime(2026, 1, 5, 8), datetime(2026, 3, 27, 17)
 ERROR = "error"     # resultado de una lectura rechazada con WorkbookFormatError
 
@@ -91,7 +93,7 @@ def backups(folder):
     return sorted(p.name for p in folder.glob("*.respaldo-*"))
 
 
-SMALL = Config(months=24)      # horizonte corto: libros más rápidos de leer y guardar
+SMALL = Config(months=24, mode="costo")      # horizonte corto: libros más rápidos de leer y guardar
 
 
 @pytest.fixture(scope="session")

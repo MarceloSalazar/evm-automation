@@ -21,6 +21,7 @@ import contextlib
 import faulthandler
 import io
 import os
+import re
 import subprocess
 import sys
 import time
@@ -39,6 +40,7 @@ LIMIT = 15
 MISSING = [name for name, value in (("EVM_MPP", MPP), ("EVM_MPP_XML", XML)) if not value]
 
 pytestmark = [
+    pytest.mark.modo("costo"),
     pytest.mark.msproject,
     pytest.mark.skipif(sys.platform != "win32", reason="MS Project solo funciona en Windows"),
     pytest.mark.skipif(bool(MISSING), reason=(
@@ -54,11 +56,21 @@ def ms_project_running() -> bool:
     return "WINPROJ.EXE" in out.stdout.upper()
 
 
-def config_path() -> str:
+def config_path(folder: Path) -> str:
+    """Configuración de la prueba en el modo costo: compara los costos escalonados que lee cada motor."""
     if os.environ.get("EVM_CONFIG"):
-        return os.environ["EVM_CONFIG"]
-    local = ROOT / "config.toml"
-    return str(local if local.exists() else ROOT / "config.ejemplo.toml")
+        source = Path(os.environ["EVM_CONFIG"])
+    else:
+        local = ROOT / "config.toml"
+        source = local if local.exists() else ROOT / "config.ejemplo.toml"
+    text = re.sub(r'(?m)^modo\s*=.*$', "", source.read_text(encoding="utf-8-sig"))
+    if "[exportacion]" in text:
+        text = text.replace("[exportacion]", '[exportacion]\nmodo = "costo"', 1)
+    else:
+        text += '\n[exportacion]\nmodo = "costo"\n'
+    path = folder / "config_costo.toml"
+    path.write_text(text, encoding="utf-8")
+    return str(path)
 
 
 def run(*args) -> str:
@@ -110,7 +122,7 @@ def books(tmp_path_factory):
     for engine, origin in (("com", MPP), ("xml", XML)):
         book = d / f"EVM_{engine}.xlsx"
         for command in (["generar", "--salida", book], ["actualizar", "--libro", book, "--sin-respaldo"]):
-            run(command[0], "--origen", origin, "--motor", engine, "--config", config_path(), *command[1:], *extra)
+            run(command[0], "--origen", origin, "--motor", engine, "--config", config_path(d), *command[1:], *extra)
             if engine == "com" and not result["was_running"]:
                 # MS Project tarda unos segundos en cerrarse después de Quit: se espera antes del paso siguiente
                 closed.append(wait_until_closed())

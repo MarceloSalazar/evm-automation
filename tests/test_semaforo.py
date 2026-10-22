@@ -104,6 +104,7 @@ def test_index_chart_bands(book, recalc):
     assert xml.count("<numCache>") == 2 * len(series)
 
 
+@pytest.mark.modo("costo")
 def test_analysis_lists_packages_above_the_upper_limit(book, example_files):
     """Con el amarillo superior en 1,10, los paquetes LOE (CPI 1,09 a 1,12) solo se listan si superan 1,10."""
     from evm.analysis import SHEET_ANALYSIS, read_entries

@@ -28,7 +28,8 @@ from __future__ import annotations
 
 import argparse
 import calendar
-from dataclasses import dataclass, field
+import sys
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -429,18 +430,152 @@ def walk_leaves(t: T):
         yield from walk_leaves(c)
 
 
+# ----------------------------------------------------------------------------
+# Datos ficticios para el libro en el modo porcentaje
+# ----------------------------------------------------------------------------
+def _import_evm() -> None:
+    """Permite usar el paquete evm al ejecutar este archivo desde la carpeta ejemplos."""
+    try:
+        import evm  # noqa: F401
+    except ModuleNotFoundError:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+
+def fill_book(book_path: Path, status: date | None = None, projects: dict[str, int] | None = None,
+              single: int = 1) -> tuple[int, int]:
+    """Escribe en un libro del modo porcentaje los datos que en un proyecto real se ingresan a mano.
+
+    - BAC de cada fila (solo en las celdas vacías): el presupuesto del proyecto de ejemplo.
+    - Con `status`: AC del mes de esa fecha, el costo real simulado del ejemplo (como si viniera del ERP de cada
+      empresa). El costo real simulado tiene desvíos: algunos paquetes quedan por encima de su presupuesto.
+
+    projects: {nombre del archivo en el libro: proyecto de ejemplo (1 o 2)}. Por defecto, el del libro: un
+    solo archivo es el proyecto `single` y, con varios archivos ([[proyectos]]), el primero es el proyecto 1 y el
+    segundo el proyecto 2.
+    Devuelve la cantidad de celdas de BAC y de AC escritas.
+    """
+    _import_evm()
+    import tempfile
+
+    from openpyxl import load_workbook
+
+    from evm.companies import ac_by_company, resolve_shares
+    from evm.config import MODE_COST, Config
+    from evm.reader_xml import read_xml
+    from evm import dashboard
+    from evm.update import _refresh_charts, _save, apply_book_settings, book_totals, plan_end, read_book
+    from evm.wbs import TimephasedPVSource, build_part, build_tree, iter_subtree, select_scope
+    from evm.workbook import (book_sources, company_sheet, read_meta, read_structure, row_key, source_meta,
+                              split_key)
+
+    wb = load_workbook(book_path)
+    meta = read_meta(wb)
+    if not projects:
+        names = book_sources(meta)
+        projects = {"": single} if names == [""] else {n: i + 1 for i, n in enumerate(names[:2])}
+    if str(meta.get("modo") or "") != "porcentaje":
+        raise SystemExit(f"'{book_path}' no es un libro del modo porcentaje: en el modo costo el BAC y el AC "
+                         "salen de MS Project.")
+    cfg = apply_book_settings(Config(), meta)
+    cfg.mode = MODE_COST
+    cfg.max_level = int(meta.get("nivel_maximo") or cfg.max_level)
+    multi = bool(meta.get("multiempresa"))
+    roles = [("A", company_sheet("PV", cfg.company_a), company_sheet("AC", cfg.company_a)),
+             ("B", company_sheet("PV", cfg.company_b), company_sheet("AC", cfg.company_b))] if multi \
+        else [("", "PV", "AC")]
+    structure = [s for s in read_structure(wb) if s.is_input]
+    bac_cells = ac_cells = 0
+    with tempfile.TemporaryDirectory() as tmp:
+        for source, number in projects.items():
+            pcfg = replace(cfg, plan=str(source_meta(meta, "planificacion", source) or ""))
+            build = PROJECTS[number][2]
+            base = Path(tmp) / f"base{number}.xml"
+            write(build(), base, None, number)
+            project = read_xml(base, pcfg)
+            part = build_part(project, pcfg, TimephasedPVSource(lambda t: t.timephased_pv, "", pcfg.distribution,
+                                                                None, project.calendar))
+            budget = {row_key(r): r for r in part.rows if r.is_input}      # presupuesto del ejemplo
+            mine = [s for s in structure if split_key(s.key)[0] == source]
+            for s in mine:
+                _src, uid, residual = split_key(s.key)
+                r = budget.get(uid + ("-D" if residual else ""))
+                if r is None:
+                    continue
+                values = {"": r.bac, "A": sum(r.pv_a.values()), "B": r.bac - sum(r.pv_a.values())}
+                for role, pv_sheet, _ac in roles:
+                    cell = wb[pv_sheet].cell(row=s.row, column=4)
+                    if cell.value in (None, "") and values[role] > 0.005:
+                        cell.value = round(values[role], 2)
+                        bac_cells += 1
+            if status is None:
+                continue
+            avance = Path(tmp) / f"avance{number}.xml"
+            write(build(), avance, status, number)
+            progress = read_xml(avance, pcfg)
+            tasks = [t for t in progress.tasks if t.outline_level >= 1]
+            roots = build_tree(tasks)
+            scope = select_scope(roots, pcfg.plan)
+            by_uid = {t.uid: t for t in tasks}
+            shares = resolve_shares(scope.roots, pcfg)[0] if multi else {}
+            from evm.timeline import Horizon
+            horizon = Horizon(meta["horizonte_inicio"], meta["meses"])
+            idx = horizon.index(status)
+            if not 0 <= idx < horizon.months:
+                continue
+            col = 7 + idx
+            for s in mine:
+                _src, uid, residual = split_key(s.key)
+                task = by_uid.get(int(uid)) if uid.isdigit() and not residual else None
+                if task is None:
+                    continue
+                branch = list(iter_subtree(task))
+                if multi:
+                    a, b = ac_by_company(branch, shares)
+                    cumulative = {"A": a, "B": b}
+                else:
+                    cumulative = {"": task.acwp if task.acwp is not None else task.actual_cost}
+                for role, _pv, ac_sheet in roles:
+                    ws = wb[ac_sheet]
+                    prev = sum(float(ws.cell(row=s.row, column=7 + i).value or 0) for i in range(idx))
+                    value = round(cumulative[role] - prev, 2)
+                    if cumulative[role] or ws.cell(row=s.row, column=col).value is not None:
+                        ws.cell(row=s.row, column=col, value=value)
+                        ac_cells += 1
+    # openpyxl no conserva los gráficos al guardar: se vuelven a crear
+    book = read_book(book_path, wb)
+    when = status or book.status_date
+    if when is not None:
+        _refresh_charts(wb, book, book.horizon.index(when), meta)
+    else:
+        packages = dashboard.chart_packages((s.row, s.code, s.level, s.kind) for s in book.structure)
+        dashboard.add_dashboard_charts(wb, packages, book.horizon.months, plan_end(book), None, book_totals(book)[3],
+                                       str(meta.get("moneda") or ""))
+    _save(wb, Path(book_path), False)
+    return bac_cells, ac_cells
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--proyecto", type=int, choices=sorted(PROJECTS), default=1,
                    help="1 = programa de ejemplo (por defecto), 2 = segundo proyecto (código EDT 9.0.0)")
     p.add_argument("--salida", help="archivo XML a crear (por defecto el archivo de ejemplo del proyecto)")
     p.add_argument("--fecha-estado", help="AAAA-MM-DD: agrega avance simulado a esa fecha")
+    p.add_argument("--libro", help="libro del modo porcentaje: escribe en él el BAC de cada fila (si está vacío) y, "
+                                   "con --fecha-estado, el AC del mes, con datos ficticios del ejemplo")
     a = p.parse_args()
     status = date.fromisoformat(a.fecha_estado) if a.fecha_estado else None
     _title, file_name, build, _first = PROJECTS[a.proyecto]
+    if a.libro and not (a.salida or a.fecha_estado):
+        bac, ac = fill_book(Path(a.libro), single=a.proyecto)
+        print(f"Libro {a.libro}: BAC escrito en {bac} celdas.")
+        return
     salida = a.salida or str(Path(__file__).with_name(file_name))
     write(build(), Path(salida), status, a.proyecto)
     print(f"Archivo generado: {salida}")
+    if a.libro:
+        bac, ac = fill_book(Path(a.libro), status, single=a.proyecto)
+        print(f"Libro {a.libro}: BAC escrito en {bac} celdas" + (f"; AC de {status:%m/%Y} en {ac} celdas." if status
+                                                                  else "."))
 
 
 if __name__ == "__main__":

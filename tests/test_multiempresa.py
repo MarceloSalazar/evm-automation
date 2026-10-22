@@ -15,6 +15,8 @@ from evm.update import read_book, run_update
 from evm.wbs import SEV_INFO, TimephasedPVSource, build_report
 from evm.workbook import FIRST_MONTH_COL, FIRST_ROW, read_meta
 
+pytestmark = pytest.mark.modo("costo")
+
 ROOT = Path(__file__).resolve().parents[1]
 SHEETS = ["Cuadro de Mando", "Resumen", "PV", "PV-EmpresaA", "PV-EmpresaB", "EV", "EV-EmpresaA", "EV-EmpresaB",
           "AC", "AC-EmpresaA", "AC-EmpresaB"]
@@ -92,6 +94,8 @@ def test_example_config_reads_item_edt(example_files):
     by_item = read_xml(example_files["base"], cfg)
     by_wbs = read_xml(example_files["base"], Config())
     assert [t.wbs for t in by_item.tasks] == [t.wbs for t in by_wbs.tasks]
+    assert cfg.mode == "porcentaje"                     # la configuración de ejemplo indica el modo por defecto
+    cfg.mode = "costo"
     assert report_for(example_files["base"], cfg).total_bac == pytest.approx(44_210_000)
 
 

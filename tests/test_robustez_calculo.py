@@ -21,6 +21,8 @@ from evm.wbs import KIND_RESIDUAL, LinearPVSource, build_tree
 from builders import (F, S, T, assert_report_invariants, by_name, ev_after_update, expected_bac, issues_with,
                       random_tree, report, rows_by_code, seeds, timephased_source, tree)
 
+pytestmark = pytest.mark.modo("costo")
+
 
 # ----------------------------------------------------------------------------
 # EDT y PV: invariantes sobre árboles aleatorios

@@ -15,6 +15,8 @@ from evm.config import ConfigError, load_config
 from evm.update import indicators_for, read_book
 from evm.workbook import split_key
 
+pytestmark = pytest.mark.modo("costo")
+
 COMMON = ('[campos]\nmetodo = "Método EVM"\npeso_hito = "Peso hito"\n\n[horizonte]\nmes_inicio = "2026-01"\n\n'
           '[exportacion]\nplanificacion = "INTERNO"\n')
 MULTI_COMPANY = '\n[multiempresa]\nactivar = true\nac_desde_project = true\n'

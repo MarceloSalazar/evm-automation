@@ -168,7 +168,12 @@ def cmd_generar(args) -> int:
         print(f"  {project.baseline_label}  |  PV: {report.pv_source}")
     print(f"  Filas EDT: {len(report.rows)} ({leaves} de ingreso)  |  Nivel máximo: {cfg.max_level}")
     print(f"  Horizonte: {report.horizon.start:%m/%Y} a {report.horizon.end:%m/%Y} ({report.horizon.months} meses)")
-    print(f"  BAC total: {report.total_bac:,.2f}")
+    if report.percent:
+        sheets = (f"PV-{report.company_a} y PV-{report.company_b}" if report.multi else "PV")
+        print(f"  Modo porcentaje: se debe ingresar el BAC de cada fila en la columna D de {sheets} (celdas "
+              "amarillas).")
+    else:
+        print(f"  BAC total: {report.total_bac:,.2f}")
     _print_issues(report.issues)
     if prior is not None:
         lost_ev = sum(r.total("EV") for r in prior.unmatched)
@@ -209,6 +214,8 @@ def _print_update(res, currency: str) -> None:
     if res.book is not None and res.book.multi and not res.ac_loaded:
         print(f"  [i] El AC se carga a mano en las hojas 'AC-{res.book.company_a}' y 'AC-{res.book.company_b}'; "
               "los indicadores de costo usan los valores cargados.")
+    elif res.book is not None and not res.ac_loaded:
+        print("  [i] El AC se carga a mano en la hoja 'AC'; los indicadores de costo usan los valores cargados.")
     _print_deviations(res)
     if res.book is not None:
         print()

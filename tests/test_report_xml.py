@@ -7,6 +7,8 @@ from evm.model import ProjectData, Task
 from evm.reader_xml import read_xml, timephased_baseline_cost_type
 from evm.wbs import KIND_LEAF, KIND_RESIDUAL, LinearPVSource, TimephasedPVSource, build_report
 
+pytestmark = pytest.mark.modo("costo")
+
 
 def xml_source(cfg):
     return TimephasedPVSource(lambda t: t.timephased_pv, "xml", cfg.distribution, cfg.holidays)

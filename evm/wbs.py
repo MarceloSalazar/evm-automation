@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
-from evm.config import Config, ConfigError
+from evm.config import MODE_COST, MODE_PERCENT, Config, ConfigError
 from evm.model import MonthKey, ProjectData, Task
 from evm.timeline import Horizon, add_into, distribute_linear, first_of_month, lump
 
@@ -51,6 +51,11 @@ class ReportRow:
     vector_a: list[float] = field(default_factory=list, repr=False)
     bac_a: float = 0.0
     source: str = ""            # varios archivos: nombre del archivo de la tarea ([[proyectos]])
+    # Modo porcentaje: tareas de detalle que forman la fila y % planificado de cada empresa
+    # (clave "" en un libro de una sola empresa; "A" y "B" en multi-empresa)
+    leaves: list[Task] = field(default_factory=list, repr=False)
+    pct: dict[str, dict[MonthKey, float]] = field(default_factory=dict, repr=False)
+    pct_vec: dict[str, list[float]] = field(default_factory=dict, repr=False)
 
     @property
     def is_input(self) -> bool:
@@ -86,6 +91,11 @@ class Report:
     sources: list[Source] = field(default_factory=list)
     title: str = ""             # título del informe
     currency: str = ""          # moneda de MS Project (se usa si la configuración no indica 'moneda')
+    mode: str = MODE_COST       # "porcentaje": % de MS Project × BAC del libro; "costo": costo de línea base
+
+    @property
+    def percent(self) -> bool:
+        return self.mode == MODE_PERCENT
 
     @property
     def multi_file(self) -> bool:
@@ -384,6 +394,78 @@ def select_scope(roots: list[Task], plan_code: str) -> Scope:
 
 
 # ----------------------------------------------------------------------------
+# Modo porcentaje
+# ----------------------------------------------------------------------------
+PERCENT_PV_SOURCE = ("% planificado de MS Project (duración de la línea base de las tareas y peso de los hitos) "
+                     "× BAC ingresado en el libro")
+
+
+def _has_weight(t: Task) -> bool:
+    """Tarea que puede aportar % planificado: tarea con fechas o hito con peso."""
+    if t.milestone:
+        return (t.milestone_weight or 0) > 0
+    return bool((t.baseline_start or t.start) and (t.baseline_finish or t.finish))
+
+
+def _percent_curves(project: ProjectData, cfg: Config, rows: list[ReportRow], code_of, share) -> list[Issue]:
+    """Modo porcentaje: % planificado de cada fila de ingreso (y de cada empresa) y sus observaciones."""
+    from evm import percent as pct
+    issues: list[Issue] = []
+    calendar = pct.calendar_for(project, cfg)
+    cache: dict[int, pct.TaskTime] = {}
+    alone: dict[str, list[str]] = {}            # empresa -> filas en las que no participa
+    if cfg.multi_enabled:
+        roles = [(pct.ROLE_A, cfg.company_a, share), (pct.ROLE_B, cfg.company_b, lambda t: 1.0 - share(t))]
+    else:
+        roles = [(pct.ROLE_ALL, "", None)]
+    for row in rows:
+        if not row.is_input:
+            continue
+        times = [cache.setdefault(t.uid, pct.task_time(t, calendar, cfg.distribution)) for t in row.leaves]
+        full = pct.full_weights(times)
+        for role, company, fn in roles:
+            rw = pct.company_weights(times, fn, company, full)
+            if rw.fallback:
+                alone.setdefault(company, []).append(row.code)
+            row.pct[role] = pct.curve(times, rw)
+            issues += [Issue(SEV_WARN, row.code, row.name, note) for note in rw.notes]
+        if not any(row.pct.values()):
+            issues.append(Issue(SEV_WARN, row.code, row.name,
+                                "Ninguna tarea de la fila tiene fechas ni es un hito con peso: no tiene % "
+                                "planificado y su BAC no se puede repartir en el tiempo."))
+
+    leaves = list(cache.values())
+    undated = [x for x in leaves if not x.dist]
+    current = [x for x in leaves if x.dist and not x.from_baseline] if project.baseline_found else []
+    if current:
+        issues.append(Issue(SEV_WARN, "", "",
+                            f"{plural(len(current), 'tarea no tiene', 'tareas no tienen')} fechas de línea base "
+                            f"(p. ej. se {'agregó' if len(current) == 1 else 'agregaron'} después de guardarla): "
+                            "su % planificado se calculó con sus fechas actuales. Si corresponde, se debe "
+                            "actualizar la línea base de esas tareas."))
+        for x in current[:200]:
+            issues.append(Issue(SEV_WARN, code_of(x.task), x.task.name,
+                                "Sin fechas de línea base: se usaron sus fechas actuales."))
+    for x in undated[:200]:
+        issues.append(Issue(SEV_WARN, code_of(x.task), x.task.name,
+                            "Sin fechas de línea base ni fechas actuales: no aporta % planificado."))
+    with_cost = [x for x in leaves if x.task.baseline_cost or x.task.cost]
+    if with_cost:
+        issues.append(Issue(SEV_INFO, "", "",
+                            f"{plural(len(with_cost), 'tarea tiene', 'tareas tienen')} costo en MS Project: en el "
+                            "modo porcentaje los costos no se usan (el importe es el BAC que se ingresa en el libro). "
+                            "Para calcular el PV con los costos de MS Project se debe indicar modo = \"costo\" en "
+                            "[exportacion]."))
+    for company, codes in alone.items():
+        shown = ", ".join(codes[:10]) + (f" y {len(codes) - 10} más" if len(codes) > 10 else "")
+        issues.append(Issue(SEV_INFO, "", "",
+                            f"{company} no participa en las tareas de {plural(len(codes), 'fila', 'filas')} "
+                            f"({shown}): si se le asigna BAC, su PV se reparte con el % planificado de la fila "
+                            "completa."))
+    return issues
+
+
+# ----------------------------------------------------------------------------
 # Informe
 # ----------------------------------------------------------------------------
 def build_report(project: ProjectData, cfg: Config, source: PVSource) -> Report:
@@ -401,11 +483,17 @@ def build_part(project: ProjectData, cfg: Config, source: PVSource, name: str = 
     roots = build_tree(tasks)
 
     # Tareas inactivas (MS Project 2010+): se excluyen con toda su rama
+    percent = cfg.percent_mode
     excluded: dict[int, list[Task]] = {}
     if not cfg.include_inactive:
         inactive_roots = [r for r in roots if not r.active]
         roots, excluded, removed = prune_inactive(roots)
-        if removed:
+        if removed and percent:
+            issues.append(Issue(SEV_INFO, "", "",
+                                f"Se {'excluyó' if removed == 1 else 'excluyeron'} "
+                                f"{plural(removed, 'tarea inactiva', 'tareas inactivas')}: no forman parte del % "
+                                "planificado."))
+        elif removed:
             excl_cost = (sum(c.baseline_cost for lst in excluded.values() for c in lst)
                          + sum(r.baseline_cost for r in inactive_roots))
             issues.append(Issue(SEV_INFO, "", "",
@@ -420,7 +508,13 @@ def build_part(project: ProjectData, cfg: Config, source: PVSource, name: str = 
                             f"Planificación '{scope.prefix}': se exportan las {sum(1 for _ in scope.tasks())} "
                             f"tareas que dependen de '{scope.plan.name}'."))
 
-    if not project.baseline_found:
+    if not project.baseline_found and percent:
+        issues.append(Issue(
+            SEV_WARN, "", "",
+            "El proyecto no tiene guardada la línea base seleccionada: el % planificado se calculó con las "
+            "fechas ACTUALES de las tareas. Se debe guardar la línea base en MS Project (Proyecto > Establecer "
+            "línea base) y volver a exportar."))
+    elif not project.baseline_found:
         issues.append(Issue(
             SEV_WARN, "", "",
             "El proyecto no tiene guardada la línea base seleccionada: el PV y el BAC se calcularon con "
@@ -493,7 +587,8 @@ def build_part(project: ProjectData, cfg: Config, source: PVSource, name: str = 
         eff_dist[t.uid] = acc
 
     for r in scope.roots:
-        compute_own(r)
+        if not percent:                 # modo porcentaje: los costos de MS Project no se usan
+            compute_own(r)
     by_wbs = {t.wbs: code_of(t) for t in scope.tasks()}
     for i in getattr(source, "issues", []):
         issues.append(Issue(i.severity, by_wbs.get(i.code, i.code), i.name, i.message))
@@ -579,6 +674,12 @@ def build_part(project: ProjectData, cfg: Config, source: PVSource, name: str = 
         else:
             report_roots.append(row)
 
+        if is_leaf_row and percent:
+            row.leaves = [n for n in iter_subtree(t) if not n.children]
+            row.method = (t.method or "").strip() or cfg.default_method
+            row.hidden_tasks = sum(1 for _ in iter_subtree(t)) - 1
+            aggregated += row.hidden_tasks
+            return
         if is_leaf_row:
             row.pv = subtree_pv(t)
             row.bac = sum(row.pv.values())
@@ -596,6 +697,22 @@ def build_part(project: ProjectData, cfg: Config, source: PVSource, name: str = 
 
         for c in row_tasks:
             visit(c, row)
+        if percent:
+            # Tareas sin código EDT (o de nivel mayor al máximo) que cuelgan de la tarea resumen: forman la
+            # fila -D, con su propio BAC, si tienen duración o son hitos con peso.
+            loose = [n for b in loose_full for n in iter_subtree(b) if not n.children]
+            aggregated += sum(1 for b in loose_full for _ in iter_subtree(b)) + len(loose_own)
+            if any(_has_weight(n) for n in loose):
+                res = ReportRow(code=f"{row.code}-D", name=f"Otras tareas de «{t.name}»",
+                                level=row.level + 1, kind=KIND_RESIDUAL, task=t,
+                                method=cfg.default_method, start=s, finish=f, parent=row)
+                res.leaves = loose
+                rows.append(res)
+                row.children.append(res)
+                issues.append(Issue(SEV_INFO, row.code, t.name,
+                                    f"Tareas sin código EDT o de nivel mayor a {cfg.max_level}: forman la fila "
+                                    f"{row.code}-D, con su propio BAC."))
+            return
         # Costos de la tarea resumen que no quedan en ninguna fila hija: su costo propio y el de
         # las tareas sin código EDT (o de nivel mayor al máximo) que cuelgan de ella.
         others = dict(own[t.uid])
@@ -645,6 +762,9 @@ def build_part(project: ProjectData, cfg: Config, source: PVSource, name: str = 
 
     top(scope.roots)
 
+    if percent:
+        issues += _percent_curves(project, cfg, rows, code_of, share)
+
     if cfg.multi_enabled:
         # Avisos de empresa, solo de las tareas que forman parte del libro
         omitted_ids = {n.uid for n in omitted}
@@ -674,7 +794,14 @@ def build_part(project: ProjectData, cfg: Config, source: PVSource, name: str = 
 
     # --- Controles del archivo ------------------------------------------------
     checks: list[Issue] = []
-    if omitted:
+    if omitted and percent:
+        one = len(omitted) == 1
+        checks.append(Issue(SEV_WARN if any(_has_weight(n) for n in omitted if not n.children) else SEV_INFO,
+                            "", "",
+                            f"Se {'omitió' if one else 'omitieron'} {plural(len(omitted), 'tarea', 'tareas')} sin "
+                            f"código EDT que no depende{'' if one else 'n'} de ningún elemento EDT: no "
+                            f"forma{'' if one else 'n'} parte de ninguna fila del libro."))
+    elif omitted:
         omitted_cost = sum(sum(own.get(n.uid, {}).values()) for n in omitted)
         checks.append(Issue(SEV_WARN if omitted_cost > 0.005 else SEV_INFO, "", "",
                             f"Se {'omitió' if len(omitted) == 1 else 'omitieron'} "
@@ -688,7 +815,7 @@ def build_part(project: ProjectData, cfg: Config, source: PVSource, name: str = 
 
     part_bac = sum(r.bac for r in rows if r.is_input)
     reference = scope.plan.baseline_cost if scope.plan is not None else project.summary_baseline_cost
-    if reference is not None and project.baseline_found:
+    if reference is not None and project.baseline_found and not percent:
         if abs(reference - part_bac) > tolerance(reference):
             whose = f"de la planificación '{scope.prefix}'" if scope.plan is not None else "del proyecto"
             checks.append(Issue(SEV_WARN, "", "",
@@ -711,7 +838,7 @@ def build_part(project: ProjectData, cfg: Config, source: PVSource, name: str = 
                             f"{cfg.max_level} se {'agregó' if aggregated == 1 else 'agregaron'} en su elemento EDT "
                             "superior."))
     linear = getattr(source, "linear_count", 0)
-    if linear and isinstance(source, TimephasedPVSource):
+    if linear and isinstance(source, TimephasedPVSource) and not percent:
         if source.timephased_count:
             checks.append(Issue(SEV_INFO, "", "",
                                 f"{plural(linear, 'tarea no tiene', 'tareas no tienen')} distribución mensual de la "
@@ -727,7 +854,8 @@ def build_part(project: ProjectData, cfg: Config, source: PVSource, name: str = 
     dates = [t.baseline_start or t.start for t in scope.tasks() if (t.baseline_start or t.start)]
     ref = min(dates) if dates else project.project_start
     first_date = (ref.date() if isinstance(ref, datetime) else ref) if ref else None
-    return ReportPart(Source(name, project, scope.prefix, source.description), rows, report_roots, issues, checks,
+    description = PERCENT_PV_SOURCE if percent else source.description
+    return ReportPart(Source(name, project, scope.prefix, description), rows, report_roots, issues, checks,
                       first_date)
 
 
@@ -777,10 +905,14 @@ def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:
 
     # --- Horizonte -------------------------------------------------------------
     # Sin mes de inicio: el primer mes con PV en las filas del libro (las tareas omitidas no cuentan)
+    percent = cfg.percent_mode
     if cfg.start_month:
         start = first_of_month(cfg.start_month)
     else:
-        keys = [k for row in rows if row.is_input for k, v in row.pv.items() if v]
+        if percent:
+            keys = [k for row in rows if row.is_input for c in row.pct.values() for k, v in c.items() if v]
+        else:
+            keys = [k for row in rows if row.is_input for k, v in row.pv.items() if v]
         if keys:
             y, m = min(keys)
             start = date(y, m, 1)
@@ -791,8 +923,21 @@ def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:
 
     # --- Vectores mensuales ---------------------------------------------------
     total_before = total_after = 0.0
+    pct_before: set[str] = set()       # modo porcentaje: filas con % planificado fuera del horizonte
+    pct_after: set[str] = set()
     for row in rows:
-        if row.is_input:
+        if row.is_input and percent:
+            for role, values in row.pct.items():
+                vec, before, after = horizon.to_vector(values)
+                vec[0] += before            # se acumula en el mes 1 para que las curvas acumuladas sean correctas
+                row.pct_vec[role] = vec
+                if before > 1e-9:
+                    pct_before.add(row.code)
+                if after > 1e-9:
+                    pct_after.add(row.code)
+            row.vector = [sum(v[i] for v in row.pct_vec.values()) for i in range(horizon.months)]
+            row.vector_a = [0.0] * horizon.months
+        elif row.is_input:
             row.vector, row.pv_before, row.pv_after = horizon.to_vector(row.pv)
             total_before += row.pv_before
             total_after += row.pv_after
@@ -833,11 +978,28 @@ def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:
                             f"Hay PV por {fmt_money(total_after)} posterior al último mes del horizonte "
                             f"({horizon.end:%m/%Y}); no aparece en las columnas mensuales. Se debe aumentar "
                             "'meses'."))
+    if pct_before:
+        issues.append(Issue(SEV_WARN, "", "",
+                            f"{plural(len(pct_before), 'fila tiene', 'filas tienen')} % planificado anterior al mes "
+                            f"1 ({horizon.start:%m/%Y}): se acumuló en la columna del mes 1."))
+    if pct_after:
+        issues.append(Issue(SEV_WARN, "", "",
+                            f"{plural(len(pct_after), 'fila tiene', 'filas tienen')} % planificado posterior al "
+                            f"último mes del horizonte ({horizon.end:%m/%Y}): no aparece en las columnas mensuales "
+                            "y su PV no llega al BAC. Se debe aumentar 'meses'."))
 
     # --- Controles -------------------------------------------------------------
     for part in parts:
         issues += _tagged(part, part.checks)
-    if cfg.multi_enabled:
+    if percent:
+        sheets = (f"PV-{cfg.company_a} y PV-{cfg.company_b}" if cfg.multi_enabled else "PV")
+        issues.insert(0, Issue(SEV_INFO, "", "",
+                               "Modo porcentaje: el PV y el EV de cada fila son el BAC × el % planificado y el % "
+                               "ganado (hojas % PV y % EV), que se calculan con la duración de la línea base de las "
+                               "tareas y el peso de los hitos. Se debe ingresar el BAC de cada fila en las celdas "
+                               f"amarillas de la columna D de {'las hojas' if cfg.multi_enabled else 'la hoja'} "
+                               f"{sheets}."))
+    elif cfg.multi_enabled:
         bac_a = sum(r.bac_a for r in roots)
         issues.append(Issue(SEV_INFO, "", "",
                             f"Multi-empresa: BAC de {cfg.company_a} {fmt_money(bac_a)}; BAC de {cfg.company_b} "
@@ -869,4 +1031,4 @@ def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:
                   pv_after=total_after, pv_source=pv_source, plan=plan,
                   multi=cfg.multi_enabled, company_a=cfg.company_a if cfg.multi_enabled else "",
                   company_b=cfg.company_b if cfg.multi_enabled else "", sources=sources, title=title,
-                  currency=currency)
+                  currency=currency, mode=cfg.mode)

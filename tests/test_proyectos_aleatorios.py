@@ -19,6 +19,8 @@ from evm.reader_xml import read_xml
 from evm.update import book_totals, indicators_for, read_book
 from evm.wbs import TimephasedPVSource, build_report
 
+pytestmark = pytest.mark.modo("costo")
+
 SEEDS = int(os.environ.get("EVM_SEMILLAS", "1"))
 STATUSES = [date(2026, 3, 31), date(2027, 6, 30), date(2028, 12, 31)]
 METHODS = ["0/100", "50/50", "20/80", "Hitos ponderados", "% Completado", "% Físico completado",
