@@ -40,8 +40,8 @@ ambos.
 
 | Español (MS Project) | Inglés | Uso en el programa |
 |---|---|---|
-| Línea base, Línea base 1..10 | Baseline, Baseline1..10 | Define el BAC y el PV. |
-| Costo previsto | Baseline Cost | BAC de cada tarea. |
+| Línea base, Línea base 1..10 | Baseline, Baseline1..10 | Define el PV: sus fechas (modo porcentaje) o su costo (modo costo). |
+| Costo previsto | Baseline Cost | BAC de cada tarea (modo costo). |
 | Comienzo previsto, Fin previsto | Baseline Start, Baseline Finish | Fechas del plan (columnas E y F de la hoja `PV`). |
 | Plan provisional | Interim plan | Copia de líneas base para el historial. |
 | Fecha de estado | Status Date | Fecha de corte. |
@@ -55,7 +55,7 @@ ambos.
 | Recurso de trabajo, material, de costo | Work, Material, Cost resource | Formas de cargar el presupuesto. |
 | EDT, Número de esquema | WBS, Outline Number | Código EDT de cada tarea. |
 | Texto1..30, Número1..20 | Text1..30, Number1..20 | Campos personalizados (método, peso, empresa). |
-| Hito | Milestone | Método `Hitos ponderados`. |
+| Hito | Milestone | Método `Hitos ponderados`; en el modo porcentaje, su `Peso hito` es un % del BAC del paquete. |
 | Activo / Desactivar | Active / Inactivate | Tareas inactivas excluidas. |
 | Uso de tareas | Task Usage | Vista para verificar el PV mensual. |
 
@@ -65,10 +65,15 @@ ambos.
 
 | Término | Significado |
 |---|---|
+| Modo porcentaje | Modo por defecto: MS Project no tiene importes; el PV y el EV son el BAC ingresado en el libro × el % planificado y el % ganado ([Modo porcentaje](modo-porcentaje.md)). |
+| Modo costo | El PV y el BAC salen del costo de línea base de MS Project (`modo = "costo"`). |
+| % planificado | Parte del BAC de una fila planificada en cada mes (hoja `% PV`); suma 100 % en cada fila. |
+| % ganado | Parte del BAC de una fila ganada en cada mes (hoja `% EV`), según su método de medición. |
+| Peso de una tarea | Modo porcentaje: fracción del BAC de la fila que le corresponde, por su duración de línea base o, en un hito, por su `Peso hito`. |
 | Fecha de corte | Último día del mes informado. Por defecto, la fecha de estado de MS Project. |
-| Fila de ingreso | Fila de nivel 3 (o sin hijos) donde se cargan EV y AC. Las de nivel 1 y 2 son subtotales. |
-| Fila `-D Otros costos` | Fila que recoge el costo propio de una tarea resumen o de tareas sin código EDT bajo un elemento de nivel 1 o 2. |
+| Fila de ingreso | Fila de nivel 3 (o sin hijos) donde se cargan el BAC (modo porcentaje), el EV y el AC. Las de nivel 1 y 2 son subtotales. |
+| Fila `-D Otros costos` / `-D Otras tareas` | Fila que recoge el costo propio de una tarea resumen o las tareas sin código EDT bajo un elemento de nivel 1 o 2 (en el modo porcentaje, con su propio BAC). |
 | Planificación | Rama del proyecto bajo una tarea de primer nivel con código EDT (`INTERNO`, `CLIENTE`) que se exporta a un libro. |
 | Horizonte | Meses del libro (120 por defecto). Mes 1 = mes de inicio de la línea base. |
 | Mes de reporte | Mes que muestra el `Cuadro de Mando` (celda `E5`). |
-| Valor del mes | EV o AC de un mes (no acumulado), que se escribe en las hojas `EV` y `AC`. |
+| Valor del mes | EV o AC de un mes (no acumulado), que se escribe en las hojas `EV` y `AC` (en el modo porcentaje, el % ganado del mes en la hoja `% EV`). |

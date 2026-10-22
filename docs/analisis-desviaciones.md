@@ -11,7 +11,7 @@ base.
 ![Hoja Análisis de desviaciones del ejemplo](img/excel/analisis-desviaciones.png)
 
 *Análisis de diciembre de 2027 del [proyecto de ejemplo](ejemplo-paso-a-paso.md), con el texto de tres
-paquetes como ejemplo: uno por encima del rango verde (CPI 1,11) y dos por debajo.*
+paquetes como ejemplo: uno por encima del rango verde (CPI 1,10) y dos por debajo.*
 
 ---
 
@@ -92,8 +92,8 @@ flowchart LR
 ```
 
 1. `actualizar` agrega los paquetes fuera de umbral del mes de corte.
-2. Si el AC del mes se carga **a mano** después de `actualizar` (por ejemplo, desde el ERP con
-   `--solo ev`, o en multi-empresa), al cargarlo todavía no se conocían los paquetes con CPI bajo. Se
+2. Si el AC del mes se carga **a mano** después de `actualizar` (en el modo porcentaje, o desde el ERP
+   con `--solo ev` en el modo costo), al cargarlo todavía no se conocían los paquetes con CPI bajo. Se
    ejecuta entonces `analizar`, que vuelve a calcular la lista con los valores del libro, **sin leer MS
    Project**:
 
@@ -161,7 +161,8 @@ práctica ([Configuración](configuracion.md#ejemplos)).
 
 **¿Por qué aparece un paquete de nivel de esfuerzo (LOE) con SPI 1?** Porque su CPI está fuera del rango
 verde: el SPI de un paquete LOE siempre es 1, pero su costo puede desviarse. En el ejemplo, los paquetes
-de gestión tienen CPI 1,09 a 1,12 porque su costo real es menor que el planificado.
+de gestión tienen CPI de 1,08 a 1,10 en diciembre de 2027 porque su costo real es menor que el
+planificado.
 
 **¿Qué pasa si borro una fila del análisis?** Si el paquete sigue fuera de umbral en el mes de corte,
 vuelve a aparecer (sin texto) la próxima vez que se ejecute `actualizar` o `analizar` para ese mes.

@@ -54,7 +54,7 @@ mes.
 ![Cuadro de Mando con junio de 2027 como mes de reporte](img/excel/cdm-mes-anterior.png)
 
 *El mismo libro con junio de 2027 como mes de reporte: CPI 0,92 y SPI 0,84. En diciembre de 2027 el CPI
-cayó a 0,76 y el SPI a 0,69.*
+cayó a 0,76 y el SPI se mantuvo en 0,84.*
 
 **Método EAC (`R5`).** Define el EAC y, con él, ETC, VAC y TCPI (EAC):
 
@@ -66,7 +66,7 @@ cayó a 0,76 y el SPI a 0,69.*
 
 ![Pronósticos con el método AC + (BAC - EV) / (CPI × SPI)](img/excel/cdm-eac-alternativo.png)
 
-*Con el método `AC + (BAC - EV) / (CPI × SPI)` el EAC del ejemplo pasa de 58,5 a 78,5 millones.*
+*Con el método `AC + (BAC - EV) / (CPI × SPI)` el EAC del ejemplo pasa de 58,5 a 66,9 millones.*
 
 Estos pronósticos son estadísticos. Las buenas prácticas recomiendan contrastarlos con un **EAC por
 estimación detallada** del trabajo restante, preparado por los responsables de cada paquete, y explicar
@@ -138,10 +138,10 @@ Junto al gráfico, una tabla muestra el CPI, el SPI y el % completado de cada el
 Los gráficos de índices usan una escala fija de 0,5 a 1,5, igual en todos los informes para poder
 compararlos. Los valores fuera de escala se dibujan en el límite y su valor exacto está en la tabla.
 
-> En el ejemplo, `3.2.0 Montaje electromecánico` aparece en (0, 0) del gráfico, dibujado en el límite
-> (0,5; 0,5): el paquete `3.2.1 Suministro de equipos` (método `Hitos ponderados`) tiene costo real
-> pero aún no cumplió ningún hito. Es el comportamiento esperado del método; la tabla y la hoja
-> `Indicadores EDT` muestran el valor exacto.
+> En el ejemplo, `3.2.0 Montaje electromecánico` no aparece en el gráfico: el paquete `3.2.1 Suministro
+> de equipos` (método `Hitos ponderados`, con pesos que suman 100) tiene costo real, pero su PV está en
+> los meses de sus hitos, en 2028, y aún no cumplió ninguno. Su SPI no tiene valor y su CPI es 0. Es el
+> comportamiento esperado del método; la tabla y la hoja `Indicadores EDT` muestran los valores.
 
 ---
 
@@ -179,8 +179,8 @@ PV = BAC). El **Cronograma Ganado** mide el atraso en meses:
 - **SPI(t) = ES / AT**: eficiencia de cronograma en tiempo; a diferencia del SPI, no converge a 1.
 
 **Ejemplo.** En diciembre de 2027 (AT = 24) el EV acumulado del ejemplo es 10,19 millones. El plan
-preveía ese valor a los 21,67 meses: ES = 21,67, SV(t) = −2,33 meses y SPI(t) = 0,90. Con una duración
-planificada de 58 meses, la duración estimada es 58 / 0,90 ≈ 64 meses.
+preveía ese valor a los 22,56 meses: ES = 22,56, SV(t) = −1,44 meses y SPI(t) = 0,94. Con una duración
+planificada de 58 meses, la duración estimada es 58 / 0,94 ≈ 62 meses.
 
 Si la curva PV no alcanza el BAC dentro del horizonte, la duración planificada y el Cronograma Ganado
 quedan vacíos; en ese caso se debe aumentar `meses`.

@@ -2,9 +2,15 @@
 
 [Inicio](../README.md) › [Documentación](README.md) › Cálculo del PV
 
+> **Modo costo.** Las secciones 1 y 6 se aplican con `modo = "costo"`. En el modo porcentaje, que es el
+> modo por defecto, el PV de cada mes es el BAC ingresado en el libro × el % planificado, que se calcula con
+> la duración de la línea base de las tareas y el peso de los hitos ([Modo porcentaje](modo-porcentaje.md)).
+> La planificación exportada, las filas por código EDT, las tareas sin código y el horizonte (secciones 2 a
+> 5) son iguales en los dos modos.
+
 El comando `generar` crea la hoja `PV` con el **valor planificado (PV) de cada mes** para cada elemento
-de la EDT. El PV mensual es el **costo de línea base escalonado en el tiempo** que calcula MS Project, y
-el **BAC** de cada fila es la suma de su PV. Cómo se carga ese presupuesto en MS Project se explica en
+de la EDT. En el modo costo, el PV mensual es el **costo de línea base escalonado en el tiempo** que
+calcula MS Project, y el **BAC** de cada fila es la suma de su PV. Cómo se carga ese presupuesto en MS Project se explica en
 [Presupuesto (BAC) de cada tarea](presupuesto-bac.md).
 
 ---

@@ -4,7 +4,11 @@
 
 `generar` crea un libro `.xlsx` con el PV mensual de cada elemento de la EDT, hojas para cargar el EV y
 el AC de cada mes, y hojas de indicadores y gráficos calculados con fórmulas de Excel. `actualizar`
-carga el EV y el AC de cada mes en ese mismo libro.
+carga el EV (y, en el modo costo, el AC) de cada mes en ese mismo libro.
+
+En el **modo porcentaje** (por defecto) el BAC de cada fila se ingresa en la hoja `PV`, el PV y el EV son
+el BAC × el % de las hojas `% PV` y `% EV`, y el AC se carga a mano
+([Modo porcentaje](modo-porcentaje.md#8-hojas-del-libro)).
 
 ---
 
@@ -25,10 +29,12 @@ carga el EV y el AC de cada mes en ese mismo libro.
 |---|---|
 | **Cuadro de Mando** | Tablero del mes de reporte: valores acumulados, desviaciones, índices con semáforo, pronósticos y tres gráficos. Ver [Cuadro de Mando e indicadores](cuadro-de-mando.md). |
 | **Resumen** | Fecha de corte (celda amarilla `B5`, con nombre `FechaCorte`), parámetros de la exportación e indicadores del proyecto a la fecha de corte, incluido el Cronograma Ganado. |
-| **PV** | Valor planificado: columnas A–F con la EDT y el BAC, y una columna por mes. |
-| **EV** | Valor ganado del mes (celdas amarillas). |
+| **PV** | Valor planificado: columnas A–F con la EDT y el BAC, y una columna por mes. En el modo porcentaje, el BAC se ingresa en la columna D (celdas amarillas) y cada mes es el BAC × el % planificado. |
+| **% PV** | Solo en el modo porcentaje: % planificado de cada mes, que calcula `generar`. |
+| **EV** | Valor ganado del mes: en el modo costo, celdas amarillas que carga `actualizar`; en el modo porcentaje, el BAC × el % ganado. |
+| **% EV** | Solo en el modo porcentaje: % ganado de cada mes, que calcula `actualizar`. |
 | **AC** | Costo real del mes (celdas amarillas). |
-| **PV-EmpresaA**, **EV-EmpresaA**, **AC-EmpresaA** y las de EmpresaB | Solo en modo multi-empresa: valores de cada empresa. Las hojas `PV`, `EV` y `AC` son la suma de las dos ([Multi-empresa](multiempresa.md)). |
+| **PV-EmpresaA**, **EV-EmpresaA**, **AC-EmpresaA** y las de EmpresaB | Solo en modo multi-empresa: valores de cada empresa (y, en el modo porcentaje, `% PV-EmpresaA`, `% EV-EmpresaA` y las de EmpresaB). Las hojas `PV`, `EV` y `AC` son la suma de las dos ([Multi-empresa](multiempresa.md)). |
 | **Evolución mensual** | Tabla mensual del proyecto (datos de la curva S). |
 | **Indicadores EDT** | Indicadores de cada elemento de la EDT a la fecha de corte. |
 | **Análisis de desviaciones** | Paquetes fuera de umbral de cada mes, con causa, impacto, acción correctiva, responsable y fecha ([Análisis de desviaciones](analisis-desviaciones.md)). |
@@ -47,7 +53,7 @@ Las tres hojas tienen la misma estructura:
 | A | Código EDT (`1.0.0`, `1.1.0`, `1.2.3`...). |
 | B | Actividad (nombre de la tarea). |
 | C | Método de medición (lista desplegable; solo se edita en la hoja `PV`). |
-| D | BAC: presupuesto (costo de línea base). |
+| D | BAC: presupuesto. En el modo porcentaje se ingresa a mano en la hoja `PV` (celdas amarillas); en el modo costo es el costo de línea base. |
 | E | Fecha inicio Plan (PV): inicio de la línea base. |
 | F | Fecha fin Plan (PV): fin de la línea base. |
 | G ... DV | Un mes por columna, del mes 1 al mes 120. Fila 3: número de mes; fila 4: fecha del mes. |
@@ -55,11 +61,17 @@ Las tres hojas tienen la misma estructura:
 
 ![Hoja PV del proyecto de ejemplo](img/excel/pv.png)
 
-*Hoja `PV`: las filas de nivel 1 y 2 (fondo azul) son subtotales; las de nivel 3 son paquetes de
-trabajo.*
+*Hoja `PV` (modo porcentaje): las filas de nivel 1 y 2 (fondo azul) son subtotales; las de nivel 3 son
+paquetes de trabajo, con el BAC ingresado en la columna D.*
 
-En las hojas `EV` y `AC` las **celdas amarillas** son de ingreso y contienen el **valor del mes**, no
-el acumulado. `actualizar` las completa; también se pueden cargar a mano (por ejemplo, el AC del ERP).
+Las **celdas amarillas** son de ingreso:
+
+| Modo | Celdas amarillas |
+|---|---|
+| Porcentaje | El BAC de la hoja `PV` (o de cada empresa) y el AC del mes de la hoja `AC`. Las hojas `% PV` y `% EV` las calcula el programa desde MS Project y no se editan. |
+| Costo | El EV y el AC del mes, en las hojas `EV` y `AC`. `actualizar` las completa; también se pueden cargar a mano (por ejemplo, el AC del ERP). |
+
+Los valores mensuales son el **valor del mes**, no el acumulado.
 
 ![Hoja AC del proyecto de ejemplo](img/excel/ac.png)
 
@@ -77,8 +89,9 @@ el acumulado. `actualizar` las completa; también se pueden cargar a mano (por e
   coinciden con los del libro generado, o si falta una hoja o se modificaron las hojas ocultas,
   `actualizar` se detiene sin modificar el libro. Para cambiar la EDT se modifica MS Project y se
   vuelve a generar el libro con `--migrar-desde`.
-- No se debe escribir sobre las celdas con fórmulas (subtotales, fila TOTAL o, en multi-empresa, la suma
-  de las empresas): `actualizar` informa las que perdieron su fórmula para restaurarlas.
+- No se debe escribir sobre las celdas con fórmulas (subtotales, fila TOTAL, en multi-empresa la suma de
+  las empresas y, en el modo porcentaje, los meses de las hojas `PV` y `EV`): `actualizar` informa las que
+  perdieron su fórmula para restaurarlas.
 - El **método de medición** se puede cambiar en la columna C de la hoja `PV`. Se pueden agregar métodos
   al final de la columna A de la hoja `Listas`, sin dejar filas vacías.
 - Los gráficos no requieren ninguna acción: al cargar valores en `EV` o `AC`, al cambiar la fecha de
@@ -119,7 +132,8 @@ flowchart LR
 Qué se traslada:
 
 - Los **EV y AC** cargados en cada fila, asociados por el **UniqueID** de la tarea en MS Project (o por
-  código EDT si el proyecto cambió de nombre), sin duplicarlos.
+  código EDT si el proyecto cambió de nombre), sin duplicarlos. En el modo porcentaje se trasladan el
+  **BAC** ingresado, el **% ganado** de cada mes y el AC.
 - Si una tarea quedó dentro de un paquete nuevo, su historial se suma a ese paquete.
 - El **método** de la columna C se conserva solo si fue **editado en Excel**. Si el método cambió en
   MS Project, se usa el nuevo.
@@ -127,14 +141,14 @@ Qué se traslada:
 
 Lo que no se puede trasladar se informa como **Error** en `Validación` para cargarlo a mano: filas que
 se dividieron en varias y tareas eliminadas. Tampoco se admite migrar entre un libro de una sola empresa
-y uno multi-empresa.
+y uno multi-empresa, ni entre un libro del modo porcentaje y uno del modo costo.
 
 Con varios archivos de MS Project, cada fila se asocia por el nombre del archivo y el UniqueID de la
 tarea; al agregar o quitar archivos, o al pasar de un solo archivo a varios, se aplica lo indicado en
 [Varios archivos](varios-archivos.md#7-cambios-de-línea-base-y-de-archivos).
 
 > El PV del libro nuevo corresponde a la nueva línea base: la curva PV de los meses ya informados
-> cambia. Se recomienda conservar el libro anterior como registro de lo informado con la línea base
+> cambia (en el modo porcentaje, el % planificado; el BAC trasladado se mantiene). Se recomienda conservar el libro anterior como registro de lo informado con la línea base
 > previa y documentar la fecha y el motivo del cambio ([Proceso de reporte](proceso-reporte-evm.md#5-cambios-de-línea-base)).
 
 ---
@@ -144,7 +158,8 @@ tarea; al agregar o quitar archivos, o al pasar de un solo archivo a varios, se 
 ### Evolución mensual
 
 Tabla calculada con fórmulas a partir de la fila TOTAL de las hojas `PV`, `EV` y `AC`: PV, EV y AC del
-mes y acumulados, % de avance, SPI y CPI acumulados y BAC. EV y AC acumulados se muestran desde el
+mes y acumulados, % de avance, SPI y CPI acumulados y BAC. En el modo porcentaje, un mes tiene EV cargado
+cuando `actualizar` escribió su % ganado. EV y AC acumulados se muestran desde el
 primer mes con datos hasta la fecha de corte; después aparecen como `#N/A` para que los gráficos no
 dibujen esos meses.
 

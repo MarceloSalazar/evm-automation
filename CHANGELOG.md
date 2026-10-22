@@ -28,6 +28,47 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - Ninguna.
 
+## [2.0.0] - 2026-10-22 · Modo porcentaje por defecto: cronograma sin importes
+
+### Nuevas funciones
+
+- **Modo porcentaje**, ahora el modo por defecto (`[exportacion] modo = "porcentaje"`): el cronograma de
+  MS Project no necesita importes. `generar` calcula el % planificado de cada fila y mes con la duración
+  de la línea base de sus tareas y el `Peso hito` de sus hitos (el % del BAC que se imputa en el mes del
+  hito), y `actualizar` calcula el % ganado según el método de medición. El BAC de cada fila se ingresa
+  en el libro, y el PV y el EV son el BAC × el % (fórmulas de Excel). El AC se carga a mano
+  ([docs/modo-porcentaje.md](docs/modo-porcentaje.md)).
+- Hojas nuevas `% PV` y `% EV` (en multi-empresa, una por empresa) con el % de cada mes; las filas de
+  nivel 1 y 2 y la fila TOTAL muestran el % ponderado por el BAC.
+- Multi-empresa en el modo porcentaje: el BAC de cada empresa se ingresa en su hoja `PV`, y cada empresa
+  tiene su % planificado y su % ganado con las tareas en las que participa (`Empresa` y `% Reparto`).
+  Los métodos `0/100`, `X/Y` y `Hitos ponderados` también se miden por empresa.
+- Cambio de BAC: al escribir un BAC nuevo, el PV y el EV de todos los meses de la fila se recalculan.
+- `--migrar-desde` en el modo porcentaje traslada el BAC ingresado, el % ganado, el AC, los métodos y el
+  análisis de desviaciones.
+- Validaciones del modo porcentaje: tareas sin fechas de línea base, pesos de hitos que suman más de 100,
+  filas sin pesos o sin fechas, empresas que no participan en una fila, costos de MS Project que no se
+  usan y, en `actualizar`, filas con avance y sin BAC.
+- `ejemplos/generar_ejemplo.py --libro`: escribe en el libro el BAC y el AC ficticios del proyecto de
+  ejemplo, que en un proyecto real se ingresan a mano.
+
+### Correcciones
+
+- Ninguna.
+
+### Otros
+
+- **Cambio de comportamiento:** sin la clave `modo`, `generar` crea libros en el modo porcentaje. Para
+  seguir calculando el PV con los costos de MS Project se debe indicar `modo = "costo"` (o `"coste"`) en
+  `[exportacion]`. Los libros ya generados conservan su modo.
+- En el modo porcentaje no se usa el método `CPTR de MS Project` (se calcula como `% Completado`) ni
+  `ac_desde_project`, y `actualizar` no admite `--solo ac`.
+- La lista de métodos por defecto depende del modo; `config.ejemplo.toml` indica `modo = "porcentaje"`.
+- Documentación, tutorial, capturas del libro y presentación actualizados al modo porcentaje; los
+  documentos del modo costo indican que se aplican a ese modo.
+- Pruebas: `test_modo_porcentaje.py`; las pruebas de los cálculos con costos indican el modo costo con la
+  marca `modo`.
+
 ## [1.5.1] - 2026-10-19 · Método de medición documentado e instalador para Windows
 
 ### Nuevas funciones
@@ -256,7 +297,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v1.5.1...HEAD
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/MarceloSalazar/evm-automation/compare/v1.5.1...v2.0.0
 [1.5.1]: https://github.com/MarceloSalazar/evm-automation/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/MarceloSalazar/evm-automation/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/MarceloSalazar/evm-automation/compare/v1.3.2...v1.4.0

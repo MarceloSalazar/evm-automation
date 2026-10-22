@@ -85,7 +85,7 @@ Cada archivo se prepara como un proyecto individual
 |---|---|
 | **Códigos EDT distintos** en cada archivo: un mismo código no puede estar en dos archivos. | Las hojas identifican cada fila por su código EDT. Si un código se repite, `generar` se detiene sin crear el libro. |
 | Los **mismos campos personalizados** (EDT, método de medición, peso de hito y, si se usa, empresa) con el mismo nombre o alias en todos los archivos. | La sección `[campos]` de la configuración es común a todos los archivos. |
-| **Línea base** guardada en cada archivo. | El PV y el BAC de cada archivo salen de su línea base. |
+| **Línea base** guardada en cada archivo. | El % planificado (modo porcentaje) o el PV y el BAC (modo costo) de cada archivo salen de su línea base. En el modo porcentaje, el BAC de cada fila se ingresa en el libro. |
 | Cada mes, la **misma fecha de estado** en todos los archivos. | El informe tiene una sola fecha de corte. |
 | La **misma moneda** en todos los archivos. | El libro muestra una sola moneda. |
 
@@ -160,13 +160,16 @@ Ejemplo de salida con los dos archivos de ejemplo:
 Leyendo P1: ...\ejemplos\programa_ejemplo.xml ...
 Leyendo P2: ...\ejemplos\proyecto2_ejemplo.xml ...
 Informe: Programa de ejemplo con dos proyectos
-  P1: Programa de ejemplo EVM  |  Planificación: INTERNO  |  Línea base  |  PV: Costo de línea base mensual del XML de MS Project (datos escalonados)
-  P2: Accesos y servicios (proyecto 2 de ejemplo)  |  Línea base  |  PV: Costo de línea base mensual del XML de MS Project (datos escalonados)
+  P1: Programa de ejemplo EVM  |  Planificación: INTERNO  |  Línea base  |  PV: % planificado de MS Project (duración de la línea base de las tareas y peso de los hitos) × BAC ingresado en el libro
+  P2: Accesos y servicios (proyecto 2 de ejemplo)  |  Línea base  |  PV: % planificado de MS Project (duración de la línea base de las tareas y peso de los hitos) × BAC ingresado en el libro
   Filas EDT: 44 (29 de ingreso)  |  Nivel máximo: 3
   Horizonte: 01/2026 a 12/2035 (120 meses)
-  BAC total: 49,010,000.00
+  Modo porcentaje: se debe ingresar el BAC de cada fila en la columna D de PV (celdas amarillas).
+  [i] Modo porcentaje: el PV y el EV de cada fila son el BAC × el % planificado y el % ganado (hojas % PV y % EV), ...
   [i] [P1] Planificación 'INTERNO': se exportan las 51 tareas que dependen de 'Planificación interna'.
-  [i] [P1] Se omitió 1 tarea sin código EDT que no depende de ningún elemento EDT (costo de línea base 0.00, que no forma parte del BAC).
+  [i] [P1] 28 tareas tienen costo en MS Project: en el modo porcentaje los costos no se usan ...
+  [i] [P2] 6 tareas tienen costo en MS Project: en el modo porcentaje los costos no se usan ...
+  [i] [P1] Se omitió 1 tarea sin código EDT que no depende de ningún elemento EDT: no forma parte de ninguna fila del libro.
   [i] [P1] 14 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.
   [i] [P2] 4 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.
   [i] 1 fila sin método de medición definido (columna C).
@@ -208,8 +211,9 @@ python evm_export.py actualizar --config config.toml --libro EVM_Programa.xlsx `
 
 - `--simular`, `--solo`, `--forzar` y `--sin-respaldo` funcionan igual que con un solo archivo
   ([Comandos](comandos.md#actualizar-carga-ev-y-ac-del-mes)).
-- Los controles de consistencia se hacen **por archivo** y cada mensaje indica el archivo, por ejemplo:
-  `[P2] El AC cargado (...) difiere del costo real del proyecto en MS Project (...)`.
+- Los controles de consistencia se hacen **por archivo** y cada mensaje indica el archivo, por ejemplo
+  (modo costo): `[P2] El AC cargado (...) difiere del costo real del proyecto en MS Project (...)`.
+- En el modo porcentaje, el AC de cada fila se carga a mano en la hoja `AC`, como con un solo archivo.
 
 ---
 
@@ -284,16 +288,22 @@ origen = "ejemplos/proyecto2_ejemplo.xml"
 planificacion = ""
 ```
 
-Generar el libro, simular el avance de los dos proyectos a junio de 2027 y actualizar:
+Generar el libro, cargar el BAC ficticio de los dos proyectos, simular el avance a junio de 2027 (con
+el AC del mes) y actualizar:
 
 ```powershell
 python evm_export.py generar --config config_varios.toml --salida ejemplo_varios.xlsx
-python ejemplos\generar_ejemplo.py --fecha-estado 2027-06-30 --salida avance1.xml
+python ejemplos\generar_ejemplo.py --libro ejemplo_varios.xlsx
+python ejemplos\generar_ejemplo.py --fecha-estado 2027-06-30 --salida avance1.xml --libro ejemplo_varios.xlsx
 python ejemplos\generar_ejemplo.py --proyecto 2 --fecha-estado 2027-06-30 --salida avance2.xml
 python evm_export.py actualizar --config config_varios.toml --libro ejemplo_varios.xlsx --origen P1=avance1.xml --origen P2=avance2.xml
 ```
 
-El BAC del programa es la suma de los dos proyectos: 44.210.000 + 4.800.000 = **49.010.000**.
+Con `--libro`, `generar_ejemplo.py` escribe en el libro los datos ficticios que en un proyecto real se
+ingresan a mano: el BAC de cada fila (el presupuesto de los dos proyectos de ejemplo) y el AC del mes de
+la fecha de estado. En un libro con varios archivos, el primero es el programa de ejemplo y el segundo
+el proyecto 2. El BAC del programa es la suma de los dos proyectos: 44.210.000 + 4.800.000 =
+**49.010.000**.
 
 ![Cuadro de Mando del programa con dos archivos](img/excel/varios-cdm.png)
 

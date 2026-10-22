@@ -2,8 +2,12 @@
 
 [Inicio](../README.md) › [Documentación](README.md) › Presupuesto (BAC)
 
-El **BAC** (presupuesto a la conclusión) de cada fila del libro y su **PV mensual** salen del costo de
-la **línea base** de MS Project. Este documento explica las formas de cargar el presupuesto en
+> **Modo costo.** Este documento se aplica con `modo = "costo"`. En el modo porcentaje, que es el modo
+> por defecto, MS Project no tiene importes: el BAC de cada fila se ingresa en el libro y el PV es el BAC
+> × el % planificado ([Modo porcentaje](modo-porcentaje.md)).
+
+En el modo costo, el **BAC** (presupuesto a la conclusión) de cada fila del libro y su **PV mensual** salen
+del costo de la **línea base** de MS Project. Este documento explica las formas de cargar el presupuesto en
 MS Project, cómo afecta cada una a la distribución del PV en el tiempo y cómo guardar y verificar la
 línea base.
 

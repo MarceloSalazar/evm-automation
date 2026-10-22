@@ -6,6 +6,15 @@ Cuando el proyecto se ejecuta entre **dos empresas** (por ejemplo, un consorcio,
 una empresa y su socio tecnológico), el libro puede separar el PV, el EV y el AC de cada una, además
 del total del proyecto. Este modo está **desactivado por defecto**.
 
+| Modo de cálculo | BAC y PV de cada empresa | EV de cada empresa | AC de cada empresa |
+|---|---|---|---|
+| **Porcentaje** (por defecto) | El BAC de cada empresa se ingresa en su hoja `PV`; el PV es ese BAC × el % planificado de la empresa. | BAC de la empresa × su % ganado. | A mano. |
+| Costo | El costo de línea base de cada tarea, repartido según la parte de cada empresa. | BAC de la empresa × su avance. | A mano o desde MS Project. |
+
+En los dos modos, la parte de cada empresa en cada tarea sale de las columnas `Empresa` y `% Reparto`
+([sección 5](#5-parte-de-cada-empresa-en-cada-tarea)). El modo porcentaje se detalla en
+[Modo porcentaje](modo-porcentaje.md#7-multi-empresa); las secciones 6.1 a 6.4 describen el modo costo.
+
 ---
 
 ## Contenido
@@ -31,6 +40,8 @@ del total del proyecto. Este modo está **desactivado por defecto**.
   gestión del programa 60/40).
 - Cada empresa registra sus **costos reales en su propio sistema** (ERP) y el AC del proyecto es la suma
   de ambos.
+- Cada empresa conoce el **presupuesto de su parte** de cada paquete, que no se carga en el cronograma
+  compartido (modo porcentaje).
 
 Si el proyecto lo ejecuta una sola empresa, este modo no es necesario.
 
@@ -57,8 +68,10 @@ flowchart LR
     ERP["ERP de cada empresa"] -- "AC a mano<br/>(por defecto)" --> ACA & ACB
 ```
 
-- El **PV y el BAC** se reparten **tarea por tarea** según la parte de cada empresa. Una fila de nivel 3
-  puede incluir tareas de las dos empresas.
+- **Modo porcentaje:** el BAC de cada empresa se ingresa en su hoja `PV` y cada empresa tiene su propio %
+  planificado y % ganado, calculados con las tareas en las que participa.
+- **Modo costo:** el **PV y el BAC** se reparten **tarea por tarea** según la parte de cada empresa.
+- Una fila de nivel 3 puede incluir tareas de las dos empresas.
 - En las hojas `PV`, `EV` y `AC` cada celda es la **suma** de las dos empresas (fórmula).
 - **Cuadro de Mando, Resumen e Indicadores EDT** usan los totales.
 
@@ -99,7 +112,7 @@ empresa_b = "EmpresaB"
 ambas = "Ambas"
 campo_reparto = "% Reparto"      # campo numérico (Number2) o su alias
 reparto_por_defecto = 50         # % de A si % Reparto está vacío, es 0 o está fuera de rango
-ac_desde_project = false         # false: AC a mano; true: AC desde MS Project
+ac_desde_project = false         # modo costo: false = AC a mano; true = AC desde MS Project
 ```
 
 Los nombres de las empresas se usan en los nombres de las hojas: máximo 15 caracteres, sin
@@ -107,11 +120,14 @@ Los nombres de las empresas se usan en los nombres de las hojas: máximo 15 cara
 
 `actualizar` usa los nombres de las empresas y los campos con los que se **generó** el libro (guardados
 en la hoja oculta `_meta`), aunque la configuración no tenga la sección `[multiempresa]`. La opción
-`ac_desde_project` se toma de la configuración actual.
+`ac_desde_project` se toma de la configuración actual y solo se usa en el modo costo.
 
 ---
 
 ## 5. Parte de cada empresa en cada tarea
+
+En el modo costo, la parte de cada empresa multiplica el costo de la tarea; en el modo porcentaje,
+multiplica la duración de la tarea para calcular el peso que tiene en el % de cada empresa.
 
 | Columna `Empresa` | Parte de la empresa A (la empresa B recibe el resto) |
 |---|---|
@@ -148,6 +164,13 @@ resultante.*
 
 ## 6. Cálculo del EV y el AC por empresa
 
+**Modo porcentaje:** cada empresa tiene su % planificado y su % ganado en cada fila, con las tareas en las
+que participa; los métodos `0/100`, `X/Y` y `Hitos ponderados` también se miden por empresa. Un hito
+vale su `Peso hito` para cada empresa que participa en él. El AC se carga a mano. Detalle y ejemplo en
+[Modo porcentaje](modo-porcentaje.md#7-multi-empresa).
+
+Las secciones siguientes describen el **modo costo**.
+
 ### 6.1 PV y BAC
 
 Cada tarea aporta al PV y al BAC de cada empresa su costo de línea base multiplicado por la parte de
@@ -174,7 +197,7 @@ con **su BAC en la fila** y **su propio avance**:
 
 | `ac_desde_project` | AC de cada empresa |
 |---|---|
-| `false` (por defecto) | Se carga **a mano** en `AC-EmpresaA` y `AC-EmpresaB` (celdas amarillas). `actualizar` no lo modifica y no admite `--solo ac`. |
+| `false` (por defecto, y siempre en el modo porcentaje) | Se carga **a mano** en `AC-EmpresaA` y `AC-EmpresaB` (celdas amarillas). `actualizar` no lo modifica y no admite `--solo ac`. |
 | `true` | `actualizar` reparte el CRTR de cada tarea según su parte y lo escribe en las hojas de cada empresa. |
 
 ### 6.4 Ejemplo
@@ -201,7 +224,8 @@ AC con `ac_desde_project = true`: empresa A = 250.000 + 70 % × 210.000 = **397.
 
 `generar` informa en `Validación`:
 
-- El **BAC de cada empresa**.
+- En el modo costo, el **BAC de cada empresa**. En el modo porcentaje, las filas en las que una empresa no
+  participa en ninguna tarea (si se le asigna BAC, su PV se reparte con la curva de la fila completa).
 - Tareas **sin empresa** (ni propia ni heredada): se reparten con el reparto por defecto.
 - Valores de empresa **no reconocidos** (por ejemplo, un error de escritura).
 - `% Reparto` **fuera de rango** (negativo o mayor que 100).
@@ -220,16 +244,23 @@ Restricciones:
 ## 8. Hojas del libro
 
 Además de `PV`, `EV` y `AC`, se crean `PV-EmpresaA`, `PV-EmpresaB`, `EV-EmpresaA`, `EV-EmpresaB`,
-`AC-EmpresaA` y `AC-EmpresaB` (con los nombres configurados), con el mismo formato.
+`AC-EmpresaA` y `AC-EmpresaB` (con los nombres configurados), con el mismo formato. En el modo
+porcentaje se agregan `% PV-EmpresaA`, `% PV-EmpresaB`, `% EV-EmpresaA` y `% EV-EmpresaB`, con el % de
+cada empresa, y el BAC de cada empresa se ingresa en la columna D de `PV-EmpresaA` y `PV-EmpresaB`.
 
 ![Hoja PV-EmpresaA](img/excel/multi-pv-empresa-a.png)
 
-*`PV-EmpresaA` del ejemplo: la gestión aporta el 60 %, la ingeniería el 100 % (salvo los estudios de
-terreno) y la construcción nada.*
+*`PV-EmpresaA` del ejemplo (modo porcentaje): el BAC de la empresa A, en las celdas amarillas, es el
+60 % de la gestión, toda la ingeniería salvo los estudios de terreno y nada de la construcción; los meses
+son ese BAC × el % planificado de la empresa A.*
+
+![Hoja % PV-EmpresaA](img/excel/multi-pct-pv-empresa-a.png)
+
+*`% PV-EmpresaA`: % planificado de la empresa A en cada paquete y mes.*
 
 ![Hoja EV-EmpresaB](img/excel/multi-ev-empresa-b.png)
 
-*`EV-EmpresaB` (meses 13 a 24): las celdas amarillas son el EV del mes de la empresa B.*
+*`EV-EmpresaB` (meses 13 a 24): el EV del mes de la empresa B, BAC × % ganado.*
 
 ---
 
@@ -245,15 +276,17 @@ sequenceDiagram
     A->>JP: Avance físico y AC devengado del mes
     B->>JP: Avance físico y AC devengado del mes
     JP->>MSP: Registra el avance y fija la fecha de estado
-    JP->>XL: actualizar (EV de cada empresa)
+    JP->>XL: actualizar (% ganado y EV de cada empresa)
     JP->>XL: Carga el AC de cada empresa (AC-EmpresaA, AC-EmpresaB)
     XL-->>JP: Cuadro de Mando y Resumen (totales)
     JP->>A: Informe mensual
     JP->>B: Informe mensual
 ```
 
-Se recomienda acordar con ambas empresas la **misma fecha de corte** y el mismo criterio de costo real
-(devengado), y que cada una revise su EV antes de emitir el informe.
+Se recomienda acordar con ambas empresas la **misma fecha de corte**, la misma base para el BAC y el AC
+(por ejemplo, ambos a precio de contrato) y el mismo criterio de costo real (devengado), y que cada una
+revise su EV antes de emitir el informe. En el modo porcentaje, el BAC de cada empresa se ingresa una vez,
+después de `generar`, y se cambia solo con los cambios aprobados.
 
 ---
 
@@ -269,3 +302,7 @@ de las dos empresas.
 **¿Qué pasa si cambio la empresa de una tarea después de generar el libro?** El PV del libro no cambia
 hasta regenerarlo. `actualizar` reparte el EV con la empresa actual de cada tarea, por lo que se
 recomienda regenerar el libro con `--migrar-desde` si el cambio es definitivo.
+
+**¿El cronograma compartido debe tener los importes de cada empresa?** No en el modo porcentaje: el
+cronograma solo tiene las tareas, sus fechas, la empresa y el avance. El BAC de cada empresa está solo en
+el libro.

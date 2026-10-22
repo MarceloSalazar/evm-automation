@@ -13,6 +13,12 @@ MS Project.
 > corresponden a MS Project en español 2016 a 2024 y a la versión de suscripción; pueden variar
 > levemente según la versión.
 
+> **Modo porcentaje (por defecto) y modo costo.** Los métodos y su registro en MS Project son los mismos
+> en los dos modos. Cambia la ponderación de las subtareas: en el modo porcentaje, por su **duración de
+> línea base** (y los hitos por su `Peso hito`, que es un % del BAC del paquete); en el modo costo, por
+> su **costo de línea base**. `CPTR de MS Project` solo está disponible en el modo costo. Detalle en
+> [Modo porcentaje](modo-porcentaje.md#6-avance-ganado-métodos-de-medición).
+
 ---
 
 ## Contenido
@@ -49,15 +55,17 @@ MS Project.
 | `0/100` | 0 hasta terminar; BAC al terminar. | Paquete al 100 % (o *Fin real*) al terminar. |
 | `50/50`, `25/75`, `20/80` (`X/Y`) | X % del BAC al comenzar; 100 % al terminar. | *Comienzo real* (o cualquier avance) al comenzar; 100 % al terminar. |
 | `Hitos ponderados` | BAC × Σ pesos de los hitos cumplidos / Σ pesos. | Cada hito al 100 % cuando se cumple. |
-| `% Completado` | BAC × *% completado* de las subtareas, ponderado por su costo de línea base. | *% completado* (o duración real) de las tareas. |
-| `% Físico completado` | BAC × *% físico completado* de las subtareas, ponderado por su costo de línea base. | *% físico completado* estimado o medido. |
+| `% Completado` | BAC × *% completado* de las subtareas, ponderado por su duración de línea base (modo porcentaje) o por su costo de línea base (modo costo). | *% completado* (o duración real) de las tareas. |
+| `% Físico completado` | BAC × *% físico completado* de las subtareas, con la misma ponderación. | *% físico completado* estimado o medido. |
 | `Unidades completadas` | BAC × unidades hechas / unidades totales. | El cociente, en *% físico completado*. |
 | `Avance lineal (LOE)` | EV = PV acumulado de la fila. | Nada específico (fechas reales recomendables). |
-| `CPTR de MS Project` | EV = CPTR (valor acumulado) de MS Project, limitado al BAC. | Según el *Método de valor acumulado* de cada tarea. |
+| `CPTR de MS Project` | Solo en el modo costo: EV = CPTR (valor acumulado) de MS Project, limitado al BAC. | Según el *Método de valor acumulado* de cada tarea. |
 | `Por definir` u otro texto | Se usa `% Completado` y se informa. | — |
 
-El detalle del cálculo (ponderación por costo, valor del mes, controles) está en
-[Cálculo de EV y AC](calculo-ev-ac.md#3-ev-acumulado-de-cada-fila).
+El detalle del cálculo (ponderación, valor del mes, controles) está en
+[Modo porcentaje](modo-porcentaje.md#6-avance-ganado-métodos-de-medición) y en
+[Cálculo de EV y AC](calculo-ev-ac.md#3-ev-acumulado-de-cada-fila) (modo costo). En multi-empresa y en el
+modo porcentaje, cada método se mide por empresa, con las tareas en las que participa.
 
 ---
 
@@ -111,8 +119,9 @@ El reparto responde a los datos que tiene cada herramienta:
 - **Excel** tiene una fila por paquete: no tiene las subtareas, los hitos cumplidos, los pesos ni las
   fechas reales que necesita la regla del método.
 - **El programa** lee ese detalle de MS Project y escribe en Excel el resultado de cada paquete. En un
-  paquete con subtareas, el avance es el promedio de las subtareas ponderado por su costo de línea base
-  ([Cálculo de EV y AC](calculo-ev-ac.md#31-avance-ponderado-por-costo)).
+  paquete con subtareas, el avance es el promedio de las subtareas ponderado por su duración de línea
+  base (modo porcentaje) o por su costo de línea base
+  ([modo costo](calculo-ev-ac.md#31-avance-ponderado-por-costo)).
 
 > **Importante:** `actualizar` usa el método de la **columna C**, no el de MS Project, y no compara los
 > dos. Un cambio de método en MS Project posterior a `generar` no se aplica hasta regenerar el libro con
@@ -207,12 +216,14 @@ recomendado para paquetes largos porque es **objetivo**.
    su paquete.
 2. **Vínculos:** cada hito se vincula como sucesor de las actividades que producen su entregable, para
    que su fecha se mueva con el trabajo.
-3. **Costos:** el presupuesto se carga en las actividades de trabajo, no en los hitos
+3. **Costos:** en el modo costo, el presupuesto se carga en las actividades de trabajo, no en los hitos
    ([Presupuesto](presupuesto-bac.md)). El EV del paquete depende de los pesos, no de qué actividad
-   tiene el costo.
+   tiene el costo. En el modo porcentaje no se cargan costos.
 4. **Pesos:** campo `Peso hito` (*Número1*) en cada hito. Se recomienda que sumen 100 y que sean
    proporcionales al presupuesto del trabajo que lleva a cada hito. Un peso negativo se toma como 0; si
-   ningún hito tiene peso positivo, todos pesan igual.
+   ningún hito tiene peso positivo, todos pesan igual. En el modo porcentaje el peso es además el % del
+   BAC del paquete que se planifica en el mes del hito: con pesos que suman 100, el PV del paquete se
+   concentra en los meses de sus hitos ([Modo porcentaje](modo-porcentaje.md#5-curva-planificada-peso-de-cada-tarea)).
 5. **Método:** `Hitos ponderados` en el campo `Método EVM` del paquete.
 6. **Criterio de cumplimiento:** en las *Notas* de cada hito se escribe la evidencia que lo da por
    cumplido (por ejemplo, "plano aprobado por el cliente", "acta de prueba FAT firmada").
@@ -243,7 +254,8 @@ cualquier nivel.
 
 ### 3.4 % Completado
 
-**Regla:** BAC × *% completado* de las subtareas, ponderado por su costo de línea base.
+**Regla:** BAC × *% completado* de las subtareas, ponderado por su duración de línea base (modo
+porcentaje; un hito cumplido cuenta su `Peso hito`) o por su costo de línea base (modo costo).
 
 **Cuándo usarlo:** cuando no hay una medida física mejor y la duración transcurrida es un indicador
 razonable del avance.
@@ -258,7 +270,7 @@ el avance físico se recomienda `% Físico completado` o `Hitos ponderados`.
 
 ### 3.5 % Físico completado
 
-**Regla:** BAC × *% físico completado* de las subtareas, ponderado por su costo de línea base.
+**Regla:** BAC × *% físico completado* de las subtareas, con la misma ponderación que `% Completado`.
 
 **Cuándo usarlo:** trabajo cuyo avance se puede estimar o medir con independencia de la duración
 (planos emitidos sobre el total, metros de cañería montados, porcentaje de una obra certificado).
@@ -305,6 +317,9 @@ cronograma sea coherente.
 indispensable y no mezclar en el mismo paquete trabajo de soporte con trabajo medible.
 
 ### 3.8 CPTR de MS Project
+
+**Solo en el modo costo:** el CPTR de MS Project necesita costos. En el modo porcentaje el método no está
+en la lista y, si una fila lo tiene, se calcula como `% Completado` y se informa.
 
 **Regla:** EV = CPTR (*BCWP*, valor acumulado) que calcula MS Project a la fecha de estado, limitado al
 BAC de la fila.

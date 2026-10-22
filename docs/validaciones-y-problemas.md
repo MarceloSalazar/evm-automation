@@ -22,17 +22,23 @@ trasladar o calcular).
 
 | Observación | Qué revisar |
 |---|---|
+| Modo porcentaje: recordatorio de dónde se ingresa el BAC | Ingresar el BAC de cada fila en la columna D de la hoja `PV` (o de cada empresa) ([Modo porcentaje](modo-porcentaje.md#11-validaciones)). |
+| Modo porcentaje: tareas con costo en MS Project | Los costos no se usan. Para calcular el PV con ellos, indicar `modo = "costo"`. |
+| Modo porcentaje: tareas sin fechas de línea base | Tareas agregadas después de guardar la línea base: su % planificado usa sus fechas actuales. Si están aprobadas, guardar la línea base de esas tareas. |
+| Modo porcentaje: pesos de hitos que suman más de 100 (o menos, sin tareas con duración), pesos negativos, filas sin pesos o sin fechas | Revisar el `Peso hito` de los hitos de la fila y las fechas de sus tareas ([Modo porcentaje](modo-porcentaje.md#5-curva-planificada-peso-de-cada-tarea)). |
+| Modo porcentaje, multi-empresa: empresa que no participa en las tareas de una fila | Si se le asigna BAC en esa fila, su PV y su avance son los de la fila completa. |
 | Planificación exportada y cantidad de tareas que dependen de ella | Que sea la planificación correcta. |
 | Tareas sin código EDT omitidas (con su costo) | Tareas que no dependen de ningún elemento EDT: si tienen costo, asignarles código EDT o moverlas bajo un elemento. |
 | Tareas sin código EDT o de nivel mayor al máximo sumadas en su elemento superior | Informativo: es el comportamiento esperado para subtareas y hitos de un paquete. |
 | Proyecto sin línea base: se usó el programa actual | Guardar la línea base antes de informar ([Presupuesto](presupuesto-bac.md#6-guardar-la-línea-base)). |
-| Tareas con costo pero sin línea base | Tareas agregadas después de guardar la línea base: no aportan PV. Si están aprobadas, guardar la línea base de esas tareas. |
-| Tareas resumen con costo propio | Se agrega una fila `-D Otros costos`. Se recomienda mover el costo a una tarea de detalle. |
+| Modo costo: tareas con costo pero sin línea base | Tareas agregadas después de guardar la línea base: no aportan PV. Si están aprobadas, guardar la línea base de esas tareas. |
+| Tareas resumen con costo propio (modo costo) | Se agrega una fila `-D Otros costos`. Se recomienda mover el costo a una tarea de detalle. |
+| Tareas sin código EDT que forman una fila `-D Otras tareas` (modo porcentaje) | Tareas con duración (o hitos con peso) directamente bajo un elemento de nivel 1 o 2: la fila tiene su propio BAC. |
 | Línea base de una tarea resumen distinta de la suma de sus subtareas | La línea base no se acumuló en las tareas resumen: guardar la línea base con *Resumir líneas base: en todas las tareas de resumen*. |
 | Distribución mensual de MS Project que no suma el costo de línea base | Costo de línea base editado a mano: se ajusta en forma proporcional; si su signo es opuesto al del costo de línea base, el costo se reparte en forma lineal. |
 | Excepciones de calendario que no se interpretan (por ejemplo, "primer lunes de mayo") | Se omiten; solo afectan el reparto entre meses (motor XML). |
 | Tareas repartidas en forma lineal | Tareas sin distribución mensual en MS Project. |
-| PV anterior al mes 1 o posterior al último mes | Revisar `mes_inicio` y `meses`. |
+| PV (o % planificado) anterior al mes 1 o posterior al último mes | Revisar `mes_inicio` y `meses`. |
 | BAC total distinto del costo de línea base del proyecto o de la planificación | Costos fuera de la EDT exportada, tareas inactivas o línea base no acumulada. |
 | Códigos EDT duplicados | Por ejemplo, si no se eligió una planificación y ambas usan los mismos códigos. |
 | Filas sin método de medición | Completar el método en MS Project o en la columna C de la hoja `PV`. |
@@ -43,6 +49,7 @@ trasladar o calcular).
 | Varios archivos: observaciones precedidas por el nombre del archivo (`[P1]`, `[P2]`) y monedas distintas | Revisar cada archivo; si las monedas difieren, indicar `moneda` en `[exportacion]` ([Varios archivos](varios-archivos.md#8-validaciones-y-controles)). |
 
 `actualizar` informa sus controles en pantalla ([Cálculo de EV y AC](calculo-ev-ac.md#7-controles-de-consistencia)).
+En el modo porcentaje informa además las filas con % ganado y sin BAC.
 
 ---
 
@@ -62,6 +69,10 @@ trasladar o calcular).
   esta limitación.
 - Si la curva PV no alcanza el BAC dentro del horizonte, la duración planificada y el Cronograma Ganado
   quedan vacíos; en ese caso se debe aumentar `meses`.
+- **Modo porcentaje:** dentro de una fila, el % planificado sigue la duración de las tareas, no su valor:
+  una tarea larga de poco valor pesa más que una corta de mucho valor. El total de la fila es siempre el
+  BAC ingresado. Con `.mpp`, la duración se reparte con un calendario de lunes a viernes más los `feriados`
+  de la configuración.
 - `% Completado` aplica el porcentaje sobre el BAC, a diferencia del CPTR de MS Project
   ([Cálculo de EV y AC](calculo-ev-ac.md#33-diferencia-con-el-valor-acumulado-de-ms-project)).
 - MS Project no tiene métodos nativos 0/100, 50/50 ni de hitos ponderados: el programa los calcula a
@@ -87,7 +98,7 @@ trasladar o calcular).
 | El proyecto está en Project Online, SharePoint u OneDrive (se abre desde una dirección web) | Se abre en MS Project y se usa `--origen activo`, o se guarda una copia local `.mpp` y se usa esa ruta. |
 | El `.mpp` se descargó de Internet o del correo y MS Project no lo abre | Windows puede haberlo bloqueado: clic derecho en el archivo > *Propiedades* > *Desbloquear*. |
 | `No se pudo guardar ...` | Si el libro está abierto en Excel, se debe cerrar y repetir el comando. |
-| `Hay valores cargados en meses posteriores a la fecha de corte` | Se deben borrar esos meses en `EV`/`AC` o usar `--forzar` (y luego revisar o volver a cargar los meses posteriores que se indican). |
+| `Hay valores cargados en meses posteriores a la fecha de corte` | Se deben borrar esos meses en `EV`/`AC` (en el modo porcentaje, en `% EV`) o usar `--forzar` (y luego revisar o volver a cargar los meses posteriores que se indican). |
 | `La hoja ... no tiene las filas con las que se generó el libro` | Se insertaron, eliminaron u ordenaron filas: se deben deshacer esos cambios o recuperar el libro desde un respaldo. Para cambiar la EDT, se modifica MS Project y se regenera con `--migrar-desde`. |
 | `Falta la hoja ...` o `El dato ... de la hoja oculta _meta no es válido` | Se debe restaurar el nombre original de la hoja o recuperar el libro desde un respaldo. |
 | `Hay celdas sin la fórmula del libro` | Se deben restaurar las fórmulas indicadas (por ejemplo, copiándolas de una celda vecina de la misma fila). |
@@ -100,7 +111,12 @@ trasladar o calcular).
 | El libro solo muestra los elementos de primer nivel (`1.0.0`, `2.0.0`...) | Se debe revisar que el campo indicado en `[campos] edt` contenga los códigos EDT de todas las tareas. El nivel se toma del código EDT. |
 | Todas las filas tienen método `Por definir` | Se debe revisar `[campos] metodo` (nombre del campo o su alias) y que el campo esté completo en las tareas de nivel 3. |
 | El EV de una fila con `Hitos ponderados` no avanza | Los hitos deben ser subtareas de la fila con duración 0 y marcarse al 100 % al cumplirse ([Métodos de medición](metodos-de-medicion.md#33-hitos-ponderados)). |
-| El AC del libro difiere del costo real de MS Project | Revisar las advertencias de tareas con costo real sin fila y de costos en tareas resumen. |
+| El AC del libro difiere del costo real de MS Project | Modo costo: revisar las advertencias de tareas con costo real sin fila y de costos en tareas resumen. |
+| El PV y el EV de una fila están en 0 (modo porcentaje) | Falta el BAC de la fila en la columna D de la hoja `PV` (o de cada empresa). |
+| `Ninguna fila tiene BAC` o `filas tienen % ganado pero no tienen BAC` | Ingresar el BAC en la columna D de la hoja `PV` (o de cada empresa): el PV y el EV se calculan solos. |
+| `En el modo porcentaje el AC se carga a mano ...: no se admite --solo ac` | El AC se carga en la hoja `AC` (o en las de cada empresa); `actualizar` solo calcula el % ganado. |
+| `--migrar-desde no se admite entre un libro del modo ... y uno del modo ...` | Se debe generar el libro nuevo con el mismo `modo` que el anterior, o sin `--migrar-desde`. |
+| `modo = '...' no es válido` | En `[exportacion]`, `modo` debe ser `"porcentaje"` o `"costo"`. |
 | `En modo multi-empresa el AC se carga a mano ...` | El AC se carga en las hojas de cada empresa. Para cargarlo desde MS Project se debe indicar `ac_desde_project = true` en `[multiempresa]`. |
 | `--migrar-desde no se admite entre un libro de una sola empresa y uno multi-empresa` | Se debe generar el libro nuevo sin `--migrar-desde` y cargar a mano el historial que se necesite. |
 | `No se encontró el campo de empresa ...` | Se debe revisar `campo_empresa` en `[multiempresa]`: nombre del campo (`Text3`) o su alias en MS Project. |

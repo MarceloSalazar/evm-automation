@@ -26,6 +26,7 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 
 | Archivo de pruebas | Contenido |
 |---|---|
+| `test_modo_porcentaje.py` | Modo porcentaje (por defecto): pesos de tareas e hitos, % planificado por empresa, % ganado por método y empresa, hojas y fórmulas del libro, cambio de BAC, `actualizar`, `--migrar-desde`, varios archivos y recálculo de las fórmulas con LibreOffice. |
 | `test_robustez_calculo.py` | Estructura EDT y PV, métodos de medición, multi-empresa, reparto en el tiempo, indicadores y configuración. Incluye reglas que se verifican sobre árboles EDT aleatorios. |
 | `test_robustez_lectores.py` | Lectura del XML (campos, líneas base, calendarios y excepciones) y del `.mpp` con objetos que simulan MS Project. |
 | `test_robustez_libro.py` | `actualizar`, `--migrar-desde`, libros modificados a mano, errores de la línea de comandos y del archivo de configuración. |
@@ -34,6 +35,10 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 | `test_varios_archivos.py` | Varios archivos de MS Project (`[[proyectos]]`): el libro combinado coincide, fila por fila, con el libro de cada archivo (también en multi-empresa, con UniqueID repetidos entre archivos); errores de configuración y de la línea de comandos, fechas de estado y `--migrar-desde`. |
 | Resto | Casos del programa de ejemplo, Cuadro de Mando, multi-empresa y planificación. |
 
+- **Modo de cálculo:** las pruebas de los cálculos con costos indican el modo costo con
+  `pytestmark = pytest.mark.modo("costo")` al comienzo del archivo (o con la marca en cada prueba); la marca
+  cambia el modo por defecto del programa durante la prueba. Las demás usan el modo por defecto
+  (porcentaje).
 - **LibreOffice:** si está instalado, las pruebas marcadas `libreoffice` recalculan las fórmulas del
   libro y las comparan con el cálculo en Python. Se usa un perfil propio de LibreOffice, por lo que
   funcionan aunque LibreOffice esté abierto. Si no está instalado, se omiten.
@@ -52,6 +57,7 @@ El lector `.mpp` se prueba con objetos que simulan MS Project. En un PC con MS P
 opcionales de `test_msproject_real.py` (marca `msproject`) leen un proyecto real por automatización COM
 y comparan el resultado con el XML que MS Project guarda del mismo proyecto: estructura EDT, métodos,
 BAC, PV mensual, EV y AC a la fecha de corte, y que MS Project quede como estaba (abierto o cerrado).
+Estas pruebas usan el modo costo, aunque la configuración indique otro.
 
 1. En MS Project se abre el proyecto, se define *Proyecto > Fecha de estado* y se guarda el `.mpp`.
 2. Se guarda una copia en XML: *Archivo > Guardar como*, tipo XML.
@@ -86,7 +92,8 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/reader_com.py` | Lectura de `.mpp` con MS Project (COM). |
 | `evm/reader_xml.py`, `evm/workcalendar.py` | Lectura del XML de MS Project y de su calendario. |
 | `evm/fields.py` | Identificación de campos personalizados (Texto1..30, Número1..20 y alias). |
-| `evm/wbs.py` | Estructura EDT hasta el nivel máximo y PV por fila; combinación de varios archivos y horizonte. |
+| `evm/wbs.py` | Estructura EDT hasta el nivel máximo y PV por fila (modo costo) o % planificado (modo porcentaje); combinación de varios archivos y horizonte. |
+| `evm/percent.py` | Modo porcentaje: peso de cada tarea (duración de la línea base y `Peso hito`), % planificado y % ganado por empresa. |
 | `evm/companies.py` | Multi-empresa: parte de cada empresa por tarea y reparto del EV y el AC. |
 | `evm/timeline.py` | Horizonte mensual y repartos en el tiempo. |
 | `evm/workbook.py` | Escritura del libro Excel y de sus indicadores. |
@@ -104,9 +111,10 @@ flowchart LR
     RC & RX --> M["model.py<br/>ProjectData / Task"]
     M --> W["wbs.py<br/>filas EDT y PV"]
     W --> CO["companies.py"]
+    W --> PC["percent.py<br/>modo porcentaje"]
     W --> WB["workbook.py<br/>+ dashboard.py"]
     CLI --> U["update.py<br/>actualizar"]
-    U --> ME["methods.py"] & CO
+    U --> ME["methods.py"] & CO & PC
     U --> WB
     CLI --> MI["migrate.py"]
 ```

@@ -1,9 +1,10 @@
 """Regenera las capturas del libro Excel que usa la documentación (docs/img/excel).
 
 Pasos:
-1. Genera el libro del proyecto de ejemplo (una empresa, multi-empresa y combinado con
-   el segundo proyecto de ejemplo) en una carpeta temporal y simula 24 cierres
-   mensuales (enero de 2026 a diciembre de 2027).
+1. Genera el libro del proyecto de ejemplo en el modo porcentaje (una empresa,
+   multi-empresa y combinado con el segundo proyecto de ejemplo) en una carpeta
+   temporal, carga el BAC del ejemplo y simula 24 cierres mensuales (enero de 2026 a
+   diciembre de 2027), con el AC de cada mes del ejemplo.
 2. Abre cada libro con Excel por automatización COM, sin mostrarlo y en solo lectura,
    exporta cada zona a PDF y la convierte a PNG con pdftoppm (Poppler).
 3. Agrega los números de las zonas a la captura del Cuadro de Mando.
@@ -43,12 +44,14 @@ SINGLE = [
     ("cdm-cpi-spi-edt", "Cuadro de Mando", "$B$46:$U$73", {}),
     ("resumen", "Resumen", "$A$1:$E$40", {}),
     ("pv", "PV", "$A$1:$P$41", {"landscape": True, "headings": True}),
+    ("pct-pv", "% PV", "$A$1:$P$41", {"landscape": True, "headings": True}),
     ("ev", "EV", "$A$1:$AD$41", {"landscape": True, "headings": True, "hide": "G:R"}),
+    ("pct-ev", "% EV", "$A$1:$AD$41", {"landscape": True, "headings": True, "hide": "G:R"}),
     ("ac", "AC", "$A$1:$AD$41", {"landscape": True, "headings": True, "hide": "G:R"}),
     ("evolucion-mensual", "Evolución mensual", "$A$1:$O$28", {"landscape": True}),
     ("indicadores-edt", "Indicadores EDT", "$A$1:$P$41", {"landscape": True}),
-    ("validacion", "Validación", "$A$1:$D$7", {"landscape": True}),
-    ("listas", "Listas", "$A$1:$B$12", {"width": ("B", 150)}),
+    ("validacion", "Validación", "$A$1:$D$9", {"landscape": True}),
+    ("listas", "Listas", "$A$1:$B$11", {"width": ("B", 150)}),
     ("cdm-mes-anterior", "Cuadro de Mando", "$B$1:$U$44", {"date": ("E5", dt.datetime(2027, 6, 1))}),
     ("cdm-eac-alternativo", "Cuadro de Mando", "$B$1:$U$23",
      {"date": ("E5", dt.datetime(2027, 12, 1)), "value": ("R5", "AC + (BAC - EV) / (CPI × SPI)")}),
@@ -71,13 +74,14 @@ SINGLE = [
 ]
 MULTI = [
     ("multi-pv-empresa-a", "PV-EmpresaA", "$A$1:$P$41", {"landscape": True, "headings": True}),
+    ("multi-pct-pv-empresa-a", "% PV-EmpresaA", "$A$1:$P$41", {"landscape": True, "headings": True}),
     ("multi-ev-empresa-b", "EV-EmpresaB", "$A$1:$AD$41", {"landscape": True, "headings": True, "hide": "G:R"}),
-    ("multi-validacion", "Validación", "$A$1:$D$8", {"landscape": True}),
+    ("multi-validacion", "Validación", "$A$1:$D$11", {"landscape": True}),
 ]
 SEVERAL = [
     ("varios-cdm", "Cuadro de Mando", "$B$1:$U$23", {}),
     ("varios-pv", "PV", "$A$1:$P$49", {"landscape": True, "headings": True, "hide_rows": "5:33"}),
-    ("varios-validacion", "Validación", "$A$1:$D$8", {"landscape": True}),
+    ("varios-validacion", "Validación", "$A$1:$D$10", {"landscape": True}),
 ]
 # Números de las zonas del Cuadro de Mando: (n, x, y) en píxeles de la captura a 130 ppp
 MARKS = [(1, 58, 122), (2, 700, 122), (3, 262, 180), (4, 257, 291), (5, 104, 410),
@@ -88,6 +92,16 @@ DPI = 130
 def run(*args: str) -> None:
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
     subprocess.run([sys.executable, *args], cwd=ROOT, check=True, env=env, stdout=subprocess.DEVNULL)
+
+
+def example_helper():
+    """Módulo ejemplos/generar_ejemplo.py: carga en el libro el BAC y el AC ficticios del ejemplo."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("generar_ejemplo", ROOT / "ejemplos" / "generar_ejemplo.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["generar_ejemplo"] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def build_books(work: Path) -> tuple[Path, Path, Path]:
@@ -103,13 +117,16 @@ def build_books(work: Path) -> tuple[Path, Path, Path]:
                            f'\n[[proyectos]]\nnombre = "P2"\norigen = "{examples}/proyecto2_ejemplo.xml"\n'
                            'planificacion = ""\n', encoding="utf-8")
     text = re.sub(r"^activar = false", "activar = true", text, flags=re.M)
-    text = re.sub(r"^ac_desde_project = false", "ac_desde_project = true", text, flags=re.M)
     multi_cfg.write_text(text, encoding="utf-8")
     origin = str(Path("ejemplos") / "programa_ejemplo.xml")     # relativa: es la que muestra la hoja Resumen
     books = (work / "EVM_Ejemplo.xlsx", work / "EVM_Multi.xlsx", work / "EVM_Varios.xlsx")
     for cfg, book in zip((single_cfg, multi_cfg), books):
         run("evm_export.py", "generar", "--origen", origin, "--config", str(cfg), "--salida", str(book))
     run("evm_export.py", "generar", "--config", str(several_cfg), "--salida", str(books[2]))
+    helper = example_helper()
+    files = ({"": 1}, {"": 1}, {"P1": 1, "P2": 2})
+    for book, projects in zip(books, files):
+        helper.fill_book(book, None, projects)                   # BAC de cada fila (se ingresa a mano)
     for y, m in MONTHS:
         status = f"{y:04d}-{m:02d}-{calendar.monthrange(y, m)[1]:02d}"
         progress = work / f"avance_{y:04d}-{m:02d}.xml"
@@ -117,6 +134,8 @@ def build_books(work: Path) -> tuple[Path, Path, Path]:
         run(str(ROOT / "ejemplos" / "generar_ejemplo.py"), "--fecha-estado", status, "--salida", str(progress))
         run(str(ROOT / "ejemplos" / "generar_ejemplo.py"), "--proyecto", "2", "--fecha-estado", status,
             "--salida", str(progress2))
+        for book, projects in zip(books, files):                 # AC del mes (se ingresa a mano, del ERP)
+            helper.fill_book(book, dt.date(y, m, calendar.monthrange(y, m)[1]), projects)
         for cfg, book in zip((single_cfg, multi_cfg), books):
             run("evm_export.py", "actualizar", "--origen", str(progress), "--config", str(cfg),
                 "--libro", str(book), "--sin-respaldo")

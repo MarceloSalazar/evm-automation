@@ -27,14 +27,14 @@ Ganado sea confiable y comparable mes a mes.
 flowchart LR
     subgraph INI["Puesta en marcha"]
         direction TB
-        A1["EDT, costos y métodos<br/>en MS Project"] --> A2["Guardar la<br/>línea base"]
-        A2 --> A3["generar<br/>libro con PV y BAC"]
-        A3 --> A4["Revisar Validación<br/>y métodos"]
+        A1["EDT, tareas, hitos<br/>y métodos en MS Project"] --> A2["Guardar la<br/>línea base"]
+        A2 --> A3["generar<br/>% planificado"]
+        A3 --> A4["Ingresar el BAC<br/>y revisar Validación"]
     end
     subgraph MES["Cada mes"]
         direction TB
-        B1["Registrar avance<br/>y costo real"] --> B2["Fecha de estado =<br/>último día del mes"]
-        B2 --> B3["actualizar<br/>EV y AC del mes"]
+        B1["Registrar avance"] --> B2["Fecha de estado =<br/>último día del mes"]
+        B2 --> B3["actualizar<br/>% ganado del mes<br/>y cargar el AC"]
         B3 --> B4["Analizar el<br/>Cuadro de Mando"]
         B4 --> B5["Informe y<br/>acciones"]
     end
@@ -47,10 +47,14 @@ flowchart LR
     CAMBIO --> MES
 ```
 
+El diagrama corresponde al modo porcentaje, que es el modo por defecto
+([Modo porcentaje](modo-porcentaje.md#9-puesta-en-marcha-y-cierre-mensual)). En el modo costo, el
+presupuesto se carga en MS Project y `generar` calcula el PV y el BAC desde allí; el AC se puede tomar de
+MS Project.
+
 El programa no reemplaza a MS Project ni al análisis del Jefe de Proyecto: automatiza la parte
-repetitiva (mensualizar el PV, calcular el EV y el AC de cada paquete, cargar el mes y recalcular
-indicadores y gráficos) para que el tiempo del cierre se dedique a analizar las desviaciones y decidir
-acciones.
+repetitiva (mensualizar el PV, calcular el EV de cada paquete, cargar el mes y recalcular indicadores y
+gráficos) para que el tiempo del cierre se dedique a analizar las desviaciones y decidir acciones.
 
 ---
 
@@ -61,7 +65,7 @@ acciones.
 | **Jefe de Proyecto / Jefe de Programa** | Dueño del informe. Aprueba la línea base y los métodos de medición, ejecuta o supervisa `actualizar`, analiza las desviaciones y propone acciones y EAC. |
 | **Responsables de paquete** (cuentas de control) | Confirman el método y definen el criterio de medición de sus paquetes, informan el avance físico con evidencia objetiva (entregables, hitos, cantidades) y explican las desviaciones que superan los umbrales. |
 | **Planificador / Control de proyectos (PMO)** | Propone el método de medición de cada paquete. Mantiene el cronograma en MS Project: carga los métodos aprobados, registra el avance, fija la fecha de estado, guarda las líneas base aprobadas y verifica la hoja `Validación`. |
-| **Finanzas / Administración** | Entrega el costo real devengado del período (ERP), con la misma fecha de corte, y las estimaciones de costos devengados no facturados. |
+| **Finanzas / Administración** | Entrega el presupuesto (BAC) de cada paquete al comienzo y el costo real devengado del período (ERP), con la misma fecha de corte y en la misma base que el BAC, y las estimaciones de costos devengados no facturados. |
 | **Dirección / Cliente** | Recibe el informe, aprueba los cambios de línea base y las acciones correctivas. |
 
 En proyectos pequeños varios roles los cumple la misma persona; lo importante es que el avance, el
@@ -73,14 +77,18 @@ costo real y el análisis tengan un responsable claro.
 
 1. **Preparar el proyecto en MS Project** ([Preparación en MS Project](preparacion-ms-project.md)):
    - EDT con códigos hasta el nivel 3 (paquetes de trabajo);
-   - costos asignados a las tareas de detalle ([Presupuesto (BAC)](presupuesto-bac.md));
+   - en el modo porcentaje, tareas de detalle cuya duración represente su trabajo y hitos con `Peso hito`
+     ([Modo porcentaje](modo-porcentaje.md#3-preparación-en-ms-project)); en el modo costo, costos
+     asignados a las tareas de detalle ([Presupuesto (BAC)](presupuesto-bac.md));
    - método de medición de cada paquete y, si corresponde, hitos con peso, definidos y aprobados con el
      [proceso de Métodos de medición](metodos-de-medicion.md#5-proceso-para-definir-el-método-de-cada-paquete).
 2. **Guardar la línea base** aprobada.
 3. **Configurar** `config.toml` ([Configuración](configuracion.md)).
 4. **Generar el libro** y revisar la hoja `Validación`; corregir en MS Project lo que corresponda y
    volver a generar.
-5. **Verificar** el BAC total y el PV de algunos meses contra MS Project
+5. Modo porcentaje: **ingresar el BAC** de cada fila en la columna D de la hoja `PV` (o de
+   `PV-EmpresaA` y `PV-EmpresaB`) y verificar que la fila TOTAL coincida con el presupuesto aprobado.
+   Modo costo: **verificar** el BAC total y el PV de algunos meses contra MS Project
    ([Cálculo del PV](calculo-pv.md#7-verificación-del-pv)).
 6. **Verificar los métodos** de la columna C de la hoja `PV`: deben coincidir con los aprobados, sin
    filas `Por definir`.
@@ -99,17 +107,14 @@ flowchart TD
     S --> R2["Finanzas: costo real<br/>devengado del mes"]
     R1 --> P1["MS Project: registrar avance<br/>(% completado, % físico,<br/>fechas reales, hitos cumplidos)"]
     P1 --> P2["MS Project: fecha de estado =<br/>último día del mes"]
-    P2 --> Q{"¿AC desde<br/>MS Project?"}
-    R2 --> Q
-    Q -- "Sí" --> U1["actualizar --simular"]
-    Q -- "No (ERP)" --> U2["actualizar --simular --solo ev"]
+    P2 --> U1["actualizar --simular"]
     U1 --> V{"¿Observaciones<br/>razonables?"}
-    U2 --> V
     V -- "No" --> P1
-    V -- "Sí" --> U3["actualizar<br/>(con --solo ev si el AC es del ERP)"]
-    U3 --> AC2["Si el AC es del ERP:<br/>cargarlo en la hoja AC<br/>y ejecutar analizar"]
-    AC2 --> AN["Analizar Cuadro de Mando<br/>e Indicadores EDT"]
-    U3 --> AN
+    V -- "Sí" --> U3["actualizar<br/>(% ganado del mes)"]
+    R2 --> AC2["Cargar el AC del mes<br/>en la hoja AC"]
+    U3 --> AC2
+    AC2 --> AZ["analizar"]
+    AZ --> AN["Analizar Cuadro de Mando<br/>e Indicadores EDT"]
     AN --> X["Explicar desviaciones fuera de umbral<br/>(hoja Análisis de desviaciones)"]
     X --> EAC["Revisar EAC y acciones"]
     EAC --> INF(["Informe mensual"])
@@ -147,10 +152,12 @@ gantt
    para que el cronograma siga siendo una previsión realista. Esto no cambia la línea base ni el PV.
 3. **Fijar la fecha de estado** en el último día del mes.
 4. Ejecutar **`actualizar --simular`** y revisar las observaciones por fila: métodos no definidos,
-   valores del mes negativos, tareas sin fila, diferencias de AC.
-5. Ejecutar **`actualizar`** (con `--solo ev` si el AC proviene del ERP) y, si corresponde, cargar el
-   AC del mes en la hoja `AC` y ejecutar **`analizar`** para completar la lista de paquetes fuera de
-   umbral ([Análisis de desviaciones](analisis-desviaciones.md#3-cierre-mensual)).
+   valores del mes negativos, tareas sin fila, filas sin BAC (modo porcentaje) o diferencias de AC
+   (modo costo).
+5. Ejecutar **`actualizar`**, cargar el AC del mes en la hoja `AC` (o en las de cada empresa) y ejecutar
+   **`analizar`** para completar la lista de paquetes fuera de umbral
+   ([Análisis de desviaciones](analisis-desviaciones.md#3-cierre-mensual)). En el modo costo, si el AC se
+   toma de MS Project, `actualizar` lo carga; si viene del ERP, se usa `--solo ev`.
 6. **Abrir el libro** y revisar el `Cuadro de Mando` (mes de reporte = mes de corte) e `Indicadores EDT`.
 7. **Analizar las desviaciones** de los paquetes fuera de umbral: causa, impacto en plazo y costo, y
    acción correctiva con responsable y fecha, en la hoja
@@ -188,8 +195,11 @@ flowchart TD
   ([Presupuesto](presupuesto-bac.md#6-guardar-la-línea-base)).
 - **No** se recomienda volver a guardar la línea base de todo el proyecto cada mes: el PV pasaría a
   coincidir con el avance real y la SV dejaría de tener sentido.
-- El libro nuevo se genera con `--migrar-desde` para conservar el historial de EV y AC
-  ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)).
+- El libro nuevo se genera con `--migrar-desde` para conservar el historial de EV y AC y, en el modo
+  porcentaje, el BAC ingresado ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)).
+- En el modo porcentaje, un cambio aprobado del **presupuesto** de un paquete se registra escribiendo su
+  nuevo BAC en la columna D: el PV y el EV de todos sus meses se recalculan
+  ([Modo porcentaje](modo-porcentaje.md#10-cambios-de-bac-y-de-línea-base)).
 - Se recomienda guardar cada línea base aprobada en *Línea base 1..10* y llevar un registro de cambios
   con la fecha, el motivo y la variación de BAC.
 
@@ -248,7 +258,7 @@ flowchart TD
 - [ ] Costo real del mes: calculado en MS Project o recibido de Finanzas (devengado).
 - [ ] `actualizar --simular` revisado: sin métodos `Por definir`, sin valores del mes negativos sin
       explicar, sin tareas con costo fuera del libro.
-- [ ] `actualizar` ejecutado; AC del ERP cargado y `analizar` ejecutado si corresponde.
+- [ ] `actualizar` ejecutado; AC del mes cargado en la hoja `AC` y `analizar` ejecutado.
 - [ ] Cuadro de Mando revisado; paquetes fuera de umbral explicados en `Análisis de desviaciones`.
 - [ ] EAC revisado y acciones correctivas definidas.
 - [ ] Informe emitido y copia del libro archivada.

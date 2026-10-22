@@ -10,6 +10,13 @@ cargado en los meses anteriores.
 Este documento explica qué datos se leen, cómo se obtiene cada valor y qué controles se aplican. Las
 reglas de cada método de medición se detallan en [Métodos de medición](metodos-de-medicion.md).
 
+> **Modo porcentaje (por defecto).** `actualizar` calcula el **% ganado** acumulado de cada fila (y de
+> cada empresa), con las tareas ponderadas por su duración de línea base y los hitos por su `Peso hito`, y
+> escribe el % del mes en la hoja `% EV`; el EV es el BAC × ese %. El AC no se lee de MS Project: se carga a
+> mano en la hoja `AC`. Ver [Modo porcentaje](modo-porcentaje.md#6-avance-ganado-métodos-de-medición). El paso del
+> acumulado al valor del mes, la fecha de corte, los controles y las opciones (secciones 5 a 8) son iguales
+> en los dos modos; las secciones 3 y 4 describen el modo costo.
+
 ---
 
 ## Contenido
