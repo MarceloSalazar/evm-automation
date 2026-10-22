@@ -32,7 +32,7 @@ MS Project ([Cálculo del PV](calculo-pv.md), [Presupuesto (BAC)](presupuesto-ba
 
 ## 1. Cuándo usarlo
 
-- El cronograma se **comparte** (con el cliente o entre las empresas de una unión temporal) y no debe
+- El cronograma se **comparte** (con el cliente o entre las empresas que ejecutan el proyecto) y no debe
   tener importes: los costos y precios de detalle quedan fuera de MS Project.
 - El presupuesto de cada paquete viene de **otra fuente** (contrato, oferta, presupuesto de cada
   empresa) y se quiere la curva S con el mismo cronograma que se entrega.

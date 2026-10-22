@@ -2,9 +2,9 @@
 
 [Inicio](../README.md) › [Documentación](README.md) › Multi-empresa
 
-Cuando el proyecto se ejecuta entre **dos empresas** (por ejemplo, un consorcio, una unión temporal o
-una empresa y su socio tecnológico), el libro puede separar el PV, el EV y el AC de cada una, además
-del total del proyecto. Este modo está **desactivado por defecto**.
+Cuando el proyecto se ejecuta entre **dos empresas** (por ejemplo, dos empresas que ejecutan juntas un
+contrato, o una empresa y su socio tecnológico), el libro puede separar el PV, el EV y el AC de cada una,
+además del total del proyecto. Este modo está **desactivado por defecto**.
 
 | Modo de cálculo | BAC y PV de cada empresa | EV de cada empresa | AC de cada empresa |
 |---|---|---|---|
@@ -96,7 +96,7 @@ flowchart LR
 solo se repite en las subtareas que son de otra empresa.*
 
 > **Recomendación:** acordar el reparto de los paquetes `Ambas` antes de guardar la línea base y
-> documentarlo (por ejemplo, en el acuerdo de consorcio). Cambiar la empresa o el `% Reparto` de una
+> documentarlo (por ejemplo, en el acuerdo entre las empresas). Cambiar la empresa o el `% Reparto` de una
 > tarea después de guardar la línea base cambia el BAC de cada empresa en el siguiente `generar`.
 
 ---

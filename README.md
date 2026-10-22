@@ -18,7 +18,7 @@ simulado.*
 - **Modo porcentaje** (por defecto): el cronograma de MS Project **no necesita importes**. El programa
   calcula el % planificado y el % ganado de cada paquete con la duración de la línea base de sus tareas y
   el peso de sus hitos, y el importe es el **BAC que se ingresa en el libro**. Sirve para cronogramas que
-  se comparten (con el cliente o entre las empresas de una unión temporal). En el **modo costo**, el PV
+  se comparten (con el cliente o entre las empresas que ejecutan el proyecto). En el **modo costo**, el PV
   sale del costo de línea base escalonado de MS Project.
 - Selección de la **planificación** a exportar cuando el proyecto tiene varias (por ejemplo `INTERNO` y
   `CLIENTE`).
