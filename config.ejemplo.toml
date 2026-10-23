@@ -98,6 +98,26 @@ decimales = 0
 # del proyecto en MS Project (con varios archivos, los nombres unidos con "+").
 # titulo = "Programa de ejemplo"
 
+# Depuración de costes (solo en el modo porcentaje; ver docs/depuracion-costes.md).
+# Desactivada por defecto. Con depuracion_costes = true, el libro agrega la hoja
+# PV-depuración, donde una empresa pega la previsión mensual de su plan de costes,
+# y la hoja Depuración costes con el gráfico comparativo. En la hoja PV de esa
+# empresa (PV-EmpresaA o PV-EmpresaB; PV en un libro de una sola empresa), cada
+# fila lleva debajo su fila «(coste)» con esa previsión, para alinear las tareas
+# e hitos de MS Project con ella. El libro de entrega se genera sin depuración,
+# con --migrar-desde para conservar el BAC.
+depuracion_costes = false
+
+# Empresa que se depura en multi-empresa: el valor de empresa_a o empresa_b.
+# Vacío o sin la clave = empresa_a.
+depuracion_empresa = "EmpresaA"
+
+# Indicador de alineamiento en las filas «(coste)»: diferencia de BAC y diferencia
+# máxima acumulada entre las dos curvas, en % del BAC, y resaltado de los meses en
+# que la diferencia acumulada supera depuracion_umbral (en % del BAC de la fila).
+depuracion_alineamiento = false
+depuracion_umbral = 10
+
 [metodos]
 # Valores del desplegable de la columna C (método de medición). Sin la clave se
 # usa esta lista; en el modo costo incluye además "CPTR de MS Project".

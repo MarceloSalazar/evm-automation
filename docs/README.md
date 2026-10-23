@@ -16,6 +16,7 @@ rápido están en el [README principal](../README.md).
 | Usar los costos cargados en MS Project (modo costo) | [Presupuesto (BAC)](presupuesto-bac.md) → [Cálculo del PV](calculo-pv.md) |
 | Organizar el cierre mensual | [Proceso de reporte EVM](proceso-reporte-evm.md) |
 | Reunir varios archivos de MS Project en un informe | [Varios archivos de MS Project](varios-archivos.md) |
+| Alinear el cronograma con el plan de costes de una empresa | [Depuración de costes](depuracion-costes.md) |
 | Interpretar los indicadores y los gráficos | [Cuadro de Mando e indicadores](cuadro-de-mando.md) |
 | Explicar las desviaciones del mes | [Análisis de desviaciones](analisis-desviaciones.md) |
 | Entender un valor del libro | [Cálculo del PV](calculo-pv.md) y [Cálculo de EV y AC](calculo-ev-ac.md) |
@@ -46,6 +47,7 @@ rápido están en el [README principal](../README.md).
 | [Métodos de medición](metodos-de-medicion.md) | 0/100, fórmulas fijas, hitos ponderados, % completado, % físico, unidades, LOE y CPTR; dónde se define el método y dónde se calcula el EV; guía y proceso para definir el método de cada paquete; método de valor acumulado de MS Project. |
 | [Multi-empresa (opcional)](multiempresa.md) | PV, EV y AC de dos empresas: preparación, reparto, cálculo y ejemplo. |
 | [Varios archivos de MS Project (opcional)](varios-archivos.md) | Un informe con los elementos EDT de varios archivos: códigos EDT, `[[proyectos]]`, cierre mensual, cambios de archivos y ejemplo. |
+| [Depuración de costes (opcional)](depuracion-costes.md) | Modo porcentaje: PV planificado de una empresa frente a la previsión de su plan de costes, pegada en el libro; filas «(coste)», reglas de asignación, indicador de alineamiento, gráfico por elemento EDT y ciclo de ajuste. |
 
 **Cálculos y libro**
 

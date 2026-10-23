@@ -40,7 +40,8 @@ el BAC × el % de las hojas `% PV` y `% EV`, y el AC se carga a mano
 | **Análisis de desviaciones** | Paquetes fuera de umbral de cada mes, con causa, impacto, acción correctiva, responsable y fecha ([Análisis de desviaciones](analisis-desviaciones.md)). |
 | **Validación** | Advertencias de la exportación ([Validaciones](validaciones-y-problemas.md#1-validaciones)). |
 | **Listas** | Métodos de medición del desplegable de la columna C y su regla de cálculo. |
-| `_graficos`, `_estructura`, `_meta` | Hojas ocultas con los datos de los gráficos y los datos que usan `actualizar` y `--migrar-desde`. **No se deben modificar.** |
+| **Depuración costes** y **PV-depuración** | Solo con `depuracion_costes = true` (modo porcentaje): gráfico comparativo y previsión pegada del plan de costes de una empresa; la hoja PV de esa empresa lleva una fila «(coste)» debajo de cada fila, y en las demás hojas esas filas quedan vacías y ocultas ([Depuración de costes](depuracion-costes.md)). |
+| `_graficos`, `_estructura`, `_meta` (y `_depuracion`) | Hojas ocultas con los datos de los gráficos, los datos que usan `actualizar` y `--migrar-desde` y, con depuración de costes, la asignación de la previsión pegada. **No se deben modificar.** |
 
 ---
 
@@ -138,6 +139,8 @@ Qué se traslada:
 - El **método** de la columna C se conserva solo si fue **editado en Excel**. Si el método cambió en
   MS Project, se usa el nuevo.
 - La **fecha de corte** de la hoja `Resumen`.
+- Con depuración de costes, el contenido de la hoja `PV-depuración`, si el libro nuevo también depura la
+  misma empresa ([Depuración de costes](depuracion-costes.md#8-ciclo-de-ajuste)).
 
 Lo que no se puede trasladar se informa como **Error** en `Validación` para cargarlo a mano: filas que
 se dividieron en varias y tareas eliminadas. Tampoco se admite migrar entre un libro de una sola empresa

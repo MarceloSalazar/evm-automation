@@ -462,8 +462,7 @@ def fill_book(book_path: Path, status: date | None = None, projects: dict[str, i
     from evm.companies import ac_by_company, resolve_shares
     from evm.config import MODE_COST, Config
     from evm.reader_xml import read_xml
-    from evm import dashboard
-    from evm.update import _refresh_charts, _save, apply_book_settings, book_totals, plan_end, read_book
+    from evm.update import _refresh_charts, _save, apply_book_settings, read_book
     from evm.wbs import TimephasedPVSource, build_part, build_tree, iter_subtree, select_scope
     from evm.workbook import (book_sources, company_sheet, read_meta, read_structure, row_key, source_meta,
                               split_key)
@@ -541,17 +540,73 @@ def fill_book(book_path: Path, status: date | None = None, projects: dict[str, i
                     if cumulative[role] or ws.cell(row=s.row, column=col).value is not None:
                         ws.cell(row=s.row, column=col, value=value)
                         ac_cells += 1
+    if status is None:
+        fill_review(wb, meta)
     # openpyxl no conserva los gráficos al guardar: se vuelven a crear
     book = read_book(book_path, wb)
     when = status or book.status_date
-    if when is not None:
-        _refresh_charts(wb, book, book.horizon.index(when), meta)
-    else:
-        packages = dashboard.chart_packages((s.row, s.code, s.level, s.kind) for s in book.structure)
-        dashboard.add_dashboard_charts(wb, packages, book.horizon.months, plan_end(book), None, book_totals(book)[3],
-                                       str(meta.get("moneda") or ""))
+    _refresh_charts(wb, book, book.horizon.index(when) if when is not None else None, meta)
     _save(wb, Path(book_path), False)
     return bac_cells, ac_cells
+
+
+def fill_review(wb, meta: dict) -> int:
+    """Libro con depuración de costes: escribe en la hoja PV-depuración (si está vacía) una previsión ficticia de
+    la empresa, como la pegaría desde su plan de costes: el PV planificado de cada paquete con algunos meses
+    desplazados y algunos totales distintos del BAC, un paquete con hitos de pago (HP-01...) y otro (y los paquetes
+    «Otras tareas») con subtareas sin código numérico (XRF01...). Devuelve la cantidad de líneas escritas."""
+    from evm import cost_review
+    from evm.timeline import round_preserving_total
+    from evm.workbook import FIRST_MONTH_COL, PCT_PREFIX, read_structure
+
+    if cost_review.SHEET_PASTE not in wb.sheetnames:
+        return 0
+    paste = wb[cost_review.SHEET_PASTE]
+    first = cost_review.P_FIRST
+    if any(paste.cell(row=first + i, column=1).value not in (None, "") for i in range(5)):
+        return 0
+    sheet = str(meta.get("depuracion_hoja") or "PV")
+    pv, pct = wb[sheet], wb[PCT_PREFIX + sheet]
+    months = int(meta["meses"])
+    shifts = [0, 1, 0, -1, 2, 0, 1, 0]
+    scales = [1.0, 1.0, 0.95, 1.0, 1.0, 1.08, 1.0, 1.0]
+    lines: list[list] = []
+    k = 0
+    for s in read_structure(wb):
+        bac = pv.cell(row=s.row, column=4).value
+        if not s.is_input or not isinstance(bac, (int, float)) or bac <= 0:
+            continue
+        shares = [pct.cell(row=s.row, column=FIRST_MONTH_COL + i).value or 0.0 for i in range(months)]
+        moved = [0.0] * months
+        for i, v in enumerate(shares):
+            moved[min(months - 1, max(0, i + shifts[k % len(shifts)]))] += v * bac * scales[k % len(scales)]
+        values = round_preserving_total(moved, 0)
+        code = s.code[:-2] if s.kind == "residual" else s.code
+        if s.kind == "residual" or k == 4:  # subtareas sin código numérico bajo el código padre
+            parts = [values[:], [0.0] * months]
+            for i, v in enumerate(values):
+                parts[0][i], parts[1][i] = round(v * 0.6), v - round(v * 0.6)
+            lines.append([code, s.name.replace("Otras tareas de ", "Subtareas de "), None])
+            lines += [[f"XRF{j + 1:02d}", f"Subtarea {j + 1}", sum(p)] + p for j, p in enumerate(parts)]
+        elif k == 1:                        # hitos de pago: 30 %, 40 % y 30 % en tres meses del paquete
+            active = [i for i, v in enumerate(values) if v]
+            lines.append([code, s.name, None])
+            if active:
+                picks = [active[len(active) // 3], active[2 * len(active) // 3], active[-1]]
+                for j, (i, part) in enumerate(zip(picks, (0.3, 0.4, 0.3))):
+                    row = [0.0] * months
+                    row[i] = round(sum(values) * part)
+                    lines.append([f"HP-{j + 1:02d}", f"Hito de pago {j + 1}", row[i]] + row)
+        else:
+            lines.append([code, s.name, sum(values)] + values)
+        k += 1
+    for r, line in enumerate(lines, start=first):
+        for c, v in enumerate(line, start=1):
+            if v not in (None, 0, 0.0) or c <= 2:
+                cell = paste.cell(row=r, column=c, value=v)
+                if c >= 3:
+                    cell.number_format = "#,##0"
+    return len(lines)
 
 
 def main() -> None:
@@ -561,7 +616,8 @@ def main() -> None:
     p.add_argument("--salida", help="archivo XML a crear (por defecto el archivo de ejemplo del proyecto)")
     p.add_argument("--fecha-estado", help="AAAA-MM-DD: agrega avance simulado a esa fecha")
     p.add_argument("--libro", help="libro del modo porcentaje: escribe en él el BAC de cada fila (si está vacío) y, "
-                                   "con --fecha-estado, el AC del mes, con datos ficticios del ejemplo")
+                                   "con --fecha-estado, el AC del mes, con datos ficticios del ejemplo; en un libro "
+                                   "con depuración de costes, también la previsión de la hoja PV-depuración")
     a = p.parse_args()
     status = date.fromisoformat(a.fecha_estado) if a.fecha_estado else None
     _title, file_name, build, _first = PROJECTS[a.proyecto]

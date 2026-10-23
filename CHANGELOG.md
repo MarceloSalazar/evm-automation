@@ -51,6 +51,18 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   usan y, en `actualizar`, filas con avance y sin BAC.
 - `ejemplos/generar_ejemplo.py --libro`: escribe en el libro el BAC y el AC ficticios del proyecto de
   ejemplo, que en un proyecto real se ingresan a mano.
+- **Depuración de costes** (opcional, modo porcentaje; `[exportacion] depuracion_costes = true`): una
+  empresa pega en la hoja nueva `PV-depuración` la previsión mensual de su plan de costes (código EDT,
+  descripción, BAC y meses 1 a 120). Con fórmulas de Excel, cada línea se asigna a una fila del libro:
+  las subtareas sin código numérico (`XRF01`) se agrupan bajo su código EDT padre, los códigos más
+  detallados van a su fila y las líneas con subtareas son subtotales. En la hoja PV de la empresa
+  (`depuracion_empresa`), debajo de cada fila va su fila «(coste)», y la hoja nueva `Depuración costes`
+  compara las dos curvas acumuladas del elemento EDT elegido. Indicador de alineamiento opcional
+  (`depuracion_alineamiento`, `depuracion_umbral`). `--migrar-desde` conserva la previsión pegada;
+  `actualizar` y `analizar` funcionan igual ([docs/depuracion-costes.md](docs/depuracion-costes.md)).
+- `ejemplos/generar_ejemplo.py --libro` en un libro con depuración de costes: escribe también una
+  previsión ficticia en `PV-depuración`, con meses desplazados, hitos de pago y subtareas.
+- `docs/herramientas/capturas_excel.py --solo GRUPO`: regenera solo un grupo de capturas.
 
 ### Correcciones
 

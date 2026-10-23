@@ -46,6 +46,7 @@ trasladar o calcular).
 | Multi-empresa: BAC de cada empresa, tareas sin empresa, valores no reconocidos y `% Reparto` fuera de rango | Completar la columna `Empresa` y revisar los repartos ([Multi-empresa](multiempresa.md#7-validaciones-y-controles)). |
 | `--migrar-desde`: historial no trasladado (`Error`) | Cargar a mano el EV y el AC de esas filas en el libro nuevo. |
 | `--migrar-desde`: filas del análisis de desviaciones trasladadas, o cuyo paquete ya no tiene fila | Revisar en `Análisis de desviaciones` el texto que quedó sin valores ([Análisis de desviaciones](analisis-desviaciones.md#5-cambios-de-línea-base)). |
+| Depuración de costes: recordatorio de la hoja que se depura, opción ignorada en el modo costo, filas con código no numérico o repetido, previsión trasladada o no por `--migrar-desde` | Ver [Depuración de costes](depuracion-costes.md#9-validaciones-y-limitaciones). Los controles de la previsión pegada están en la hoja `PV-depuración`. |
 | Varios archivos: observaciones precedidas por el nombre del archivo (`[P1]`, `[P2]`) y monedas distintas | Revisar cada archivo; si las monedas difieren, indicar `moneda` en `[exportacion]` ([Varios archivos](varios-archivos.md#8-validaciones-y-controles)). |
 
 `actualizar` informa sus controles en pantalla ([Cálculo de EV y AC](calculo-ev-ac.md#7-controles-de-consistencia)).

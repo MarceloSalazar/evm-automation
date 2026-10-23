@@ -37,6 +37,8 @@ simulado.*
 - Opcional: **multi-empresa**, con el BAC, el PV, el EV y el AC de dos empresas por separado.
 - Opcional: **varios archivos de MS Project** en un mismo informe, cada uno con sus códigos EDT (por
   ejemplo, `1.0.0` a `8.0.0` en un archivo y `9.0.0` en otro).
+- Opcional: **depuración de costes** (modo porcentaje), para comparar el PV planificado de una empresa con
+  la previsión mensual de su plan de costes y alinear con ella las tareas e hitos de MS Project.
 - Montos en **euros (EUR)** por defecto.
 
 ```mermaid
@@ -149,6 +151,7 @@ El [tutorial](docs/ejemplo-paso-a-paso.md) recorre el ciclo completo con 24 mese
 | 0/100, fórmulas fijas, hitos ponderados, % físico, LOE y valor acumulado de MS Project; cómo elegir y aprobar el método de cada paquete | [Métodos de medición](docs/metodos-de-medicion.md) |
 | PV, EV y AC de dos empresas | [Multi-empresa (opcional)](docs/multiempresa.md) |
 | Varios archivos de MS Project en un mismo informe | [Varios archivos (opcional)](docs/varios-archivos.md) |
+| PV planificado frente al plan de costes de una empresa | [Depuración de costes (opcional)](docs/depuracion-costes.md) |
 | Origen del PV mensual y estructura de filas | [Cálculo del PV](docs/calculo-pv.md) |
 | EV por método, AC, valor del mes y controles | [Cálculo de EV y AC](docs/calculo-ev-ac.md) |
 | Hojas del libro, reglas de uso y `--migrar-desde` | [El libro Excel](docs/libro-excel.md) |

@@ -36,6 +36,9 @@ copy config.ejemplo.toml config.toml
 | `[exportacion] moneda` | `"EUR"` | Moneda que se muestra en el libro. Con `""` se usa el código de moneda del proyecto en MS Project. |
 | `[exportacion] decimales` | `0` | Decimales de los montos en el libro (0 a 4). |
 | `[exportacion] titulo` | vacío | Título del informe en el `Cuadro de Mando` y en `Resumen`. Vacío = nombre del proyecto en MS Project (con varios archivos, los nombres unidos con `+`). |
+| `[exportacion] depuracion_costes` | `false` | Solo en el modo porcentaje: agrega la hoja `PV-depuración`, donde se pega la previsión mensual del plan de costes de una empresa, las filas «(coste)» en su hoja PV y la hoja `Depuración costes` con el gráfico comparativo ([Depuración de costes](depuracion-costes.md)). El libro de entrega se genera sin depuración. |
+| `[exportacion] depuracion_empresa` | `empresa_a` | En multi-empresa, la empresa que se depura: el valor de `empresa_a` o de `empresa_b`. En un libro de una sola empresa se depura la hoja `PV`. |
+| `[exportacion] depuracion_alineamiento` / `depuracion_umbral` | `false` / `10` | Indicador de alineamiento en las filas «(coste)»: diferencia de BAC y diferencia máxima acumulada en % del BAC, y resaltado de los meses en que la diferencia acumulada supera el umbral (% del BAC de la fila, mayor que 0 y hasta 100). |
 | `[metodos] lista` | la del modo | Opciones de la lista desplegable de la columna C. Sin la clave, la lista del archivo de ejemplo; en el modo costo incluye además `CPTR de MS Project`. |
 | `[semaforo] rojo_inferior` / `amarillo_inferior` | `0.90` / `0.95` | Umbrales inferiores, comunes para el SPI y el CPI: rojo si el índice es menor que `rojo_inferior`; amarillo si es menor que `amarillo_inferior`. Los nombres anteriores, `rojo` y `amarillo`, siguen siendo válidos. |
 | `[semaforo] amarillo_superior` / `rojo_superior` | `1.05` / `1.10` | Umbrales superiores: amarillo si el índice es mayor que `amarillo_superior`; rojo si es mayor que `rojo_superior`. Verde entre `amarillo_inferior` y `amarillo_superior`, inclusive. Se debe cumplir 0 < `rojo_inferior` ≤ `amarillo_inferior` < `amarillo_superior` ≤ `rojo_superior`. Los umbrales se guardan en el libro al generarlo y se muestran en el `Cuadro de Mando`; los paquetes fuera del rango verde se listan en [Análisis de desviaciones](analisis-desviaciones.md). |
@@ -114,6 +117,21 @@ ambas = "Ambas"
 campo_reparto = "% Reparto"
 reparto_por_defecto = 50
 ac_desde_project = false
+```
+
+**Depuración de costes** de la empresa B, con el indicador de alineamiento, en un archivo aparte
+(`config_depuracion.toml`) para no generar por error un libro de entrega con depuración
+([Depuración de costes](depuracion-costes.md)):
+
+```toml
+[exportacion]
+depuracion_costes = true
+depuracion_empresa = "EmpresaB"
+depuracion_alineamiento = true
+depuracion_umbral = 10
+
+[multiempresa]
+activar = true
 ```
 
 **Programa con dos archivos de MS Project**, el primero con planificaciones y el segundo sin ellas

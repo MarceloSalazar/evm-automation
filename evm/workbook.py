@@ -44,6 +44,8 @@ SHEET_STRUCT = "_estructura"
 SHEET_META = "_meta"
 META_SOURCES = "proyectos"          # _meta: nombres de los archivos de un libro con varios archivos ("P1;P2")
 PCT_PREFIX = "% "                   # modo porcentaje: hojas '% PV' y '% EV' (o '% PV-EmpresaA'...)
+KIND_COST = "coste"                 # _estructura: fila «(coste)» de la depuración de costes (sin clave)
+COST_SUFFIX = " (coste)"
 
 TITLE_ROW, INFO_ROW, MONTHNUM_ROW, HEADER_ROW, FIRST_ROW = 1, 2, 3, 4, 5
 COL_CODE, COL_NAME, COL_METHOD, COL_BAC, COL_START, COL_FINISH = 1, 2, 3, 4, 5, 6
@@ -78,6 +80,8 @@ FILL_RED = PatternFill("solid", fgColor="F8CBAD", bgColor="F8CBAD")
 FILL_YELLOW = PatternFill("solid", fgColor="FFE699", bgColor="FFE699")
 FILL_GREEN = PatternFill("solid", fgColor="C6E0B4", bgColor="C6E0B4")
 FILL_SECTION = PatternFill("solid", fgColor="D6DCE4")
+FILL_COST = PatternFill("solid", fgColor="FCE4D6")      # filas «(coste)» de la depuración de costes
+COLOR_COST = "833C0B"
 FONT_HEADER = Font(bold=True, color="FFFFFF")
 FONT_TITLE = Font(bold=True, size=14, color=DARK)
 FONT_BOLD = Font(bold=True)
@@ -180,11 +184,14 @@ def _texts_in_last_row(ws) -> None:
 MAX_FORMULA = 8000      # Excel admite fórmulas de hasta 8.192 caracteres
 
 
-def _sum_formula(letter: str, rows: list[int], block: tuple[int, int] | None = None) -> str:
+def _sum_formula(letter: str, rows: list[int], block: tuple[int, int] | None = None, review: bool = False,
+                 cost: bool = False) -> str:
     """=SUM de las filas indicadas (las consecutivas se agrupan en rangos).
 
     Si la fórmula resultara demasiado larga, suma las filas de ingreso del bloque
     `block` con SUMIFS sobre el tipo de fila de la hoja _estructura.
+    review: libro con depuración de costes (las filas «(coste)» del bloque no se suman).
+    cost: suma de filas «(coste)»: se suman las filas «(coste)» de las filas de ingreso del bloque.
     """
     if not rows:
         return "=0"
@@ -203,8 +210,13 @@ def _sum_formula(letter: str, rows: list[int], block: tuple[int, int] | None = N
     if len(formula) > MAX_FORMULA and block is not None:
         a, b = block
         off = FIRST_ROW - 2   # fila de datos r <-> fila r - off de _estructura
-        formula = (f"=SUMIFS({letter}{a}:{letter}{b},'{SHEET_STRUCT}'!$E${a - off}:$E${b - off},"
-                   f"\"<>{KIND_SUMMARY}\")")
+        kinds = f"'{SHEET_STRUCT}'!$E${a - off}:$E${b - off}"
+        if cost:              # filas «(coste)» cuya fila de la EDT (la de arriba) es de ingreso
+            above = f"'{SHEET_STRUCT}'!$E${a - off - 1}:$E${b - off - 1}"
+            return (f"=SUMIFS({letter}{a}:{letter}{b},{kinds},\"{KIND_COST}\",{above},"
+                    f"\"<>{KIND_SUMMARY}\")")
+        formula = f"=SUMIFS({letter}{a}:{letter}{b},{kinds},\"<>{KIND_SUMMARY}\""
+        formula += f",{kinds},\"<>{KIND_COST}\")" if review else ")"
     return formula
 
 
@@ -228,21 +240,30 @@ def _naive(d):
 # Escritura
 # ----------------------------------------------------------------------------
 class _Layout:
+    """Filas y columnas de las hojas mensuales (las mismas en todas las hojas).
+
+    Con depuración de costes, debajo de cada fila de la EDT (y de la fila TOTAL) va su fila «(coste)»: la hoja que
+    se depura la completa y en las demás hojas queda vacía y oculta. Así cada fila conserva la misma posición en
+    todas las hojas.
+    """
+
     def __init__(self, report: Report):
         self.months = report.horizon.months
         self.first_col = FIRST_MONTH_COL
         self.last_col = FIRST_MONTH_COL + self.months - 1
         self.total_col = self.last_col + 1
+        self.review = report.cost_review is not None
+        self.stride = 2 if self.review else 1
         self.row_of: dict[int, int] = {}
         for i, r in enumerate(report.rows):
-            self.row_of[id(r)] = FIRST_ROW + i
-        self.last_row = FIRST_ROW + len(report.rows) - 1
+            self.row_of[id(r)] = FIRST_ROW + self.stride * i
+        self.last_row = FIRST_ROW + self.stride * len(report.rows) - 1
         self.total_row = self.last_row + 1
         self.block_end: dict[int, int] = {}
 
         def size(row) -> int:
             n = 1 + sum(size(c) for c in row.children)
-            self.block_end[id(row)] = self.row_of[id(row)] + n - 1
+            self.block_end[id(row)] = self.row_of[id(row)] + self.stride * n - 1
             return n
 
         for root in report.roots:
@@ -251,6 +272,14 @@ class _Layout:
 
     def r(self, row: ReportRow) -> int:
         return self.row_of[id(row)]
+
+    def cost_rows(self, report: Report) -> list[int]:
+        """Depuración de costes: filas «(coste)» (debajo de cada fila de la EDT y de la fila TOTAL)."""
+        return [self.r(x) + 1 for x in report.rows] + [self.total_row + 1] if self.review else []
+
+    def struct_row(self, r: int) -> int:
+        """Fila de la hoja _estructura que corresponde a la fila r de las hojas mensuales."""
+        return r - (FIRST_ROW - 2)
 
     def block(self, row: ReportRow) -> tuple[int, int]:
         """Filas de los descendientes de una fila resumen."""
@@ -313,6 +342,8 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
     bac_input = percent and is_pv and not multi_total
     input_sheet = not is_pv and not multi_total and not by_pct    # celdas amarillas de ingreso
     month_key = kind if role is None else f"{kind}-{role}"   # serie para --migrar-desde
+    # Depuración de costes: la hoja PV de la empresa que se depura lleva las filas «(coste)»
+    review_sheet = lay.review and is_pv and not multi_total and (role or "") == report.cost_review
 
     names = {SHEET_PV: "Valor Planificado (PV)", SHEET_EV: "Valor Ganado (EV)", SHEET_AC: "Costo Real (AC)"}
     if multi_total:
@@ -321,6 +352,9 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
     elif bac_input:
         title = (f"{names[kind]} por mes" + (f"  -  {company}" if company else "") +
                  f"  -  BAC × % planificado (hoja '{pct_name}'); el BAC se debe ingresar en las celdas amarillas")
+        if review_sheet:
+            from evm.cost_review import SHEET_PASTE
+            title += f"  -  filas «(coste)»: previsión pegada en la hoja '{SHEET_PASTE}'"
     elif by_pct:
         title = (f"{names[kind]} por mes" + (f"  -  {company}" if company else "") +
                  f"  -  BAC × % ganado (hoja '{pct_name}'), que 'actualizar' calcula desde MS Project")
@@ -409,7 +443,8 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
                 ws.cell(row=r, column=COL_BAC, value=round(row_bac(row), 2))
             else:
                 ws.cell(row=r, column=COL_BAC,
-                        value=_sum_formula(col(COL_BAC), [lay.r(c) for c in row.children], lay.block(row)))
+                        value=_sum_formula(col(COL_BAC), [lay.r(c) for c in row.children], lay.block(row),
+                                           lay.review))
         else:
             pv_sheet = SHEET_PV if role is None else company_sheet(SHEET_PV, company)
             ref = f"'{pv_sheet}'!{col(COL_BAC)}{r}"
@@ -443,7 +478,8 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
             refs_rows = [lay.r(c) for c in row.children]
             for i in range(lay.months):
                 L = col(lay.first_col + i)
-                ws.cell(row=r, column=lay.first_col + i, value=_sum_formula(L, refs_rows, lay.block(row)))
+                ws.cell(row=r, column=lay.first_col + i,
+                        value=_sum_formula(L, refs_rows, lay.block(row), lay.review))
         for i in range(lay.months):
             ws.cell(row=r, column=lay.first_col + i).number_format = month_money
         tot = ws.cell(row=r, column=lay.total_col,
@@ -461,6 +497,10 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
             if fill and not (row.is_input and input_sheet and c_ >= lay.first_col):
                 cell.fill = fill
         ws.row_dimensions[r].outline_level = min(7, max(0, row.level - 1))
+        if review_sheet:
+            _write_cost_row(ws, report, cfg, lay, row, r + 1)
+        elif lay.review:
+            ws.row_dimensions[r + 1].hidden = True
 
     # Fila de total
     tr = lay.total_row
@@ -473,7 +513,7 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
         if multi_total:
             value = sum_of_companies(L, tr)
         else:
-            value = _sum_formula(L, root_rows, (FIRST_ROW, lay.last_row))
+            value = _sum_formula(L, root_rows, (FIRST_ROW, lay.last_row), lay.review)
         ws.cell(row=tr, column=c_, value=value).number_format = money if c_ == COL_BAC else month_money
     ws.cell(row=tr, column=lay.total_col,
             value=f"=SUM({col(lay.first_col)}{tr}:{col(lay.last_col)}{tr})").number_format = money
@@ -482,6 +522,8 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
         cell.fill = FILL_TOTAL
         cell.font = FONT_BOLD
         cell.border = Border(top=Side(style="medium", color=DARK))
+    if review_sheet:
+        _write_cost_row(ws, report, cfg, lay, None, tr + 1, total + (f" - {company}" if company else ""))
 
     if is_pv:
         # Resaltar filas cuyo total en el horizonte no coincide con el BAC
@@ -507,6 +549,59 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
     ws.freeze_panes = ws.cell(row=FIRST_ROW, column=lay.first_col)
     ws.sheet_properties.outlinePr = Outline(summaryBelow=False, summaryRight=False)
     ws.sheet_format.outlineLevelRow = min(7, max([r.level - 1 for r in report.rows] + [0]))
+    if review_sheet:
+        from evm import cost_review
+        ws.sheet_format.outlineLevelRow = cost_outline(report)
+        if cfg.cost_review_alignment:
+            cost_review.alignment_format(ws, report, cfg, lay)
+
+
+def cost_outline(report: Report) -> int:
+    """Nivel de esquema de las filas «(coste)»: uno más que la fila más profunda de la EDT, para mostrarlas u
+    ocultarlas todas con el botón de ese nivel."""
+    return min(7, max([r.level - 1 for r in report.rows] + [0]) + 1)
+
+
+def _write_cost_row(ws, report: Report, cfg: Config, lay: _Layout, row: ReportRow | None, c: int,
+                    total_name: str = "") -> None:
+    """Depuración de costes: fila «(coste)» c, debajo de la fila de la EDT (row; None = fila TOTAL).
+
+    Filas de ingreso: cada mes suma la previsión pegada en la hoja PV-depuración para la fila. Subtotales y TOTAL:
+    suma de las filas «(coste)» de sus hijos. Columna D: suma de los meses (se compara con el BAC de la fila de
+    arriba).
+    """
+    from evm import cost_review
+    money = money_format(cfg.decimals)
+    month_money = money_format_hide_zero(cfg.decimals)
+    r = c - 1
+    if row is None:
+        put_text(ws, c, COL_CODE, "TOTAL")
+        put_text(ws, c, COL_NAME, total_name + COST_SUFFIX)
+        children = [lay.r(x) + 1 for x in report.roots]
+        block = (FIRST_ROW + 1, lay.last_row)
+    else:
+        put_text(ws, c, COL_CODE, row.code)
+        put_text(ws, c, COL_NAME, row.name + COST_SUFFIX).alignment = Alignment(indent=max(0, row.level - 1))
+        children = [lay.r(x) + 1 for x in row.children]
+        a, b = lay.block(row)
+        block = (a + 1, b)
+    for i in range(lay.months):
+        if row is not None and row.is_input:
+            value = cost_review.paste_sum(i, r)
+        else:
+            value = _sum_formula(col(lay.first_col + i), children, block, cost=True)
+        ws.cell(row=c, column=lay.first_col + i, value=value).number_format = month_money
+    span = f"{col(lay.first_col)}{c}:{col(lay.last_col)}{c}"
+    ws.cell(row=c, column=COL_BAC, value=f"=SUM({span})").number_format = money
+    ws.cell(row=c, column=lay.total_col, value=f"=SUM({span})").number_format = money
+    font = Font(italic=True, bold=row is None or row.kind == KIND_SUMMARY, color=COLOR_COST)
+    for c_ in range(1, lay.total_col + 1):
+        cell = ws.cell(row=c, column=c_)
+        cell.fill = FILL_COST
+        cell.font = font
+    ws.row_dimensions[c].outline_level = cost_outline(report)
+    if cfg.cost_review_alignment:
+        cost_review.alignment_cells(ws, cfg, lay, r, c)
 
 
 def _write_pct_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
@@ -588,6 +683,8 @@ def _write_pct_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
             if fill:
                 cell.fill = fill
         ws.row_dimensions[r].outline_level = min(7, max(0, row.level - 1))
+        if lay.review:
+            ws.row_dimensions[r + 1].hidden = True
 
     tr = lay.total_row
     ws.cell(row=tr, column=COL_CODE, value="TOTAL")
@@ -609,17 +706,21 @@ def _write_pct_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
     if is_pv:
         # Filas de ingreso cuyo % planificado no suma 100 % (p. ej. tareas sin fechas o fuera del horizonte),
         # por bloques de filas de ingreso consecutivas
+        # (con depuración de costes, entre las filas quedan las filas «(coste)», vacías en esta hoja)
         total_col = col(lay.total_col)
         inputs = sorted(lay.r(x) for x in report.rows if x.is_input)
         blocks: list[list[int]] = []
         for r in inputs:
-            if blocks and r == blocks[-1][-1] + 1:
+            if blocks and r == blocks[-1][-1] + lay.stride:
                 blocks[-1].append(r)
             else:
                 blocks.append([r])
         for b in blocks:
+            rule = f"ABS({total_col}{b[0]}-1)>0.0001"
+            if lay.review:
+                rule = f"AND(ISNUMBER({total_col}{b[0]}),{rule})"
             ws.conditional_formatting.add(f"{total_col}{b[0]}:{total_col}{b[-1]}", FormulaRule(
-                formula=[f"ABS({total_col}{b[0]}-1)>0.0001"], fill=FILL_RED))
+                formula=[rule], fill=FILL_RED))
 
     widths = {COL_CODE: 12, COL_NAME: 48, COL_METHOD: 20, COL_BAC: 16, COL_START: 12, COL_FINISH: 12}
     for c_, w in widths.items():
@@ -680,7 +781,7 @@ def _write_curve(ws, report: Report, cfg: Config, lay: _Layout) -> None:
     tr = lay.total_row
     f0 = CURVE_FIRST_ROW
     bac = f"'{SHEET_PV}'!$D${tr}"
-    kinds = f"'{SHEET_STRUCT}'!$E$2:$E${len(report.rows) + 1}"
+    kinds = f"'{SHEET_STRUCT}'!$E${lay.struct_row(FIRST_ROW)}:$E${lay.struct_row(lay.last_row)}"
     for i in range(lay.months):
         r = f0 + i
         mc = col(lay.first_col + i)
@@ -1000,6 +1101,8 @@ def _write_indicators(ws, report: Report, cfg: Config, lay: _Layout) -> None:
                     ws.cell(row=r, column=c_).font = FONT_BOLD
                     ws.cell(row=r, column=c_).fill = FILL_L1 if row.level == 1 else FILL_L2
             ws.row_dimensions[r].outline_level = min(7, max(0, row.level - 1))
+            if lay.review:
+                ws.row_dimensions[r + 1].hidden = True
     last = lay.total_row
     _traffic_light(ws, f"J{FIRST_ROW}:K{last}", Thresholds.from_config(cfg))
     for c_, w in {1: 12, 2: 46, 3: 20}.items():
@@ -1036,11 +1139,18 @@ def _append_texts(ws, values: list) -> None:
 
 
 def _write_structure(ws, report: Report, lay: _Layout) -> None:
+    """Hoja _estructura: una fila por fila de la EDT, alineada con las hojas mensuales (la fila r de las hojas va en
+    la fila r - 3), para las fórmulas que filtran por el tipo de fila. Con depuración de costes, las filas «(coste)»
+    solo llevan el tipo 'coste' (sin fila ni clave: no son filas del libro)."""
     ws.append(["fila", "clave", "edt", "nivel", "tipo", "fila_padre", "actividad", "metodo_origen"])
     for row in report.rows:
-        _append_texts(ws, [lay.r(row), row_key(row), row.code, row.level,
-                           row.kind, lay.r(row.parent) if row.parent else None, row.name,
-                           row.method if row.is_input else None])
+        r = lay.r(row)
+        values = [r, row_key(row), row.code, row.level, row.kind, lay.r(row.parent) if row.parent else None,
+                  row.name, row.method if row.is_input else None]
+        for c_, v in enumerate(values, start=1):
+            put_text(ws, lay.struct_row(r), c_, v)
+        if lay.review:
+            ws.cell(row=lay.struct_row(r + 1), column=5, value=KIND_COST)
 
 
 def write_meta(ws, meta: dict) -> None:
@@ -1062,6 +1172,7 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     ws_sum = wb.create_sheet(SHEET_SUMMARY)
     data_sheets = []                     # (hoja, tipo, empresa)
     pct_sheets = []                      # modo porcentaje: hojas '% PV' y '% EV'
+    review = None                        # depuración de costes: hojas del gráfico y de la previsión pegada
     for kind in (SHEET_PV, SHEET_EV, SHEET_AC):
         data_sheets.append((wb.create_sheet(kind), kind, None))
         roles = (("A", report.company_a), ("B", report.company_b)) if report.multi else ()
@@ -1070,6 +1181,9 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
         if report.percent and kind != SHEET_AC:
             for role, company in roles or ((None, ""),):
                 pct_sheets.append((wb.create_sheet(pct_sheet(kind, company)), kind, role))
+        if kind == SHEET_PV and lay.review:
+            from evm import cost_review
+            review = (wb.create_sheet(cost_review.SHEET_CHART), wb.create_sheet(cost_review.SHEET_PASTE))
     ws_curve = wb.create_sheet(SHEET_CURVE)
     ws_ind = wb.create_sheet(SHEET_IND)
     ws_val = wb.create_sheet(SHEET_VALID)
@@ -1077,7 +1191,10 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     ws_charts = wb.create_sheet(dashboard.SHEET_CHARTDATA)
     ws_struct = wb.create_sheet(SHEET_STRUCT)
     ws_meta = wb.create_sheet(SHEET_META)
-    for ws in (ws_charts, ws_struct, ws_meta):
+    hidden = [ws_charts, ws_struct, ws_meta]
+    if review is not None:
+        hidden.append(wb.create_sheet(cost_review.SHEET_HELPER))
+    for ws in hidden:
         ws.sheet_state = "hidden"
 
     status = prior.status_date if prior else None
@@ -1119,6 +1236,14 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
         plan_end = dashboard.plan_end_month(report.total_vector)
     dashboard.add_dashboard_charts(wb, packages, lay.months, plan_end, cutoff, report.total_bac,
                                    cfg.currency or report.currency or "")
+    if review is not None:
+        ws_chart, ws_paste = review
+        pasted = prior.review_rows if prior is not None and prior.review_keep else None
+        cost_review.write_helper(wb[cost_review.SHEET_HELPER], report, lay, cfg)
+        cost_review.write_paste(ws_paste, report, cfg, lay, pasted)
+        cost_review.write_chart_sheet(ws_chart, report, cfg, lay)
+        cost_review.add_chart(wb, lay.months, max(plan_end, cost_review.last_paste_month(ws_paste, lay.months)),
+                              cfg.currency or report.currency or "")
     wb.active = 0
 
     p = report.project
@@ -1143,7 +1268,15 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
         "generado": generated.replace(microsecond=0),
         "modo": report.mode,
         "multiempresa": bool(report.multi),
+        "depuracion_costes": review is not None,
     }
+    if review is not None:
+        meta.update({
+            "depuracion_empresa": cost_review.review_company(report),
+            "depuracion_hoja": cost_review.review_sheet(report),
+            "depuracion_alineamiento": bool(cfg.cost_review_alignment),
+            "depuracion_umbral": cfg.cost_review_threshold,
+        })
     if report.multi:
         meta.update({
             "empresa_a": report.company_a,

@@ -262,6 +262,9 @@ son ese BAC × el % planificado de la empresa A.*
 
 *`EV-EmpresaB` (meses 13 a 24): el EV del mes de la empresa B, BAC × % ganado.*
 
+En el modo porcentaje, cada empresa puede comparar su PV planificado con la previsión de su plan de costes,
+una a la vez, con la [depuración de costes](depuracion-costes.md) (`depuracion_empresa`).
+
 ---
 
 ## 9. Ciclo mensual con dos empresas

@@ -157,6 +157,10 @@ Casos especiales (se informan en `Validación`):
 Con pesos 40 y 60 (suman 100), los hitos se reparten todo el BAC: 400.000 en el mes del FAT y 600.000
 en el de la llegada a obra, y la fabricación y el transporte no tienen PV.
 
+Para comparar la curva planificada de cada paquete con la previsión mensual del plan de costes de una
+empresa, y ajustar con ella las tareas y el peso de los hitos, se usa la
+[depuración de costes](depuracion-costes.md).
+
 ---
 
 ## 6. Avance ganado: métodos de medición

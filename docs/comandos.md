@@ -39,7 +39,7 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 | `--linea-base N` | 0 = Línea base, 1..10 = Línea base N. Por defecto, la que el proyecto usa para el valor acumulado. Con varios archivos no se admite: se indica en cada `[[proyectos]]`. |
 | `--nivel-max N` | Nivel máximo del código EDT. Por defecto 3. |
 | `--motor auto\|com\|xml` | Forma de lectura. `auto` decide por la extensión. |
-| `--migrar-desde libro.xlsx` | Copia al libro nuevo los EV/AC ya cargados (en el modo porcentaje, el BAC ingresado, el % ganado y el AC), los métodos editados en la columna C y la fecha de corte de un libro anterior del mismo modo ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). |
+| `--migrar-desde libro.xlsx` | Copia al libro nuevo los EV/AC ya cargados (en el modo porcentaje, el BAC ingresado, el % ganado y el AC), los métodos editados en la columna C y la fecha de corte de un libro anterior del mismo modo ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). Con depuración de costes, también la previsión pegada en `PV-depuración` ([Depuración de costes](depuracion-costes.md#8-ciclo-de-ajuste)). |
 | `--sobrescribir` | Reemplaza el libro de salida si ya existe. |
 | `--visible` | Muestra MS Project mientras se lee (solo COM). |
 

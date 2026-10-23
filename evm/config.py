@@ -126,6 +126,12 @@ class Config:
     default_method: str = "Por definir"
     currency: str = "EUR"                 # "" = código de moneda del proyecto en MS Project
     decimals: int = 0
+    # Depuración de costes (solo en el modo porcentaje): filas «(coste)» con la previsión de una empresa, pegada
+    # en la hoja PV-depuración, para alinear las tareas e hitos de MS Project con esa previsión
+    cost_review: bool = False             # depuracion_costes
+    cost_review_company: str = ""         # depuracion_empresa: empresa_a o empresa_b ("" = empresa_a)
+    cost_review_alignment: bool = False   # depuracion_alineamiento: indicador de alineamiento
+    cost_review_threshold: float = 10.0   # depuracion_umbral: % del BAC a partir del cual se resalta un mes
 
     # [metodos] -- None = lista por defecto del modo (sin "CPTR de MS Project" en el modo porcentaje)
     methods_list: list[str] | None = None
@@ -156,6 +162,17 @@ class Config:
     @property
     def percent_mode(self) -> bool:
         return self.mode == MODE_PERCENT
+
+    @property
+    def cost_review_role(self) -> str | None:
+        """Hoja que se depura: "A" o "B" (PV de esa empresa), "" (hoja PV de un libro de una sola empresa) o None si
+        la depuración de costes no se aplica (desactivada o modo costo)."""
+        if not (self.cost_review and self.percent_mode):
+            return None
+        if not self.multi_enabled:
+            return ""
+        from evm.fields import same_name
+        return "B" if same_name(self.cost_review_company, self.company_b) else "A"
 
     @property
     def methods(self) -> list[str]:
@@ -209,6 +226,19 @@ class Config:
                 raise ConfigError("[multiempresa] ambas debe tener un valor distinto de los nombres de las empresas.")
             if not 0 <= self.split_default <= 100:
                 raise ConfigError("[multiempresa] reparto_por_defecto debe estar entre 0 y 100.")
+            if self.cost_review:
+                company = self.cost_review_company.strip()
+                if not company:
+                    self.cost_review_company = self.company_a
+                elif same_name(company, self.company_a):
+                    self.cost_review_company = self.company_a
+                elif same_name(company, self.company_b):
+                    self.cost_review_company = self.company_b
+                else:
+                    raise ConfigError(f"depuracion_empresa = '{company}' no es una de las empresas de [multiempresa]: "
+                                      f"debe ser '{self.company_a}' o '{self.company_b}'.")
+        if not 0 < self.cost_review_threshold <= 100:
+            raise ConfigError("depuracion_umbral debe ser un % mayor que 0 y como máximo 100 (por defecto 10).")
         if self.projects:
             from evm.fields import same_name
             seen: list[str] = []
@@ -322,6 +352,10 @@ def load_config(path: str | Path | None) -> Config:
     cfg.currency = _get(exp, "moneda", cfg.currency, str).strip()
     cfg.decimals = _get(exp, "decimales", cfg.decimals, int)
     cfg.title = _get(exp, "titulo", cfg.title, str).strip()
+    cfg.cost_review = _get(exp, "depuracion_costes", cfg.cost_review, bool)
+    cfg.cost_review_company = _get(exp, "depuracion_empresa", cfg.cost_review_company, str).strip()
+    cfg.cost_review_alignment = _get(exp, "depuracion_alineamiento", cfg.cost_review_alignment, bool)
+    cfg.cost_review_threshold = _get(exp, "depuracion_umbral", cfg.cost_review_threshold, float)
 
     met = _section(data, "metodos")
     lista = met.get("lista")

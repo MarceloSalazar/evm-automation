@@ -8,6 +8,9 @@ Pasos:
 2. Abre cada libro con Excel por automatización COM, sin mostrarlo y en solo lectura,
    exporta cada zona a PDF y la convierte a PNG con pdftoppm (Poppler).
 3. Agrega los números de las zonas a la captura del Cuadro de Mando.
+4. Genera un libro multi-empresa con depuración de costes de EmpresaA (BAC y previsión
+   ficticios del ejemplo) y exporta sus hojas PV-EmpresaA, PV-depuración y
+   Depuración costes.
 
 Requisitos: Windows, Excel, pywin32, Pillow y Poppler (pdftoppm en el PATH, en la
 carpeta de WinGet o en la variable de entorno PDFTOPPM).
@@ -18,9 +21,11 @@ originales se restauran al terminar. El libro no se guarda.
 
 Uso (desde la carpeta raíz del repositorio):
     python docs\\herramientas\\capturas_excel.py
+    python docs\\herramientas\\capturas_excel.py --solo depuracion    (solo las capturas de un grupo)
 """
 from __future__ import annotations
 
+import argparse
 import calendar
 import datetime as dt
 import glob
@@ -83,6 +88,14 @@ SEVERAL = [
     ("varios-pv", "PV", "$A$1:$P$49", {"landscape": True, "headings": True, "hide_rows": "5:33"}),
     ("varios-validacion", "Validación", "$A$1:$D$10", {"landscape": True}),
 ]
+# Depuración de costes (horizonte de 120 meses): meses 1 a 9, total e indicador de alineamiento
+REVIEW = [
+    ("depuracion-pv-empresa-a", "PV-EmpresaA", "$A$1:$DY$26", {"landscape": True, "headings": True, "hide": "P:DV"}),
+    ("depuracion-pegado", "PV-depuración", "$A$1:$DV$31", {"landscape": True, "headings": True, "hide": "M:DS"}),
+    ("depuracion-grafico", "Depuración costes", "$A$1:$U$30", {"landscape": True}),
+    ("depuracion-grafico-paquete", "Depuración costes", "$A$1:$U$30", {"landscape": True, "value": ("B4", "1.1.2")}),
+]
+GROUPS = ("una-empresa", "multiempresa", "varios", "depuracion")
 # Números de las zonas del Cuadro de Mando: (n, x, y) en píxeles de la captura a 130 ppp
 MARKS = [(1, 58, 122), (2, 700, 122), (3, 262, 180), (4, 257, 291), (5, 104, 410),
          (6, 120, 545), (7, 612, 545), (8, 150, 916), (9, 960, 884)]
@@ -144,6 +157,23 @@ def build_books(work: Path) -> tuple[Path, Path, Path]:
     return books
 
 
+def build_review_book(work: Path) -> Path:
+    """Libro multi-empresa con depuración de costes de EmpresaA: BAC y previsión ficticios del ejemplo."""
+    text = (ROOT / "config.ejemplo.toml").read_text(encoding="utf-8")
+    text = re.sub(r'^metodo = ""', 'metodo = "Método EVM"', text, flags=re.M)
+    text = re.sub(r'^peso_hito = ""', 'peso_hito = "Peso hito"', text, flags=re.M)
+    text = re.sub(r"^activar = false", "activar = true", text, flags=re.M)
+    text = re.sub(r"^depuracion_costes = false", "depuracion_costes = true", text, flags=re.M)
+    text = re.sub(r"^depuracion_alineamiento = false", "depuracion_alineamiento = true", text, flags=re.M)
+    cfg = work / "config_depuracion.toml"
+    cfg.write_text(text, encoding="utf-8")
+    book = work / "EVM_Depuracion.xlsx"
+    run("evm_export.py", "generar", "--origen", str(Path("ejemplos") / "programa_ejemplo.xml"), "--config", str(cfg),
+        "--salida", str(book))
+    example_helper().fill_book(book)            # BAC de cada fila y previsión pegada en PV-depuración
+    return book
+
+
 def find_pdftoppm() -> str:
     candidates = [os.environ.get("PDFTOPPM", ""), shutil.which("pdftoppm") or ""]
     pattern = os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WinGet\Packages\*Poppler*\**\pdftoppm.exe")
@@ -172,9 +202,9 @@ def save_png(image, path: Path) -> None:
     image.quantize(colors=256, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(path, optimize=True)
 
 
-def spanish_dates(ws) -> None:
-    """Meses en español en las celdas y en los ejes de los gráficos ([$-C0A] = español)."""
-    for cell in ws.UsedRange.Cells:
+def spanish_dates(ws, area: str) -> None:
+    """Meses en español en las celdas de la zona y en los ejes de los gráficos ([$-C0A] = español)."""
+    for cell in ws.Range(area).Cells:
         fmt = cell.NumberFormat
         if isinstance(fmt, str) and "mmm" in fmt.lower() and not fmt.startswith("[$"):
             cell.NumberFormat = "[$-C0A]" + fmt
@@ -204,12 +234,9 @@ def export(book: Path, items: list, pdftoppm: str, tmp: Path) -> None:
         xl.DecimalSeparator = ","
         xl.ThousandsSeparator = "."
         wb = xl.Workbooks.Open(str(book), UpdateLinks=0, ReadOnly=True)
-        prepared = set()
         for name, sheet, area, opts in items:
             ws = wb.Worksheets(sheet)
-            if sheet not in prepared:
-                spanish_dates(ws)
-                prepared.add(sheet)
+            spanish_dates(ws, area)
             if "hide" in opts:
                 ws.Range(opts["hide"]).EntireColumn.Hidden = True
             if "hide_rows" in opts:
@@ -265,17 +292,26 @@ def annotate() -> None:
 
 
 def main() -> None:
+    p = argparse.ArgumentParser(description="Regenera las capturas del libro Excel de la documentación.")
+    p.add_argument("--solo", nargs="+", choices=GROUPS, help="grupos de capturas a regenerar (por defecto, todos)")
+    groups = set(p.parse_args().solo or GROUPS)
     pdftoppm = find_pdftoppm()
     OUT.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp_dir:
         work = Path(tmp_dir)
-        print("Generando los libros del ejemplo (24 meses)...")
-        single, multi, several = build_books(work)
-        print("Exportando capturas a", OUT)
-        export(single, SINGLE, pdftoppm, work)
-        export(multi, MULTI, pdftoppm, work)
-        export(several, SEVERAL, pdftoppm, work)
-        annotate()
+        if groups - {"depuracion"}:
+            print("Generando los libros del ejemplo (24 meses)...")
+            single, multi, several = build_books(work)
+            print("Exportando capturas a", OUT)
+            for group, book, items in (("una-empresa", single, SINGLE), ("multiempresa", multi, MULTI),
+                                       ("varios", several, SEVERAL)):
+                if group in groups:
+                    export(book, items, pdftoppm, work)
+            if "una-empresa" in groups:
+                annotate()
+        if "depuracion" in groups:
+            print("Generando el libro con depuración de costes...")
+            export(build_review_book(work), REVIEW, pdftoppm, work)
 
 
 if __name__ == "__main__":

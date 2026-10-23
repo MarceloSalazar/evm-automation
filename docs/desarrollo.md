@@ -94,6 +94,7 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/fields.py` | Identificación de campos personalizados (Texto1..30, Número1..20 y alias). |
 | `evm/wbs.py` | Estructura EDT hasta el nivel máximo y PV por fila (modo costo) o % planificado (modo porcentaje); combinación de varios archivos y horizonte. |
 | `evm/percent.py` | Modo porcentaje: peso de cada tarea (duración de la línea base y `Peso hito`), % planificado y % ganado por empresa. |
+| `evm/cost_review.py` | Depuración de costes: hojas `PV-depuración`, `Depuración costes` y `_depuracion` (asignación con fórmulas de la previsión pegada) e indicador de alineamiento. |
 | `evm/companies.py` | Multi-empresa: parte de cada empresa por tarea y reparto del EV y el AC. |
 | `evm/timeline.py` | Horizonte mensual y repartos en el tiempo. |
 | `evm/workbook.py` | Escritura del libro Excel y de sus indicadores. |
@@ -238,7 +239,9 @@ con Python; sin MS Project se usa el XML.
 
   El script genera el libro de ejemplo en una carpeta temporal, simula 24 meses de avance, abre el libro
   con Excel (sin mostrarlo y sin guardar cambios), exporta cada zona a PDF y la convierte a PNG con
-  `pdftoppm` (Poppler). Requiere Windows, Excel y Poppler (`winget install oschwartz10612.Poppler`, o la
+  `pdftoppm` (Poppler). Con `--solo` se regenera solo un grupo de capturas (`una-empresa`,
+  `multiempresa`, `varios` o `depuracion`), por ejemplo
+  `python docs\herramientas\capturas_excel.py --solo depuracion`. Requiere Windows, Excel y Poppler (`winget install oschwartz10612.Poppler`, o la
   ruta de `pdftoppm.exe` en la variable de entorno `PDFTOPPM`).
 - `docs/img/ms-project/` contiene **esquemas** de pantallas de MS Project en formato SVG (texto
   editable). No son capturas: muestran la ubicación de los campos y opciones. Se pueden reemplazar por

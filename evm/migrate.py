@@ -6,6 +6,8 @@ from datetime import date
 
 from evm.analysis import A_CODE, A_KEY, A_MONTH, A_NAME, A_ORIGIN, SHEET_ANALYSIS, TEXT_COLS, read_entries
 from evm.config import MODE_COST, MODE_PERCENT, ConfigError
+from evm.cost_review import SHEET_PASTE, month_offset, paste_months, read_paste, review_company, shift_rows
+from evm.fields import same_name
 from evm.model import MonthKey
 from evm.wbs import KIND_LEAF, SEV_ERROR, SEV_INFO, SEV_WARN, Issue, Report, ReportRow, fmt_money, iter_subtree, plural
 from evm.workbook import (PCT_PREFIX, SHEET_EV, SHEET_LISTS, book_sources, clean_text, pct_sheet, role_key, row_key,
@@ -77,6 +79,12 @@ class PriorData:
     unmatched: list[PriorRow] = field(default_factory=list)
     mode: str = MODE_COST
     bac: dict[str, dict[str, float]] = field(default_factory=dict)    # modo porcentaje: clave nueva -> BAC
+    # Depuración de costes: líneas de la hoja PV-depuración, empresa que se depuraba ('' = libro de una sola
+    # empresa), mes 1 del horizonte y si se trasladan al libro nuevo (lo decide plan_migration)
+    review_rows: list[list] = field(default_factory=list)
+    review_company: str = ""
+    review_start: date | None = None
+    review_keep: bool = False
 
     def values_for(self, key: str, kind: str) -> dict[MonthKey, float]:
         return self.values.get(key, {}).get(kind, {})
@@ -124,13 +132,15 @@ def prior_from_book(path, project_name: str) -> PriorData:
             if len(value.strip()) <= 60:
                 methods_list.append(value.strip())
     analysis = read_entries(wb[SHEET_ANALYSIS]) if SHEET_ANALYSIS in wb.sheetnames else []
+    review_rows = read_paste(wb[SHEET_PASTE], book.horizon.months) if SHEET_PASTE in wb.sheetnames else []
     wb.close()
     level = book.meta.get("nivel_maximo")
     names = {n: str(source_meta(book.meta, "proyecto", n) or "") for n in book_sources(book.meta)}
     return PriorData(rows=rows, status_date=book.status_date,
                      project_name=str(book.meta.get("proyecto") or ""),
                      max_level=int(level) if level else None, methods_list=methods_list, multi=book.multi,
-                     project_names=names, analysis=analysis, mode=book.mode)
+                     project_names=names, analysis=analysis, mode=book.mode, review_rows=review_rows,
+                     review_company=str(book.meta.get("depuracion_empresa") or ""), review_start=book.horizon.start)
 
 
 def _migrate_analysis(prior: PriorData, key_map: dict[str, str]) -> list[Issue]:
@@ -158,6 +168,34 @@ def _migrate_analysis(prior: PriorData, key_map: dict[str, str]) -> list[Issue]:
     if moved:
         issues.append(Issue(SEV_INFO, "", "", f"Se {'trasladó' if moved == 1 else 'trasladaron'} "
                                               f"{plural(moved, 'fila', 'filas')} del análisis de desviaciones."))
+    return issues
+
+
+def _migrate_review(report: Report, prior: PriorData) -> list[Issue]:
+    """Depuración de costes: la previsión pegada en la hoja PV-depuración pasa al libro nuevo si también se depura
+    y es la misma empresa. Si cambia el mes 1 del horizonte, los meses se desplazan para conservar su fecha."""
+    if not prior.review_rows:
+        return []
+    lines = plural(len(prior.review_rows), "línea", "líneas")
+    if report.cost_review is None:
+        return [Issue(SEV_INFO, "", "", f"La hoja {SHEET_PASTE} del libro anterior ({lines}) no se trasladó: el libro "
+                                        "nuevo no tiene depuración de costes.")]
+    company = review_company(report)
+    if not same_name(company, prior.review_company):
+        old = prior.review_company or "el libro de una sola empresa"
+        return [Issue(SEV_WARN, "", "", f"La hoja {SHEET_PASTE} del libro anterior no se trasladó: tiene la previsión "
+                                        f"de {old} y el libro nuevo depura {company or 'un libro de una sola empresa'}. "
+                                        "Se debe pegar la previsión de nuevo.")]
+    prior.review_keep = True
+    issues = [Issue(SEV_INFO, "", "", f"Se conservó el contenido de la hoja {SHEET_PASTE} ({lines}).")]
+    offset = month_offset(prior.review_start, report.horizon.start) if prior.review_start else 0
+    if offset:
+        prior.review_rows, lost = shift_rows(prior.review_rows, offset, paste_months(report.horizon.months))
+        issues.append(Issue(SEV_WARN if lost > 0.005 else SEV_INFO, "", "",
+                            f"El mes 1 del horizonte cambió ({prior.review_start:%m/%Y} a "
+                            f"{report.horizon.start:%m/%Y}): los meses de la hoja {SHEET_PASTE} se desplazaron "
+                            f"{abs(offset)} columnas para conservar su fecha"
+                            + (f"; quedaron fuera {fmt_money(lost)}." if lost > 0.005 else ".")))
     return issues
 
 
@@ -321,6 +359,7 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
     if percent and prior.bac:
         issues.append(Issue(SEV_INFO, "", "", f"Se conservó el BAC de {plural(len(prior.bac), 'fila', 'filas')} del "
                                               "libro anterior."))
+    issues += _migrate_review(report, prior)
     for old in prior.unmatched:
         bac = f"BAC {fmt_money(sum(old.bac.values()))}, " if percent else ""
         issues.append(Issue(SEV_ERROR, old.code, old.name,

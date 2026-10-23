@@ -92,6 +92,9 @@ class Report:
     title: str = ""             # título del informe
     currency: str = ""          # moneda de MS Project (se usa si la configuración no indica 'moneda')
     mode: str = MODE_COST       # "porcentaje": % de MS Project × BAC del libro; "costo": costo de línea base
+    # Depuración de costes: hoja PV que lleva las filas «(coste)» ("A" o "B" en multi-empresa, "" en un libro de una
+    # sola empresa); None = sin depuración
+    cost_review: str | None = None
 
     @property
     def percent(self) -> bool:
@@ -1004,6 +1007,8 @@ def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:
         issues.append(Issue(SEV_INFO, "", "",
                             f"Multi-empresa: BAC de {cfg.company_a} {fmt_money(bac_a)}; BAC de {cfg.company_b} "
                             f"{fmt_money(total_bac - bac_a)}."))
+    if cfg.cost_review and not percent:
+        issues.append(Issue(SEV_WARN, "", "", "depuracion_costes solo se aplica en el modo porcentaje: se ignora."))
     undefined = [r for r in rows if r.is_input and r.method.strip().lower() in ("", "por definir", "a definir")]
     if undefined:
         issues.append(Issue(SEV_INFO, "", "",
@@ -1026,9 +1031,13 @@ def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:
         pv_source, plan = sources[0].pv_source, sources[0].plan
         title = cfg.title or sources[0].project.name
 
-    return Report(project=sources[0].project, horizon=horizon, rows=rows, roots=roots, issues=issues,
-                  total_vector=total_vector, total_bac=total_bac, pv_before=total_before,
-                  pv_after=total_after, pv_source=pv_source, plan=plan,
-                  multi=cfg.multi_enabled, company_a=cfg.company_a if cfg.multi_enabled else "",
-                  company_b=cfg.company_b if cfg.multi_enabled else "", sources=sources, title=title,
-                  currency=currency, mode=cfg.mode)
+    report = Report(project=sources[0].project, horizon=horizon, rows=rows, roots=roots, issues=issues,
+                    total_vector=total_vector, total_bac=total_bac, pv_before=total_before,
+                    pv_after=total_after, pv_source=pv_source, plan=plan,
+                    multi=cfg.multi_enabled, company_a=cfg.company_a if cfg.multi_enabled else "",
+                    company_b=cfg.company_b if cfg.multi_enabled else "", sources=sources, title=title,
+                    currency=currency, mode=cfg.mode, cost_review=cfg.cost_review_role)
+    if report.cost_review is not None:
+        from evm.cost_review import review_issues
+        report.issues[1:1] = review_issues(report)      # después del aviso del modo porcentaje
+    return report
