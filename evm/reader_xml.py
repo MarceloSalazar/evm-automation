@@ -150,6 +150,10 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
     weight_ref = _resolve(cfg.milestone_weight_field, defs) if cfg.milestone_weight_field else None
     if cfg.milestone_weight_field and weight_ref is None:
         warnings.append(f"No se encontró el campo de peso de hitos '{cfg.milestone_weight_field}' en el XML.")
+    visible_ref = _resolve(cfg.visible_field, defs) if cfg.visible_field else None
+    if cfg.visible_field_explicit and visible_ref is None:
+        warnings.append(f"No se encontró el campo Visible '{cfg.visible_field}' en el XML: las filas del libro "
+                        "siguen el nivel máximo.")
     company_ref = split_ref = None
     if cfg.multi_enabled:
         company_ref = _resolve(cfg.company_field, defs)
@@ -276,7 +280,7 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
             actual_start=r.date(el, "ActualStart"), actual_finish=r.date(el, "ActualFinish"),
             actual_cost=r.money(el, "ActualCost"), acwp=r.money_opt(el, "ACWP"), bcwp=r.money_opt(el, "BCWP"),
             method=value_of(method_ref).strip(), milestone_weight=weight, ev_baseline_cost=ev_bl_cost,
-            company=company, split_a=split_a,
+            company=company, split_a=split_a, visible=value_of(visible_ref).strip(),
             timephased_pv=tp,
         )
         tasks.append(task)

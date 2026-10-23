@@ -396,6 +396,66 @@ def select_scope(roots: list[Task], plan_code: str) -> Scope:
     return Scope(list(plan.children), plan, (plan.wbs or "").strip() or plan_code)
 
 
+@dataclass
+class Visibility:
+    """Tareas con fila propia en el libro según el código EDT, el nivel máximo y el campo Visible."""
+
+    rows: dict[int, bool]               # UniqueID -> tiene fila propia
+    issues: list[Issue]
+    hidden: int = 0                     # tareas con Visible = No (sin fila propia; su rama se suma en la superior)
+    shown: int = 0                      # tareas con Visible = Sí y fila propia por debajo del nivel máximo
+
+    def has_row(self, task: Task) -> bool:
+        return self.rows.get(task.uid, False)
+
+
+def row_visibility(scope: Scope, cfg: Config, code_of=None) -> Visibility:
+    """Decide qué tareas tienen fila propia en el libro.
+
+    - Visible vacío: fila propia si la tarea tiene código EDT de nivel no mayor que el nivel máximo.
+    - Visible = Sí: fila propia aunque su código sea más detallado que el nivel máximo (necesita código EDT).
+    - Visible = No: sin fila propia; la tarea y su rama se suman en la fila superior. Prevalece sobre un Sí en la
+      rama y se ignora si no hay fila superior donde sumarla (p. ej. en un elemento de nivel 1).
+    """
+    from evm.fields import parse_visible
+    code_of = code_of or scope.raw_code
+    out = Visibility({}, [])
+    use = bool(cfg.visible_field)          # visible = "" en la configuración: el campo no se usa
+
+    def walk(t: Task, under_row: bool, hidden_by: Task | None) -> None:
+        raw = scope.raw_code(t)
+        value, valid = parse_visible(t.visible) if use else (None, True)
+        if not valid:
+            out.issues.append(Issue(SEV_WARN, code_of(t), t.name,
+                                    f"Visible = '{t.visible}' no se reconoce (se admite Sí o No): se usa el nivel "
+                                    "máximo."))
+        if value is False and hidden_by is None and not under_row:
+            out.issues.append(Issue(SEV_WARN, code_of(t), t.name,
+                                    "Visible = No en un elemento sin fila superior donde sumarlo: se ignora."))
+            value = None
+        if value is True and hidden_by is not None:
+            out.issues.append(Issue(SEV_WARN, code_of(t), t.name,
+                                    f"Visible = Sí, pero depende de {code_of(hidden_by) or '(sin código)'} "
+                                    f"«{hidden_by.name}», con Visible = No: se suma con su rama."))
+        elif value is True and not raw:
+            out.issues.append(Issue(SEV_WARN, code_of(t), t.name,
+                                    "Visible = Sí en una tarea sin código EDT: no puede tener fila propia; se suma "
+                                    "en su fila superior."))
+        if value is False and hidden_by is None:
+            hidden_by = t
+            out.hidden += 1
+        has_row = bool(raw) and hidden_by is None and (value is True or code_level(raw) <= cfg.max_level)
+        if has_row and code_level(raw) > cfg.max_level:
+            out.shown += 1
+        out.rows[t.uid] = has_row
+        for c in t.children:
+            walk(c, under_row or has_row, hidden_by)
+
+    for r in scope.roots:
+        walk(r, False, None)
+    return out
+
+
 # ----------------------------------------------------------------------------
 # Modo porcentaje
 # ----------------------------------------------------------------------------
@@ -538,10 +598,11 @@ def build_part(project: ProjectData, cfg: Config, source: PVSource, name: str = 
     def share(t: Task) -> float:
         return shares.get(t.uid, 0.5)
 
-    def included(t: Task) -> bool:
-        """Tiene fila propia: tiene código EDT y su nivel EDT no supera el nivel máximo."""
-        raw = scope.raw_code(t)
-        return bool(raw) and code_level(raw) <= cfg.max_level
+    # Fila propia: código EDT de nivel no mayor que el nivel máximo, salvo lo que indique el campo Visible
+    visibility = row_visibility(scope, cfg, code_of)
+    issues += visibility.issues
+    included = visibility.has_row
+    hidden_text = " u ocultas (Visible = No)" if visibility.hidden else ""
 
     # --- Costo propio (distribución mensual) de cada tarea -------------------
     # own: costo propio de cada tarea; eff / eff_dist: total efectivo de su rama
@@ -667,7 +728,10 @@ def build_part(project: ProjectData, cfg: Config, source: PVSource, name: str = 
         nonlocal aggregated
         s, f = subtree_dates(t)
         row_tasks, loose_full, loose_own = gather(t)
-        is_leaf_row = not row_tasks or code_level(scope.raw_code(t)) >= cfg.max_level
+        # En el nivel máximo la fila suma toda su rama, salvo que una tarea de la rama tenga Visible = Sí
+        is_leaf_row = not row_tasks or (code_level(scope.raw_code(t)) >= cfg.max_level
+                                        and not any(code_level(scope.raw_code(c)) > cfg.max_level
+                                                    for c in row_tasks))
         row = ReportRow(code=code_of(t), name=t.name, level=(parent.level + 1) if parent else 1,
                         kind=KIND_LEAF if is_leaf_row else KIND_SUMMARY, task=t,
                         start=s, finish=f, parent=parent)
@@ -713,8 +777,8 @@ def build_part(project: ProjectData, cfg: Config, source: PVSource, name: str = 
                 rows.append(res)
                 row.children.append(res)
                 issues.append(Issue(SEV_INFO, row.code, t.name,
-                                    f"Tareas sin código EDT o de nivel mayor a {cfg.max_level}: forman la fila "
-                                    f"{row.code}-D, con su propio BAC."))
+                                    f"Tareas sin código EDT o de nivel mayor a {cfg.max_level}{hidden_text}: forman "
+                                    f"la fila {row.code}-D, con su propio BAC."))
             return
         # Costos de la tarea resumen que no quedan en ninguna fila hija: su costo propio y el de
         # las tareas sin código EDT (o de nivel mayor al máximo) que cuelgan de ella.
@@ -732,8 +796,8 @@ def build_part(project: ProjectData, cfg: Config, source: PVSource, name: str = 
         uncoded_cost = sum(others.values()) - sum(own[t.uid].values())
         if uncoded_cost > 0.005:
             issues.append(Issue(SEV_INFO, row.code, t.name,
-                                f"Tareas sin código EDT o de nivel mayor a {cfg.max_level} con costo de línea base "
-                                f"{fmt_money(uncoded_cost)}: se suman en la fila {row.code}-D."))
+                                f"Tareas sin código EDT o de nivel mayor a {cfg.max_level}{hidden_text} con costo de "
+                                f"línea base {fmt_money(uncoded_cost)}: se suman en la fila {row.code}-D."))
         own_actual = t.actual_cost - sum(c.actual_cost for c in row_tasks)
         has_own_now = own_actual > tolerance(t.actual_cost)
         if has_own_now and not others:
@@ -837,9 +901,23 @@ def build_part(project: ProjectData, cfg: Config, source: PVSource, name: str = 
 
     if aggregated:
         checks.append(Issue(SEV_INFO, "", "",
+                            f"{plural(aggregated, 'tarea', 'tareas')} sin código EDT, de nivel EDT mayor a "
+                            f"{cfg.max_level} u ocultas (Visible = No) se "
+                            f"{'agregó' if aggregated == 1 else 'agregaron'} en su elemento EDT superior."
+                            if visibility.hidden else
                             f"{plural(aggregated, 'tarea', 'tareas')} sin código EDT o de nivel EDT mayor a "
                             f"{cfg.max_level} se {'agregó' if aggregated == 1 else 'agregaron'} en su elemento EDT "
                             "superior."))
+    if visibility.hidden:
+        checks.append(Issue(SEV_INFO, "", "",
+                            f"{plural(visibility.hidden, 'tarea tiene', 'tareas tienen')} Visible = No: no "
+                            f"{'tiene' if visibility.hidden == 1 else 'tienen'} fila propia y "
+                            f"{'su rama se suma' if visibility.hidden == 1 else 'sus ramas se suman'} en la fila "
+                            "superior."))
+    if visibility.shown:
+        checks.append(Issue(SEV_INFO, "", "",
+                            f"{plural(visibility.shown, 'tarea tiene', 'tareas tienen')} Visible = Sí y fila propia "
+                            f"por debajo del nivel máximo ({cfg.max_level})."))
     linear = getattr(source, "linear_count", 0)
     if linear and isinstance(source, TimephasedPVSource) and not percent:
         if source.timephased_count:

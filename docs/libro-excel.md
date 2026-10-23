@@ -135,7 +135,8 @@ Qué se traslada:
 - Los **EV y AC** cargados en cada fila, asociados por el **UniqueID** de la tarea en MS Project (o por
   código EDT si el proyecto cambió de nombre), sin duplicarlos. En el modo porcentaje se trasladan el
   **BAC** ingresado, el **% ganado** de cada mes y el AC.
-- Si una tarea quedó dentro de un paquete nuevo, su historial se suma a ese paquete.
+- Si una tarea quedó dentro de un paquete nuevo (por ejemplo, al bajar `nivel_maximo` o al ocultarla con
+  el campo `Visible`), su historial se suma a ese paquete.
 - El **método** de la columna C se conserva solo si fue **editado en Excel**. Si el método cambió en
   MS Project, se usa el nuevo.
 - La **fecha de corte** de la hoja `Resumen`.

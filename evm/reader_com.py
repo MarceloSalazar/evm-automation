@@ -367,6 +367,10 @@ class ComSession:
         weight_ref = self._resolve_field(cfg.milestone_weight_field) if cfg.milestone_weight_field else None
         if cfg.milestone_weight_field and weight_ref is None:
             warnings.append(f"No se encontró el campo de peso de hitos '{cfg.milestone_weight_field}'.")
+        visible_ref = self._resolve_field(cfg.visible_field) if cfg.visible_field else None
+        if cfg.visible_field_explicit and visible_ref is None:
+            warnings.append(f"No se encontró el campo Visible '{cfg.visible_field}' en MS Project: las filas del "
+                            "libro siguen el nivel máximo.")
         company_ref = split_ref = None
         if cfg.multi_enabled:
             company_ref = self._resolve_field(cfg.company_field)
@@ -397,6 +401,7 @@ class ComSession:
             weight = self._field_value(t, weight_ref)
             company = self._field_value(t, company_ref)
             split = self._field_value(t, split_ref)
+            visible = self._field_value(t, visible_ref)
             task = Task(
                 uid=uid, id=int(_get(t, "ID", 0) or 0), name=str(_get(t, "Name", "") or ""),
                 outline_level=int(_get(t, "OutlineLevel", 1) or 1),
@@ -420,6 +425,7 @@ class ComSession:
                 milestone_weight=None if weight in (None, "") else parse_number(weight),
                 company=str(company or "").strip(),
                 split_a=None if split in (None, "") else parse_number(split),
+                visible="" if visible is None else str(visible).strip(),
             )
             tasks.append(task)
             self._com_tasks[uid] = t

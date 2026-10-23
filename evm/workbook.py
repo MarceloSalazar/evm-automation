@@ -1267,6 +1267,7 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
         **Thresholds.from_config(cfg).meta(),
         "generado": generated.replace(microsecond=0),
         "modo": report.mode,
+        "campo_visible": cfg.visible_field,
         "multiempresa": bool(report.multi),
         "depuracion_costes": review is not None,
     }

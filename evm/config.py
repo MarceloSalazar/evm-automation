@@ -109,6 +109,10 @@ class Config:
     wbs_field: str = "WBS"                # WBS | OutlineNumber | Text1..Text30 | alias
     method_field: str = ""                # campo con el método de medición (p.ej. Text10)
     milestone_weight_field: str = ""      # campo numérico con el peso de cada hito (p.ej. Number1)
+    # Campo de texto "Visible": Sí = fila propia (también por debajo del nivel máximo); No = sin fila propia, se
+    # suma en su fila superior; vacío = según el nivel máximo. "" = no se lee
+    visible_field: str = "Visible"
+    visible_field_explicit: bool = False  # la clave se indicó en la configuración (avisar si no existe el campo)
 
     # [horizonte]
     start_month: date | None = None       # primer mes (mes 1); None = mes de inicio de la línea base
@@ -328,6 +332,9 @@ def load_config(path: str | Path | None) -> Config:
     cfg.wbs_field = _get(campos, "edt", cfg.wbs_field, str).strip() or "WBS"
     cfg.method_field = _get(campos, "metodo", cfg.method_field, str).strip()
     cfg.milestone_weight_field = _get(campos, "peso_hito", cfg.milestone_weight_field, str).strip()
+    if "visible" in campos:
+        cfg.visible_field = _get(campos, "visible", cfg.visible_field, str).strip()
+        cfg.visible_field_explicit = bool(cfg.visible_field)
 
     hor = _section(data, "horizonte")
     start = _get(hor, "mes_inicio", "", str).strip()

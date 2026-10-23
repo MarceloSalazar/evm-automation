@@ -69,6 +69,7 @@ class FakeTask:
         self.BCWP = 0.0
         self.Text10 = kw.get("method", "")
         self.Number1 = kw.get("weight", 0.0)
+        self.Text5 = kw.get("visible", "")
         self.calls = []
 
     def GetField(self, fid):
@@ -106,7 +107,7 @@ class FakeProject:
 
 class FakeApp:
     def CustomFieldGetName(self, fid):
-        return {188743750: "Método EVM", 188743767: "Peso hito"}.get(fid, "")
+        return {188743750: "Método EVM", 188743767: "Peso hito", 188743743: "Visible"}.get(fid, "")
 
     def FieldNameToFieldConstant(self, name, kind):
         raise RuntimeError("no existe")
@@ -146,6 +147,18 @@ def test_read_project_and_monthly_pv():
     assert rep.rows[0].vector[:3] == pytest.approx([100, 300, 600])
     assert src.timephased_count == 2 and src.linear_count == 0
     assert TS_BASELINE_COST[0] in s.project.Tasks[3].calls
+
+
+def test_visible_field_by_alias():
+    tasks = program()
+    tasks[-1].Text5 = "Sí"                                     # 1.1.2.1, de nivel mayor que el máximo
+    tasks[3].Text5 = "No"                                      # 1.1.1
+    s = make_session(tasks)
+    p = s.read_project(Config())
+    assert {t.uid: t.visible for t in p.tasks}[5] == "Sí" and not p.warnings
+    rep = build_report(p, Config(), s.pv_source(p, Config()))
+    assert [r.code for r in rep.rows if r.kind == KIND_LEAF] == ["1.1.2.1"]
+    assert rep.total_bac == pytest.approx(1000)
 
 
 def test_without_baseline_uses_current_cost():

@@ -14,7 +14,8 @@ simulado.*
 ## Qué hace
 
 - **PV mensual** de cada elemento de la EDT hasta el nivel 3 del código EDT (`2.0.0`, `2.1.0`,
-  `2.1.1`), durante 120 meses.
+  `2.1.1`), durante 120 meses. Con el campo `Visible` de MS Project se muestra más o menos detalle en
+  cada rama.
 - **Modo porcentaje** (por defecto): el cronograma de MS Project **no necesita importes**. El programa
   calcula el % planificado y el % ganado de cada paquete con la duración de la línea base de sus tareas y
   el peso de sus hitos, y el importe es el **BAC que se ingresa en el libro**. Sirve para cronogramas que

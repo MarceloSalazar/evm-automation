@@ -88,7 +88,7 @@ Recomendaciones:
 
 ## 3. Campos personalizados
 
-El programa puede leer cuatro campos personalizados de tarea. Se crean con clic derecho en el
+El programa puede leer los siguientes campos personalizados de tarea. Se crean con clic derecho en el
 encabezado de una columna > **Campos personalizados** (o *Proyecto > Campos personalizados*):
 
 | Campo sugerido | Tipo | Nombre (alias) | Valores | Clave de configuración |
@@ -98,13 +98,17 @@ encabezado de una columna > **Campos personalizados** (o *Proyecto > Campos pers
 | *Número1* | Número | `Peso hito` | Peso de cada hito (modo porcentaje: % del BAC del paquete) | `[campos] peso_hito` |
 | *Texto3* | Texto | `Empresa` | Lista: `EmpresaA`, `EmpresaB`, `Ambas` | `[multiempresa] campo_empresa` |
 | *Número2* | Número | `% Reparto` | % de la empresa A en tareas `Ambas` | `[multiempresa] campo_reparto` |
+| *Texto5* | Texto | `Visible` | Lista: `Sí`, `No` (vacío = según el nivel máximo) | `[campos] visible` |
 
 Pasos para cada campo:
 
 1. **Campo: Tarea** y el **Tipo** (*Texto* o *Número*).
 2. Se selecciona un campo libre y con **Cambiar nombre...** se le asigna el nombre.
-3. Para listas cerradas (método, empresa): **Atributos personalizados > Búsqueda...**, se escriben los
-   valores y se desmarca *Permitir introducir elementos adicionales en los campos*.
+3. Para listas cerradas (método, empresa, visible): **Atributos personalizados > Búsqueda...**, se
+   escriben los valores y se desmarca *Permitir introducir elementos adicionales en los campos*.
+
+> El campo `Visible` debe ser de **texto** y no una *Marca* (Sí/No): necesita tres estados, `Sí`, `No` y
+> vacío ([Campo Visible](calculo-pv.md#31-campo-visible-más-o-menos-detalle-en-cada-rama)).
 4. Se inserta la columna en la vista (clic derecho en un encabezado > *Insertar columna*).
 
 ![Esquema del cuadro Campos personalizados](img/ms-project/campos-personalizados.svg)

@@ -51,6 +51,7 @@ class Task:
     milestone_weight: float | None = None
     company: str = ""                   # multi-empresa: empresa responsable (columna "Empresa")
     split_a: float | None = None        # multi-empresa: % de la empresa A en tareas "Ambas"
+    visible: str = ""                   # campo "Visible": "Sí", "No" o vacío (texto tal como está en MS Project)
 
     # Distribución mensual del costo propio de la tarea (PV), si el lector la
     # obtiene directamente de MS Project (datos escalonados en el tiempo).

@@ -16,8 +16,8 @@ from evm.config import MODE_COST, MODE_PERCENT, Config, ConfigError, parse_mode
 from evm.methods import ev_fraction, parse_method
 from evm.model import ProjectData, Task
 from evm.timeline import Horizon
-from evm.wbs import (KIND_RESIDUAL, KIND_SUMMARY, Scope, build_tree, code_level, fmt_money, iter_subtree, pad_code,
-                     plural, prune_inactive, select_scope, tolerance)
+from evm.wbs import (KIND_RESIDUAL, KIND_SUMMARY, Scope, Visibility, build_tree, fmt_money, iter_subtree, pad_code,
+                     plural, prune_inactive, row_visibility, select_scope, tolerance)
 from evm.workbook import (COL_BAC, COL_CODE, COL_METHOD, FIRST_MONTH_COL, LEGACY_SHEET_CURVE, SHEET_AC,
                           SHEET_EV, SHEET_META, SHEET_PV, SHEET_SUMMARY, STATUS_CELL, StructRow, WorkbookFormatError,
                           add_s_curve_chart, book_sources, clean_text, col, company_sheet, pct_sheet, read_meta,
@@ -336,12 +336,16 @@ def book_meta(path: str | Path) -> dict:
 
 
 def apply_book_settings(cfg: Config, meta: dict) -> Config:
-    """Configuración multi-empresa con la que se generó el libro (nombres y campos de MS Project).
+    """Configuración con la que se generó el libro: modo, campo Visible y, en multi-empresa, nombres y campos de
+    MS Project.
 
     La opción ac_desde_project se toma de la configuración actual.
     """
     cfg = replace(cfg)
     cfg.mode = book_mode(meta)
+    # Campo Visible con que se generó el libro (libros anteriores: no se lee)
+    cfg.visible_field = str(meta.get("campo_visible") or "")
+    cfg.visible_field_explicit = False
     cfg.multi_enabled = bool(meta.get("multiempresa"))
     if cfg.multi_enabled:
         cfg.company_a = str(meta.get("empresa_a") or cfg.company_a)
@@ -518,10 +522,10 @@ def _row_children(book: BookData, row: StructRow, matches: dict[int, Task]) -> l
             if s.parent_row == row.parent_row and s.kind != "residual" and s.row in matches]
 
 
-def _unlisted_packages(book: BookData, matches: dict[int, Task], scope: Scope, level: int) -> dict[int, list[Task]]:
-    """Tareas con código EDT propio (de nivel no mayor al máximo del libro) que cuelgan de la tarea resumen
-    de una fila -D sin tener fila en el libro: se agregaron después de generarlo. Al generar el libro tendrían
-    fila propia, por eso no se suman en la fila -D (fila -> tareas)."""
+def _unlisted_packages(book: BookData, matches: dict[int, Task], visibility: Visibility) -> dict[int, list[Task]]:
+    """Tareas que tendrían fila propia (código EDT de nivel no mayor al máximo del libro, o Visible = Sí) y que
+    cuelgan de la tarea resumen de una fila -D sin tener fila en el libro: se agregaron después de generarlo. Al
+    generar el libro tendrían fila propia, por eso no se suman en la fila -D (fila -> tareas)."""
     with_row = {t.uid for t in matches.values()}
     out: dict[int, list[Task]] = {}
 
@@ -529,11 +533,10 @@ def _unlisted_packages(book: BookData, matches: dict[int, Task], scope: Scope, l
         for c in node.children:
             if c.uid in with_row:
                 continue
-            raw = scope.raw_code(c)
-            if raw and code_level(raw) <= level:
+            if visibility.has_row(c):
                 found.append(c)
             else:
-                visit(c, found)         # tarea sin código o de nivel mayor: forma parte de la fila -D
+                visit(c, found)         # sin código, de nivel mayor u oculta: forma parte de la fila -D
 
     for s in book.input_rows:
         task = matches.get(s.row)
@@ -543,6 +546,24 @@ def _unlisted_packages(book: BookData, matches: dict[int, Task], scope: Scope, l
             if found:
                 out[s.row] = found
     return out
+
+
+def _visibility_warnings(book: BookData, matches: dict[int, Task], scope: Scope, visibility: Visibility,
+                         source: str = "") -> list[str]:
+    """Tareas con valor en el campo Visible que no coincide con las filas del libro: el campo cambió después de
+    generarlo. El libro conserva sus filas hasta regenerarlo."""
+    from evm.fields import parse_visible
+    rows = {matches[s.row].uid for s in book.structure
+            if s.row in matches and s.kind != KIND_RESIDUAL and split_key(s.key)[0] == source}
+    changed = [t for t in scope.tasks()
+               if parse_visible(t.visible)[0] is not None and visibility.has_row(t) != (t.uid in rows)]
+    if not changed:
+        return []
+    codes = ", ".join(scope.raw_code(t) or t.name for t in changed[:10])
+    more = f" y {len(changed) - 10} más" if len(changed) > 10 else ""
+    return [f"El campo Visible de {plural(len(changed), 'tarea', 'tareas')} ({codes}{more}) no coincide con las "
+            "filas del libro (cambió después de generarlo): el libro conserva sus filas. Para aplicar el cambio se "
+            "debe regenerar el libro con --migrar-desde."]
 
 
 def _coverage_warnings(scope: Scope, book: BookData, matches: dict[int, Task],
@@ -701,7 +722,9 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
         pcfg = cfg.project_config(n)
         found, w, scope = _match_tasks(project, book, pcfg, n)
         warnings += [_tag(n, x) for x in w]
-        extra = _unlisted_packages(book, found, scope, level)
+        visibility = row_visibility(scope, replace(pcfg, max_level=level))
+        warnings += [_tag(n, x) for x in _visibility_warnings(book, found, scope, visibility, n)]
+        extra = _unlisted_packages(book, found, visibility)
         if only != "ev" and load_ac:
             warnings += [_tag(n, x) for x in _coverage_warnings(scope, book, found, extra)]
         matches.update(found)

@@ -84,7 +84,7 @@ La preparación es la de [Preparación en MS Project](preparacion-ms-project.md)
 
 | Paso | Modo porcentaje |
 |---|---|
-| Código EDT | Igual que en el modo costo: cada fila del libro es un elemento EDT hasta el nivel máximo. |
+| Código EDT | Igual que en el modo costo: cada fila del libro es un elemento EDT hasta el nivel máximo, o el detalle que indique el campo `Visible` de cada tarea ([Campo Visible](calculo-pv.md#31-campo-visible-más-o-menos-detalle-en-cada-rama)). |
 | Costos | **No hacen falta.** No se asignan recursos ni costos fijos. Si el proyecto tiene costos, no se usan y se informa en `Validación`. |
 | Línea base | Se guarda igual (*Proyecto > Establecer línea base*): el % planificado usa sus **fechas**. |
 | Tareas de detalle | Su **duración** define su peso dentro del paquete: conviene que las tareas representen el trabajo del paquete. Una tarea larga de poco valor pesa más que una corta de mucho valor. |
