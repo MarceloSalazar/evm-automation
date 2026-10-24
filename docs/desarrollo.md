@@ -26,8 +26,8 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 
 | Archivo de pruebas | Contenido |
 |---|---|
-| `test_modo_porcentaje.py` | Modo porcentaje (por defecto): pesos de tareas e hitos, % planificado por empresa, % ganado por método y empresa, hojas y fórmulas del libro, cambio de BAC, `actualizar`, `--migrar-desde`, varios archivos y recálculo de las fórmulas con LibreOffice. |
-| `test_robustez_calculo.py` | Estructura EDT y PV, métodos de medición, multi-empresa, reparto en el tiempo, indicadores y configuración. Incluye reglas que se verifican sobre árboles EDT aleatorios. |
+| `test_calculo_pv_ev.py` | Cálculo del PV y el EV: pesos de tareas e hitos, % planificado por empresa, % ganado por método y empresa, hojas y fórmulas del libro, cambio de BAC, `actualizar`, `--migrar-desde`, varios archivos, libros de versiones anteriores y recálculo de las fórmulas con LibreOffice. |
+| `test_robustez_calculo.py` | Estructura EDT y % planificado, métodos de medición, multi-empresa, redondeo, indicadores y configuración. Incluye reglas que se verifican sobre árboles EDT aleatorios. |
 | `test_robustez_lectores.py` | Lectura del XML (campos, líneas base, calendarios y excepciones) y del `.mpp` con objetos que simulan MS Project. |
 | `test_robustez_libro.py` | `actualizar`, `--migrar-desde`, libros modificados a mano, errores de la línea de comandos y del archivo de configuración. |
 | `test_proyectos_aleatorios.py` | Proyectos aleatorios de punta a punta (`generar`, varias fechas de corte, migración y recálculo). |
@@ -35,10 +35,6 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 | `test_varios_archivos.py` | Varios archivos de MS Project (`[[proyectos]]`): el libro combinado coincide, fila por fila, con el libro de cada archivo (también en multi-empresa, con UniqueID repetidos entre archivos); errores de configuración y de la línea de comandos, fechas de estado y `--migrar-desde`. |
 | Resto | Casos del programa de ejemplo, Cuadro de Mando, multi-empresa y planificación. |
 
-- **Modo de cálculo:** las pruebas de los cálculos con costos indican el modo costo con
-  `pytestmark = pytest.mark.modo("costo")` al comienzo del archivo (o con la marca en cada prueba); la marca
-  cambia el modo por defecto del programa durante la prueba. Las demás usan el modo por defecto
-  (porcentaje).
 - **LibreOffice:** si está instalado, las pruebas marcadas `libreoffice` recalculan las fórmulas del
   libro y las comparan con el cálculo en Python. Se usa un perfil propio de LibreOffice, por lo que
   funcionan aunque LibreOffice esté abierto. Si no está instalado, se omiten.
@@ -56,8 +52,9 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 El lector `.mpp` se prueba con objetos que simulan MS Project. En un PC con MS Project, las pruebas
 opcionales de `test_msproject_real.py` (marca `msproject`) leen un proyecto real por automatización COM
 y comparan el resultado con el XML que MS Project guarda del mismo proyecto: estructura EDT, métodos,
-BAC, PV mensual, EV y AC a la fecha de corte, y que MS Project quede como estaba (abierto o cerrado).
-Estas pruebas usan el modo costo, aunque la configuración indique otro.
+horizonte, % planificado de cada mes y % ganado acumulado a la fecha de corte (de cada empresa, en
+multi-empresa), y que MS Project quede como estaba (abierto o cerrado). Los dos libros reciben el mismo
+BAC en cada fila.
 
 1. En MS Project se abre el proyecto, se define *Proyecto > Fecha de estado* y se guarda el `.mpp`.
 2. Se guarda una copia en XML: *Archivo > Guardar como*, tipo XML.
@@ -69,11 +66,12 @@ $env:EVM_MPP_XML = "C:\Proyectos\Programa.xml"
 python -m pytest -m msproject -v
 ```
 
-Opcionales: `EVM_CONFIG` (archivo de configuración; por defecto `config.toml`), `EVM_LINEA_BASE`
-(línea base N) y `EVM_TOLERANCIA_PV` (diferencia admitida en el PV de cada mes, como fracción del BAC
-de la fila; por defecto 0.005). Los mensajes de las pruebas solo muestran códigos EDT e importes.
-Además, se recomienda comparar el BAC total y el PV de algunos meses con la vista *Uso de tareas*
-(campo *Costo previsto* en la escala temporal mensual).
+Opcionales: `EVM_CONFIG` (archivo de configuración; por defecto `config.toml` si existe y, si no,
+`config.ejemplo.toml`), `EVM_LINEA_BASE` (línea base N) y `EVM_TOLERANCIA_PV` (diferencia admitida en el
+% planificado de cada mes; por defecto 0.005, es decir, 0,5 %). El motor XML reparte la duración de las
+tareas con el calendario del proyecto, y el motor COM con lunes a viernes y los `feriados` de la
+configuración, por eso se admite una pequeña diferencia. Los mensajes de las pruebas solo muestran
+códigos EDT y porcentajes.
 
 El proyecto de ejemplo (`ejemplos/programa_ejemplo.xml`) y su generador se describen en el
 [tutorial](ejemplo-paso-a-paso.md). El segundo proyecto de ejemplo (`ejemplos/proyecto2_ejemplo.xml`,
@@ -88,21 +86,21 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm_export.py` | Punto de entrada. |
 | `evm/cli.py` | Comandos y opciones. |
 | `evm/config.py` | Configuración TOML. |
-| `evm/model.py` | Datos comunes: tareas y proyecto leídos de MS Project. |
-| `evm/reader_com.py` | Lectura de `.mpp` con MS Project (COM). |
-| `evm/reader_xml.py`, `evm/workcalendar.py` | Lectura del XML de MS Project y de su calendario. |
+| `evm/model.py` | Datos comunes: tareas (fechas de la línea base y actuales, avance y campos personalizados) y proyecto leídos de MS Project. |
+| `evm/reader_com.py` | Lectura de `.mpp` con MS Project (COM): fechas, avance y campos personalizados. Los costos no se leen. |
+| `evm/reader_xml.py`, `evm/workcalendar.py` | Lectura del XML de MS Project (los costos no se leen) y calendario laboral con el que se reparte la duración de las tareas entre los meses. |
 | `evm/fields.py` | Identificación de campos personalizados (Texto1..30, Número1..20 y alias). |
-| `evm/wbs.py` | Estructura EDT hasta el nivel máximo y PV por fila (modo costo) o % planificado (modo porcentaje); combinación de varios archivos y horizonte. |
-| `evm/percent.py` | Modo porcentaje: peso de cada tarea (duración de la línea base y `Peso hito`), % planificado y % ganado por empresa. |
+| `evm/wbs.py` | Estructura EDT hasta el nivel máximo o el detalle que indique el campo `Visible`, % planificado de cada fila, combinación de varios archivos y horizonte. |
+| `evm/percent.py` | Peso de cada tarea (duración de la línea base y `Peso hito`), % planificado y % ganado de cada fila y de cada empresa. |
 | `evm/cost_review.py` | Depuración de costes: hojas `PV-depuración`, `Depuración costes` y `_depuracion` (asignación con fórmulas de la previsión pegada) e indicador de alineamiento. |
-| `evm/companies.py` | Multi-empresa: parte de cada empresa por tarea y reparto del EV y el AC. |
-| `evm/timeline.py` | Horizonte mensual y repartos en el tiempo. |
+| `evm/companies.py` | Multi-empresa: parte de cada empresa en cada tarea (columnas `Empresa` y `% Reparto`, con herencia de la tarea superior). |
+| `evm/timeline.py` | Horizonte mensual y utilidades de meses. |
 | `evm/workbook.py` | Escritura del libro Excel y de sus indicadores. |
 | `evm/dashboard.py` | Hoja `Cuadro de Mando` y sus tres gráficos. |
-| `evm/methods.py` | Métodos de medición del EV. |
+| `evm/methods.py` | Métodos de medición: interpretación del texto de la columna C y criterios de tarea comenzada y terminada. |
 | `evm/analysis.py` | Hoja `Análisis de desviaciones`: paquetes fuera de umbral y texto conservado. |
-| `evm/update.py` | Comando `actualizar` y lectura del libro. |
-| `evm/migrate.py` | Traslado de EV, AC y métodos al regenerar el libro (`--migrar-desde`). |
+| `evm/update.py` | Comandos `actualizar` (% ganado del mes) y `analizar`, y lectura y verificación del libro. |
+| `evm/migrate.py` | Traslado del BAC, el % ganado, el AC y los métodos al regenerar el libro (`--migrar-desde`). |
 | `evm/indicators.py` | Indicadores que se muestran en pantalla (mismos cálculos que la hoja `Resumen`). |
 | `instalador/` | Instalador de Windows: `construir.py`, especificación de PyInstaller, script de Inno Setup y consola ([3.2](#32-instalador-de-windows)). |
 
@@ -110,12 +108,13 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 flowchart LR
     CLI["cli.py"] --> RC["reader_com.py"] & RX["reader_xml.py"]
     RC & RX --> M["model.py<br/>ProjectData / Task"]
-    M --> W["wbs.py<br/>filas EDT y PV"]
+    M --> W["wbs.py<br/>filas EDT"]
     W --> CO["companies.py"]
-    W --> PC["percent.py<br/>modo porcentaje"]
+    W --> PC["percent.py<br/>% planificado y % ganado"]
+    PC --> ME["methods.py"]
     W --> WB["workbook.py<br/>+ dashboard.py"]
     CLI --> U["update.py<br/>actualizar"]
-    U --> ME["methods.py"] & CO & PC
+    U --> ME & CO & PC
     U --> WB
     CLI --> MI["migrate.py"]
 ```

@@ -19,15 +19,6 @@ def _load_generator():
     return mod
 
 
-@pytest.fixture(autouse=True)
-def _modo(request, monkeypatch):
-    """Modo de cálculo por defecto de la prueba: las pruebas del modo costo lo indican con
-    `pytestmark = pytest.mark.modo("costo")` (sin marca, el del programa: porcentaje)."""
-    marker = request.node.get_closest_marker("modo")
-    if marker is not None:
-        monkeypatch.setattr("evm.config.DEFAULT_MODE", marker.args[0])
-
-
 @pytest.fixture(scope="session")
 def generator():
     return _load_generator()

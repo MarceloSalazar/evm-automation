@@ -12,14 +12,13 @@ rápido están en el [README principal](../README.md).
 | Si se necesita... | Leer |
 |---|---|
 | Ver el programa funcionando sin MS Project | [Tutorial con el proyecto de ejemplo](ejemplo-paso-a-paso.md) |
-| Preparar un proyecto real por primera vez | [Modo porcentaje](modo-porcentaje.md) → [Preparación en MS Project](preparacion-ms-project.md) → [Métodos de medición](metodos-de-medicion.md) |
-| Usar los costos cargados en MS Project (modo costo) | [Presupuesto (BAC)](presupuesto-bac.md) → [Cálculo del PV](calculo-pv.md) |
+| Preparar un proyecto real por primera vez | [Cálculo del PV y el EV](calculo-pv-ev.md) → [Preparación en MS Project](preparacion-ms-project.md) → [Métodos de medición](metodos-de-medicion.md) |
 | Organizar el cierre mensual | [Proceso de reporte EVM](proceso-reporte-evm.md) |
 | Reunir varios archivos de MS Project en un informe | [Varios archivos de MS Project](varios-archivos.md) |
 | Alinear el cronograma con el plan de costes de una empresa | [Depuración de costes](depuracion-costes.md) |
 | Interpretar los indicadores y los gráficos | [Cuadro de Mando e indicadores](cuadro-de-mando.md) |
 | Explicar las desviaciones del mes | [Análisis de desviaciones](analisis-desviaciones.md) |
-| Entender un valor del libro | [Cálculo del PV](calculo-pv.md) y [Cálculo de EV y AC](calculo-ev-ac.md) |
+| Entender un valor del libro | [Cálculo del PV y el EV](calculo-pv-ev.md) |
 | Resolver un mensaje de error | [Validaciones y solución de problemas](validaciones-y-problemas.md) |
 | Presentar el programa al equipo de proyecto | [Presentación de 30 minutos](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) |
 
@@ -32,9 +31,8 @@ rápido están en el [README principal](../README.md).
 | Documento | Contenido |
 |---|---|
 | [Tutorial con el proyecto de ejemplo](ejemplo-paso-a-paso.md) | Ciclo completo con el XML de ejemplo: generar el libro, ingresar el BAC, simular 24 meses de avance y revisar el resultado. |
-| [Modo porcentaje (por defecto)](modo-porcentaje.md) | Cronograma sin importes: % planificado y % ganado de MS Project × BAC ingresado en el libro; pesos de tareas e hitos, multi-empresa, hojas, cierre mensual y diferencias con el modo costo. |
 | [Proceso de reporte EVM](proceso-reporte-evm.md) | Puesta en marcha, cierre mensual, cambios de línea base, roles, calendario, buenas prácticas y lista de control. |
-| [Comandos y opciones](comandos.md) | `generar` y `actualizar`, todas sus opciones y ejemplos de salida. |
+| [Comandos y opciones](comandos.md) | `generar`, `actualizar` y `analizar`, todas sus opciones y ejemplos de salida. |
 | [Configuración](configuracion.md) | Claves del archivo `config.toml` y ejemplos. |
 | [Presentación para el equipo de proyecto](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) | 37 diapositivas para unos 30 minutos, con notas para el presentador: conceptos EVM y semáforo, preparación en MS Project (incluidas la línea base y la definición del método de medición), `generar` y `actualizar`, Cuadro de Mando, análisis de desviaciones y cierre mensual. Se abre con PowerPoint o LibreOffice Impress. |
 
@@ -43,18 +41,16 @@ rápido están en el [README principal](../README.md).
 | Documento | Contenido |
 |---|---|
 | [Preparación del proyecto en MS Project](preparacion-ms-project.md) | Lista de control, código EDT, campos personalizados, línea base, fecha de estado, registro del avance y XML. |
-| [Presupuesto (BAC) de cada tarea](presupuesto-bac.md) | Modo costo: recursos de trabajo, materiales y de costo, costo fijo; guardar y verificar la línea base; errores frecuentes. |
-| [Métodos de medición](metodos-de-medicion.md) | 0/100, fórmulas fijas, hitos ponderados, % completado, % físico, unidades, LOE y CPTR; dónde se define el método y dónde se calcula el EV; guía y proceso para definir el método de cada paquete; método de valor acumulado de MS Project. |
+| [Métodos de medición](metodos-de-medicion.md) | 0/100, fórmulas fijas, hitos ponderados, % completado, % físico, unidades y LOE; dónde se define el método y dónde se calcula el EV; guía y proceso para definir el método de cada paquete. |
 | [Multi-empresa (opcional)](multiempresa.md) | PV, EV y AC de dos empresas: preparación, reparto, cálculo y ejemplo. |
 | [Varios archivos de MS Project (opcional)](varios-archivos.md) | Un informe con los elementos EDT de varios archivos: códigos EDT, `[[proyectos]]`, cierre mensual, cambios de archivos y ejemplo. |
-| [Depuración de costes (opcional)](depuracion-costes.md) | Modo porcentaje: PV planificado de una empresa frente a la previsión de su plan de costes, pegada en el libro; filas «(coste)», reglas de asignación, indicador de alineamiento, gráfico por elemento EDT y ciclo de ajuste. |
+| [Depuración de costes (opcional)](depuracion-costes.md) | PV planificado de una empresa frente a la previsión de su plan de costes, pegada en el libro; filas «(coste)», reglas de asignación, indicador de alineamiento, gráfico por elemento EDT y ciclo de ajuste. |
 
 **Cálculos y libro**
 
 | Documento | Contenido |
 |---|---|
-| [Cálculo del PV](calculo-pv.md) | Origen del PV mensual (modo costo), planificación, niveles por código EDT, tareas sin código y horizonte. |
-| [Cálculo de EV y AC](calculo-ev-ac.md) | Datos que se leen, EV por método (modo costo), AC, valor del mes, fecha de corte y controles. |
+| [Cálculo del PV y el EV](calculo-pv-ev.md) | PV y EV = BAC ingresado en el libro × % planificado y % ganado de MS Project: datos que se leen, filas del libro (planificación, niveles por código EDT, campo `Visible`, tareas sin código), peso de tareas e hitos, horizonte, métodos de medición, valor del mes, fecha de corte, AC, multi-empresa, cierre mensual y controles. |
 | [El libro Excel](libro-excel.md) | Hojas, reglas de uso y `--migrar-desde`. |
 | [Cuadro de Mando e indicadores](cuadro-de-mando.md) | Tablero, gráficos, fórmulas, Cronograma Ganado y cómo leer los indicadores. |
 | [Análisis de desviaciones](analisis-desviaciones.md) | Paquetes fuera de umbral de cada mes, causa, impacto y acción correctiva; comando `analizar`. |
@@ -77,13 +73,9 @@ rápido están en el [README principal](../README.md).
 flowchart LR
     T["Tutorial"] --> P["Proceso de<br/>reporte EVM"]
     P --> MSP["Preparación en<br/>MS Project"]
-    MSP --> MP["Modo porcentaje<br/>(por defecto)"]
-    MSP --> BAC["Presupuesto (BAC)<br/>modo costo"]
-    MP --> LIB
     MSP --> MET["Métodos de<br/>medición"]
     MSP --> ME["Multi-empresa"]
-    BAC --> CPV["Cálculo<br/>del PV"]
-    MET --> CEV["Cálculo de<br/>EV y AC"]
-    CPV & CEV --> LIB["El libro<br/>Excel"]
+    MSP & MET & ME --> CPE["Cálculo del<br/>PV y el EV"]
+    CPE --> LIB["El libro<br/>Excel"]
     LIB --> CM["Cuadro de Mando<br/>e indicadores"]
 ```

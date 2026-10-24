@@ -4,10 +4,9 @@ import pytest
 
 from evm.config import ConfigError, parse_date, parse_month
 from evm.indicators import compute, earned_schedule
-from evm.methods import FIXED, LOE, MILESTONES, PCT, PHYSICAL, UNDEFINED, UNITS, UNKNOWN, ev_fraction, parse_method
-from evm.model import Task
-from evm.timeline import Horizon, add_months, distribute_linear, round_preserving_total, split_segment
-from evm.wbs import build_tree, pad_code
+from evm.methods import FIXED, LOE, MILESTONES, PCT, PHYSICAL, UNDEFINED, UNITS, UNKNOWN, parse_method
+from evm.timeline import Horizon, add_months, round_preserving_total
+from evm.wbs import pad_code
 
 
 def test_working_calendar_and_holidays():
@@ -36,23 +35,15 @@ def test_add_months_and_horizon():
     assert vec[1] == 7.0 and before == 5.0 and after == 3.0
 
 
-def test_distribute_linear_by_working_days():
-    d = distribute_linear(1000, datetime(2026, 1, 26, 8), datetime(2026, 2, 6, 17))
-    assert d == pytest.approx({(2026, 1): 500.0, (2026, 2): 500.0})
-    assert sum(distribute_linear(1234.56, datetime(2026, 3, 2), datetime(2027, 8, 20)).values()) == pytest.approx(1234.56)
-    assert distribute_linear(50, datetime(2026, 5, 4, 8), datetime(2026, 5, 4, 17)) == {(2026, 5): 50.0}
+def test_working_minutes_by_month():
+    """Reparto de la duración de una tarea entre meses: tiempo laborable de cada mes."""
+    from evm.workcalendar import WorkCalendar
+    cal = WorkCalendar()
+    d = cal.minutes_by_month(datetime(2026, 1, 26, 8), datetime(2026, 2, 6, 17))
+    assert d == {(2026, 1): 5 * 480, (2026, 2): 5 * 480}
+    assert cal.minutes_by_month(datetime(2026, 5, 4, 8), datetime(2026, 5, 4, 17)) == {(2026, 5): 480}
     # fin a las 00:00 => el trabajo termina el día anterior
-    d = distribute_linear(100, datetime(2026, 1, 26, 8), datetime(2026, 2, 2, 0, 0))
-    assert d == pytest.approx({(2026, 1): 100.0})
-
-
-def test_split_segment_working_hours():
-    d = split_segment(1000, datetime(2026, 1, 26, 8), datetime(2026, 2, 6, 17))
-    assert d == pytest.approx({(2026, 1): 500.0, (2026, 2): 500.0})
-    assert split_segment(10, datetime(2026, 1, 5, 8), datetime(2026, 1, 9, 17)) == {(2026, 1): 10.0}
-    # tramo sin horas laborables (fin de semana) => por tiempo transcurrido
-    d = split_segment(10, datetime(2026, 1, 31, 0), datetime(2026, 2, 1, 12))
-    assert sum(d.values()) == pytest.approx(10)
+    assert cal.minutes_by_month(datetime(2026, 1, 26, 8), datetime(2026, 2, 2, 0, 0)) == {(2026, 1): 5 * 480}
 
 
 def test_round_preserving_total():
@@ -75,47 +66,13 @@ def test_pad_code():
     ("% Completado", PCT, 0), ("porcentaje completado", PCT, 0), ("% Físico completado", PHYSICAL, 0),
     ("Unidades completadas", UNITS, 0), ("Avance lineal (LOE)", LOE, 0), ("avance linear", LOE, 0),
     ("Por definir", UNDEFINED, 0), ("", UNDEFINED, 0), ("Esfuerzo prorrateado (AE)", UNKNOWN, 0),
-    ("30/50", UNKNOWN, 0),
+    ("30/50", UNKNOWN, 0), ("CPTR de MS Project", UNKNOWN, 0),
 ])
 def test_parse_method(text, kind, start):
     m = parse_method(text)
     assert m.kind == kind
     if kind == FIXED:
         assert m.start_fraction == start
-
-
-def _tree():
-    wp = Task(uid=1, id=1, name="WP", outline_level=3, baseline_cost=300)
-    a = Task(uid=2, id=2, name="A", outline_level=4, baseline_cost=100, percent_complete=100,
-             actual_start=datetime(2026, 1, 5), actual_finish=datetime(2026, 1, 9))
-    b = Task(uid=3, id=3, name="B", outline_level=4, baseline_cost=200, percent_complete=25,
-             physical_percent_complete=50, actual_start=datetime(2026, 1, 12))
-    m1 = Task(uid=4, id=4, name="H1", outline_level=4, milestone=True, milestone_weight=30, percent_complete=100)
-    m2 = Task(uid=5, id=5, name="H2", outline_level=4, milestone=True, milestone_weight=70)
-    build_tree([wp, a, b, m1, m2])
-    wp.percent_complete = 40
-    return wp
-
-
-def test_ev_fraction_methods():
-    wp = _tree()
-    assert ev_fraction(parse_method("0/100"), wp, 0.5)[0] == 0.0
-    assert ev_fraction(parse_method("50/50"), wp, 0.5)[0] == 0.5
-    # ponderado por costo: (100*100 + 200*25) / 300 = 50 %
-    assert ev_fraction(parse_method("% Completado"), wp, 0.5)[0] == pytest.approx(0.5)
-    # físico: (100*0 + 200*50) / 300
-    assert ev_fraction(parse_method("% Físico completado"), wp, 0.5)[0] == pytest.approx(100 / 300)
-    assert ev_fraction(parse_method("Hitos ponderados"), wp, 0.5)[0] == pytest.approx(0.3)
-    assert ev_fraction(parse_method("Avance lineal (LOE)"), wp, 0.42)[0] == pytest.approx(0.42)
-    frac, note = ev_fraction(parse_method("Por definir"), wp, 0.5)
-    assert frac == pytest.approx(0.5) and note
-
-
-def test_ev_fraction_complete_and_not_started():
-    t = Task(uid=1, id=1, name="T", outline_level=3, baseline_cost=10, percent_complete=100)
-    assert ev_fraction(parse_method("0/100"), t, 0)[0] == 1.0
-    t = Task(uid=1, id=1, name="T", outline_level=3, baseline_cost=10)
-    assert ev_fraction(parse_method("20/80"), t, 0)[0] == 0.0
 
 
 def test_earned_schedule_lipke_example():

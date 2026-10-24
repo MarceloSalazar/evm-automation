@@ -1,22 +1,21 @@
-"""Modo porcentaje (por defecto): % planificado y % ganado de MS Project × BAC ingresado en el libro."""
+"""Cálculo del PV y el EV: % planificado y % ganado de MS Project × BAC ingresado en el libro."""
 from datetime import date, datetime
 
 import pytest
 from openpyxl import load_workbook
 
 from evm.cli import main
-from evm.config import DEFAULT_METHODS, METHOD_BCWP, MODE_COST, MODE_PERCENT, Config, ConfigError, load_config
+from evm.config import DEFAULT_METHODS, MODE_PERCENT, Config, load_config
 from evm.methods import parse_method
 from evm.migrate import plan_migration, prior_from_book
 from evm.percent import earned_fraction, full_weights, leaf_times, row_weights
 from evm.update import indicators_for, read_book, run_update
-from evm.wbs import KIND_RESIDUAL, LinearPVSource, build_report, build_tree
-from evm.workbook import FILL_INPUT, read_structure, write_workbook
+from evm.wbs import KIND_RESIDUAL, build_report, build_tree
+from evm.workbook import FILL_INPUT, WorkbookFormatError, read_structure, write_workbook
 from evm.workcalendar import WorkCalendar
 
 from builders import P, T, issues_with, rows_by_code
 
-pytestmark = pytest.mark.modo(MODE_PERCENT)
 
 CAL = WorkCalendar()
 FEB = (datetime(2027, 2, 1, 8), datetime(2027, 2, 26, 17))        # 20 días hábiles, todos en febrero
@@ -60,7 +59,7 @@ def supply_tasks(fat: float | None = 10, site: float | None = 20) -> list:
 
 
 def make_book(path, tasks, cfg, prior=None):
-    rep = build_report(P(tasks), cfg, LinearPVSource())
+    rep = build_report(P(tasks), cfg)
     if prior is not None:
         rep.issues.extend(plan_migration(rep, prior, cfg.max_level))
     write_workbook(rep, cfg, path, prior)
@@ -88,23 +87,20 @@ def month(book, d: date) -> int:
 # ----------------------------------------------------------------------------
 # Configuración
 # ----------------------------------------------------------------------------
-def test_percent_is_the_default_mode_and_cost_is_the_alternative(tmp_path):
-    assert Config().mode == MODE_PERCENT
-    assert load_config(None).mode == MODE_PERCENT
-    for text, mode in (("porcentaje", MODE_PERCENT), ("costo", MODE_COST), ("Coste", MODE_COST)):
-        path = tmp_path / "c.toml"
-        path.write_text(f'[exportacion]\nmodo = "{text}"\n', encoding="utf-8")
-        assert load_config(path).mode == mode
-    path.write_text('[exportacion]\nmodo = "importe"\n', encoding="utf-8")
-    with pytest.raises(ConfigError, match="porcentaje"):
-        load_config(path)
+def test_old_mode_keys_are_ignored(tmp_path):
+    """Las claves de la versión 1.x (modo, ac_desde_project) se ignoran: el cálculo es siempre BAC × %."""
+    path = tmp_path / "c.toml"
+    path.write_text('[exportacion]\nmodo = "costo"\n[multiempresa]\nactivar = true\nac_desde_project = true\n',
+                    encoding="utf-8")
+    cfg = load_config(path)
+    assert cfg.multi_enabled and not hasattr(cfg, "mode") and not hasattr(cfg, "ac_from_project")
 
 
-def test_method_list_has_no_bcwp_in_percent_mode():
-    assert METHOD_BCWP not in Config().methods
-    assert Config(mode=MODE_COST).methods == DEFAULT_METHODS
-    custom = Config(methods_list=["0/100", METHOD_BCWP])
-    assert custom.methods == ["0/100", METHOD_BCWP]          # una lista de [metodos] se respeta
+def test_method_list_has_no_bcwp():
+    assert Config().methods == DEFAULT_METHODS
+    assert not any("CPTR" in m for m in DEFAULT_METHODS)
+    custom = Config(methods_list=["0/100", "Otro"])
+    assert custom.methods == ["0/100", "Otro"]                # una lista de [metodos] se respeta
 
 
 # ----------------------------------------------------------------------------
@@ -160,28 +156,20 @@ def test_milestones_only_and_no_weights():
 
 
 def test_planned_curve_per_company_and_horizon():
-    rep = build_report(P(excavation_tasks()), multi_config(), LinearPVSource())
+    rep = build_report(P(excavation_tasks()), multi_config())
     row = rows_by_code(rep)["3.1.1"]
     start = rep.horizon.index(date(2027, 2, 1))
     assert rep.horizon.start == date(2027, 2, 1)
     assert row.pct_vec["A"][start:start + 3] == pytest.approx([0.625, 0.125, 0.25])
     assert row.pct_vec["B"][start:start + 3] == pytest.approx([0.0, 1 / 3, 2 / 3])
-    assert issues_with(rep, "Modo porcentaje")
-
-
-def test_costs_in_ms_project_are_ignored_with_a_notice():
-    tasks = excavation_tasks()
-    tasks[3].baseline_cost = tasks[3].cost = 1000.0
-    rep = build_report(P(tasks), config(), LinearPVSource())
-    assert rows_by_code(rep)["3.1.1"].bac == 0
-    assert issues_with(rep, "costo en MS Project")
+    assert issues_with(rep, "El PV y el EV de cada fila son el BAC")
 
 
 def test_tasks_without_baseline_dates_are_warned():
     tasks = excavation_tasks()
     tasks[4].baseline_start = tasks[4].baseline_finish = None
     tasks[4].has_baseline = False
-    rep = build_report(P(tasks), config(), LinearPVSource())
+    rep = build_report(P(tasks), config())
     assert issues_with(rep, "1 tarea no tiene fechas de línea base", "Advertencia")
     assert any(i.name == "Estructura" and "fechas actuales" in i.message for i in rep.issues)
     assert sum(rows_by_code(rep)["3.1.1"].pct_vec[""]) == pytest.approx(1.0)
@@ -191,11 +179,11 @@ def test_loose_tasks_form_an_other_tasks_row():
     tasks = [T(1, 1, "1", "Gestión", bs=FEB[0], bf=FEB[1]), T(2, 2, "1.1", "PMO", bs=FEB[0], bf=FEB[1]),
              T(3, 2, "", "Reunión de arranque", bs=FEB[0], bf=FEB[1]),
              T(4, 2, "", "Hito sin peso", bs=FEB[1], bf=FEB[1], milestone=True)]
-    rep = build_report(P(tasks), config(max_level=2), LinearPVSource())
+    rep = build_report(P(tasks), config(max_level=2))
     rows = rows_by_code(rep)
     assert rows["1.0-D"].kind == KIND_RESIDUAL and rows["1.0-D"].name.startswith("Otras tareas")
     tasks.pop(2)                                    # solo un hito sin peso: no forma fila
-    assert "1.0-D" not in rows_by_code(build_report(P(tasks), config(max_level=2), LinearPVSource()))
+    assert "1.0-D" not in rows_by_code(build_report(P(tasks), config(max_level=2)))
 
 
 # ----------------------------------------------------------------------------
@@ -212,8 +200,8 @@ def test_book_sheets_formulas_and_input_cells(tmp_path):
     pv_a, ev_a, ac_a, pct_a = wb["PV-EmpresaA"], wb["EV-EmpresaA"], wb["AC-EmpresaA"], wb["% PV-EmpresaA"]
     assert pv_a.cell(row=r, column=4).value is None
     assert pv_a.cell(row=r, column=4).fill.fgColor.rgb.endswith(FILL_INPUT.fgColor.rgb[-6:])
-    assert pv_a.cell(row=r, column=7).value == "=$D5*'% PV-EmpresaA'!G5".replace("5", str(r))
-    assert ev_a.cell(row=r, column=7).value == f"=$D{r}*'% EV-EmpresaA'!G{r}"
+    assert pv_a.cell(row=r, column=7).value == f"=N($D{r})*'% PV-EmpresaA'!G{r}"
+    assert ev_a.cell(row=r, column=7).value == f"=N($D{r})*'% EV-EmpresaA'!G{r}"
     assert not ev_a.cell(row=r, column=7).fill.fgColor.rgb.endswith("FFF2CC")
     assert not pct_a.cell(row=r, column=7).fill.fgColor.rgb.endswith("FFF2CC")
     assert ac_a.cell(row=r, column=7).fill.fgColor.rgb.endswith("FFF2CC")
@@ -221,7 +209,7 @@ def test_book_sheets_formulas_and_input_cells(tmp_path):
     meta = {k: v for k, v in wb["_meta"].iter_rows(min_row=2, values_only=True)}
     assert meta["modo"] == MODE_PERCENT
     methods = [c.value for c in wb["Listas"]["A"][1:] if c.value]
-    assert METHOD_BCWP not in methods
+    assert not any("CPTR" in m for m in methods)
 
 
 def test_update_loads_earned_percent_per_company(tmp_path):
@@ -240,7 +228,8 @@ def test_update_loads_earned_percent_per_company(tmp_path):
     ind = indicators_for(book, date(2027, 3, 31))
     assert ind.pv == pytest.approx(458_333.333, abs=0.01) and ind.ev == pytest.approx(431_250)
     assert ind.spi == pytest.approx(0.94, abs=0.005)
-    assert not res.ac_loaded and all(v is None for v in book.ac[r])
+    assert all(v is None for v in book.ac[r])                 # el AC se ingresa a mano
+    assert all(not r.note for r in res.rows)
 
 
 def test_supply_example_with_milestones(tmp_path):
@@ -290,7 +279,8 @@ def test_company_without_tasks_uses_the_whole_row(tmp_path):
     assert "EmpresaB no participa" in row.note
     book = read_book(path)
     r = row_of(book, "3.1.1")
-    assert sum(book.pv_a[r]) == pytest.approx(300) and sum(book.pv[r]) - sum(book.pv_a[r]) == pytest.approx(100)
+    pv_a = book.bac_role["A"][r] * sum(book.pct_pv["A"][r])
+    assert pv_a == pytest.approx(300) and sum(book.pv[r]) - pv_a == pytest.approx(100)
 
 
 def test_bac_change_recalculates_every_month(tmp_path):
@@ -325,19 +315,13 @@ def test_update_writes_the_month_difference_and_warns_without_bac(tmp_path):
         run_update(P(tasks), config(), path, date(2027, 2, 28), backup=False)
 
 
-def test_only_ac_is_not_allowed(tmp_path):
-    path = tmp_path / "libro.xlsx"
-    make_book(path, excavation_tasks(), config())
-    with pytest.raises(ValueError, match="--solo ac"):
-        run_update(P(excavation_tasks()), config(), path, date(2027, 2, 28), only="ac", backup=False)
-
-
-def test_bcwp_method_is_measured_as_percent_complete(tmp_path):
+def test_old_bcwp_method_is_measured_as_percent_complete():
+    """El método CPTR de la versión 1.x ya no existe: se informa como no reconocido y se usa % completado."""
     tasks = excavation_tasks()
-    tasks[2].method = METHOD_BCWP
     tasks[3].percent_complete = 100
-    frac, note = earned_fraction(parse_method(METHOD_BCWP), full_weights(leaf_times(tasks[3:], CAL)), 0.0)
-    assert frac == pytest.approx(0.4) and "CPTR" in note
+    text = "CPTR de MS Project"
+    frac, note = earned_fraction(parse_method(text), full_weights(leaf_times(tasks[3:], CAL)), 0.0)
+    assert frac == pytest.approx(0.4) and "no reconocido" in note and "% completado" in note
 
 
 def test_migration_keeps_bac_and_earned_percent(tmp_path):
@@ -355,30 +339,32 @@ def test_migration_keeps_bac_and_earned_percent(tmp_path):
     assert issues_with(rep, "Se conservó el BAC")
 
 
-def test_migration_between_modes_is_rejected(tmp_path):
+def test_books_of_version_1_are_rejected(tmp_path):
+    """Un libro de la versión 1.x (PV y EV con los costos de MS Project) no se actualiza ni se migra."""
     old = tmp_path / "old.xlsx"
     make_book(old, excavation_tasks(), config())
-    cost = Config(months=24, mode=MODE_COST)
-    rep = build_report(P(excavation_tasks()), cost, LinearPVSource())
-    with pytest.raises(ConfigError, match="modo"):
-        plan_migration(rep, prior_from_book(old, "Programa"), cost.max_level)
+    wb = load_workbook(old)
+    ws = wb["_meta"]
+    r = next(r for r in range(1, ws.max_row + 1) if ws.cell(r, 1).value == "modo")
+    ws.cell(r, 2).value = "costo"
+    wb.save(old)
+    with pytest.raises(WorkbookFormatError, match="versión 1.x"):
+        read_book(old)
+    with pytest.raises(WorkbookFormatError, match="versión 1.x"):
+        prior_from_book(old, "Programa")
 
 
 # ----------------------------------------------------------------------------
 # Línea de comandos y fórmulas de Excel
 # ----------------------------------------------------------------------------
-def test_cli_generates_percent_books_by_default(tmp_path, example_files, capsys):
-    out = tmp_path / "libro.xlsx"
-    assert main(["generar", "--origen", str(example_files["base"]), "--config", str(example_files["config"]),
-                 "--salida", str(out)]) == 0
-    assert "Modo porcentaje" in capsys.readouterr().out
-    assert "% PV" in load_workbook(out, read_only=True).sheetnames
+def test_cli_generates_percent_books_even_with_old_mode_key(tmp_path, example_files, capsys):
     cost = tmp_path / "costo.toml"
     cost.write_text(example_files["config"].read_text(encoding="utf-8").replace(
         "[exportacion]\n", '[exportacion]\nmodo = "costo"\n'), encoding="utf-8")
-    out2 = tmp_path / "costo.xlsx"
-    assert main(["generar", "--origen", str(example_files["base"]), "--config", str(cost), "--salida", str(out2)]) == 0
-    assert "% PV" not in load_workbook(out2, read_only=True).sheetnames
+    out = tmp_path / "libro.xlsx"
+    assert main(["generar", "--origen", str(example_files["base"]), "--config", str(cost), "--salida", str(out)]) == 0
+    assert "se debe ingresar el BAC de cada fila en la columna D" in capsys.readouterr().out
+    assert "% PV" in load_workbook(out, read_only=True).sheetnames
 
 
 def test_several_ms_project_files(tmp_path, generator):

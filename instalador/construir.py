@@ -84,7 +84,7 @@ def smoke_test(folder: Path, ver: str) -> None:
         quiet = {"stdout": subprocess.DEVNULL}
         run([evm, "generar", "--origen", ROOT / "ejemplos" / "programa_ejemplo.xml", "--config", config,
              "--salida", libro], **quiet)
-        run([ejemplo, "--libro", libro], **quiet)                     # BAC del ejemplo (modo porcentaje)
+        run([ejemplo, "--libro", libro], **quiet)                     # BAC del ejemplo
         run([ejemplo, "--fecha-estado", "2027-06-30", "--salida", avance, "--libro", libro], **quiet)
         run([evm, "actualizar", "--origen", avance, "--config", config, "--libro", libro, "--sin-respaldo"], **quiet)
         run([evm, "analizar", "--libro", libro, "--sin-respaldo"], **quiet)

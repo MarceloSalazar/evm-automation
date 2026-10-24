@@ -1,12 +1,7 @@
 from datetime import date, datetime
 
-import pytest
-
 from evm.config import Config
-from evm.methods import PROJECT_BCWP, ev_fraction, parse_method
-from evm.model import Task
 from evm.reader_xml import read_xml
-from evm.timeline import split_segment
 
 XML = """<?xml version="1.0" encoding="UTF-8"?>
 <Project xmlns="http://schemas.microsoft.com/project">
@@ -55,9 +50,9 @@ def test_calendar_inheritance_and_exceptions(tmp_path):
     assert not cal.is_working_day(date(2026, 12, 25))               # anual por fecha
     assert not cal.is_working_day(date(2028, 12, 25))
     assert not cal.is_working_day(date(2027, 2, 16))                # diaria
-    # Tramo que cruza de mes: sábado 31/01 (5 h) + lunes 02/02 (8 h)
-    d = split_segment(130, datetime(2026, 1, 31, 8), datetime(2026, 2, 2, 17), cal)
-    assert d == pytest.approx({(2026, 1): 50.0, (2026, 2): 80.0})
+    # Tarea que cruza de mes: sábado 31/01 (5 h) + lunes 02/02 (8 h)
+    assert cal.minutes_by_month(datetime(2026, 1, 31, 8), datetime(2026, 2, 2, 17)) == {(2026, 1): 300,
+                                                                                         (2026, 2): 480}
 
 
 def test_baseline_default_from_project_setting(tmp_path):
@@ -65,16 +60,6 @@ def test_baseline_default_from_project_setting(tmp_path):
     f.write_text(XML.format(bfe="<BaselineForEarnedValue>3</BaselineForEarnedValue>"), encoding="utf-8")
     p = read_xml(f, Config())
     assert p.baseline_label == "Línea base 3"
-    assert p.tasks[0].baseline_cost == pytest.approx(300)
+    assert p.tasks[0].baseline_start == datetime(2026, 2, 2, 8)
     p0 = read_xml(f, Config(baseline=0))
-    assert p0.baseline_label == "Línea base" and p0.tasks[0].baseline_cost == pytest.approx(100)
-
-
-def test_cptr_method_uses_project_bcwp():
-    m = parse_method("CPTR de MS Project")
-    assert m.kind == PROJECT_BCWP
-    t = Task(uid=1, id=1, name="T", outline_level=3, baseline_cost=200, bcwp=50, percent_complete=90)
-    assert ev_fraction(m, t, 0)[0] == pytest.approx(0.25)
-    t.bcwp = None
-    frac, note = ev_fraction(m, t, 0)
-    assert frac == pytest.approx(0.9) and note
+    assert p0.baseline_label == "Línea base" and p0.tasks[0].baseline_start == datetime(2026, 1, 5, 8)

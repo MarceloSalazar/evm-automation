@@ -10,9 +10,6 @@ la previsión de la empresa.
 Se activa solo mientras dura ese ajuste. Para los libros que se entregan y para las actualizaciones
 mensuales posteriores, el libro se genera sin depuración.
 
-> Solo en el [modo porcentaje](modo-porcentaje.md). En el modo costo, la opción se ignora con un aviso en
-> la hoja `Validación`.
-
 ---
 
 ## Contenido
@@ -32,8 +29,9 @@ mensuales posteriores, el libro se genera sin depuración.
 
 ## 1. Cuándo usarla
 
-- El cronograma de MS Project **no tiene importes** (modo porcentaje), pero la empresa tiene un **plan
-  de costes o precios** con el importe de cada mes y quiere que el PV del libro siga ese perfil.
+- El cronograma de MS Project **no tiene importes** ([Cálculo del PV y el EV](calculo-pv-ev.md)), pero
+  la empresa tiene un **plan de costes o precios** con el importe de cada mes y quiere que el PV del libro
+  siga ese perfil.
 - Al **preparar la línea base**: antes de aprobarla, se revisa que las fechas de las tareas y el peso de
   los hitos reflejen cuándo se ejecuta (y se cobra) cada parte del trabajo.
 - En **multi-empresa**, cada empresa depura su parte por separado, una a la vez, sin compartir su plan de
@@ -73,7 +71,6 @@ En la sección `[exportacion]` del archivo de configuración:
 
 ```toml
 [exportacion]
-modo = "porcentaje"
 depuracion_costes = true          # activa la depuración (por defecto, false)
 depuracion_empresa = "EmpresaA"   # multi-empresa: empresa que se depura (empresa_a o empresa_b)
 depuracion_alineamiento = true    # indicador de alineamiento (opcional; por defecto, false)
@@ -226,7 +223,7 @@ acepta la diferencia si el PV debe seguir el avance del trabajo y no los pagos.
 4. **Comparar** en `Depuración costes`, empezando por `TOTAL` y siguiendo con los paquetes de mayor
    diferencia (o con el indicador de alineamiento de la hoja PV).
 5. **Ajustar MS Project**: fechas y duraciones de las tareas, hitos y su `Peso hito`, división de tareas
-   (ver [Curva planificada: peso de cada tarea](modo-porcentaje.md#5-curva-planificada-peso-de-cada-tarea)).
+   (ver [% planificado: peso de cada tarea](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)).
    El % planificado se calcula con las **fechas de la línea base**: después de cambiar las fechas, se
    debe volver a guardar la línea base de las tareas modificadas. Si la diferencia está en el BAC, se
    corrige el BAC del libro o la previsión.
@@ -248,8 +245,8 @@ acepta la diferencia si el PV debe seguir el avance del trabajo y no los pagos.
    ```
 
    El libro nuevo no tiene `PV-depuración` ni filas «(coste)»: la hoja `Validación` indica que la
-   previsión no se trasladó. Desde ahí sigue el [cierre mensual](modo-porcentaje.md#9-puesta-en-marcha-y-cierre-mensual)
-   habitual.
+   previsión no se trasladó. Desde ahí sigue el
+   [cierre mensual](calculo-pv-ev.md#12-puesta-en-marcha-y-cierre-mensual) habitual.
 
 Sobre `--migrar-desde` en la depuración:
 
@@ -266,7 +263,6 @@ Sobre `--migrar-desde` en la depuración:
 | Mensaje en `Validación` | Significado |
 |---|---|
 | `Depuración de costes de EmpresaA: se debe pegar la previsión...` (Info) | Recordatorio de la hoja que se depura y de generar el libro de entrega sin depuración. |
-| `depuracion_costes solo se aplica en el modo porcentaje: se ignora.` (Advertencia) | El libro se generó en el modo costo. |
 | `... filas tienen código EDT no numérico ... no pueden recibir la previsión` (Advertencia) | Las filas con códigos como `INTERNO` o `A1` no se pueden asignar: la previsión solo se asocia por códigos numéricos. |
 | `códigos EDT repetidos en el libro ...` (Advertencia) | Un código está en dos filas: la previsión se asigna a la primera. |
 | `Se conservó el contenido de la hoja PV-depuración ...` (Info) | `--migrar-desde` trasladó la previsión. |

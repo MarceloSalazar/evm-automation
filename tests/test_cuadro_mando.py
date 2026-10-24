@@ -10,7 +10,7 @@ from evm import dashboard
 from evm.cli import main
 from evm.config import load_config
 from evm.reader_xml import read_xml
-from evm.update import book_totals, indicators_for, read_book, run_update
+from evm.update import indicators_for, plan_end, read_book, run_update
 from evm.wbs import KIND_LEAF, KIND_RESIDUAL, KIND_SUMMARY
 from evm.workbook import FIRST_ROW
 
@@ -21,10 +21,11 @@ TABLE_FIRST = dashboard.ROW_SCATTER + 1
 
 
 @pytest.fixture()
-def book(tmp_path, example_files):
+def book(tmp_path, example_files, generator):
     out = tmp_path / "EVM.xlsx"
     assert main(["generar", "--origen", str(example_files["base"]), "--config", str(example_files["config"]),
                  "--salida", str(out)]) == 0
+    generator.fill_book(out)                        # BAC de cada fila, que se ingresa a mano
     return out
 
 
@@ -49,7 +50,13 @@ def last_row(xml):
     return max(int(r.rsplit("$", 1)[1]) for r in refs(xml) if "$" in r)
 
 
+STATUS = {"jun": date(2027, 6, 30), "jul": date(2027, 7, 31)}
+
+
 def update(book, example_files, which="jun"):
+    """'actualizar' del mes; antes, el AC del mes (del ERP), que se carga a mano en la hoja AC."""
+    import generar_ejemplo
+    generar_ejemplo.fill_book(book, STATUS[which])
     cfg = load_config(example_files["config"])
     return run_update(read_xml(example_files[which], cfg), cfg, book, backup=False)
 
@@ -93,7 +100,6 @@ def test_dashboard_sheet_and_selectors(book):
     assert ws.page_setup.orientation == "portrait" and ws.sheet_properties.pageSetUpPr.fitToPage
 
 
-@pytest.mark.modo("costo")
 def test_dashboard_charts(book, example_files):
     xml = charts(book)
     assert len(xml) == 3
@@ -106,8 +112,7 @@ def test_dashboard_charts(book, example_files):
     assert tag(idx, "min", ' val="0.5"') and tag(idx, "max", ' val="1.5"')
     assert tag(scatter, "min", ' val="0.4"') == 2 and tag(scatter, "max", ' val="1.6"') == 2
     b = read_book(book)
-    plan_end = dashboard.plan_end_month(book_totals(b)[0])
-    assert last_row(evm) == dashboard.D_FIRST_ROW + plan_end - 1             # hasta el fin del plan
+    assert last_row(evm) == dashboard.D_FIRST_ROW + plan_end(b) - 1          # hasta el fin del plan
 
     update(book, example_files)
     wb = load_workbook(book)
@@ -173,7 +178,6 @@ def recalc_with(book, recalc, month=None, method=None):
     return load_workbook(recalc(book), data_only=True)
 
 
-@pytest.mark.modo("costo")
 def test_dashboard_values_recalculate(book, example_files, recalc):
     update(book, example_files, "jun")
     update(book, example_files, "jul")

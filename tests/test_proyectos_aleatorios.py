@@ -2,9 +2,10 @@
 
 Cada proyecto se arma con el generador de ejemplos (XML de MS Project): EDT de
 hasta 4 niveles, tareas sin código EDT, hitos con peso, todos los métodos de
-medición, empresas y % de reparto. Se genera el libro, se actualiza en varias
-fechas de corte y se verifican las reglas contables. La cantidad de proyectos se
-puede aumentar con la variable de entorno EVM_SEMILLAS (p. ej. 50).
+medición, empresas y % de reparto. Se genera el libro, se ingresa el BAC, se
+actualiza en varias fechas de corte (con el AC de cada mes) y se verifican las
+reglas contables. La cantidad de proyectos se puede aumentar con la variable de
+entorno EVM_SEMILLAS (p. ej. 50).
 """
 import os
 import random
@@ -17,14 +18,16 @@ from evm.cli import main
 from evm.config import load_config
 from evm.reader_xml import read_xml
 from evm.update import book_totals, indicators_for, read_book
-from evm.wbs import TimephasedPVSource, build_report
+from evm.wbs import build_report
+from evm.workbook import FIRST_MONTH_COL, read_meta, read_structure
 
-pytestmark = pytest.mark.modo("costo")
+from builders import assert_report_invariants, set_bac
+
 
 SEEDS = int(os.environ.get("EVM_SEMILLAS", "1"))
 STATUSES = [date(2026, 3, 31), date(2027, 6, 30), date(2028, 12, 31)]
 METHODS = ["0/100", "50/50", "20/80", "Hitos ponderados", "% Completado", "% Físico completado",
-           "Unidades completadas", "Avance lineal (LOE)", "CPTR de MS Project", "Por definir", ""]
+           "Unidades completadas", "Avance lineal (LOE)", "Por definir", ""]
 COMPANIES = ["EmpresaA", "EmpresaB", "Ambas", "", "", "Otra"]
 START = date(2026, 1, 5)
 
@@ -76,12 +79,24 @@ def configs(tmp_path_factory):
             '[horizonte]\nmes_inicio = "2026-01"\n[exportacion]\nplanificacion = "INTERNO"\n')
     single, multi = d / "una_empresa.toml", d / "multiempresa.toml"
     single.write_text(base, encoding="utf-8")
-    multi.write_text(base + "[multiempresa]\nactivar = true\nac_desde_project = true\n", encoding="utf-8")
+    multi.write_text(base + "[multiempresa]\nactivar = true\n", encoding="utf-8")
     return {False: single, True: multi}
 
 
 def cum(series: dict, row: int, idx: int) -> float:
     return sum(v or 0.0 for v in series[row][: idx + 1])
+
+
+def load_ac(path, idx: int, value: float = 1_000.0) -> None:
+    """AC del mes `idx` en todas las filas de ingreso (hoja AC o las de cada empresa), como se ingresa a mano."""
+    wb = load_workbook(path)
+    meta = read_meta(wb)
+    sheets = [f"AC-{meta['empresa_a']}", f"AC-{meta['empresa_b']}"] if meta.get("multiempresa") else ["AC"]
+    for st in read_structure(wb):
+        if st.is_input:
+            for sheet in sheets:
+                wb[sheet].cell(st.row, FIRST_MONTH_COL + idx, value)
+    wb.save(path)
 
 
 @pytest.mark.parametrize("multi", [False, True], ids=["una_empresa", "multiempresa"])
@@ -91,27 +106,20 @@ def test_random_project_invariants(tmp_path, generator, configs, seed, multi):
     cfg = load_config(cfg_path)
     base = write_project(generator, seed, tmp_path / "base.xml")
 
-    # Informe: el PV mensual de cada fila suma su BAC y la parte de la empresa A está dentro del BAC
-    project = read_xml(base, cfg)
-    rep = build_report(project, cfg, TimephasedPVSource(lambda t: t.timephased_pv, "xml", cfg.distribution,
-                                                        cfg.holidays))
-    omitted = any("omiti" in i.message for i in rep.issues)
-    if not omitted:
-        assert not [i.message for i in rep.issues if "difiere" in i.message], f"semilla {seed}"
-    for r in rep.rows:
-        if not rep.pv_after:
-            assert sum(r.vector) == pytest.approx(r.bac, abs=0.01), (seed, r.code)
-        if multi:
-            assert -0.01 <= r.bac_a <= r.bac + 0.01, (seed, r.code, r.bac_a, r.bac)
+    # Informe: el % planificado de cada fila (y empresa) está entre 0 y 100 % y los subtotales suman a sus hijos
+    rep = build_report(read_xml(base, cfg), cfg)
+    assert_report_invariants(rep)
 
     book = tmp_path / "EVM.xlsx"
     assert main(["generar", "--origen", str(base), "--config", str(cfg_path), "--salida", str(book)]) == 0
+    set_bac(book)
     for status in STATUSES:
         xml = write_project(generator, seed, tmp_path / f"{status:%Y-%m}.xml", status)
         assert main(["actualizar", "--origen", str(xml), "--config", str(cfg_path), "--libro", str(book),
                      "--sin-respaldo"]) == 0, (seed, status)
         b = read_book(book)
         idx = b.horizon.index(status)
+        load_ac(book, idx)
         for s in b.input_rows:
             ev = cum(b.ev, s.row, idx)
             assert -0.05 <= ev <= b.bac[s.row] + 0.05, (seed, status, s.code, ev, b.bac[s.row])
@@ -119,31 +127,30 @@ def test_random_project_invariants(tmp_path, generator, configs, seed, multi):
                 for i in range(idx + 1):
                     parts = (b.ev_a[s.row][i] or 0.0) + (b.ev_b[s.row][i] or 0.0)
                     assert (b.ev[s.row][i] or 0.0) == pytest.approx(parts, abs=0.011), (seed, s.code, i)
-        # AC total = costo real (CRTR) de la planificación en MS Project
-        plan = next(t for t in read_xml(xml, cfg).tasks if t.wbs == "INTERNO")
-        if not omitted and plan.acwp is not None:
-            assert sum(book_totals(b)[2][: idx + 1]) == pytest.approx(plan.acwp, abs=0.5), (seed, status)
 
-    # Regenerar con --migrar-desde conserva el historial
+    # Regenerar con --migrar-desde conserva el BAC y el historial de EV y AC
     new = tmp_path / "EVM_v2.xlsx"
     assert main(["generar", "--origen", str(base), "--config", str(cfg_path), "--salida", str(new),
                  "--migrar-desde", str(book)]) == 0
     before, after = book_totals(read_book(book)), book_totals(read_book(new))
+    assert after[3] == pytest.approx(before[3]), seed
     for k in (1, 2):
         assert sum(after[k]) == pytest.approx(sum(before[k]), abs=0.05), (seed, k)
 
 
 def test_random_project_recalculates_like_python(tmp_path, generator, configs, recalc):
-    """Proyecto con fila de otros costos, multi-empresa: Excel (LibreOffice) y Python calculan lo mismo."""
+    """Proyecto con fila de otras tareas, multi-empresa: Excel (LibreOffice) y Python calculan lo mismo."""
     cfg_path = configs[True]
     base = write_project(generator, 0, tmp_path / "base.xml")
     book = tmp_path / "EVM.xlsx"
     assert main(["generar", "--origen", str(base), "--config", str(cfg_path), "--salida", str(book)]) == 0
     assert any(s.kind == "residual" for s in read_book(book).structure)
+    set_bac(book, 250_000.0)
     for status in STATUSES[:2]:
         xml = write_project(generator, 0, tmp_path / f"{status:%Y-%m}.xml", status)
         assert main(["actualizar", "--origen", str(xml), "--config", str(cfg_path), "--libro", str(book),
                      "--sin-respaldo"]) == 0
+        load_ac(book, read_book(book).horizon.index(status))
     out = load_workbook(recalc(book), data_only=True)
     errors = [(ws.title, c.coordinate, c.value) for ws in out.worksheets for row in ws.iter_rows() for c in row
               if isinstance(c.value, str) and c.value.startswith("#") and c.value != "#N/A"]

@@ -6,15 +6,14 @@ import pytest
 from openpyxl import load_workbook
 
 from evm import cost_review as cr
-from evm.config import MODE_COST, MODE_PERCENT, Config, ConfigError, load_config
+from evm.config import Config, ConfigError, load_config
 from evm.migrate import plan_migration, prior_from_book
 from evm.update import indicators_for, read_book, run_analysis, run_update
-from evm.wbs import SEV_INFO, SEV_WARN, LinearPVSource, build_report
+from evm.wbs import SEV_INFO, SEV_WARN, build_report
 from evm.workbook import FILL_COST, KIND_COST, SHEET_STRUCT, read_structure, write_workbook
 
 from builders import P, T, issues_with, rows_by_code
 
-pytestmark = pytest.mark.modo(MODE_PERCENT)
 
 JAN = (datetime(2027, 1, 4, 8), datetime(2027, 1, 29, 17))
 FEB = (datetime(2027, 2, 1, 8), datetime(2027, 2, 26, 17))
@@ -45,7 +44,7 @@ def config(review: bool = True, multi: bool = True, **kw) -> Config:
 
 
 def make_book(path, cfg, prior=None, task_list=None):
-    rep = build_report(P(task_list or tasks()), cfg, LinearPVSource())
+    rep = build_report(P(task_list or tasks()), cfg)
     if prior is not None:
         rep.issues.extend(plan_migration(rep, prior, cfg.max_level))
     write_workbook(rep, cfg, path, prior)
@@ -102,14 +101,6 @@ def test_config_keys_and_defaults(tmp_path):
         config(cost_review_company="Otra")
     with pytest.raises(ConfigError, match="depuracion_umbral"):
         config(cost_review_threshold=0)
-
-
-def test_cost_mode_ignores_the_review(tmp_path):
-    cfg = Config(months=24, mode=MODE_COST, cost_review=True)
-    cfg.validate()
-    rep = make_book(tmp_path / "libro.xlsx", cfg)
-    assert rep.cost_review is None and issues_with(rep, "solo se aplica en el modo porcentaje", SEV_WARN)
-    assert cr.SHEET_PASTE not in load_workbook(tmp_path / "libro.xlsx", read_only=True).sheetnames
 
 
 def test_codes_without_trailing_zeros():
@@ -191,7 +182,7 @@ def test_update_and_analysis_match_a_book_without_review(tmp_path):
 
 
 def test_lookup_of_book_codes(tmp_path):
-    rep = build_report(P(tasks()), config(), LinearPVSource())
+    rep = build_report(P(tasks()), config())
     entries, nonnumeric, repeated = cr.lookup_rows(rep)
     by = rows_by_code(rep)
     assert entries["1.2.1"] == (by["1.2.1"], by["1.2.1"])
@@ -316,7 +307,7 @@ def test_example_forecast_is_fully_assigned(tmp_path, generator, recalc):
     from evm.reader_xml import read_xml
     from evm.wbs import build_part, assemble_report
     project = read_xml(xml, cfg)
-    rep = assemble_report([build_part(project, cfg, LinearPVSource())], cfg)
+    rep = assemble_report([build_part(project, cfg)], cfg)
     path = tmp_path / "ejemplo.xlsx"
     write_workbook(rep, cfg, path)
     generator.fill_book(path)

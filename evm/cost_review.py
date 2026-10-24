@@ -1,4 +1,4 @@
-"""Depuración de costes (modo porcentaje): PV planificado de una empresa frente a su previsión de costes.
+"""Depuración de costes: PV planificado de una empresa frente a su previsión de costes.
 
 Mientras dura el ajuste del cronograma, la empresa pega en la hoja PV-depuración su previsión mensual (código EDT,
 descripción, BAC y un importe por mes, tal como sale de su plan de costes). Con fórmulas de Excel, cada línea pegada se

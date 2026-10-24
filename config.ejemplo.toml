@@ -23,12 +23,12 @@ metodo = ""
 # Campo numérico con el peso de cada hito (por ejemplo "Number1" o su alias
 # "Peso hito"). Vacío = no se lee: los hitos no tienen valor propio y, en el
 # método "Hitos ponderados", pesan igual.
-# En el modo porcentaje, el peso es el % del BAC de la fila que se imputa en el
-# mes del hito; el resto se reparte entre las tareas según su duración.
+# El peso es el % del BAC de la fila que se imputa en el mes del hito; el resto
+# se reparte entre las tareas según su duración.
 peso_hito = ""
 
 # Campo de texto que decide, tarea por tarea, si tiene fila propia en el libro
-# (por ejemplo "Text5", o su alias "Visible"; ver docs/calculo-pv.md):
+# (por ejemplo "Text5", o su alias "Visible"; ver docs/calculo-pv-ev.md):
 #   "Sí" (Si, SI, S, X, 1)  fila propia, también por debajo de nivel_maximo (la
 #                           tarea necesita código EDT)
 #   "No" (NO, N, 0)         la tarea y su rama quedan fuera del PV, el EV y el
@@ -48,16 +48,11 @@ mes_inicio = "2026-01"
 meses = 120
 
 [exportacion]
-# Modo de cálculo del PV y del EV:
-#   "porcentaje" (por defecto) MS Project no tiene importes: da el % planificado
-#                y el % ganado de cada fila, por la duración de la línea base de
-#                sus tareas y el peso de sus hitos. El BAC de cada fila se ingresa
-#                en el libro (columna D de la hoja PV, o de PV-EmpresaA y
-#                PV-EmpresaB) y el PV y el EV son el BAC × el %. El AC se carga
-#                a mano.
-#   "costo"      el PV y el BAC salen del costo de línea base de MS Project y el
-#                AC del costo real (ver docs/presupuesto-bac.md).
-modo = "porcentaje"
+# Cálculo del PV y del EV (ver docs/calculo-pv-ev.md): MS Project da el %
+# planificado y el % ganado de cada fila, por la duración de la línea base de sus
+# tareas y el peso de sus hitos. El BAC de cada fila se ingresa en el libro
+# (columna D de la hoja PV, o de PV-EmpresaA y PV-EmpresaB) y el PV y el EV son
+# el BAC × el %. El AC se carga a mano.
 
 # Planificación a exportar: código EDT de alto nivel de la tarea que la contiene
 # ("INTERNO" o "CLIENTE"). Se exportan solo las tareas que dependen de ella.
@@ -69,7 +64,7 @@ planificacion = "INTERNO"
 # elemento de este nivel.
 nivel_maximo = 3
 
-# Línea base que define el PV (sus fechas y, en el modo costo, su costo):
+# Línea base cuyas fechas definen el % planificado:
 # 0 = "Línea base", 1..10 = "Línea base N".
 # Si se omite, se usa la línea base que el proyecto tiene configurada para el
 # valor acumulado (Archivo > Opciones > Avanzadas > Opciones de valor acumulado).
@@ -81,16 +76,14 @@ rellenar_edt = true
 # Incluir tareas inactivas (MS Project 2010 o posterior).
 incluir_inactivas = false
 
-# Reparto en el tiempo de la duración de cada tarea (modo porcentaje) o, en el
-# modo costo, de las tareas que no tienen distribución mensual de la línea base
-# en MS Project (p. ej. costo de línea base escrito a mano):
+# Reparto en el tiempo de la duración de cada tarea:
 #   "habiles"    proporcional al tiempo laborable del calendario
 #   "calendario" proporcional a los días corridos
 distribucion = "habiles"
 
 # Feriados adicionales. Con XML se agregan al calendario del proyecto; con .mpp
-# se usan para repartir la duración de las tareas (modo porcentaje) y en el
-# reparto lineal (modo costo), con un calendario de lunes a viernes.
+# se usan para repartir la duración de las tareas, con un calendario de lunes a
+# viernes.
 feriados = [
   # "2026-12-25",
   # "2027-01-01",
@@ -110,7 +103,7 @@ decimales = 0
 # del proyecto en MS Project (con varios archivos, los nombres unidos con "+").
 # titulo = "Programa de ejemplo"
 
-# Depuración de costes (solo en el modo porcentaje; ver docs/depuracion-costes.md).
+# Depuración de costes (ver docs/depuracion-costes.md).
 # Desactivada por defecto. Con depuracion_costes = true, el libro agrega la hoja
 # PV-depuración, donde una empresa pega la previsión mensual de su plan de costes,
 # y la hoja Depuración costes con el gráfico comparativo. En la hoja PV de esa
@@ -132,7 +125,7 @@ depuracion_umbral = 10
 
 [metodos]
 # Valores del desplegable de la columna C (método de medición). Sin la clave se
-# usa esta lista; en el modo costo incluye además "CPTR de MS Project".
+# usa esta lista.
 # lista = [
 #   "Por definir",
 #   "0/100",
@@ -162,8 +155,8 @@ rojo_superior = 1.10
 # Reparto del PV, el EV y el AC entre dos empresas (ver docs/multiempresa.md).
 # Desactivado por defecto. Con activar = true, el libro agrega las hojas de cada
 # empresa (PV-EmpresaA, EV-EmpresaA, AC-EmpresaA y las de EmpresaB); las hojas
-# PV, EV y AC son la suma de las dos empresas. En el modo porcentaje, el BAC de
-# cada empresa se ingresa en su hoja PV y cada una tiene su % planificado y su %
+# PV, EV y AC son la suma de las dos empresas. El BAC de cada empresa se ingresa
+# en su hoja PV y el AC en su hoja AC; cada una tiene su % planificado y su %
 # ganado, según las tareas en las que participa.
 activar = false
 
@@ -184,12 +177,6 @@ campo_reparto = "% Reparto"
 # % de la empresa A cuando el campo de reparto está vacío, es 0 o está fuera de
 # rango, y en las tareas sin empresa.
 reparto_por_defecto = 50
-
-# AC de cada empresa (solo en el modo costo; en el modo porcentaje siempre se
-# carga a mano): false = se carga a mano en las hojas AC-EmpresaA y AC-EmpresaB;
-# true = 'actualizar' lo carga desde MS Project (costo real de cada tarea
-# repartido según su empresa).
-ac_desde_project = false
 
 # Varios archivos de MS Project en un mismo libro (ver docs/varios-archivos.md).
 # Sin secciones [[proyectos]], el archivo se indica con --origen (un solo archivo).

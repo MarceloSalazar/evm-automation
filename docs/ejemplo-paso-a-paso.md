@@ -3,8 +3,8 @@
 [Inicio](../README.md) › [Documentación](README.md) › Tutorial con el proyecto de ejemplo
 
 El repositorio incluye un programa ficticio en formato XML de MS Project para probar el programa sin
-MS Project. Este tutorial genera el libro en el [modo porcentaje](modo-porcentaje.md) (el modo por
-defecto), carga el BAC, simula 24 meses de avance y recorre el resultado. Todas las imágenes de la
+MS Project. Este tutorial genera el libro, carga el BAC, simula 24 meses de avance y de costo real, y
+recorre el resultado ([Cálculo del PV y el EV](calculo-pv-ev.md)). Todas las imágenes de la
 documentación se obtuvieron con estos pasos.
 
 ---
@@ -23,8 +23,8 @@ documentación se obtuvieron con estos pasos.
 ## 1. El proyecto de ejemplo
 
 `ejemplos/programa_ejemplo.xml` es un programa ficticio de unos 5 años (desde enero de 2026) con dos
-planificaciones, `INTERNO` y `CLIENTE` (esta con costos un 15 % mayores). Cada una tiene 4 elementos de
-nivel 1:
+planificaciones, `INTERNO` y `CLIENTE` (esta con un presupuesto ficticio un 15 % mayor). Cada una tiene
+4 elementos de nivel 1:
 
 | Código | Elemento | Paquetes y métodos de medición |
 |---|---|---|
@@ -38,17 +38,20 @@ nivel 1:
 - Los hitos de los paquetes y la reunión de arranque no tienen código EDT.
 - El método está en el campo `Método EVM` (*Texto10*) y el peso de los hitos en `Peso hito`
   (*Número1*). En los paquetes de `Hitos ponderados` los pesos suman 100.
-- Los campos `Empresa` y `% Reparto` permiten probar el modo multi-empresa: gestión compartida 60/40,
+- Los campos `Empresa` y `% Reparto` permiten probar multi-empresa: gestión compartida 60/40,
   ingeniería de EmpresaA (salvo los estudios de terreno, de EmpresaB), construcción de EmpresaB y puesta
   en marcha compartida al 50 %.
-- El XML tiene también costos, para probar el [modo costo](#6-pruebas-adicionales). En el modo
-  porcentaje esos costos no se usan.
+- El XML contiene también costos, que escribe el generador del ejemplo: el programa no los usa. El BAC y
+  el AC se ingresan en el libro.
 
 `ejemplos/generar_ejemplo.py` vuelve a crear el XML y, con `--fecha-estado`, genera una versión con
 **avance simulado** a esa fecha: un atraso del 15 % y un sobrecosto del 8 % en todas las tareas. Con
-`--libro`, además escribe en el libro los datos que en un proyecto real se ingresan a mano: el **BAC** de
-cada paquete (el presupuesto del ejemplo) y el **AC** del mes (el costo real simulado, como si viniera
-del ERP).
+`--libro`, además escribe en el libro los datos ficticios que en un proyecto real se ingresan a mano:
+
+| Comando | Qué escribe en el libro |
+|---|---|
+| `generar_ejemplo.py --libro ejemplo.xlsx` | El **BAC** de cada fila, en las celdas de la columna D que están vacías: el presupuesto ficticio del paquete (en multi-empresa, el de cada empresa). Con depuración de costes, también una previsión ficticia en la hoja `PV-depuración`, si está vacía. |
+| `generar_ejemplo.py --fecha-estado AAAA-MM-DD --salida avance.xml --libro ejemplo.xlsx` | Crea el XML con el avance a esa fecha y escribe el **AC** de ese mes: el costo real simulado acumulado menos el AC ya cargado en los meses anteriores, como si viniera del ERP. También el BAC de las filas que no lo tienen. |
 
 > En la simulación las tareas avanzan como máximo hasta el 85 % (nunca se marcan terminadas) y los
 > hitos se cumplen 20 días después de su fecha prevista. Por eso los paquetes `0/100` y algunos de
@@ -72,8 +75,8 @@ metodo = "Método EVM"
 peso_hito = "Peso hito"
 ```
 
-El resto de los valores del archivo de ejemplo se deja igual (`modo = "porcentaje"`,
-`planificacion = "INTERNO"`, `mes_inicio = "2026-01"`).
+El resto de los valores del archivo de ejemplo se deja igual (`planificacion = "INTERNO"`,
+`mes_inicio = "2026-01"`).
 
 ---
 
@@ -90,19 +93,17 @@ Proyecto: Programa de ejemplo EVM
   Línea base  |  PV: % planificado de MS Project (duración de la línea base de las tareas y peso de los hitos) × BAC ingresado en el libro
   Filas EDT: 36 (24 de ingreso)  |  Nivel máximo: 3
   Horizonte: 01/2026 a 12/2035 (120 meses)
-  Modo porcentaje: se debe ingresar el BAC de cada fila en la columna D de PV (celdas amarillas).
-  [i] Modo porcentaje: el PV y el EV de cada fila son el BAC × el % planificado y el % ganado (hojas % PV y % EV), ...
+  BAC: se debe ingresar el BAC de cada fila en la columna D de PV (celdas amarillas).
+  [i] El PV y el EV de cada fila son el BAC × el % planificado y el % ganado (hojas % PV y % EV), ...
   [i] Planificación 'INTERNO': se exportan las 51 tareas que dependen de 'Planificación interna'.
-  [i] 28 tareas tienen costo en MS Project: en el modo porcentaje los costos no se usan (el importe es el BAC que se ingresa en el libro). ...
   [i] Se omitió 1 tarea sin código EDT que no depende de ningún elemento EDT: no forma parte de ninguna fila del libro.
   [i] 14 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.
   [i] 1 fila sin método de medición definido (columna C).
 Libro generado: ejemplo.xlsx
 ```
 
-Las observaciones son las esperadas: el XML de ejemplo tiene costos que este modo no usa, la reunión de
-arranque no tiene código EDT, las subtareas y los hitos sin código se suman en su paquete, y
-`4.2.2 Cierre administrativo` no tiene método.
+Las observaciones son las esperadas: la reunión de arranque no tiene código EDT, las subtareas y los
+hitos sin código se suman en su paquete, y `4.2.2 Cierre administrativo` no tiene método.
 
 La hoja `% PV` tiene el % planificado de cada paquete y mes, calculado con la duración de la línea base
 de sus tareas y el peso de sus hitos:
@@ -110,10 +111,14 @@ de sus tareas y el peso de sus hitos:
 ![Hoja % PV del libro generado](img/excel/pct-pv.png)
 
 En un proyecto real, ahora se escribe el **BAC** de cada paquete en las celdas amarillas de la columna D
-de la hoja `PV`. En el tutorial se carga el presupuesto del ejemplo:
+de la hoja `PV`. En el tutorial se escribe el presupuesto ficticio del ejemplo:
 
 ```powershell
 python ejemplos\generar_ejemplo.py --libro ejemplo.xlsx
+```
+
+```text
+Libro ejemplo.xlsx: BAC escrito en 24 celdas.
 ```
 
 Cada mes de la hoja `PV` es el BAC × el % planificado:
@@ -131,8 +136,9 @@ python ejemplos\generar_ejemplo.py --fecha-estado 2026-01-31 --salida avance.xml
 python evm_export.py actualizar --origen avance.xml --config config.toml --libro ejemplo.xlsx
 ```
 
-El primer comando crea el XML con el avance a esa fecha y escribe en la hoja `AC` el costo real del mes;
-el segundo calcula el % ganado de cada paquete y lo escribe en la hoja `% EV`.
+El primer comando crea el XML con el avance a esa fecha y escribe en la hoja `AC` el costo real
+simulado del mes (en un proyecto real, se ingresa a mano); el segundo calcula el % ganado de cada
+paquete y lo escribe en la hoja `% EV`.
 
 Para simular 24 cierres mensuales seguidos (enero de 2026 a diciembre de 2027), en PowerShell:
 
@@ -230,10 +236,6 @@ planificación.
 **Multi-empresa.** En `config.toml` se indica `activar = true` en `[multiempresa]`, se genera un libro
 nuevo y se repiten los pasos: `generar_ejemplo.py --libro` escribe el BAC y el AC de cada empresa. Ver
 [Multi-empresa](multiempresa.md).
-
-**Modo costo.** Con `modo = "costo"` en `[exportacion]`, el PV y el BAC salen de los costos del XML y el
-AC de su costo real: se genera un libro nuevo y se repiten las actualizaciones sin `--libro`
-([Cálculo del PV](calculo-pv.md)).
 
 **Dos archivos de MS Project.** El segundo proyecto de ejemplo (`ejemplos\proyecto2_ejemplo.xml`, código
 EDT `9.0.0`) se combina con el programa de ejemplo en un mismo libro. Ver el ejemplo de

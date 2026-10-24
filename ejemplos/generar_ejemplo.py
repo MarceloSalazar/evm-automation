@@ -1,10 +1,12 @@
 """Genera un proyecto de ejemplo en formato XML de MS Project (MSPDI).
 
 Sirve para probar el exportador sin MS Project. El archivo imita lo que escribe
-MS Project al usar Archivo > Guardar como > XML: costos multiplicados por 100,
-línea base 0, costo de línea base mensualizado (TimephasedData tipo 10),
-campos personalizados con alias ("Método EVM" en Texto10 y "Peso hito" en
-Número1) y, opcionalmente, avance a una fecha de estado.
+MS Project al usar Archivo > Guardar como > XML: línea base 0, campos
+personalizados con alias ("Método EVM" en Texto10 y "Peso hito" en Número1) y,
+opcionalmente, avance a una fecha de estado. El XML incluye también costos
+(multiplicados por 100, como los escribe MS Project), que el exportador no usa:
+son el presupuesto y el costo real ficticios que --libro escribe en el libro como
+BAC y AC.
 
 El proyecto tiene dos planificaciones, con códigos EDT de alto nivel "INTERNO" y
 "CLIENTE" (la del cliente con costos un 15 % mayores). Debajo de cada una, los
@@ -431,7 +433,7 @@ def walk_leaves(t: T):
 
 
 # ----------------------------------------------------------------------------
-# Datos ficticios para el libro en el modo porcentaje
+# Datos ficticios para el libro (BAC, AC y previsión de la depuración de costes)
 # ----------------------------------------------------------------------------
 def _import_evm() -> None:
     """Permite usar el paquete evm al ejecutar este archivo desde la carpeta ejemplos."""
@@ -441,11 +443,19 @@ def _import_evm() -> None:
         sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
+def _every(nodes):
+    """Todas las tareas del ejemplo (resúmenes y tareas de detalle)."""
+    for n in nodes:
+        yield n
+        yield from _every(n.children)
+
+
 def fill_book(book_path: Path, status: date | None = None, projects: dict[str, int] | None = None,
               single: int = 1) -> tuple[int, int]:
-    """Escribe en un libro del modo porcentaje los datos que en un proyecto real se ingresan a mano.
+    """Escribe en el libro los datos que en un proyecto real se ingresan a mano.
 
-    - BAC de cada fila (solo en las celdas vacías): el presupuesto del proyecto de ejemplo.
+    - BAC de cada fila (solo en las celdas vacías): el presupuesto ficticio del proyecto de ejemplo (la suma del
+      costo de sus tareas en el ejemplo; el programa no lee costos de MS Project).
     - Con `status`: AC del mes de esa fecha, el costo real simulado del ejemplo (como si viniera del ERP de cada
       empresa). El costo real simulado tiene desvíos: algunos paquetes quedan por encima de su presupuesto.
 
@@ -459,85 +469,70 @@ def fill_book(book_path: Path, status: date | None = None, projects: dict[str, i
 
     from openpyxl import load_workbook
 
-    from evm.companies import ac_by_company, resolve_shares
-    from evm.config import MODE_COST, Config
+    from evm.companies import resolve_shares
+    from evm.config import Config
     from evm.reader_xml import read_xml
-    from evm.update import _refresh_charts, _save, apply_book_settings, read_book
-    from evm.wbs import TimephasedPVSource, build_part, build_tree, iter_subtree, select_scope
+    from evm.timeline import Horizon
+    from evm.update import _refresh_charts, _save, apply_book_settings, check_version, read_book
+    from evm.wbs import build_part, build_tree, select_scope
     from evm.workbook import (book_sources, company_sheet, read_meta, read_structure, row_key, source_meta,
                               split_key)
 
     wb = load_workbook(book_path)
     meta = read_meta(wb)
+    check_version(meta)
     if not projects:
         names = book_sources(meta)
         projects = {"": single} if names == [""] else {n: i + 1 for i, n in enumerate(names[:2])}
-    if str(meta.get("modo") or "") != "porcentaje":
-        raise SystemExit(f"'{book_path}' no es un libro del modo porcentaje: en el modo costo el BAC y el AC "
-                         "salen de MS Project.")
     cfg = apply_book_settings(Config(), meta)
-    cfg.mode = MODE_COST
     cfg.max_level = int(meta.get("nivel_maximo") or cfg.max_level)
     multi = bool(meta.get("multiempresa"))
     roles = [("A", company_sheet("PV", cfg.company_a), company_sheet("AC", cfg.company_a)),
              ("B", company_sheet("PV", cfg.company_b), company_sheet("AC", cfg.company_b))] if multi \
         else [("", "PV", "AC")]
     structure = [s for s in read_structure(wb) if s.is_input]
+    horizon = Horizon(meta["horizonte_inicio"], meta["meses"])
     bac_cells = ac_cells = 0
     with tempfile.TemporaryDirectory() as tmp:
         for source, number in projects.items():
             pcfg = replace(cfg, plan=str(source_meta(meta, "planificacion", source) or ""))
-            build = PROJECTS[number][2]
-            base = Path(tmp) / f"base{number}.xml"
-            write(build(), base, None, number)
-            project = read_xml(base, pcfg)
-            part = build_part(project, pcfg, TimephasedPVSource(lambda t: t.timephased_pv, "", pcfg.distribution,
-                                                                None, project.calendar))
-            budget = {row_key(r): r for r in part.rows if r.is_input}      # presupuesto del ejemplo
-            mine = [s for s in structure if split_key(s.key)[0] == source]
-            for s in mine:
+            plans = PROJECTS[number][2]()
+            path = Path(tmp) / f"ejemplo{number}.xml"
+            write(plans, path, status, number)          # numera las tareas y, con fecha, simula el avance
+            model = {t.uid: t for t in _every(plans)}   # costo y costo real simulado de cada tarea del ejemplo
+            project = read_xml(path, pcfg)
+            rows = {row_key(r): r for r in build_part(project, pcfg).rows if r.is_input}
+            scope = select_scope(build_tree([t for t in project.tasks if t.outline_level >= 1]), pcfg.plan)
+            shares = resolve_shares(scope.roots, pcfg)[0] if multi else {}
+
+            def split(value) -> dict[str, float]:
+                """Monto de la fila por empresa, según la parte de cada empresa en sus tareas de detalle."""
+                total = sum(value(model[t.uid]) for t in leaves)
+                a = sum(value(model[t.uid]) * shares.get(t.uid, 0.5) for t in leaves)
+                return {"": total, "A": a, "B": total - a}
+
+            idx = horizon.index(status) if status else -1
+            for s in (x for x in structure if split_key(x.key)[0] == source):
                 _src, uid, residual = split_key(s.key)
-                r = budget.get(uid + ("-D" if residual else ""))
-                if r is None:
+                row = rows.get(uid + ("-D" if residual else ""))
+                if row is None:
                     continue
-                values = {"": r.bac, "A": sum(r.pv_a.values()), "B": r.bac - sum(r.pv_a.values())}
+                leaves = row.leaves
+                budget = split(lambda t: t.cost)
                 for role, pv_sheet, _ac in roles:
                     cell = wb[pv_sheet].cell(row=s.row, column=4)
-                    if cell.value in (None, "") and values[role] > 0.005:
-                        cell.value = round(values[role], 2)
+                    if cell.value in (None, "") and budget[role] > 0.005:
+                        cell.value = round(budget[role], 2)
                         bac_cells += 1
-            if status is None:
-                continue
-            avance = Path(tmp) / f"avance{number}.xml"
-            write(build(), avance, status, number)
-            progress = read_xml(avance, pcfg)
-            tasks = [t for t in progress.tasks if t.outline_level >= 1]
-            roots = build_tree(tasks)
-            scope = select_scope(roots, pcfg.plan)
-            by_uid = {t.uid: t for t in tasks}
-            shares = resolve_shares(scope.roots, pcfg)[0] if multi else {}
-            from evm.timeline import Horizon
-            horizon = Horizon(meta["horizonte_inicio"], meta["meses"])
-            idx = horizon.index(status)
-            if not 0 <= idx < horizon.months:
-                continue
-            col = 7 + idx
-            for s in mine:
-                _src, uid, residual = split_key(s.key)
-                task = by_uid.get(int(uid)) if uid.isdigit() and not residual else None
-                if task is None:
+                if not 0 <= idx < horizon.months:
                     continue
-                branch = list(iter_subtree(task))
-                if multi:
-                    a, b = ac_by_company(branch, shares)
-                    cumulative = {"A": a, "B": b}
-                else:
-                    cumulative = {"": task.acwp if task.acwp is not None else task.actual_cost}
+                actual = split(lambda t: t.actual_cost)          # acumulado a la fecha de estado
+                col = 7 + idx
                 for role, _pv, ac_sheet in roles:
                     ws = wb[ac_sheet]
                     prev = sum(float(ws.cell(row=s.row, column=7 + i).value or 0) for i in range(idx))
-                    value = round(cumulative[role] - prev, 2)
-                    if cumulative[role] or ws.cell(row=s.row, column=col).value is not None:
+                    value = round(actual[role] - prev, 2)
+                    if actual[role] or ws.cell(row=s.row, column=col).value is not None:
                         ws.cell(row=s.row, column=col, value=value)
                         ac_cells += 1
     if status is None:
@@ -615,7 +610,7 @@ def main() -> None:
                    help="1 = programa de ejemplo (por defecto), 2 = segundo proyecto (código EDT 9.0.0)")
     p.add_argument("--salida", help="archivo XML a crear (por defecto el archivo de ejemplo del proyecto)")
     p.add_argument("--fecha-estado", help="AAAA-MM-DD: agrega avance simulado a esa fecha")
-    p.add_argument("--libro", help="libro del modo porcentaje: escribe en él el BAC de cada fila (si está vacío) y, "
+    p.add_argument("--libro", help="libro del exportador: escribe en él el BAC de cada fila (si está vacío) y, "
                                    "con --fecha-estado, el AC del mes, con datos ficticios del ejemplo; en un libro "
                                    "con depuración de costes, también la previsión de la hoja PV-depuración")
     a = p.parse_args()

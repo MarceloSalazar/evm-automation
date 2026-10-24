@@ -1,6 +1,7 @@
 """Semáforo de SPI y CPI: umbrales inferiores y superiores (configuración, hojas, gráficos y análisis)."""
 import re
 import zipfile
+from datetime import date
 
 import pytest
 from openpyxl import load_workbook
@@ -20,12 +21,13 @@ def config(tmp_path, text: str, name: str = "c.toml"):
 
 
 @pytest.fixture()
-def book(tmp_path, example_files):
-    """Libro del ejemplo con umbrales propios (0,85 / 0,90 / 1,10 / 1,20)."""
+def book(tmp_path, example_files, generator):
+    """Libro del ejemplo con umbrales propios (0,85 / 0,90 / 1,10 / 1,20), con el BAC del ejemplo."""
     text = example_files["config"].read_text(encoding="utf-8") + "\n" + CUSTOM
     cfg = config(tmp_path, text, "propio.toml")
     out = tmp_path / "EVM.xlsx"
     assert main(["generar", "--origen", str(example_files["base"]), "--config", str(cfg), "--salida", str(out)]) == 0
+    generator.fill_book(out)
     return out
 
 
@@ -104,10 +106,11 @@ def test_index_chart_bands(book, recalc):
     assert xml.count("<numCache>") == 2 * len(series)
 
 
-@pytest.mark.modo("costo")
 def test_analysis_lists_packages_above_the_upper_limit(book, example_files):
     """Con el amarillo superior en 1,10, los paquetes LOE (CPI 1,09 a 1,12) solo se listan si superan 1,10."""
     from evm.analysis import SHEET_ANALYSIS, read_entries
+    import generar_ejemplo
+    generar_ejemplo.fill_book(book, date(2027, 6, 30))           # AC de junio, que se carga a mano
     cfg = book.parent / "propio.toml"
     assert main(["actualizar", "--origen", str(example_files["jun"]), "--config", str(cfg), "--libro", str(book),
                  "--sin-respaldo"]) == 0

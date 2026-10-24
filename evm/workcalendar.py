@@ -253,8 +253,7 @@ def calendar_from_xml(r, root, uid: int | None, warnings: list[str] | None = Non
                         warnings.append(
                             f"Calendario '{r.text(c, 'Name')}': se omite la excepción {label} "
                             f"(tipo {r.text(ex, 'Type') or '?'}) porque su periodicidad no se interpreta. Solo "
-                            "afecta el reparto entre meses de los tramos de datos escalonados que cruzan de un mes "
-                            "a otro y de las tareas repartidas en forma lineal.")
+                            "afecta el reparto de la duración de las tareas entre los meses (% planificado).")
                     continue
                 for d in days:
                     cal.exceptions[d] = wins

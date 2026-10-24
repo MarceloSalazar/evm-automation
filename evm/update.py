@@ -1,4 +1,4 @@
-"""Comando 'actualizar' (incorpora EV y AC de un mes) y lectura de libros existentes."""
+"""Comando 'actualizar' (incorpora el % ganado del mes) y lectura de libros existentes."""
 from __future__ import annotations
 
 import shutil
@@ -12,12 +12,12 @@ from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.workbook.properties import CalcProperties
 
 from evm import analysis
-from evm.config import MODE_COST, MODE_PERCENT, Config, ConfigError, parse_mode
-from evm.methods import ev_fraction, parse_method
+from evm.config import MODE_PERCENT, Config, ConfigError
+from evm.methods import parse_method
 from evm.model import ProjectData, Task
 from evm.timeline import Horizon
-from evm.wbs import (KIND_RESIDUAL, KIND_SUMMARY, Scope, Visibility, build_tree, fmt_money, iter_subtree, pad_code,
-                     plural, prune_inactive, row_visibility, select_scope, tolerance)
+from evm.wbs import (KIND_RESIDUAL, KIND_SUMMARY, Scope, Visibility, build_tree, iter_subtree, pad_code, plural,
+                     prune_inactive, row_visibility, select_scope)
 from evm.workbook import (COL_BAC, COL_CODE, COL_METHOD, FIRST_MONTH_COL, LEGACY_SHEET_CURVE, SHEET_AC,
                           SHEET_EV, SHEET_META, SHEET_PV, SHEET_SUMMARY, STATUS_CELL, StructRow, WorkbookFormatError,
                           add_s_curve_chart, book_sources, clean_text, col, company_sheet, pct_sheet, read_meta,
@@ -39,23 +39,20 @@ class BookData:
     bac: dict[int, float]
     method: dict[int, str]
     status_date: date | None
-    # Celdas de ingreso de EV/AC que no son números: (hoja, fila, columna, valor numérico, motivo)
+    # Celdas de ingreso que no son números: (hoja, fila, columna, valor numérico, motivo)
     fixable: list[tuple[str, int, int, float, str]] = field(default_factory=list)
-    # Multi-empresa: valores de la empresa A y B por fila (pv, ev y ac totales son la suma)
+    # Multi-empresa: EV y AC de la empresa A y B por fila (ev y ac totales son la suma)
     multi: bool = False
     company_a: str = ""
     company_b: str = ""
-    pv_a: dict[int, list[float]] = field(default_factory=dict)
-    bac_a: dict[int, float] = field(default_factory=dict)
     ev_a: dict[int, list[float | None]] = field(default_factory=dict)
     ev_b: dict[int, list[float | None]] = field(default_factory=dict)
     ac_a: dict[int, list[float | None]] = field(default_factory=dict)
     ac_b: dict[int, list[float | None]] = field(default_factory=dict)
     # Celdas que deben tener fórmula (subtotales, fila TOTAL, suma de empresas) y tienen un valor
     formula_gaps: list[str] = field(default_factory=list)
-    # Modo porcentaje: BAC ingresado, % planificado y % ganado de cada mes por empresa
+    # BAC ingresado, % planificado y % ganado de cada mes por empresa
     # (clave "" en un libro de una sola empresa; "A" y "B" en multi-empresa)
-    mode: str = MODE_COST
     bac_role: dict[str, dict[int, float]] = field(default_factory=dict)
     pct_pv: dict[str, dict[int, list[float]]] = field(default_factory=dict)
     pct_ev: dict[str, dict[int, list[float | None]]] = field(default_factory=dict)
@@ -63,10 +60,6 @@ class BookData:
     @property
     def input_rows(self) -> list[StructRow]:
         return [s for s in self.structure if s.is_input]
-
-    @property
-    def percent(self) -> bool:
-        return self.mode == MODE_PERCENT
 
     def roles(self) -> list[tuple[str, str]]:
         """(clave, empresa) de cada serie: [("", "")] o [("A", empresa A), ("B", empresa B)]."""
@@ -122,35 +115,31 @@ def _company_names(meta: dict) -> tuple[str, str]:
     return str(meta.get("empresa_a") or ""), str(meta.get("empresa_b") or "")
 
 
-def book_mode(meta: dict) -> str:
-    """Modo del libro: 'porcentaje' o 'costo' (los libros sin modo se generaron en el modo costo)."""
-    try:
-        return parse_mode(str(meta.get("modo") or MODE_COST))
-    except ConfigError:
-        raise WorkbookFormatError(f"El dato 'modo' de la hoja oculta _meta no es válido ({meta.get('modo')!r}). Esa "
-                                  "hoja no se debe modificar: se debe recuperar el libro desde un respaldo.") from None
+def check_version(meta: dict) -> None:
+    """Los libros de versiones anteriores calculaban el PV y el EV con los costos de MS Project: no se admiten."""
+    if str(meta.get("modo") or "").strip().lower() != MODE_PERCENT:
+        raise WorkbookFormatError(
+            "El libro se generó con una versión anterior del programa, que calculaba el PV y el EV con los costos "
+            "de MS Project: no se puede usar con esta versión (para ese libro se debe usar la versión 1.x). Se debe "
+            "generar un libro nuevo.")
 
 
 def company_sheets(meta: dict) -> list[str]:
-    """Hojas de cada empresa en multi-empresa (PV-EmpresaA... y, en el modo porcentaje, '% PV-EmpresaA'...)."""
+    """Hojas de cada empresa en multi-empresa (PV-EmpresaA, % PV-EmpresaA...)."""
     if not meta.get("multiempresa"):
         return []
     a, b = _company_names(meta)
     names = [company_sheet(k, c) for k in (SHEET_PV, SHEET_EV, SHEET_AC) for c in (a, b)]
-    if book_mode(meta) == MODE_PERCENT:
-        names += [pct_sheet(k, c) for k in (SHEET_PV, SHEET_EV) for c in (a, b)]
-    return names
+    return names + [pct_sheet(k, c) for k in (SHEET_PV, SHEET_EV) for c in (a, b)]
 
 
 def data_sheets(meta: dict) -> list[str]:
-    """Hojas mensuales del libro: PV, EV y AC, en multi-empresa las de cada empresa y, en el modo porcentaje, las
-    hojas '% PV' y '% EV'."""
+    """Hojas mensuales del libro: PV, EV y AC, las hojas '% PV' y '% EV' y, en multi-empresa, las de cada
+    empresa."""
     names = [SHEET_PV, SHEET_EV, SHEET_AC]
     if meta.get("multiempresa"):
         return names + company_sheets(meta)
-    if book_mode(meta) == MODE_PERCENT:
-        names += [pct_sheet(SHEET_PV), pct_sheet(SHEET_EV)]
-    return names
+    return names + [pct_sheet(SHEET_PV), pct_sheet(SHEET_EV)]
 
 
 def check_sheets(sheetnames: list[str], meta: dict, charts: bool = False) -> None:
@@ -192,15 +181,14 @@ def _check_layout(wb, structure: list[StructRow], meta: dict) -> None:
 
 
 def _formula_gaps(wb, structure: list[StructRow], meta: dict) -> list[str]:
-    """Celdas que deben tener fórmula y tienen un valor o están vacías: subtotales y fila TOTAL de las hojas
-    mensuales (meses y, en PV, el BAC) y, en multi-empresa, todas las filas de las hojas PV, EV y AC (suma de
-    las dos empresas)."""
+    """Celdas que deben tener fórmula y tienen un valor o están vacías: en las hojas PV y EV los meses de todas las
+    filas (BAC × %) y el BAC de los subtotales y de la fila TOTAL; en AC, los subtotales y la fila TOTAL; en
+    multi-empresa, todas las filas de las hojas PV, EV y AC (suma de las dos empresas)."""
     total = meta["fila_total"]
     months = list(range(FIRST_MONTH_COL, FIRST_MONTH_COL + meta["meses"]))
     subtotals = [s.row for s in structure if s.kind == KIND_SUMMARY] + [total]
     every = [s.row for s in structure] + [total]
     multi = bool(meta.get("multiempresa"))
-    percent = book_mode(meta) == MODE_PERCENT
     out = []
     for name in data_sheets(meta):
         is_total_sheet = multi and name in (SHEET_PV, SHEET_EV, SHEET_AC)
@@ -208,11 +196,12 @@ def _formula_gaps(wb, structure: list[StructRow], meta: dict) -> list[str]:
         is_ev = name == SHEET_EV or name.startswith(SHEET_EV + "-")
         if is_total_sheet:
             cells = [(r, c) for r in every for c in months + ([COL_BAC] if is_pv else [])]
-        elif percent and (is_pv or is_ev):
-            # Modo porcentaje: los meses son BAC × % (fórmula) en todas las filas; el BAC se ingresa
+        elif is_pv or is_ev:
             cells = [(r, c) for r in every for c in months] + ([(r, COL_BAC) for r in subtotals] if is_pv else [])
+        elif name.startswith(SHEET_AC):
+            cells = [(r, c) for r in subtotals for c in months]
         else:
-            cells = [(r, c) for r in subtotals for c in months + ([COL_BAC] if is_pv else [])]
+            continue                    # hojas '% PV' y '% EV'
         ws = wb[name]
         for r, c in cells:
             value = ws.cell(row=r, column=c).value
@@ -238,6 +227,7 @@ def read_book(path: str | Path, wb=None, allow_fix: bool = False) -> BookData:
     except (zipfile.BadZipFile, InvalidFileException, OSError) as exc:
         raise WorkbookFormatError(f"No se pudo abrir '{path.name}' como libro de Excel: {exc}") from exc
     meta = read_meta(wb)
+    check_version(meta)
     structure = read_structure(wb)
     check_sheets(wb.sheetnames, meta)
     _check_layout(wb, structure, meta)
@@ -275,47 +265,28 @@ def read_book(path: str | Path, wb=None, allow_fix: bool = False) -> BookData:
     ws_pv = wb[SHEET_PV]
     method = {s.row: str(ws_pv.cell(row=s.row, column=COL_METHOD).value or "").strip() for s in inputs}
     status = _as_date(wb[SHEET_SUMMARY][STATUS_CELL].value)
-    mode = book_mode(meta)
-    if mode == MODE_PERCENT:
-        # PV y EV = BAC ingresado × % de las hojas '% PV' y '% EV'
-        multi = bool(meta.get("multiempresa"))
-        a, b = _company_names(meta) if multi else ("", "")
-        roles = [("A", a), ("B", b)] if multi else [("", "")]
-        bac_role, pct_pv, pct_ev, pv_r, ev_r, ac_r = {}, {}, {}, {}, {}, {}
-        for role, company in roles:
-            bac_role[role] = bac_values(company_sheet(SHEET_PV, company) if company else SHEET_PV)
-            pct_pv[role] = zeros(sheet_values(pct_sheet(SHEET_PV, company), allow_fix))
-            pct_ev[role] = sheet_values(pct_sheet(SHEET_EV, company), allow_fix)
-            bacs = bac_role[role]
-            pv_r[role] = {r: [bacs[r] * v for v in vals] for r, vals in pct_pv[role].items()}
-            ev_r[role] = {r: [None if v is None else bacs[r] * v for v in vals] for r, vals in pct_ev[role].items()}
-            ac_r[role] = sheet_values(company_sheet(SHEET_AC, company) if company else SHEET_AC, allow_fix)
-        extra = dict(mode=mode, bac_role=bac_role, pct_pv=pct_pv, pct_ev=pct_ev, formula_gaps=gaps)
-        if multi:
-            pv = {r: [x + y for x, y in zip(pv_r["A"][r], pv_r["B"][r])] for r in pv_r["A"]}
-            bac = {r: bac_role["A"][r] + bac_role["B"][r] for r in bac_role["A"]}
-            return BookData(path, meta, structure, horizon, pv, combine(ev_r["A"], ev_r["B"]),
-                            combine(ac_r["A"], ac_r["B"]), bac, method, status, fixable, True, a, b, pv_r["A"],
-                            bac_role["A"], ev_r["A"], ev_r["B"], ac_r["A"], ac_r["B"], **extra)
-        return BookData(path, meta, structure, horizon, pv_r[""], ev_r[""], ac_r[""], bac_role[""], method, status,
-                        fixable, **extra)
-    if meta.get("multiempresa"):
-        a, b = _company_names(meta)
-        names = {k: (company_sheet(k, a), company_sheet(k, b)) for k in (SHEET_PV, SHEET_EV, SHEET_AC)}
-        pv_a = zeros(sheet_values(names[SHEET_PV][0], allow_fix))
-        pv_b = zeros(sheet_values(names[SHEET_PV][1], allow_fix))
-        bac_a, bac_b = bac_values(names[SHEET_PV][0]), bac_values(names[SHEET_PV][1])
-        ev_a, ev_b = sheet_values(names[SHEET_EV][0], allow_fix), sheet_values(names[SHEET_EV][1], allow_fix)
-        ac_a, ac_b = sheet_values(names[SHEET_AC][0], allow_fix), sheet_values(names[SHEET_AC][1], allow_fix)
-        pv = {r: [x + y for x, y in zip(pv_a[r], pv_b[r])] for r in pv_a}
-        bac = {r: bac_a[r] + bac_b[r] for r in bac_a}
-        return BookData(path, meta, structure, horizon, pv, combine(ev_a, ev_b), combine(ac_a, ac_b), bac, method,
-                        status, fixable, True, a, b, pv_a, bac_a, ev_a, ev_b, ac_a, ac_b, formula_gaps=gaps)
-    pv = zeros(sheet_values(SHEET_PV, allow_fix))
-    ev = sheet_values(SHEET_EV, allow_fix)
-    ac = sheet_values(SHEET_AC, allow_fix)
-    return BookData(path, meta, structure, horizon, pv, ev, ac, bac_values(SHEET_PV), method, status, fixable,
-                    formula_gaps=gaps)
+    # PV y EV = BAC ingresado × % de las hojas '% PV' y '% EV'
+    multi = bool(meta.get("multiempresa"))
+    a, b = _company_names(meta) if multi else ("", "")
+    roles = [("A", a), ("B", b)] if multi else [("", "")]
+    bac_role, pct_pv, pct_ev, pv_r, ev_r, ac_r = {}, {}, {}, {}, {}, {}
+    for role, company in roles:
+        bac_role[role] = bac_values(company_sheet(SHEET_PV, company) if company else SHEET_PV)
+        pct_pv[role] = zeros(sheet_values(pct_sheet(SHEET_PV, company), allow_fix))
+        pct_ev[role] = sheet_values(pct_sheet(SHEET_EV, company), allow_fix)
+        bacs = bac_role[role]
+        pv_r[role] = {r: [bacs[r] * v for v in vals] for r, vals in pct_pv[role].items()}
+        ev_r[role] = {r: [None if v is None else bacs[r] * v for v in vals] for r, vals in pct_ev[role].items()}
+        ac_r[role] = sheet_values(company_sheet(SHEET_AC, company) if company else SHEET_AC, allow_fix)
+    extra = dict(bac_role=bac_role, pct_pv=pct_pv, pct_ev=pct_ev, formula_gaps=gaps, fixable=fixable)
+    if multi:
+        pv = {r: [x + y for x, y in zip(pv_r["A"][r], pv_r["B"][r])] for r in pv_r["A"]}
+        bac = {r: bac_role["A"][r] + bac_role["B"][r] for r in bac_role["A"]}
+        return BookData(path, meta, structure, horizon, pv, combine(ev_r["A"], ev_r["B"]),
+                        combine(ac_r["A"], ac_r["B"]), bac, method, status, multi=True, company_a=a, company_b=b,
+                        ev_a=ev_r["A"], ev_b=ev_r["B"], ac_a=ac_r["A"], ac_b=ac_r["B"], **extra)
+    return BookData(path, meta, structure, horizon, pv_r[""], ev_r[""], ac_r[""], bac_role[""], method, status,
+                    **extra)
 
 
 def book_meta(path: str | Path) -> dict:
@@ -329,6 +300,7 @@ def book_meta(path: str | Path) -> dict:
         raise WorkbookFormatError(f"No se pudo abrir '{path.name}' como libro de Excel: {exc}") from exc
     try:
         meta = read_meta(wb)
+        check_version(meta)
         check_sheets(wb.sheetnames, meta, charts=True)
         return meta
     finally:
@@ -336,13 +308,9 @@ def book_meta(path: str | Path) -> dict:
 
 
 def apply_book_settings(cfg: Config, meta: dict) -> Config:
-    """Configuración con la que se generó el libro: modo, campo Visible y, en multi-empresa, nombres y campos de
-    MS Project.
-
-    La opción ac_desde_project se toma de la configuración actual.
-    """
+    """Configuración con la que se generó el libro: campo Visible y, en multi-empresa, nombres y campos de
+    MS Project."""
     cfg = replace(cfg)
-    cfg.mode = book_mode(meta)
     # Campo Visible con que se generó el libro (libros anteriores: no se lee)
     cfg.visible_field = str(meta.get("campo_visible") or "")
     cfg.visible_field_explicit = False
@@ -377,17 +345,6 @@ def check_sources(meta: dict, names: list[str]) -> None:
                       "para agregar o quitar un archivo se debe generar un libro nuevo con --migrar-desde.")
 
 
-def check_only(cfg: Config, only: str | None) -> None:
-    """En multi-empresa, --solo ac requiere ac_desde_project (el AC se carga a mano). En el modo porcentaje el AC
-    siempre se carga a mano."""
-    if cfg.percent_mode and only == "ac":
-        raise ValueError("En el modo porcentaje el AC se carga a mano en las hojas AC (o en las de cada empresa): "
-                         "'actualizar' solo calcula el % ganado, por lo que no se admite --solo ac.")
-    if cfg.multi_enabled and only == "ac" and not cfg.ac_from_project:
-        raise ValueError("En modo multi-empresa el AC se carga a mano en las hojas de cada empresa. Para cargarlo "
-                         "desde MS Project se debe activar ac_desde_project en [multiempresa].")
-
-
 # ----------------------------------------------------------------------------
 # Actualización mensual
 # ----------------------------------------------------------------------------
@@ -398,11 +355,9 @@ class RowResult:
     method: str
     bac: float
     ev_cum: float | None
-    ac_cum: float | None
     ev_month: float | None
-    ac_month: float | None
     note: str = ""
-    by_company: dict[str, float] = field(default_factory=dict)   # valor del mes por hoja de empresa
+    by_company: dict[str, float] = field(default_factory=dict)   # EV del mes por hoja de empresa
 
 
 @dataclass
@@ -414,24 +369,8 @@ class UpdateResult:
     backup: Path | None
     book: BookData | None = None
     dry_run: bool = False
-    ac_loaded: bool = True              # False en multi-empresa con AC cargado a mano
     deviations: list = field(default_factory=list)   # paquetes fuera de umbral (analysis.Deviation)
     thresholds: object | None = None                 # umbrales del semáforo (workbook.Thresholds)
-
-
-def _acwp(t: Task) -> float:
-    return t.acwp if t.acwp is not None else t.actual_cost
-
-
-def _own_ac(task: Task, children: list[Task]) -> float:
-    """Costo real de una tarea resumen que no está en sus filas hijas."""
-    return _acwp(task) - sum(_acwp(c) for c in children)
-
-
-def _own_bcwp(task: Task, children: list[Task]) -> float | None:
-    if task.bcwp is None or any(c.bcwp is None for c in children):
-        return None
-    return task.bcwp - sum(c.bcwp for c in children)
 
 
 def book_level(book: BookData, cfg: Config) -> int:
@@ -568,34 +507,25 @@ def _visibility_warnings(book: BookData, matches: dict[int, Task], scope: Scope,
             "debe regenerar el libro con --migrar-desde."]
 
 
-def _coverage_warnings(scope: Scope, book: BookData, matches: dict[int, Task],
-                       unlisted: dict[int, list[Task]], skip: set[int] = frozenset()) -> list[str]:
-    """Costo real de tareas de la planificación que no queda en ninguna fila del libro (salvo las tareas `skip`,
-    excluidas con Visible = No)."""
-    covered: set[int] = set(skip)
-    for s in book.input_rows:
-        task = matches.get(s.row)
-        if task is not None:
-            # Una fila -D cubre todo lo que cuelga de su tarea resumen y no tiene fila propia.
-            covered.update(n.uid for n in iter_subtree(task))
-    for packages in unlisted.values():  # salvo los paquetes con código agregados después de generar el libro
-        covered.difference_update(n.uid for p in packages for n in iter_subtree(p))
-    missing = []
-    for t in scope.tasks():
-        if t.uid in covered:
-            continue
-        own = _acwp(t) - sum(_acwp(c) for c in t.children)
-        if own > tolerance(own):
-            missing.append((t, own))
-    warnings = []
-    for t, amount in missing[:15]:
-        code = scope.raw_code(t)
-        how = "el libro" if code else "la tarea debe tener código EDT y el libro"
-        warnings.append(f"{code or '(sin código EDT)'} '{t.name}': costo real {fmt_money(amount)} sin fila en el "
-                        f"libro; no se incluye en el AC. Para incluirlo, {how} se debe regenerar con --migrar-desde.")
-    if len(missing) > 15:
-        warnings.append(f"... y {len(missing) - 15} tareas más con costo real sin fila en el libro.")
-    return warnings
+def _new_task_warnings(book: BookData, matches: dict[int, Task], scope: Scope, visibility: Visibility,
+                       source: str = "") -> list[str]:
+    """Tareas que tendrían fila propia y no la tienen en el libro: se agregaron en MS Project después de generarlo
+    (las de Visible con valor las informa _visibility_warnings). Su avance no se incluye en el % ganado."""
+    from evm.fields import parse_visible
+    rows = {matches[s.row].uid for s in book.structure
+            if s.row in matches and s.kind != KIND_RESIDUAL and split_key(s.key)[0] == source}
+    out_ids = visibility.excluded_uids()
+    new = [t for t in scope.tasks() if visibility.has_row(t) and t.uid not in rows and t.uid not in out_ids
+           and parse_visible(t.visible)[0] is None]
+    uids = {t.uid for t in new}
+    new = [t for t in new if t.parent is None or t.parent.uid not in uids]      # solo la tarea superior de la rama
+    if not new:
+        return []
+    tasks = ", ".join(f"{scope.raw_code(t)} '{t.name}'" for t in new[:10])
+    more = f" y {len(new) - 10} más" if len(new) > 10 else ""
+    return [f"{plural(len(new), 'tarea con código EDT no tiene', 'tareas con código EDT no tienen')} fila en el "
+            f"libro (se {'agregó' if len(new) == 1 else 'agregaron'} después de generarlo): {tasks}{more}. Su avance "
+            "no se incluye en el % ganado. Para incluirlo, se debe regenerar el libro con --migrar-desde."]
 
 
 def _month_end(d: date) -> date:
@@ -619,7 +549,7 @@ def _tag(source: str, text: str) -> str:
 
 def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares: dict[int, float], calendar,
                  cfg: Config, idx: int) -> tuple[RowResult, list[tuple[str, str, float, float]]]:
-    """Modo porcentaje: % ganado acumulado de cada empresa en una fila a la fecha de corte.
+    """% ganado acumulado de cada empresa en una fila a la fecha de corte.
 
     Devuelve la fila del resultado y, por empresa, (clave, empresa, % ganado acumulado, BAC).
     """
@@ -644,18 +574,19 @@ def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares:
         if rw.fallback and bac > 0:
             notes.append(f"{company} no participa en las tareas de la fila: se usó el avance de la fila completa")
         out.append((role, company, frac, bac))
-    res = RowResult(s.code, s.name, book.method[s.row], book.bac[s.row], None, None, None, None, "; ".join(notes))
+    res = RowResult(s.code, s.name, book.method[s.row], book.bac[s.row], None, None, "; ".join(notes))
     return res, out
 
 
 def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book_path: str | Path,
-               status: date | None = None, only: str | None = None, backup: bool = True, force: bool = False,
+               status: date | None = None, backup: bool = True, force: bool = False,
                dry_run: bool = False) -> UpdateResult:
-    """Carga el EV y el AC del mes de la fecha de corte.
+    """Carga el % ganado del mes de la fecha de corte (el AC se carga a mano en el libro).
 
     projects: el proyecto leído de MS Project o, en un libro con varios archivos, {nombre: proyecto} con
     todos los archivos de [[proyectos]].
     """
+    from evm.percent import calendar_for
     if isinstance(projects, ProjectData):
         projects = {"": projects}
     book_path = Path(book_path)
@@ -666,12 +597,6 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     cfg = apply_book_settings(cfg, book.meta)
     warnings: list[str] = [_tag(n, w) for n, p in projects.items() for w in p.warnings]
     multi = book.multi
-    percent = book.percent
-    load_ac = ((not multi) or cfg.ac_from_project) and not percent
-    check_only(cfg, only)
-    if percent and multi and cfg.ac_from_project:
-        warnings.append("En el modo porcentaje el AC se carga a mano en las hojas de cada empresa: no se usa "
-                        "ac_desde_project.")
 
     if status is None:
         missing = [n for n, p in projects.items() if p.status_date is None]
@@ -694,18 +619,13 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     if not 0 <= idx < book.horizon.months:
         raise ValueError(f"La fecha de corte {status:%d/%m/%Y} está fuera del horizonte del libro "
                          f"({book.horizon.start:%m/%Y} a {book.horizon.end:%m/%Y}).")
-    for n, project in projects.items():
-        if project.status_date is None and project.backend == "xml":
-            warnings.append(_tag(n, "El XML no tiene fecha de estado: MS Project calculó el costo real (CRTR) y el "
-                                    "CPTR a la fecha en que se guardó el archivo. Se debe definir Proyecto > Fecha de "
-                                    "estado antes de exportar."))
     if status != _month_end(status):
         warnings.append("La fecha de corte no es el último día del mes: el PV acumulado incluye el mes completo.")
     for n, project in projects.items():
         if project.status_date and project.status_date.date() != status:
             warnings.append(_tag(n, f"La fecha de estado de MS Project ({project.status_date:%d/%m/%Y}) difiere de "
-                                    f"la fecha de corte ({status:%d/%m/%Y}). El costo real (CRTR) y el CPTR "
-                                    "corresponden a la fecha de estado del proyecto."))
+                                    f"la fecha de corte ({status:%d/%m/%Y}): el avance registrado en MS Project "
+                                    "debe corresponder a la fecha de corte."))
     if book.status_date and status < book.status_date:
         warnings.append(f"La fecha de corte ({status:%d/%m/%Y}) es anterior a la última cargada en el libro "
                         f"({book.status_date:%d/%m/%Y}).")
@@ -713,130 +633,60 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     # Cada archivo asocia sus filas (el UniqueID se repite entre archivos)
     matches: dict[int, Task] = {}
     unlisted: dict[int, list[Task]] = {}
-    scopes: dict[str, Scope] = {}
     shares_of: dict[str, dict[int, float]] = {}
-    calendars: dict[str, object] = {}                # modo porcentaje: calendario de cada archivo
-    hidden: dict[str, tuple[set[int], set[int], float]] = {}   # Visible = No: tareas, ramas y costo real excluidos
+    calendars: dict[str, object] = {}                # calendario de cada archivo
+    hidden: dict[str, tuple[set[int], set[int]]] = {}  # Visible = No: tareas y ramas excluidas
     level = book_level(book, cfg)
     if multi:
-        from evm.companies import ac_by_company, ev_by_company, resolve_shares
-        sheets = {(k, r): company_sheet(k, book.company_a if r == "A" else book.company_b)
-                  for k in (SHEET_EV, SHEET_AC) for r in ("A", "B")}
+        from evm.companies import resolve_shares
     for n, project in projects.items():
         pcfg = cfg.project_config(n)
         found, w, scope = _match_tasks(project, book, pcfg, n)
         warnings += [_tag(n, x) for x in w]
         visibility = row_visibility(scope, replace(pcfg, max_level=level))
         warnings += [_tag(n, x) for x in _visibility_warnings(book, found, scope, visibility, n)]
-        hidden[n] = (visibility.excluded_uids(), {t.uid for t in visibility.excluded},
-                     sum(_acwp(t) for t in visibility.excluded))
-        extra = _unlisted_packages(book, found, visibility)
-        if only != "ev" and load_ac:
-            warnings += [_tag(n, x) for x in _coverage_warnings(scope, book, found, extra, hidden[n][0])]
+        warnings += [_tag(n, x) for x in _new_task_warnings(book, found, scope, visibility, n)]
+        hidden[n] = (visibility.excluded_uids(), {t.uid for t in visibility.excluded})
         matches.update(found)
-        unlisted.update(extra)
-        scopes[n] = scope
+        unlisted.update(_unlisted_packages(book, found, visibility))
         if multi:
             shares_of[n], _ = resolve_shares(scope.roots, pcfg)
-        if percent:
-            from evm.percent import calendar_for
-            calendars[n] = calendar_for(project, pcfg)
+        calendars[n] = calendar_for(project, pcfg)
 
     rows: list[RowResult] = []
     later_filled: list[str] = []
     later_months: set[int] = set()
     writes: list[tuple[str, int, int, float]] = []   # (hoja, fila, columna, valor)
-    ac_total: dict[str, float] = {}                  # AC acumulado de cada archivo
-    no_bac: list[str] = []                           # modo porcentaje: filas con avance y sin BAC
+    no_bac: list[str] = []                           # filas con avance y sin BAC
     for s in book.input_rows:
         task = matches.get(s.row)
         if task is None:
             continue
         src = split_key(s.key)[0]
-        shares = shares_of.get(src, {})
-        bac = book.bac[s.row]
-        method_text = book.method[s.row]
-        method = parse_method(method_text)
-        pv_cum = sum(book.pv[s.row][: idx + 1])
-        residual = s.kind == "residual"
-        siblings = _row_children(book, s, matches) + unlisted.get(s.row, []) if residual else []
-        # Tareas que forman la fila: en una fila -D, el avance se mide solo con las tareas sin fila propia; las
-        # ramas con Visible = No (cut) no forman parte de la fila
+        # Tareas que forman la fila: en una fila -D, solo las tareas sin fila propia; las ramas con Visible = No no
+        # forman parte de la fila
         contributors = _contributors(book, s, task, matches, unlisted.get(s.row, []))
-        out_ids, out_roots, _ac_out = hidden.get(src, (set(), set(), 0.0))
-        cut = [t for t in contributors if t.uid in out_roots]
-        if cut:
+        out_ids, out_roots = hidden.get(src, (set(), set()))
+        if any(t.uid in out_roots for t in contributors):
             contributors = [t for t in contributors if t.uid not in out_ids]
-        deduct = siblings + cut                     # ramas de la tarea que no forman parte de la fila
-        partial = residual or bool(cut)
-        bcwp = _own_bcwp(task, deduct) if deduct else task.bcwp
-        bcwp_base = None
-        if task.ev_baseline_cost is not None:       # CPTR calculado con otra línea base
-            bcwp_base = task.ev_baseline_cost - sum(c.ev_baseline_cost or 0.0 for c in deduct)
-        if percent:
-            res, parts = _percent_row(book, s, contributors, shares, calendars[src], cfg, idx)
-            for role, company, frac, bac_c in parts:
-                sheet = pct_sheet(SHEET_EV, company)
-                series = book.pct_ev[role][s.row]
-                later = [i for i in range(idx + 1, len(series)) if series[i]]
-                if later:
-                    later_filled.append(f"{sheet} {s.code}")
-                    later_months.update(later)
-                prev = sum(v or 0.0 for v in series[:idx])
-                month_value = round(frac - prev, 12)
-                res.ev_cum = (res.ev_cum or 0.0) + round(bac_c * frac, 2)
-                res.ev_month = (res.ev_month or 0.0) + round(bac_c * month_value, 2)
-                if multi:
-                    res.by_company[company_sheet(SHEET_EV, company)] = round(bac_c * month_value, 2)
-                if month_value < -1e-9:
-                    res.note = (res.note + "; " if res.note else "") + f"{sheet} del mes negativo (corrección)"
-                if frac > 1e-9 and bac_c <= 0:
-                    no_bac.append(f"{s.code} ({company})" if company else s.code)
-                writes.append((sheet, s.row, FIRST_MONTH_COL + idx, month_value))
-            rows.append(res)
-            continue
-        frac, note = ev_fraction(method, task, (pv_cum / bac) if bac else 0.0, bac=bac, bcwp=bcwp,
-                                 bcwp_base=bcwp_base, tasks=contributors if partial else None)
-
-        # (tipo, hoja, valor acumulado, serie del libro)
-        targets: list[tuple[str, str, float, list]] = []
-        if multi:
-            bac_a = book.bac_a[s.row]
-            pv_cum_a = sum(book.pv_a[s.row][: idx + 1])
-            ev_a, ev_b = ev_by_company(method, contributors, shares, (bac_a, bac - bac_a),
-                                       (pv_cum_a, pv_cum - pv_cum_a), frac, task.ev_baseline_cost is not None)
-            targets += [("ev", sheets[(SHEET_EV, "A")], round(ev_a, 2), book.ev_a[s.row]),
-                        ("ev", sheets[(SHEET_EV, "B")], round(ev_b, 2), book.ev_b[s.row])]
-            if load_ac:
-                ac_a, ac_b = ac_by_company(contributors, shares)
-                targets += [("ac", sheets[(SHEET_AC, "A")], round(ac_a, 2), book.ac_a[s.row]),
-                            ("ac", sheets[(SHEET_AC, "B")], round(ac_b, 2), book.ac_b[s.row])]
-        else:
-            targets += [("ev", SHEET_EV, round(bac * frac, 2), book.ev[s.row]),
-                        ("ac", SHEET_AC, round(_own_ac(task, deduct) if deduct else _acwp(task), 2),
-                         book.ac[s.row])]
-
-        res = RowResult(s.code, s.name, method_text, bac, None, None, None, None, note)
-        for kind, sheet, cum_value, series in targets:
-            if only and only != kind:
-                continue
+        res, parts = _percent_row(book, s, contributors, shares_of.get(src, {}), calendars[src], cfg, idx)
+        for role, company, frac, bac_c in parts:
+            sheet = pct_sheet(SHEET_EV, company)
+            series = book.pct_ev[role][s.row]
             later = [i for i in range(idx + 1, len(series)) if series[i]]
             if later:
                 later_filled.append(f"{sheet} {s.code}")
                 later_months.update(later)
             prev = sum(v or 0.0 for v in series[:idx])
-            month_value = round(cum_value - prev, 2)
-            if kind == "ev":
-                res.ev_cum = (res.ev_cum or 0.0) + cum_value
-                res.ev_month = (res.ev_month or 0.0) + month_value
-            else:
-                res.ac_cum = (res.ac_cum or 0.0) + cum_value
-                res.ac_month = (res.ac_month or 0.0) + month_value
-                ac_total[src] = ac_total.get(src, 0.0) + cum_value
+            month_value = round(frac - prev, 12)
+            res.ev_cum = (res.ev_cum or 0.0) + round(bac_c * frac, 2)
+            res.ev_month = (res.ev_month or 0.0) + round(bac_c * month_value, 2)
             if multi:
-                res.by_company[sheet] = month_value
-            if month_value < -tolerance(cum_value):
+                res.by_company[company_sheet(SHEET_EV, company)] = round(bac_c * month_value, 2)
+            if month_value < -1e-9:
                 res.note = (res.note + "; " if res.note else "") + f"{sheet} del mes negativo (corrección)"
+            if frac > 1e-9 and bac_c <= 0:
+                no_bac.append(f"{s.code} ({company})" if company else s.code)
             writes.append((sheet, s.row, FIRST_MONTH_COL + idx, month_value))
         rows.append(res)
 
@@ -853,31 +703,16 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
             "los acumulados de esos meses ya no coinciden con MS Project. Se deben revisar esos meses o volver a "
             "cargarlos con 'actualizar' (fecha de corte de cada mes, en orden).")
 
-    for n, project in projects.items():
-        scope = scopes[n]
-        reference = _acwp(scope.plan) if scope.plan is not None else project.summary_acwp
-        if reference is not None:
-            reference -= hidden.get(n, (set(), set(), 0.0))[2]     # costo real de las ramas con Visible = No
-        if only != "ev" and load_ac and reference is not None:
-            loaded = ac_total.get(n, 0.0)
-            diff = reference - loaded
-            if abs(diff) > tolerance(reference):
-                whose = f"de la planificación '{scope.prefix}'" if scope.plan is not None else "del proyecto"
-                warnings.append(_tag(n, f"El AC cargado ({fmt_money(loaded)}) difiere del costo real {whose} en MS "
-                                        f"Project ({fmt_money(reference)}) en {fmt_money(diff)}. Se recomienda revisar "
-                                        "las advertencias anteriores (tareas sin fila, costos en tareas resumen)."))
-
-    if percent:
-        where = (f"las hojas {company_sheet(SHEET_PV, book.company_a)} y {company_sheet(SHEET_PV, book.company_b)}"
-                 if multi else f"la hoja {SHEET_PV}")
-        if not any(book.bac[s.row] for s in book.input_rows):
-            warnings.append(f"Ninguna fila tiene BAC: el PV, el EV y los indicadores quedan en 0 hasta ingresar el "
-                            f"BAC de cada fila en la columna D de {where}.")
-        elif no_bac:
-            warnings.append(f"{plural(len(no_bac), 'fila tiene', 'filas tienen')} % ganado pero no "
-                            f"{'tiene' if len(no_bac) == 1 else 'tienen'} BAC: el EV no se puede valorar hasta "
-                            f"ingresar el BAC en la columna D de {where} (" + ", ".join(no_bac[:15]) +
-                            (f" y {len(no_bac) - 15} más" if len(no_bac) > 15 else "") + ").")
+    where = (f"las hojas {company_sheet(SHEET_PV, book.company_a)} y {company_sheet(SHEET_PV, book.company_b)}"
+             if multi else f"la hoja {SHEET_PV}")
+    if not any(book.bac[s.row] for s in book.input_rows):
+        warnings.append(f"Ninguna fila tiene BAC: el PV, el EV y los indicadores quedan en 0 hasta ingresar el "
+                        f"BAC de cada fila en la columna D de {where}.")
+    elif no_bac:
+        warnings.append(f"{plural(len(no_bac), 'fila tiene', 'filas tienen')} % ganado pero no "
+                        f"{'tiene' if len(no_bac) == 1 else 'tienen'} BAC: el EV no se puede valorar hasta "
+                        f"ingresar el BAC en la columna D de {where} (" + ", ".join(no_bac[:15]) +
+                        (f" y {len(no_bac) - 15} más" if len(no_bac) > 15 else "") + ").")
 
     if book.formula_gaps:
         cells = ", ".join(book.formula_gaps[:8])
@@ -893,30 +728,18 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
         warnings.append(f"Se reemplazaron por su valor numérico celdas de ingreso con texto o fórmulas: {cells}{more}.")
 
     # Valores en memoria (también en simulación, para mostrar los indicadores resultantes)
-    pct_roles = {pct_sheet(SHEET_EV, company): role for role, company in book.roles()} if percent else {}
+    pct_roles = {pct_sheet(SHEET_EV, company): role for role, company in book.roles()}
     for sheet, r, c, v in writes:
         i = c - FIRST_MONTH_COL
-        if percent:
-            role = pct_roles[sheet]
-            book.pct_ev[role][r][i] = v
-            amount = book.bac_role[role][r] * v
-            if not multi:
-                book.ev[r][i] = amount
-                continue
-            (book.ev_a if role == "A" else book.ev_b)[r][i] = amount
-            x, y = book.ev_a[r][i], book.ev_b[r][i]
-            book.ev[r][i] = None if x is None and y is None else (x or 0.0) + (y or 0.0)
-            continue
+        role = pct_roles[sheet]
+        book.pct_ev[role][r][i] = v
+        amount = book.bac_role[role][r] * v
         if not multi:
-            (book.ev if sheet == SHEET_EV else book.ac)[r][i] = v
+            book.ev[r][i] = amount
             continue
-        target = {sheets[(SHEET_EV, "A")]: book.ev_a, sheets[(SHEET_EV, "B")]: book.ev_b,
-                  sheets[(SHEET_AC, "A")]: book.ac_a, sheets[(SHEET_AC, "B")]: book.ac_b}[sheet]
-        target[r][i] = v
-        total = book.ev if sheet in (sheets[(SHEET_EV, "A")], sheets[(SHEET_EV, "B")]) else book.ac
-        pair = (book.ev_a, book.ev_b) if total is book.ev else (book.ac_a, book.ac_b)
-        x, y = pair[0][r][i], pair[1][r][i]
-        total[r][i] = None if x is None and y is None else (x or 0.0) + (y or 0.0)
+        (book.ev_a if role == "A" else book.ev_b)[r][i] = amount
+        x, y = book.ev_a[r][i], book.ev_b[r][i]
+        book.ev[r][i] = None if x is None and y is None else (x or 0.0) + (y or 0.0)
 
     # Paquetes fuera de umbral en el mes de corte (con el EV y el AC que quedan en el libro)
     th = analysis.thresholds(book.meta, cfg)
@@ -937,8 +760,7 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
         _refresh_charts(wb, book, idx, meta)
         backup_path = _save(wb, book_path, backup)
     book.status_date = status
-    return UpdateResult(status, idx, rows, warnings, backup_path, book, dry_run, ac_loaded=load_ac,
-                        deviations=found, thresholds=th)
+    return UpdateResult(status, idx, rows, warnings, backup_path, book, dry_run, deviations=found, thresholds=th)
 
 
 def _save(wb, book_path: Path, backup: bool) -> Path | None:
@@ -1021,11 +843,7 @@ def _refresh_charts(wb, book: BookData, idx: int | None, meta: dict) -> None:
 
 
 def plan_end(book: BookData) -> int:
-    """Último mes con PV planificado (N° de mes). En el modo porcentaje, el último mes con % planificado, aunque
-    falte ingresar algún BAC."""
-    from evm import dashboard
-    if not book.percent:
-        return dashboard.plan_end_month(book_totals(book)[0])
+    """Último mes con % planificado (N° de mes), aunque falte ingresar algún BAC."""
     last = 0
     for series in book.pct_pv.values():
         for vals in series.values():

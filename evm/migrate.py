@@ -1,11 +1,11 @@
-"""Conservación de EV, AC y métodos de un libro anterior al regenerar (--migrar-desde)."""
+"""Conservación del BAC, el % ganado, el AC y los métodos de un libro anterior al regenerar (--migrar-desde)."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
 
 from evm.analysis import A_CODE, A_KEY, A_MONTH, A_NAME, A_ORIGIN, SHEET_ANALYSIS, TEXT_COLS, read_entries
-from evm.config import MODE_COST, MODE_PERCENT, ConfigError
+from evm.config import ConfigError
 from evm.cost_review import SHEET_PASTE, month_offset, paste_months, read_paste, review_company, shift_rows
 from evm.fields import same_name
 from evm.model import MonthKey
@@ -21,13 +21,13 @@ class PriorRow:
     name: str
     uid: int | None
     residual: bool
-    # Valores mensuales por serie: "EV" y "AC", o en multi-empresa "EV-A", "EV-B", "AC-A" y "AC-B". En el modo
-    # porcentaje, el EV es el % ganado de cada mes: "% EV" o "% EV-A" y "% EV-B"
+    # Valores mensuales por serie: el % ganado de cada mes ("% EV", o en multi-empresa "% EV-A" y "% EV-B") y el
+    # AC ("AC", o "AC-A" y "AC-B")
     series: dict[str, dict[MonthKey, float]]
     method: str
     origin_method: str | None = None     # método al generarse el libro (None: libro antiguo)
     source: str = ""                     # varios archivos: nombre del archivo de la fila
-    bac: dict[str, float] = field(default_factory=dict)     # modo porcentaje: BAC ingresado ("" o "A" y "B")
+    bac: dict[str, float] = field(default_factory=dict)     # BAC ingresado ("" o "A" y "B")
 
     @property
     def method_edited(self) -> bool:
@@ -45,7 +45,7 @@ class PriorRow:
         return any(v for data in self.series.values() for v in data.values()) or any(self.bac.values())
 
     def total(self, kind: str) -> float:
-        """Suma de las series de EV o de AC (en el modo porcentaje, el EV es el BAC × el % ganado)."""
+        """Suma de las series de EV o de AC (el EV es el BAC × el % ganado)."""
         out = 0.0
         for k, v in self.series.items():
             if k.startswith(PCT_PREFIX) and kind == SHEET_EV:
@@ -77,8 +77,7 @@ class PriorData:
     methods: dict[str, str] = field(default_factory=dict)
     matched: int = 0
     unmatched: list[PriorRow] = field(default_factory=list)
-    mode: str = MODE_COST
-    bac: dict[str, dict[str, float]] = field(default_factory=dict)    # modo porcentaje: clave nueva -> BAC
+    bac: dict[str, dict[str, float]] = field(default_factory=dict)    # clave nueva -> BAC
     # Depuración de costes: líneas de la hoja PV-depuración, empresa que se depuraba ('' = libro de una sola
     # empresa), mes 1 del horizonte y si se trasladan al libro nuevo (lo decide plan_migration)
     review_rows: list[list] = field(default_factory=list)
@@ -102,21 +101,16 @@ def prior_from_book(path, project_name: str) -> PriorData:
     """Lee EV, AC, métodos y fecha de corte de un libro generado anteriormente."""
     from evm.update import read_book
     book = read_book(path)
-    if book.percent:
-        sources = {role_key(pct_sheet(SHEET_EV), role or None): book.pct_ev[role] for role, _c in book.roles()}
-        sources.update({role_key("AC", role or None): (book.ac_a if role == "A" else book.ac_b if role == "B"
-                                                       else book.ac) for role, _c in book.roles()})
-    elif book.multi:
-        sources = {"EV-A": book.ev_a, "EV-B": book.ev_b, "AC-A": book.ac_a, "AC-B": book.ac_b}
-    else:
-        sources = {"EV": book.ev, "AC": book.ac}
+    sources = {role_key(pct_sheet(SHEET_EV), role or None): book.pct_ev[role] for role, _c in book.roles()}
+    sources.update({role_key("AC", role or None): (book.ac_a if role == "A" else book.ac_b if role == "B"
+                                                   else book.ac) for role, _c in book.roles()})
     rows = []
     for s in book.input_rows:
         source, uid_text, residual = split_key(s.key)
         # Los meses cargados con 0 se conservan: indican que el mes ya se informó (curvas desde ese mes)
         series = {k: {book.horizon.key(i): v for i, v in enumerate(src[s.row]) if v is not None}
                   for k, src in sources.items()}
-        bac = {role: book.bac_role[role][s.row] for role, _c in book.roles()} if book.percent else {}
+        bac = {role: book.bac_role[role][s.row] for role, _c in book.roles()}
         rows.append(PriorRow(
             key=s.key, code=s.code, name=s.name, uid=int(uid_text) if uid_text.isdigit() else None,
             residual=residual, series={k: v for k, v in series.items() if v},
@@ -139,7 +133,7 @@ def prior_from_book(path, project_name: str) -> PriorData:
     return PriorData(rows=rows, status_date=book.status_date,
                      project_name=str(book.meta.get("proyecto") or ""),
                      max_level=int(level) if level else None, methods_list=methods_list, multi=book.multi,
-                     project_names=names, analysis=analysis, mode=book.mode, review_rows=review_rows,
+                     project_names=names, analysis=analysis, review_rows=review_rows,
                      review_company=str(book.meta.get("depuracion_empresa") or ""), review_start=book.horizon.start)
 
 
@@ -207,10 +201,6 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
     Proyecto distinto: por código EDT, una fila anterior por fila nueva.
     """
     issues: list[Issue] = []
-    if prior.mode != report.mode:
-        raise ConfigError(f"--migrar-desde no se admite entre un libro del modo {prior.mode} y uno del modo "
-                          f"{report.mode}: el historial de EV no se puede convertir entre importes y porcentajes. Se "
-                          "debe generar el libro nuevo con el mismo modo ([exportacion] modo) o sin --migrar-desde.")
     if prior.multi != report.multi:
         raise ConfigError("--migrar-desde no se admite entre un libro de una sola empresa y uno multi-empresa: "
                           "el historial de EV y AC no se puede repartir entre empresas. Se debe generar el libro "
@@ -279,7 +269,6 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
 
     horizon = report.horizon
     clamped = early = 0.0
-    percent = prior.mode == MODE_PERCENT
     for key, lst in sources.items():
         target = by_key[key]
         merged: dict[str, dict[MonthKey, float]] = {}
@@ -291,14 +280,17 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
         for old, how in lst:
             for kind, data in old.series.items():
                 merged.setdefault(kind, {})
-                # Modo porcentaje, varias filas anteriores en una: el % ganado se combina ponderado por su BAC
-                factor = old.bac.get(_series_role(kind), 0.0) if (several and kind.startswith(PCT_PREFIX)) else 1.0
+                # Varias filas anteriores en una: el % ganado se combina ponderado por su BAC
+                bac = old.bac.get(_series_role(kind), 0.0)
+                factor = bac if (several and kind.startswith(PCT_PREFIX)) else 1.0
+                # Importe para los avisos: el EV es el BAC × el % ganado
+                worth = bac if kind.startswith(PCT_PREFIX) else 1.0
                 for k, v in data.items():
                     i = horizon.index(k)
                     if i >= horizon.months:
-                        clamped += abs(v)
+                        clamped += abs(v) * worth
                     elif i < 0:
-                        early += abs(v)
+                        early += abs(v) * worth
                     i = min(max(i, 0), horizon.months - 1)
                     nk = horizon.key(i)
                     merged[kind][nk] = merged[kind].get(nk, 0.0) + v * factor
@@ -309,7 +301,7 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
                 issues.append(Issue(SEV_WARN, target.code, target.name,
                                     f"Recibió el historial de EV/AC de la fila anterior {old.code} '{old.name}' "
                                     "(asociada por código EDT)."))
-        if percent and several:
+        if several:
             for kind, data in merged.items():
                 if not kind.startswith(PCT_PREFIX):
                     continue
@@ -321,7 +313,7 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
                     issues.append(Issue(SEV_WARN, target.code, target.name,
                                         "Recibió el % ganado de varias filas del libro anterior sin BAC: no se pudo "
                                         "combinar. Se debe revisar la hoja % EV de esta fila."))
-        if percent and any(merged_bac.values()):
+        if any(merged_bac.values()):
             prior.bac[key] = merged_bac
         if any(merged.values()):
             prior.values[key] = merged
@@ -356,12 +348,12 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
         issues.append(Issue(SEV_WARN, "", "",
                             f"Hay EV/AC por {fmt_money(clamped)} cargados después del último mes del nuevo horizonte: "
                             "se acumularon en el último mes."))
-    if percent and prior.bac:
+    if prior.bac:
         issues.append(Issue(SEV_INFO, "", "", f"Se conservó el BAC de {plural(len(prior.bac), 'fila', 'filas')} del "
                                               "libro anterior."))
     issues += _migrate_review(report, prior)
     for old in prior.unmatched:
-        bac = f"BAC {fmt_money(sum(old.bac.values()))}, " if percent else ""
+        bac = f"BAC {fmt_money(sum(old.bac.values()))}, "
         issues.append(Issue(SEV_ERROR, old.code, old.name,
                             f"No se pudo trasladar su historial ({bac}EV {fmt_money(old.total('EV'))}, AC "
                             f"{fmt_money(old.total('AC'))}): la tarea no existe en el proyecto nuevo o se dividió "

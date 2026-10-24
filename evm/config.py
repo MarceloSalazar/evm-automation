@@ -12,17 +12,10 @@ except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore[no-redef]
 
 
-# Modo de cálculo del PV y del EV.
-# porcentaje: MS Project da el % planificado y el % ganado de cada fila (por la duración de la línea base de sus
-#             tareas y el peso de sus hitos); el importe es el BAC que se ingresa en el libro multiplicado por el %.
-# costo:      el PV y el BAC salen del costo de línea base de MS Project y el EV es el BAC × la fracción ganada.
+# Cálculo del PV y del EV: MS Project da el % planificado y el % ganado de cada fila (por la duración de la línea
+# base de sus tareas y el peso de sus hitos); el importe es el BAC que se ingresa en el libro multiplicado por el %.
+# Libros de versiones anteriores calculados con los costos de MS Project: _meta modo = "costo" (no se admiten).
 MODE_PERCENT = "porcentaje"
-MODE_COST = "costo"
-MODES = (MODE_PERCENT, MODE_COST)
-DEFAULT_MODE = MODE_PERCENT
-
-# Método que solo existe en el modo costo (el CPTR de MS Project necesita costos).
-METHOD_BCWP = "CPTR de MS Project"
 
 # Lista de métodos de medición ofrecida en el desplegable de la columna C.
 DEFAULT_METHODS = [
@@ -36,22 +29,7 @@ DEFAULT_METHODS = [
     "% Físico completado",
     "Unidades completadas",
     "Avance lineal (LOE)",
-    METHOD_BCWP,
 ]
-
-
-def parse_mode(text: str) -> str:
-    """Modo de cálculo: 'porcentaje' o 'costo' (también 'coste')."""
-    value = (text or "").strip().lower()
-    if value == "coste":
-        value = MODE_COST
-    if value not in MODES:
-        raise ConfigError(f"modo = '{text}' no es válido: debe ser \"porcentaje\" (por defecto) o \"costo\".")
-    return value
-
-
-def _default_mode() -> str:
-    return DEFAULT_MODE
 
 
 class ConfigError(ValueError):
@@ -119,7 +97,6 @@ class Config:
     months: int = 120
 
     # [exportacion]
-    mode: str = field(default_factory=_default_mode)   # "porcentaje" (por defecto) | "costo"
     plan: str = ""                        # código EDT de la planificación (p. ej. INTERNO); "" = todas
     max_level: int = 3
     baseline: int | None = None           # 0 = Línea base; 1..10 = Línea base N; None = la del proyecto
@@ -130,14 +107,14 @@ class Config:
     default_method: str = "Por definir"
     currency: str = "EUR"                 # "" = código de moneda del proyecto en MS Project
     decimals: int = 0
-    # Depuración de costes (solo en el modo porcentaje): filas «(coste)» con la previsión de una empresa, pegada
+    # Depuración de costes: filas «(coste)» con la previsión de una empresa, pegada
     # en la hoja PV-depuración, para alinear las tareas e hitos de MS Project con esa previsión
     cost_review: bool = False             # depuracion_costes
     cost_review_company: str = ""         # depuracion_empresa: empresa_a o empresa_b ("" = empresa_a)
     cost_review_alignment: bool = False   # depuracion_alineamiento: indicador de alineamiento
     cost_review_threshold: float = 10.0   # depuracion_umbral: % del BAC a partir del cual se resalta un mes
 
-    # [metodos] -- None = lista por defecto del modo (sin "CPTR de MS Project" en el modo porcentaje)
+    # [metodos] -- None = lista por defecto
     methods_list: list[str] | None = None
 
     # [semaforo] -- umbrales comunes de SPI y CPI. Rojo: menor que el rojo inferior o mayor que el rojo
@@ -155,7 +132,6 @@ class Config:
     company_both: str = "Ambas"           # valor que indica tarea de ambas empresas
     split_field: str = "% Reparto"        # % de la empresa A en las tareas "Ambas"
     split_default: float = 50.0
-    ac_from_project: bool = False         # AC por empresa desde MS Project (si no, se carga a mano)
 
     # [[proyectos]] -- varios archivos de MS Project en un mismo libro (vacío = un solo archivo)
     projects: list[ProjectSpec] = field(default_factory=list)
@@ -164,14 +140,10 @@ class Config:
     source_file: str = ""                 # ruta del TOML leído (informativo)
 
     @property
-    def percent_mode(self) -> bool:
-        return self.mode == MODE_PERCENT
-
-    @property
     def cost_review_role(self) -> str | None:
         """Hoja que se depura: "A" o "B" (PV de esa empresa), "" (hoja PV de un libro de una sola empresa) o None si
-        la depuración de costes no se aplica (desactivada o modo costo)."""
-        if not (self.cost_review and self.percent_mode):
+        la depuración de costes está desactivada."""
+        if not self.cost_review:
             return None
         if not self.multi_enabled:
             return ""
@@ -180,10 +152,10 @@ class Config:
 
     @property
     def methods(self) -> list[str]:
-        """Métodos del desplegable de la columna C: los de [metodos] lista o los del modo."""
+        """Métodos del desplegable de la columna C: los de [metodos] lista o los del programa."""
         if self.methods_list is not None:
             return self.methods_list
-        return [m for m in DEFAULT_METHODS if not (self.percent_mode and m == METHOD_BCWP)]
+        return list(DEFAULT_METHODS)
 
     def project_config(self, name: str) -> "Config":
         """Configuración para leer un archivo de [[proyectos]]: su planificación y su línea base (la general si el
@@ -195,7 +167,6 @@ class Config:
                        baseline=self.baseline if spec.baseline is None else spec.baseline)
 
     def validate(self) -> None:
-        self.mode = parse_mode(self.mode)
         if not 1 <= self.max_level <= 10:
             raise ConfigError("nivel_maximo debe estar entre 1 y 10.")
         if not 1 <= self.months <= 600:
@@ -342,7 +313,6 @@ def load_config(path: str | Path | None) -> Config:
     cfg.months = _get(hor, "meses", cfg.months, int)
 
     exp = _section(data, "exportacion")
-    cfg.mode = parse_mode(_get(exp, "modo", cfg.mode, str))
     cfg.plan = _get(exp, "planificacion", cfg.plan, str).strip()
     cfg.max_level = _get(exp, "nivel_maximo", cfg.max_level, int)
     if exp.get("linea_base") not in (None, ""):
@@ -390,7 +360,6 @@ def load_config(path: str | Path | None) -> Config:
     cfg.company_both = _get(mul, "ambas", cfg.company_both, str).strip()
     cfg.split_field = _get(mul, "campo_reparto", cfg.split_field, str).strip()
     cfg.split_default = _get(mul, "reparto_por_defecto", cfg.split_default, float)
-    cfg.ac_from_project = _get(mul, "ac_desde_project", cfg.ac_from_project, bool)
 
     cfg.projects = _projects(data, path.parent)
 

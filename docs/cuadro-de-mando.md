@@ -107,8 +107,8 @@ muestra los umbrales con que se generó el libro:
 - El TCPI usa solo los umbrales inferiores: un TCPI menor que 1 indica que alcanza con una eficiencia
   menor que la lograda hasta ahora, y no es una alerta.
 
-Mientras no hay AC cargado (por ejemplo, en multi-empresa antes de cargar el AC a mano), los
-indicadores de costo (CV, CPI, ETC, EAC, VAC y TCPI) quedan vacíos.
+Mientras no hay AC cargado (el AC se ingresa a mano en la hoja `AC`), los indicadores de costo (CV,
+CPI, ETC, EAC, VAC y TCPI) quedan vacíos.
 
 ![Cabecera e indicadores del Cuadro de Mando](img/excel/cdm-indicadores.png)
 
@@ -197,7 +197,7 @@ quedan vacíos; en ese caso se debe aumentar `meses`.
 | TCPI (BAC) mucho mayor que el CPI | Terminar dentro del BAC exige una eficiencia muy superior a la histórica. Una regla práctica habitual: si la diferencia supera 0,05–0,10, el BAC es poco realista. | Informar el EAC y evaluar un cambio de línea base o de alcance. |
 | CPI y SPI > 1 | Adelanto y ahorro. | Verificar que no se deba a métodos subjetivos o a un AC incompleto (costos no registrados). |
 | CPI o SPI por encima del rango verde (> 1,05) | Desempeño mejor que el planificado, que el semáforo marca en amarillo o rojo para que se confirme. | Revisar el AC devengado, el avance informado y si el presupuesto o la línea base del paquete son demasiado holgados; explicarlo en `Análisis de desviaciones`. |
-| EV > 0 con AC = 0 en una fila | Costo real aún no registrado (facturas pendientes, AC del ERP). | Completar el AC devengado del mes. |
+| EV > 0 con AC = 0 en una fila | Costo real aún no registrado (facturas pendientes o AC del mes sin cargar en la hoja `AC`). | Completar el AC devengado del mes. |
 | Mucho LOE en el BAC | El LOE no genera variación de cronograma y "diluye" el SPI. | Revisar los métodos ([Métodos de medición](metodos-de-medicion.md#4-guía-para-elegir-el-método)). |
 
 Los indicadores acumulados reflejan toda la historia del proyecto. Para detectar cambios recientes

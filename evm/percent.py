@@ -1,4 +1,4 @@
-"""Modo porcentaje: % planificado y % ganado de cada fila del libro (y de cada empresa), sin importes.
+"""% planificado y % ganado de cada fila del libro (y de cada empresa), sin importes.
 
 MS Project no tiene importes: cada fila del libro recibe un % planificado por mes y un % ganado a la fecha de
 corte, y el importe es el BAC que se ingresa en el libro multiplicado por ese %.
@@ -22,8 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime, time
 
-from evm.methods import (FIXED, LOE, MILESTONES, PCT, PHYSICAL, PROJECT_BCWP, UNDEFINED, UNITS, Method,
-                         is_complete, is_started)
+from evm.methods import FIXED, LOE, MILESTONES, PCT, PHYSICAL, UNDEFINED, UNITS, Method, is_complete, is_started
 from evm.model import MonthKey, Task
 from evm.timeline import add_into
 from evm.workcalendar import WorkCalendar, elapsed_by_month
@@ -242,8 +241,5 @@ def earned_fraction(method: Method, rw: RowWeights, pv_fraction: float) -> tuple
         if any(t.physical_percent_complete > 0 for t in members):
             return _weighted_progress(rw, True), "sin hitos: se usó % físico completado"
         return _weighted_progress(rw, False), "sin hitos ni % físico completado: se usó % completado"
-    if kind == PROJECT_BCWP:
-        return (_weighted_progress(rw, False),
-                "el CPTR de MS Project necesita costos y no se usa en el modo porcentaje: se usó % completado")
     note = "método no definido" if kind == UNDEFINED else f"método no reconocido '{method.text}'"
     return _weighted_progress(rw, False), note + ": se usó % completado"

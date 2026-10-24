@@ -16,17 +16,15 @@ simulado.*
 - **PV mensual** de cada elemento de la EDT hasta el nivel 3 del código EDT (`2.0.0`, `2.1.0`,
   `2.1.1`), durante 120 meses. Con el campo `Visible` de MS Project se muestra más o menos detalle en
   cada rama.
-- **Modo porcentaje** (por defecto): el cronograma de MS Project **no necesita importes**. El programa
-  calcula el % planificado y el % ganado de cada paquete con la duración de la línea base de sus tareas y
-  el peso de sus hitos, y el importe es el **BAC que se ingresa en el libro**. Sirve para cronogramas que
-  se comparten (con el cliente o entre las empresas que ejecutan el proyecto). En el **modo costo**, el PV
-  sale del costo de línea base escalonado de MS Project.
+- El cronograma de MS Project **no necesita importes**: el programa calcula el % planificado y el %
+  ganado de cada paquete con la duración de la línea base de sus tareas y el peso de sus hitos, y el PV y
+  el EV son el **BAC que se ingresa en el libro** multiplicado por ese %. Así, el cronograma se puede
+  compartir (con el cliente o entre las empresas que ejecutan el proyecto) sin importes.
 - Selección de la **planificación** a exportar cuando el proyecto tiene varias (por ejemplo `INTERNO` y
   `CLIENTE`).
-- Cálculo del **EV** de cada paquete a la fecha de corte, según su **método de medición** (0/100,
-  50/50, hitos ponderados, % completado, % físico completado, unidades, LOE y, en el modo costo, CPTR de
-  MS Project), y carga del valor del mes en el libro. El **AC** se carga a mano o, en el modo costo,
-  desde MS Project.
+- Cálculo del **% ganado** de cada paquete a la fecha de corte, según su **método de medición** (0/100,
+  50/50, hitos ponderados, % completado, % físico completado, unidades y LOE), y carga del valor del mes
+  en el libro. El **AC** se carga a mano.
 - **Cuadro de Mando** con el mes de reporte seleccionable: BAC, PV, EV, AC, desviaciones, índices con
   semáforo, pronósticos (ETC, EAC, VAC, TCPI) y tres gráficos nativos de Excel.
 - **Indicadores** del proyecto y de cada elemento de la EDT, incluido el **Cronograma Ganado**.
@@ -38,8 +36,8 @@ simulado.*
 - Opcional: **multi-empresa**, con el BAC, el PV, el EV y el AC de dos empresas por separado.
 - Opcional: **varios archivos de MS Project** en un mismo informe, cada uno con sus códigos EDT (por
   ejemplo, `1.0.0` a `8.0.0` en un archivo y `9.0.0` en otro).
-- Opcional: **depuración de costes** (modo porcentaje), para comparar el PV planificado de una empresa con
-  la previsión mensual de su plan de costes y alinear con ella las tareas e hitos de MS Project.
+- Opcional: **depuración de costes**, para comparar el PV planificado de una empresa con la previsión
+  mensual de su plan de costes y alinear con ella las tareas e hitos de MS Project.
 - Montos en **euros (EUR)** por defecto.
 
 ```mermaid
@@ -49,6 +47,9 @@ flowchart LR
     U["BAC y AC<br/>(a mano)"] --> XL
     XL --> CM["Cuadro de Mando,<br/>Resumen e<br/>Indicadores EDT"]
 ```
+
+> La versión 2.0.0 eliminó el cálculo con los costos cargados en MS Project. Para calcular el PV y el EV
+> con esos costos se debe usar la [versión 1.5.1](https://github.com/MarceloSalazar/evm-automation/releases/tag/v1.5.1).
 
 ---
 
@@ -146,19 +147,16 @@ El [tutorial](docs/ejemplo-paso-a-paso.md) recorre el ciclo completo con 24 mese
 | Ciclo completo con el proyecto de ejemplo | [Tutorial](docs/ejemplo-paso-a-paso.md) |
 | Sesión de 30 minutos para el equipo de proyecto, con notas para el presentador | [Presentación](docs/presentacion-jefes-de-proyecto.pptx) ([PDF](docs/presentacion-jefes-de-proyecto.pdf)) |
 | Puesta en marcha, cierre mensual, cambios de línea base y buenas prácticas | [Proceso de reporte EVM](docs/proceso-reporte-evm.md) |
-| Modo porcentaje (por defecto): BAC en el libro, % planificado y % ganado de MS Project | [Modo porcentaje](docs/modo-porcentaje.md) |
+| BAC en el libro, % planificado y % ganado de MS Project, filas del libro, AC, valor del mes y controles | [Cálculo del PV y el EV](docs/calculo-pv-ev.md) |
 | Código EDT, campos personalizados, línea base, fecha de estado y avance | [Preparación en MS Project](docs/preparacion-ms-project.md) |
-| Modo costo: recursos de trabajo, materiales y de costo, costo fijo y línea base | [Presupuesto (BAC) de cada tarea](docs/presupuesto-bac.md) |
-| 0/100, fórmulas fijas, hitos ponderados, % físico, LOE y valor acumulado de MS Project; cómo elegir y aprobar el método de cada paquete | [Métodos de medición](docs/metodos-de-medicion.md) |
+| 0/100, fórmulas fijas, hitos ponderados, % físico y LOE; cómo elegir y aprobar el método de cada paquete | [Métodos de medición](docs/metodos-de-medicion.md) |
 | PV, EV y AC de dos empresas | [Multi-empresa (opcional)](docs/multiempresa.md) |
 | Varios archivos de MS Project en un mismo informe | [Varios archivos (opcional)](docs/varios-archivos.md) |
 | PV planificado frente al plan de costes de una empresa | [Depuración de costes (opcional)](docs/depuracion-costes.md) |
-| Origen del PV mensual y estructura de filas | [Cálculo del PV](docs/calculo-pv.md) |
-| EV por método, AC, valor del mes y controles | [Cálculo de EV y AC](docs/calculo-ev-ac.md) |
 | Hojas del libro, reglas de uso y `--migrar-desde` | [El libro Excel](docs/libro-excel.md) |
 | Tablero, gráficos, fórmulas e interpretación | [Cuadro de Mando e indicadores](docs/cuadro-de-mando.md) |
 | Paquetes fuera de umbral: causa, impacto y acción correctiva | [Análisis de desviaciones](docs/analisis-desviaciones.md) |
-| `generar`, `actualizar` y sus opciones | [Comandos y opciones](docs/comandos.md) |
+| `generar`, `actualizar`, `analizar` y sus opciones | [Comandos y opciones](docs/comandos.md) |
 | `config.toml` | [Configuración](docs/configuracion.md) |
 | Hoja `Validación`, limitaciones y mensajes de error | [Validaciones y solución de problemas](docs/validaciones-y-problemas.md) |
 | Siglas EVM y campos de MS Project en español | [Glosario](docs/glosario.md) |
@@ -213,9 +211,9 @@ completa con la plantilla del repositorio, que incluye una lista de control con 
 - **Pruebas:** `python -m pytest` debe pasar. Cada corrección o función nueva se acompaña de pruebas; en
   una corrección, una prueba que falle sin ella. Las pruebas y la estructura del código se describen en
   [Desarrollo](docs/desarrollo.md).
-- **Compatibilidad:** los libros generados con versiones anteriores deben seguir funcionando con
-  `actualizar`. Si un cambio exige regenerarlos o cambiar la configuración, se indica en el Pull
-  Request.
+- **Compatibilidad:** los libros generados con versiones anteriores de la misma versión mayor (por
+  ejemplo, 2.x) deben seguir funcionando con `actualizar`. Si un cambio exige regenerarlos o cambiar la
+  configuración, es una versión mayor y se indica en el Pull Request.
 - **Documentación:** se actualiza el documento de `docs/` que corresponda (el README solo resume) y, si
   cambia el libro, las capturas. El cambio se anota en la sección *Sin publicar* de
   [CHANGELOG.md](CHANGELOG.md).

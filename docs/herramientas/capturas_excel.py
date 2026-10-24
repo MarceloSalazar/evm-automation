@@ -1,7 +1,7 @@
 """Regenera las capturas del libro Excel que usa la documentación (docs/img/excel).
 
 Pasos:
-1. Genera el libro del proyecto de ejemplo en el modo porcentaje (una empresa,
+1. Genera el libro del proyecto de ejemplo (una empresa,
    multi-empresa y combinado con el segundo proyecto de ejemplo) en una carpeta
    temporal, carga el BAC del ejemplo y simula 24 cierres mensuales (enero de 2026 a
    diciembre de 2027), con el AC de cada mes del ejemplo.

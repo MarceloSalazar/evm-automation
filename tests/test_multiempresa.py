@@ -1,4 +1,4 @@
-"""Multi-empresa: reparto del PV, el BAC, el EV y el AC entre dos empresas."""
+"""Multi-empresa: % planificado y % ganado de cada empresa, con su BAC y su AC en el libro."""
 from datetime import date
 from pathlib import Path
 
@@ -6,20 +6,18 @@ import pytest
 from openpyxl import load_workbook
 
 from evm.cli import main
-from evm.companies import ac_by_company, ev_by_company, resolve_shares
+from evm.companies import resolve_shares
 from evm.config import Config, ConfigError, load_config
-from evm.methods import parse_method
 from evm.model import Task
 from evm.reader_xml import read_xml
 from evm.update import read_book, run_update
-from evm.wbs import SEV_INFO, TimephasedPVSource, build_report
-from evm.workbook import FIRST_MONTH_COL, FIRST_ROW, read_meta
+from evm.wbs import SEV_INFO, build_report
+from evm.workbook import FILL_INPUT, FIRST_MONTH_COL, FIRST_ROW, read_meta, read_structure
 
-pytestmark = pytest.mark.modo("costo")
 
 ROOT = Path(__file__).resolve().parents[1]
-SHEETS = ["Cuadro de Mando", "Resumen", "PV", "PV-EmpresaA", "PV-EmpresaB", "EV", "EV-EmpresaA", "EV-EmpresaB",
-          "AC", "AC-EmpresaA", "AC-EmpresaB"]
+SHEETS = ["Cuadro de Mando", "Resumen", "PV", "PV-EmpresaA", "PV-EmpresaB", "% PV-EmpresaA", "% PV-EmpresaB",
+          "EV", "EV-EmpresaA", "EV-EmpresaB", "% EV-EmpresaA", "% EV-EmpresaB", "AC", "AC-EmpresaA", "AC-EmpresaB"]
 
 
 # ----------------------------------------------------------------------------
@@ -33,9 +31,7 @@ def multi_config(tmp_path, example_files, extra: str = "", name: str = "multi.to
 
 
 def report_for(xml: Path, cfg: Config):
-    project = read_xml(xml, cfg)
-    return build_report(project, cfg, TimephasedPVSource(lambda t: t.timephased_pv, "xml", cfg.distribution,
-                                                         cfg.holidays))
+    return build_report(read_xml(xml, cfg), cfg)
 
 
 def interno(plans):
@@ -68,12 +64,23 @@ def task(uid, name, company="", split=None, parent=None, **kw):
 
 
 @pytest.fixture()
-def multi_book(tmp_path, example_files):
+def multi_book(tmp_path, example_files, generator):
     cfg_path = multi_config(tmp_path, example_files)
     out = tmp_path / "EVM_multi.xlsx"
     assert main(["generar", "--origen", str(example_files["base"]), "--config", str(cfg_path),
                  "--salida", str(out)]) == 0
+    generator.fill_book(out)                        # BAC de cada empresa, que se ingresa a mano
     return out, cfg_path
+
+
+def set_bac(path, values: dict[str, tuple[float, float]]) -> None:
+    """BAC de cada empresa en las filas indicadas: {código: (BAC de A, BAC de B)}."""
+    wb = load_workbook(path)
+    rows = {s.code: s.row for s in read_structure(wb)}
+    for code, (a, b) in values.items():
+        wb["PV-EmpresaA"].cell(rows[code], 4, a)
+        wb["PV-EmpresaB"].cell(rows[code], 4, b)
+    wb.save(path)
 
 
 # ----------------------------------------------------------------------------
@@ -84,7 +91,7 @@ def test_example_config_defaults():
     assert not cfg.multi_enabled
     assert (cfg.company_field, cfg.company_a, cfg.company_b, cfg.company_both) == \
         ("Empresa", "EmpresaA", "EmpresaB", "Ambas")
-    assert (cfg.split_field, cfg.split_default, cfg.ac_from_project) == ("% Reparto", 50.0, False)
+    assert (cfg.split_field, cfg.split_default) == ("% Reparto", 50.0)
     assert cfg.wbs_field == "Item EDT" and cfg.plan == "INTERNO" and cfg.currency == "EUR"
 
 
@@ -94,18 +101,16 @@ def test_example_config_reads_item_edt(example_files):
     by_item = read_xml(example_files["base"], cfg)
     by_wbs = read_xml(example_files["base"], Config())
     assert [t.wbs for t in by_item.tasks] == [t.wbs for t in by_wbs.tasks]
-    assert cfg.mode == "porcentaje"                     # la configuración de ejemplo indica el modo por defecto
-    cfg.mode = "costo"
-    assert report_for(example_files["base"], cfg).total_bac == pytest.approx(44_210_000)
+    assert len([r for r in report_for(example_files["base"], cfg).rows if r.is_input]) == 24
 
 
 def test_config_from_toml(tmp_path):
     path = tmp_path / "c.toml"
     path.write_text('[multiempresa]\nactivar = true\nempresa_a = "Acme"\nempresa_b = "Beta SL"\n'
                     'ambas = "Compartida"\ncampo_empresa = "Text3"\ncampo_reparto = "Number2"\n'
-                    'reparto_por_defecto = 70\nac_desde_project = true\n', encoding="utf-8")
+                    'reparto_por_defecto = 70\n', encoding="utf-8")
     cfg = load_config(path)
-    assert cfg.multi_enabled and cfg.ac_from_project
+    assert cfg.multi_enabled
     assert (cfg.company_a, cfg.company_b, cfg.company_both) == ("Acme", "Beta SL", "Compartida")
     assert (cfg.company_field, cfg.split_field, cfg.split_default) == ("Text3", "Number2", 70.0)
 
@@ -162,30 +167,6 @@ def test_resolve_shares_inheritance_and_notes():
     assert shares3[root.uid] == pytest.approx(0.25) and shares3[b_both.uid] == pytest.approx(0.25)
 
 
-def test_ev_and_ac_by_company():
-    parent = task(1, "Paquete")
-    ta = task(2, "Tarea A", parent=parent, baseline_cost=100.0, percent_complete=100.0, bcwp=80.0, acwp=90.0)
-    tb = task(3, "Tarea B", parent=parent, baseline_cost=300.0, percent_complete=0.0, bcwp=30.0, acwp=40.0)
-    parent.bcwp, parent.acwp = 110.0, 135.0                # 5 de costo real propio de la tarea resumen
-    shares = {parent.uid: 0.5, ta.uid: 1.0, tb.uid: 0.0}
-    contributors = [parent, ta, tb]
-    bac, pv = (100.0, 300.0), (50.0, 120.0)
-
-    def ev(method, frac=0.25):
-        return ev_by_company(parse_method(method), contributors, shares, bac, pv, frac)
-
-    assert ev("% Completado") == pytest.approx((100.0, 0.0))        # avance de las tareas de cada empresa
-    assert ev("Avance lineal (LOE)") == pytest.approx((50.0, 120.0))   # PV acumulado de cada empresa
-    assert ev("50/50", 0.5) == pytest.approx((50.0, 150.0))          # avance del paquete completo
-    assert ev("Hitos ponderados", 0.4) == pytest.approx((40.0, 120.0))
-    assert ev("CPTR de MS Project") == pytest.approx((80.0, 30.0))
-    # Sin BAC de una empresa: EV 0
-    assert ev_by_company(parse_method("50/50"), contributors, shares, (0.0, 400.0), pv, 0.5) == \
-        pytest.approx((0.0, 200.0))
-    # AC: costo real propio de cada tarea según su empresa
-    assert ac_by_company(contributors, shares) == pytest.approx((90.0 + 2.5, 40.0 + 2.5))
-
-
 # ----------------------------------------------------------------------------
 # Lectores
 # ----------------------------------------------------------------------------
@@ -225,32 +206,31 @@ def test_com_reads_company_fields():
     by_uid = {t.uid: t for t in p.tasks}
     assert (by_uid[1].company, by_uid[1].split_a) == ("Ambas", 0.0)
     assert by_uid[4].company == "EmpresaB"
-    rep = build_report(p, cfg, s.pv_source(p, cfg))
+    rep = build_report(p, cfg)
     rows = rows_by_code(rep)
-    # 1.1.1 hereda "Ambas" de la fase (Número2 = 0 equivale a vacío: 50 %); el 80 del grupo se ignora
-    assert rows["1.1.1"].bac_a == pytest.approx(200.0)
-    assert rows["1.1.2"].bac_a == 0.0                     # empresa B, con su subtarea sin empresa
-    assert sum(rows["1.1.1"].vector_a) == pytest.approx(200.0)
+    # 1.1.1 hereda "Ambas" de la fase: las dos empresas tienen % planificado; 1.1.2 es de la empresa B (también su
+    # subtarea sin empresa): la empresa A no participa
+    assert sum(rows["1.1.1"].pct_vec["A"]) == pytest.approx(1.0) and sum(rows["1.1.1"].pct_vec["B"]) == 1.0
+    assert any("EmpresaA no participa en las tareas de 1 fila (1.1.2)" in i.message for i in rep.issues)
 
 
 # ----------------------------------------------------------------------------
-# Informe (PV y BAC por empresa)
+# Informe (% planificado por empresa)
 # ----------------------------------------------------------------------------
-def test_report_splits_pv_and_bac(tmp_path, example_files):
+def test_report_planned_percent_per_company(tmp_path, example_files):
     cfg = load_config(multi_config(tmp_path, example_files))
     rep = report_for(example_files["base"], cfg)
     assert rep.multi and (rep.company_a, rep.company_b) == ("EmpresaA", "EmpresaB")
-    rows = rows_by_code(rep)
-    assert rows["1.1.1"].bac_a == pytest.approx(0.6 * 1_800_000)          # Ambas 60 %
-    assert rows["2.1.1"].bac_a == 0.0                                       # EmpresaB dentro de EmpresaA
-    assert rows["2.1.3"].bac_a == pytest.approx(rows["2.1.3"].bac)          # hereda EmpresaA
-    assert rows["3.1.1"].bac_a == 0.0
-    assert rows["4.1.1"].bac_a == pytest.approx(0.5 * rows["4.1.1"].bac)    # Ambas sin %: 50 %
     for r in rep.rows:
-        assert sum(r.vector_a) == pytest.approx(r.bac_a, abs=0.01)
-        assert 0 <= r.bac_a <= r.bac + 0.01
-    assert rows["1.0.0"].bac_a == pytest.approx(0.6 * rows["1.0.0"].bac)
-    assert sum(r.bac_a for r in rep.roots) == pytest.approx(9_947_000)
+        if r.is_input:
+            assert set(r.pct_vec) == {"A", "B"}
+            assert sum(r.pct_vec["A"]) == pytest.approx(1.0) and sum(r.pct_vec["B"]) == pytest.approx(1.0)
+    messages = [i.message for i in rep.issues]
+    # 2.1.1 es de EmpresaB dentro de Ingeniería (EmpresaA); la construcción es de EmpresaB
+    assert any(m.startswith("EmpresaA no participa en las tareas de 7 filas (2.1.1, 3.1.1, 3.1.2, 3.1.3, 3.2.1, "
+                            "3.2.2, 3.2.3)") for m in messages)
+    assert any(m.startswith("EmpresaB no participa en las tareas de 7 filas (2.1.2, 2.1.3, 2.1.4, 2.2.1, 2.2.2, "
+                            "2.2.3, 2.2.4)") for m in messages)
     assert not [i for i in rep.issues if "empresa" in i.message.lower() and i.severity != SEV_INFO]
 
 
@@ -271,12 +251,9 @@ def test_report_company_notes_and_residual(tmp_path, example_files, generator):
     assert any(msg.startswith("7 tareas sin empresa") for _, msg in issues)
     assert any(code == "3.0.0" and "'Otra' no reconocida" in msg for code, msg in issues)
     assert any(code == "1.0.0" and "fuera de rango" in msg for code, msg in issues)
-    assert rows["1.1.1"].bac_a == pytest.approx(0.5 * 1_800_000)
-    assert rows["3.1.1"].bac_a == pytest.approx(0.5 * rows["3.1.1"].bac)
-    # Fila de otros costos: la tarea sin código es de EmpresaB
+    # Fila de otras tareas: la tarea sin código es de EmpresaB
     residual = rows["1.1.0-D"]
-    assert residual.bac == pytest.approx(10_000) and residual.bac_a == 0.0
-    assert rows["1.1.0"].bac_a == pytest.approx(0.5 * 2_750_000)
+    assert [t.name for t in residual.leaves] == ["Gasto sin código"]
 
 
 # ----------------------------------------------------------------------------
@@ -285,7 +262,7 @@ def test_report_company_notes_and_residual(tmp_path, example_files, generator):
 def test_workbook_sheets_and_formulas(multi_book):
     path, _ = multi_book
     wb = load_workbook(path)
-    assert wb.sheetnames[:11] == SHEETS
+    assert wb.sheetnames[:len(SHEETS)] == SHEETS
     r = FIRST_ROW
     month = FIRST_MONTH_COL
     pv, pv_a, ev_a = wb["PV"], wb["PV-EmpresaA"], wb["EV-EmpresaA"]
@@ -294,11 +271,15 @@ def test_workbook_sheets_and_formulas(multi_book):
     assert pv.cell(r, month).value == f"='PV-EmpresaA'!{letter}{r}+'PV-EmpresaB'!{letter}{r}"
     assert wb["EV"].cell(r, month).value == f"='EV-EmpresaA'!{letter}{r}+'EV-EmpresaB'!{letter}{r}"
     leaf = next(x for x in range(FIRST_ROW, pv.max_row) if pv.cell(x, 1).value == "1.1.1")
-    assert pv_a.cell(leaf, 4).value == pytest.approx(1_080_000)
+    assert pv_a.cell(leaf, 4).value == pytest.approx(1_080_000)            # BAC del ejemplo: Ambas 60 %
     assert wb["PV-EmpresaB"].cell(leaf, 4).value == pytest.approx(720_000)
+    assert pv_a.cell(leaf, 4).fill.fgColor.rgb.endswith(FILL_INPUT.fgColor.rgb[-6:])
+    assert pv_a.cell(leaf, month).value == f"=N($D{leaf})*'% PV-EmpresaA'!{letter}{leaf}"
     assert ev_a.cell(leaf, 4).value == f"=IF('PV-EmpresaA'!D{leaf}=\"\",\"\",'PV-EmpresaA'!D{leaf})"
-    assert ev_a.cell(leaf, month).fill.fgColor.rgb == wb["EV-EmpresaB"].cell(leaf, month).fill.fgColor.rgb
-    assert wb["EV"].cell(leaf, month).fill.fgColor.rgb != ev_a.cell(leaf, month).fill.fgColor.rgb
+    assert ev_a.cell(leaf, month).value == f"=N($D{leaf})*'% EV-EmpresaA'!{letter}{leaf}"
+    ac_a = wb["AC-EmpresaA"]
+    assert ac_a.cell(leaf, month).fill.fgColor.rgb.endswith(FILL_INPUT.fgColor.rgb[-6:])
+    assert not wb["AC"].cell(leaf, month).fill.fgColor.rgb.endswith(FILL_INPUT.fgColor.rgb[-6:])
     assert pv.data_validations.dataValidation and not pv_a.data_validations.dataValidation
     meta = read_meta(wb)
     assert meta["multiempresa"] is True and meta["empresa_a"] == "EmpresaA" and meta["ambas"] == "Ambas"
@@ -320,12 +301,11 @@ def test_update_splits_ev_and_leaves_ac(multi_book, example_files):
     path, cfg_path = multi_book
     cfg = load_config(cfg_path)
     res = run_update(read_xml(example_files["jun"], cfg), cfg, path, backup=False)
-    assert not res.ac_loaded
     b = read_book(path)
     assert b.multi
     m = 17
     loe = book_row(b, "1.1.1")
-    pv_a = sum(b.pv_a[loe][:m + 1])
+    pv_a = b.bac_role["A"][loe] * sum(b.pct_pv["A"][loe][:m + 1])
     assert b.ev_a[loe][m] == pytest.approx(pv_a, abs=0.01)                       # LOE: PV de A
     assert b.ev_b[loe][m] == pytest.approx(sum(b.pv[loe][:m + 1]) - pv_a, abs=0.01)
     assert b.ev_a[loe][m] == pytest.approx(0.6 * b.ev[loe][m], abs=1)
@@ -340,7 +320,7 @@ def test_update_splits_ev_and_leaves_ac(multi_book, example_files):
 
 
 def test_update_ev_by_company_progress(tmp_path, example_files, generator):
-    """En una fila con tareas de las dos empresas, el EV de cada una usa su avance y su BAC."""
+    """En una fila con tareas de las dos empresas, el EV de cada una usa el avance de sus tareas y su BAC."""
     def mutate(nodes):
         conceptual = nodes[2].children[0].children[1]           # 2.1.2 Diseño conceptual
         conceptual.method = "% Completado"
@@ -353,6 +333,7 @@ def test_update_ev_by_company_progress(tmp_path, example_files, generator):
     cfg_path = multi_config(tmp_path, example_files)
     book = tmp_path / "EVM.xlsx"
     assert main(["generar", "--origen", str(base), "--config", str(cfg_path), "--salida", str(book)]) == 0
+    set_bac(book, {"2.1.2": (340_000, 260_000), "1.1.0-D": (0, 10_000)})
     cfg = load_config(cfg_path)
     project = read_xml(status, cfg)
     run_update(project, cfg, book, backup=False)
@@ -360,50 +341,26 @@ def test_update_ev_by_company_progress(tmp_path, example_files, generator):
     b = read_book(book)
     m = 5
     row = book_row(b, "2.1.2")
-    assert b.bac_a[row] == pytest.approx(340_000) and b.bac[row] == pytest.approx(600_000)
-    leaves = {}
-    for t in project.tasks:                                      # primero aparecen las tareas de INTERNO
-        if t.baseline_cost > 0:
-            leaves.setdefault(t.name, t)
-    names_a = ("Bases de diseño", "Informe conceptual")
-    earned_a = sum(leaves[n].baseline_cost * leaves[n].percent_complete / 100 for n in names_a)
-    alt = leaves["Alternativas y selección"]
-    assert b.ev_a[row][m] == pytest.approx(earned_a, abs=0.01)
-    assert b.ev_b[row][m] == pytest.approx(alt.baseline_cost * alt.percent_complete / 100, abs=0.01)
+    alt = next(t for t in project.tasks if t.name == "Alternativas y selección")
     assert 0 < alt.percent_complete < 100                                  # avance distinto por empresa
+    # EmpresaB solo tiene esa tarea en la fila: su % ganado es el de la tarea
+    assert b.ev_b[row][m] == pytest.approx(260_000 * alt.percent_complete / 100, abs=0.01)
+    assert 0 < b.ev_a[row][m] < 340_000
+    assert b.ev_a[row][m] / 340_000 != pytest.approx(alt.percent_complete / 100)
 
     residual = book_row(b, "1.1.0-D")
     gasto = next(t for t in project.tasks if t.name == "Gasto sin código")
-    assert b.bac_a[residual] == 0
-    assert b.ev_a[residual][m] == 0
+    assert not b.ev_a[residual][m]
     assert b.ev_b[residual][m] == pytest.approx(10_000 * gasto.percent_complete / 100, abs=0.01)
 
 
-def test_update_ac_from_project(tmp_path, multi_book, example_files):
-    path, _ = multi_book
-    cfg = load_config(multi_config(tmp_path, example_files, "ac_desde_project = true\n", "ac.toml"))
-    jun = read_xml(example_files["jun"], cfg)
-    res = run_update(jun, cfg, path, backup=False)
-    assert res.ac_loaded
-    b = read_book(path)
-    total = sum((b.ac_a[s.row][17] or 0) + (b.ac_b[s.row][17] or 0) for s in b.input_rows)
-    plan = next(t for t in jun.tasks if t.wbs == "INTERNO")
-    assert total == pytest.approx(plan.acwp, abs=0.5)
-    terreno = book_row(b, "2.1.1")
-    assert b.ac_a[terreno][17] == 0 and b.ac_b[terreno][17] > 0
-
-
-def test_cli_dry_run_only_ac_and_book_settings(multi_book, example_files, capsys):
+def test_cli_dry_run_and_book_settings(multi_book, example_files, capsys):
     path, cfg_path = multi_book
     base = ["actualizar", "--origen", str(example_files["jun"]), "--libro", str(path)]
     assert main(base + ["--config", str(cfg_path), "--simular"]) == 0
     out = capsys.readouterr().out
     assert "EV-EmpresaA" in out and "EV-EmpresaB" in out and "se carga a mano" in out
     assert not any(any(v) for v in read_book(path).ev_a.values())               # simulación: sin cambios
-
-    assert main(base + ["--config", str(cfg_path), "--solo", "ac"]) == 2
-    err = capsys.readouterr()
-    assert "ac_desde_project" in err.err and "Leyendo" not in err.out          # error antes de leer
 
     # Con una configuración sin [multiempresa] se usan los datos del libro
     assert main(base + ["--config", str(example_files["config"])]) == 0

@@ -11,21 +11,28 @@ from evm.cli import main
 from evm.update import read_book
 from evm.workbook import FIRST_MONTH_COL, FIRST_ROW
 
-pytestmark = pytest.mark.modo("costo")
 
 JUN, JUL = date(2027, 6, 1), date(2027, 7, 1)
 JUNE_COUNT = 13         # paquetes fuera de 0,95 a 1,05 en junio de 2027 (8 por debajo y 5 por encima)
 
 
+STATUS = {"jun": date(2027, 6, 30), "jul": date(2027, 7, 31)}
+
+
 @pytest.fixture()
-def book(tmp_path, example_files):
+def book(tmp_path, example_files, generator):
     out = tmp_path / "EVM.xlsx"
     assert main(["generar", "--origen", str(example_files["base"]), "--config", str(example_files["config"]),
                  "--salida", str(out)]) == 0
+    generator.fill_book(out)                        # BAC de cada fila, que se ingresa a mano
     return out
 
 
-def update(book, example_files, month, *extra) -> None:
+def update(book, example_files, month, *extra, ac: bool = True) -> None:
+    """'actualizar' del mes; antes, el AC del mes (del ERP), que se carga a mano en la hoja AC."""
+    if ac:
+        import generar_ejemplo
+        generar_ejemplo.fill_book(book, STATUS[month])
     assert main(["actualizar", "--origen", str(example_files[month]), "--config", str(example_files["config"]),
                  "--libro", str(book), "--sin-respaldo", *extra]) == 0
 
@@ -139,8 +146,8 @@ def test_text_is_kept_and_copied_to_the_next_month(book, example_files):
 
 
 def test_analizar_after_loading_ac_by_hand(book, example_files, capsys):
-    """AC del ERP cargado a mano después de 'actualizar --solo ev': 'analizar' agrega los paquetes con CPI bajo."""
-    update(book, example_files, "jun", "--solo", "ev")
+    """AC del ERP cargado a mano después de 'actualizar': 'analizar' agrega los paquetes con CPI bajo."""
+    update(book, example_files, "jun", ac=False)
     before = {e.code for e in entries(book)}
     assert "1.1.1" not in before                  # LOE: SPI = 1 y, sin AC, el CPI no se calcula
     b = read_book(book)
@@ -167,7 +174,7 @@ def test_text_kept_when_back_within_threshold(book, example_files):
     for code in ("2.1.3", "2.1.4"):
         row = next(s.row for s in b.input_rows if s.code == code)
         pv = sum(b.pv[row][: i + 1])
-        wb["EV"].cell(row, FIRST_MONTH_COL + i, pv - sum(v or 0 for v in b.ev[row][:i]))
+        wb["% EV"].cell(row, FIRST_MONTH_COL + i, (pv - sum(v or 0 for v in b.ev[row][:i])) / b.bac[row])
         wb["AC"].cell(row, FIRST_MONTH_COL + i, pv - sum(v or 0 for v in b.ac[row][:i]))
     wb.save(book)
     assert main(["analizar", "--libro", str(book), "--sin-respaldo"]) == 0
