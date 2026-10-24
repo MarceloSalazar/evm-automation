@@ -18,6 +18,20 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Nuevas funciones
 
+- Ninguna.
+
+### Correcciones
+
+- Ninguna.
+
+### Otros
+
+- Ninguna.
+
+## [2.1.0] - 2026-10-24 · Comando validar: revisión del archivo de MS Project
+
+### Nuevas funciones
+
 - **Comando `validar`:** revisa el archivo de MS Project con la configuración y muestra el resultado en
   pantalla, agrupado por tema, sin crear ni modificar ningún archivo. Termina con código 1 si encuentra
   errores. Además de las observaciones de la hoja `Validación`, revisa el avance a la fecha de estado
@@ -47,6 +61,10 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 ### Otros
 
 - El instalador prueba también `validar` con el proyecto de ejemplo.
+- Esta versión no publica instalador de Windows: se publicará con la próxima versión. Hasta entonces, el
+  comando `validar` se usa con la instalación con Python; el instalador de la versión 2.0.0 sigue
+  disponible, sin este comando.
+- Portada de la presentación con la versión 2.1.0.
 
 ## [2.0.0] - 2026-10-24 · PV y EV con el BAC del libro: cronograma sin importes
 
@@ -338,7 +356,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.0.0...HEAD
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/MarceloSalazar/evm-automation/compare/v1.5.1...v2.0.0
 [1.5.1]: https://github.com/MarceloSalazar/evm-automation/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/MarceloSalazar/evm-automation/compare/v1.4.0...v1.5.0
