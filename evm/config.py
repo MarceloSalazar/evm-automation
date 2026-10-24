@@ -133,6 +133,11 @@ class Config:
     split_field: str = "% Reparto"        # % de la empresa A en las tareas "Ambas"
     split_default: float = 50.0
 
+    # [validacion] -- método de medición frente a la duración de la línea base del paquete: meses a partir de los
+    # cuales se avisa que un paquete con 0/100 (o con 50/50, 25/75, 20/80...) es largo para ese método; 0 = no se avisa
+    max_months_0_100: float = 1.0         # meses_0_100
+    max_months_fixed: float = 2.0         # meses_formula_fija
+
     # [[proyectos]] -- varios archivos de MS Project en un mismo libro (vacío = un solo archivo)
     projects: list[ProjectSpec] = field(default_factory=list)
     title: str = ""                       # [exportacion] titulo: título del informe ("" = nombre del proyecto)
@@ -212,6 +217,9 @@ class Config:
                 else:
                     raise ConfigError(f"depuracion_empresa = '{company}' no es una de las empresas de [multiempresa]: "
                                       f"debe ser '{self.company_a}' o '{self.company_b}'.")
+        for key, value in (("meses_0_100", self.max_months_0_100), ("meses_formula_fija", self.max_months_fixed)):
+            if not 0 <= value <= 120:
+                raise ConfigError(f"[validacion] {key} debe estar entre 0 y 120 meses (0 = no se controla).")
         if not 0 < self.cost_review_threshold <= 100:
             raise ConfigError("depuracion_umbral debe ser un % mayor que 0 y como máximo 100 (por defecto 10).")
         if self.projects:
@@ -351,6 +359,10 @@ def load_config(path: str | Path | None) -> Config:
                                 cfg.threshold_yellow, float)
     cfg.threshold_yellow_upper = _get(sem, "amarillo_superior", cfg.threshold_yellow_upper, float)
     cfg.threshold_red_upper = _get(sem, "rojo_superior", cfg.threshold_red_upper, float)
+
+    val = _section(data, "validacion")
+    cfg.max_months_0_100 = _get(val, "meses_0_100", cfg.max_months_0_100, float)
+    cfg.max_months_fixed = _get(val, "meses_formula_fija", cfg.max_months_fixed, float)
 
     mul = _section(data, "multiempresa")
     cfg.multi_enabled = _get(mul, "activar", cfg.multi_enabled, bool)

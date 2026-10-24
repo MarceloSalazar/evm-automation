@@ -7,13 +7,14 @@ ingresa en el libro.
 from __future__ import annotations
 
 import logging
+import re
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 
 from evm.config import Config
 from evm.fields import builtin_kind, field_id, is_spanish_wbs_name, parse_custom_name, parse_number, same_name
-from evm.model import ProjectData, Task, use_current_schedule
+from evm.model import Link, ProjectData, Task, use_current_schedule
 from evm.workcalendar import WorkCalendar, calendar_from_xml
 
 log = logging.getLogger(__name__)
@@ -25,6 +26,20 @@ _TASK_FIELD_PREFIX = 0x0B400000
 
 class XmlFormatError(ValueError):
     pass
+
+
+_DURATION = re.compile(r"-?P(?:(\d+(?:\.\d+)?)Y)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)D)?"
+                       r"(?:T(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?)?")
+
+
+def duration_minutes(text: str) -> float | None:
+    """Duración del XML (ISO 8601, p. ej. 'PT40H0M0S') en minutos; None si no se reconoce."""
+    m = _DURATION.fullmatch((text or "").strip())
+    if not m or not any(m.groups()):
+        return None
+    y, mo, d, h, mi, s = (float(g) if g else 0.0 for g in m.groups())
+    minutes = ((y * 365 + mo * 30 + d) * 24 + h) * 60 + mi + s / 60
+    return -minutes if text.strip().startswith("-") else minutes
 
 
 class _Reader:
@@ -62,6 +77,12 @@ class _Reader:
             return default
         try:
             return float(t)
+        except ValueError:
+            return default
+
+    def integer(self, el, name, default: int = 0) -> int:
+        try:
+            return int(self.text(el, name))
         except ValueError:
             return default
 
@@ -121,12 +142,17 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
     wbs_ref = _resolve(cfg.wbs_field, defs) or ("elem", "WBS")
     if cfg.wbs_field and _resolve(cfg.wbs_field, defs) is None:
         warnings.append(f"No se encontró el campo EDT '{cfg.wbs_field}' en el XML; se usa el campo EDT (WBS).")
+    found: dict[str, str] = {}
     method_ref = _resolve(cfg.method_field, defs) if cfg.method_field else None
     if cfg.method_field and method_ref is None:
         warnings.append(f"No se encontró el campo de método '{cfg.method_field}' en el XML.")
+    elif method_ref is not None:
+        found["metodo"] = cfg.method_field
     weight_ref = _resolve(cfg.milestone_weight_field, defs) if cfg.milestone_weight_field else None
     if cfg.milestone_weight_field and weight_ref is None:
         warnings.append(f"No se encontró el campo de peso de hitos '{cfg.milestone_weight_field}' en el XML.")
+    elif weight_ref is not None:
+        found["peso_hito"] = cfg.milestone_weight_field
     visible_ref = _resolve(cfg.visible_field, defs) if cfg.visible_field else None
     if cfg.visible_field_explicit and visible_ref is None:
         warnings.append(f"No se encontró el campo Visible '{cfg.visible_field}' en el XML: las filas del libro "
@@ -137,6 +163,8 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
         if company_ref is None:
             warnings.append(f"No se encontró el campo de empresa '{cfg.company_field}' en el XML: todas las tareas "
                             f"se tratan como '{cfg.company_both}'.")
+        else:
+            found["campo_empresa"] = cfg.company_field
         split_ref = _resolve(cfg.split_field, defs)
         if split_ref is None:
             warnings.append(f"No se encontró el campo de reparto '{cfg.split_field}' en el XML: las tareas "
@@ -206,6 +234,8 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
             weight = parse_number(value_of(weight_ref))
         company = value_of(company_ref).strip() if company_ref is not None else ""
         split_a = parse_number(value_of(split_ref)) if split_ref is not None else None
+        links = [Link(r.integer(lk, "PredecessorUID", -1), r.integer(lk, "Type", 1), r.num(lk, "LinkLag"))
+                 for lk in el.findall(r.q("PredecessorLink"))]
 
         task = Task(
             uid=uid, id=tid, name=r.text(el, "Name"), outline_level=level,
@@ -218,6 +248,9 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
             percent_complete=r.num(el, "PercentComplete"),
             physical_percent_complete=r.num(el, "PhysicalPercentComplete"),
             actual_start=r.date(el, "ActualStart"), actual_finish=r.date(el, "ActualFinish"),
+            duration=duration_minutes(r.text(el, "Duration")), estimated=r.flag(el, "Estimated"),
+            manual=r.flag(el, "Manual"), constraint_type=r.integer(el, "ConstraintType"),
+            constraint_date=r.date(el, "ConstraintDate"), predecessors=links,
             method=value_of(method_ref).strip(), milestone_weight=weight,
             company=company, split_a=split_a, visible=value_of(visible_ref).strip(),
         )
@@ -234,7 +267,7 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
     project = ProjectData(
         name=title, source=str(path), backend="xml", tasks=tasks, status_date=status,
         currency_symbol=currency, project_start=r.date(root, "StartDate"), baseline_label=label,
-        baseline_found=any_baseline, warnings=warnings, calendar=calendar,
+        baseline_found=any_baseline, warnings=warnings, calendar=calendar, fields_found=found,
     )
     if not any_baseline:
         use_current_schedule(project)

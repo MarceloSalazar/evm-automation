@@ -21,7 +21,7 @@ from pathlib import Path
 from evm.config import Config
 from evm.fields import (TASK_NUMBER_IDS, TASK_TEXT_IDS, builtin_kind, is_spanish_wbs_name, parse_custom_name,
                         parse_number, same_name)
-from evm.model import ProjectData, Task, use_current_schedule
+from evm.model import CONSTRAINT_ASAP, LINK_FS, Link, ProjectData, Task, use_current_schedule
 
 log = logging.getLogger(__name__)
 
@@ -75,6 +75,35 @@ def _get(obj, name: str, default=None):
         return getattr(obj, name)
     except Exception:  # propiedad inexistente en esta versión de Project, etc.
         return default
+
+
+def _number(v) -> float | None:
+    """Número de COM; None si no es numérico (p. ej. la duración en texto de una tarea manual)."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    return float(v)
+
+
+def _predecessors(t, uid: int) -> list[Link]:
+    """Vínculos con las predecesoras de la tarea (TaskDependencies tiene también los de sus sucesoras)."""
+    links: list[Link] = []
+    deps = _get(t, "TaskDependencies")
+    if deps is None:
+        return links
+    try:
+        items = list(deps)
+    except Exception:
+        return links
+    for dep in items:
+        try:
+            if int(dep.To.UniqueID) != uid:
+                continue
+            pred = int(dep.From.UniqueID)
+        except Exception:               # vínculo con otro proyecto que no se puede leer
+            continue
+        kind = _number(_get(dep, "Type", LINK_FS))
+        links.append(Link(pred, LINK_FS if kind is None else int(kind), _number(_get(dep, "Lag", 0)) or 0.0))
+    return links
 
 
 class ComSession:
@@ -346,12 +375,17 @@ class ComSession:
         if wbs_ref is None:
             warnings.append(f"No se encontró el campo EDT '{cfg.wbs_field}' en MS Project; se usa el campo EDT (WBS).")
             wbs_ref = ("attr", "WBS")
+        found: dict[str, str] = {}
         method_ref = self._resolve_field(cfg.method_field) if cfg.method_field else None
         if cfg.method_field and method_ref is None:
             warnings.append(f"No se encontró el campo de método '{cfg.method_field}' en MS Project.")
+        elif method_ref is not None:
+            found["metodo"] = cfg.method_field
         weight_ref = self._resolve_field(cfg.milestone_weight_field) if cfg.milestone_weight_field else None
         if cfg.milestone_weight_field and weight_ref is None:
             warnings.append(f"No se encontró el campo de peso de hitos '{cfg.milestone_weight_field}'.")
+        elif weight_ref is not None:
+            found["peso_hito"] = cfg.milestone_weight_field
         visible_ref = self._resolve_field(cfg.visible_field) if cfg.visible_field else None
         if cfg.visible_field_explicit and visible_ref is None:
             warnings.append(f"No se encontró el campo Visible '{cfg.visible_field}' en MS Project: las filas del "
@@ -362,6 +396,8 @@ class ComSession:
             if company_ref is None:
                 warnings.append(f"No se encontró el campo de empresa '{cfg.company_field}' en MS Project: todas las "
                                 f"tareas se tratan como '{cfg.company_both}'.")
+            else:
+                found["campo_empresa"] = cfg.company_field
             split_ref = self._resolve_field(cfg.split_field)
             if split_ref is None:
                 warnings.append(f"No se encontró el campo de reparto '{cfg.split_field}' en MS Project: las tareas "
@@ -398,6 +434,10 @@ class ComSession:
                 percent_complete=_f(_get(t, "PercentComplete")),
                 physical_percent_complete=_f(_get(t, "PhysicalPercentComplete")),
                 actual_start=_dt(_get(t, "ActualStart")), actual_finish=_dt(_get(t, "ActualFinish")),
+                duration=_number(_get(t, "Duration")), estimated=bool(_get(t, "Estimated", False)),
+                manual=bool(_get(t, "Manual", False)),
+                constraint_type=int(_number(_get(t, "ConstraintType", CONSTRAINT_ASAP)) or CONSTRAINT_ASAP),
+                constraint_date=_dt(_get(t, "ConstraintDate")), predecessors=_predecessors(t, uid),
                 method=str(self._field_value(t, method_ref) or "").strip(),
                 milestone_weight=None if weight in (None, "") else parse_number(weight),
                 company=str(company or "").strip(),
@@ -427,7 +467,7 @@ class ComSession:
             currency_symbol=str(_get(p, "CurrencyCode", "") or _get(p, "CurrencySymbol", "") or ""),
             project_start=_dt(_get(p, "ProjectStart")),
             baseline_label="Línea base" if n == 0 else f"Línea base {n}",
-            warnings=warnings,
+            warnings=warnings, fields_found=found,
         )
         if not any_baseline:
             use_current_schedule(project)

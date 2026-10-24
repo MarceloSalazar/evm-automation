@@ -151,6 +151,16 @@ amarillo_inferior = 0.95
 amarillo_superior = 1.05
 rojo_superior = 1.10
 
+[validacion]
+# Método de medición frente a la duración de la línea base de cada paquete (ver
+# docs/validaciones-y-problemas.md). Los métodos de fórmula fija se recomiendan
+# para paquetes cortos: con 0/100 el EV queda en 0 hasta que el paquete termina.
+# Se advierte (hoja Validación y comando validar) si un paquete con 0/100 dura más
+# de "meses_0_100" meses, o uno con 50/50, 25/75, 20/80... más de
+# "meses_formula_fija" meses. 0 = no se controla.
+meses_0_100 = 1
+meses_formula_fija = 2
+
 [multiempresa]
 # Reparto del PV, el EV y el AC entre dos empresas (ver docs/multiempresa.md).
 # Desactivado por defecto. Con activar = true, el libro agrega las hojas de cada

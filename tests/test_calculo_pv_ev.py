@@ -171,7 +171,8 @@ def test_tasks_without_baseline_dates_are_warned():
     tasks[4].has_baseline = False
     rep = build_report(P(tasks), config())
     assert issues_with(rep, "1 tarea no tiene fechas de línea base", "Advertencia")
-    assert any(i.name == "Estructura" and "fechas actuales" in i.message for i in rep.issues)
+    # Tarea sin código EDT: con su Id, para encontrarla en MS Project
+    assert any(i.name == f"Estructura (Id {tasks[4].id})" and "fechas actuales" in i.message for i in rep.issues)
     assert sum(rows_by_code(rep)["3.1.1"].pct_vec[""]) == pytest.approx(1.0)
 
 

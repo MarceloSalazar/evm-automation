@@ -5,7 +5,7 @@ Pasos:
    y PyInstaller.
 2. Genera con PyInstaller la carpeta ExportadorEVM con evm_export.exe y generar_ejemplo.exe
    (instalador\\ExportadorEVM.spec).
-3. Prueba los ejecutables con el proyecto de ejemplo: generar, avance simulado, actualizar y analizar.
+3. Prueba los ejecutables con el proyecto de ejemplo: validar, generar, avance simulado, actualizar y analizar.
 4. Compila con Inno Setup dist\\ExportadorEVM-X.Y.Z-instalador.exe (instalador\\ExportadorEVM.iss).
 
 Requisitos: Windows con Python 3.11 o posterior (el instalador incluye esa versión de Python), conexión a
@@ -82,6 +82,7 @@ def smoke_test(folder: Path, ver: str) -> None:
         config.write_text(text, encoding="utf-8")
         libro, avance = tmp / "ejemplo.xlsx", tmp / "avance.xml"
         quiet = {"stdout": subprocess.DEVNULL}
+        run([evm, "validar", "--origen", ROOT / "ejemplos" / "programa_ejemplo.xml", "--config", config], **quiet)
         run([evm, "generar", "--origen", ROOT / "ejemplos" / "programa_ejemplo.xml", "--config", config,
              "--salida", libro], **quiet)
         run([ejemplo, "--libro", libro], **quiet)                     # BAC del ejemplo
