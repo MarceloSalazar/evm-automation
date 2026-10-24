@@ -82,6 +82,16 @@ El resto de los valores del archivo de ejemplo se deja igual (`planificacion = "
 
 ## 3. Generar el libro e ingresar el BAC
 
+Antes de generar el libro se puede revisar el archivo de MS Project, sin crear ningún archivo
+([`validar`](comandos.md#validar-revisa-el-archivo-de-ms-project)):
+
+```powershell
+python evm_export.py validar --origen ejemplos\programa_ejemplo.xml --config config.toml
+```
+
+En el ejemplo no hay errores: informa las mismas advertencias de método que `generar` (más abajo) y que el
+cronograma no tiene vínculos entre tareas. Luego se genera el libro:
+
 ```powershell
 python evm_export.py generar --origen ejemplos\programa_ejemplo.xml --config config.toml --salida ejemplo.xlsx
 ```
@@ -99,11 +109,21 @@ Proyecto: Programa de ejemplo EVM
   [i] Se omitió 1 tarea sin código EDT que no depende de ningún elemento EDT: no forma parte de ninguna fila del libro.
   [i] 14 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.
   [i] 1 fila sin método de medición definido (columna C).
+  [!] 1.2.1 Licitación de ingeniería: Método 0/100 en un paquete de 3,6 meses (línea base), más de 1: el EV queda en 0 hasta que termina. ...
+  [!] 1.2.2 Licitación de obras: Método 50/50 en un paquete de 4,5 meses (línea base), más de 2: ...
+  [!] 2.1.1 Estudios de terreno: Método 50/50 en un paquete de 2,7 meses (línea base), más de 2: ...
+  [!] 4.1.1 Pruebas en frío: Método 0/100 en un paquete de 2,7 meses (línea base), más de 1: ...
+  [!] 4.1.2 Pruebas en caliente: Método 20/80 en un paquete de 2,7 meses (línea base), más de 2: ...
+  [!] 4.2.1 Capacitación y entrega: Método 50/50 en un paquete de 2,7 meses (línea base), más de 2: ...
 Libro generado: ejemplo.xlsx
 ```
 
 Las observaciones son las esperadas: la reunión de arranque no tiene código EDT, las subtareas y los
-hitos sin código se suman en su paquete, y `4.2.2 Cierre administrativo` no tiene método.
+hitos sin código se suman en su paquete, y `4.2.2 Cierre administrativo` no tiene método. Las
+advertencias indican que seis paquetes con `0/100` o con fórmula fija (`50/50`, `20/80`) duran más de lo
+recomendado para esos métodos (1 y 2 meses): su EV queda en 0, o en el % inicial, hasta que terminan. El
+ejemplo los mantiene para mostrar cada método; en un proyecto real conviene dividir esos paquetes o
+usar un método de avance ([Validaciones](validaciones-y-problemas.md#11-datos-del-libro-generar-y-validar)).
 
 La hoja `% PV` tiene el % planificado de cada paquete y mes, calculado con la duración de la línea base
 de sus tareas y el peso de sus hitos:

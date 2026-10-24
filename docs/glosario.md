@@ -30,6 +30,7 @@ ambos.
 | **AT** | Tiempo real transcurrido | Actual Time | — | Meses hasta la fecha de corte |
 | **SV(t)** | Variación del cronograma en tiempo | Schedule Variance (time) | — | ES − AT |
 | **SPI(t)** | Índice de desempeño del cronograma en tiempo | SPI (time) | — | ES / AT |
+| **BEI** | Índice de ejecución de la línea base | Baseline Execution Index | — | Tareas terminadas / tareas que debían terminar según la línea base (comando `validar`) |
 
 > **Atención:** en MS Project en español, **VP** es la variación del cronograma (SV), no el valor
 > planificado. El valor planificado es el **CPTP**.
@@ -56,6 +57,11 @@ BAC que se ingresa en el libro × el % planificado y el % ganado, y el AC se car
 | Texto1..30, Número1..20 | Text1..30, Number1..20 | Campos personalizados (método, peso de los hitos, empresa, visible). |
 | Hito | Milestone | Su `Peso hito` es un % del BAC del paquete; método `Hitos ponderados`. |
 | Activo / Desactivar | Active / Inactivate | Tareas inactivas excluidas. |
+| Duración (estimada, con `?`) | Duration (Estimated) | `validar`: hitos con duración, tareas con duración 0 y duraciones estimadas. |
+| Programada manualmente | Manually Scheduled | `validar`: MS Project no recalcula sus fechas. |
+| Predecesoras, sucesoras, vínculos FC, CC, FF y CF | Predecessors, successors, FS, SS, FF and SF links | `validar`: lógica del cronograma. |
+| Posiciones (positivas o negativas, adelantos) | Lag (lead) | `validar`: esperas y adelantos en los vínculos. |
+| Delimitación (*Debe comenzar el*, *No finalizar después del*...) | Constraint (Must Start On, Finish No Later Than...) | `validar`: delimitaciones que fijan las fechas. |
 
 ---
 
@@ -73,4 +79,5 @@ BAC que se ingresa en el libro × el % planificado y el % ganado, y el AC se car
 | Planificación | Rama del proyecto bajo una tarea de primer nivel con código EDT (`INTERNO`, `CLIENTE`) que se exporta a un libro. |
 | Horizonte | Meses del libro (120 por defecto). Mes 1 = mes de inicio de la línea base. |
 | Mes de reporte | Mes que muestra el `Cuadro de Mando` (celda `E5`). |
+| DCMA de 14 puntos | Evaluación de calidad de cronogramas de la *Defense Contract Management Agency* de EE. UU.: `validar` usa sus criterios de lógica, delimitaciones e índice de ejecución de la línea base (BEI) ([Validaciones](validaciones-y-problemas.md#13-lógica-del-cronograma-validar)). |
 | Valor del mes | Valor de un mes, no acumulado: el % ganado que `actualizar` escribe en la hoja `% EV` (el EV del mes es el BAC × ese %) o el AC que se ingresa en la hoja `AC`. |

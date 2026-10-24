@@ -22,6 +22,7 @@ body:
       multiple: true
       options:
         - Preparación en MS Project
+        - validar (revisión del archivo de MS Project)
         - generar (libro y PV)
         - actualizar o analizar (cierre mensual)
         - Cuadro de Mando e indicadores

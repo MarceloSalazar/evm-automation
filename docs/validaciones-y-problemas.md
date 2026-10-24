@@ -7,6 +7,9 @@
 ## Contenido
 
 1. [Validaciones](#1-validaciones)
+   1. [Datos del libro (generar y validar)](#11-datos-del-libro-generar-y-validar)
+   2. [Avance a la fecha de estado (validar)](#12-avance-a-la-fecha-de-estado-validar)
+   3. [Lógica del cronograma (validar)](#13-lógica-del-cronograma-validar)
 2. [Limitaciones conocidas](#2-limitaciones-conocidas)
 3. [Solución de problemas](#3-solución-de-problemas)
 
@@ -15,13 +18,38 @@
 ## 1. Validaciones
 
 `generar` informa en la hoja **Validación** (y en la consola) las observaciones de la exportación, con
-su severidad: `Info` (informativo), `Advertencia` (se debe revisar) o `Error` (dato que no se pudo
-trasladar o calcular).
+su severidad: `Info` (informativo), `Advertencia` (se debe revisar) o `Error` (dato incorrecto en MS
+Project que se debe corregir, o dato que no se pudo trasladar o calcular). La columna `Tema` agrupa las
+observaciones (*Estructura y códigos EDT*, *Fechas y duración*, *Hitos y pesos*, *Método de medición*,
+*Empresas*...) y permite filtrarlas. Las tareas sin código EDT se identifican por su Id de MS Project
+(por ejemplo, `Hito: bases aprobadas (Id 17)`).
+
+El comando [`validar`](comandos.md#validar-revisa-el-archivo-de-ms-project) muestra las mismas
+observaciones en pantalla, agrupadas por tema, **sin crear el libro**, y agrega los controles del
+cronograma de las secciones [1.2](#12-avance-a-la-fecha-de-estado-validar) y
+[1.3](#13-lógica-del-cronograma-validar). Se recomienda ejecutarlo antes de `generar` y antes de cada
+`actualizar`.
 
 ![Hoja Validación del proyecto de ejemplo](img/excel/validacion.png)
 
+### 1.1 Datos del libro (generar y validar)
+
 | Observación | Qué revisar |
 |---|---|
+| Código EDT que no depende del de su tarea superior (`Error`): bajo `1.2.0` solo van `1.2.1`, `1.2.2`...; `1.14.2` o `1.0.0` son errores | Corregir el código en MS Project. La tarea superior es la tarea resumen con código EDT más cercana. |
+| Código EDT con formato no válido (`Error`: segmentos vacíos como `1..2`, o un 0 seguido de otro número como `1.0.2`) o no numérico (`Advertencia`: `1.2.A`) | Los códigos son números separados por un punto; el 0 solo se usa al final, como relleno (`1.2.0`). Los códigos sin puntos como `INTERNO` se admiten como planificaciones. |
+| Código EDT que salta un nivel (`1.2.3.1` directamente bajo `1.2.0`) o de nivel 2 o más sin tarea superior con código | Asignar código a la tarea intermedia o corregir el código. |
+| Códigos EDT fuera de orden (`1.2.3` antes que `1.2.2`) y saltos en la numeración (`Info`: después de `1.2.2` sigue `1.2.14`) | Revisar si el código tiene un error de escritura. Un salto puede ser intencional (por ejemplo, un paquete eliminado). |
+| Códigos EDT duplicados (`Error`) | Por ejemplo, si no se eligió una planificación y ambas usan los mismos códigos. Se revisan todas las tareas exportadas, también las de nivel mayor al máximo. |
+| Fin anterior al comienzo (`Error`), en la línea base (*Fin previsto* y *Comienzo previsto*) o en el programa actual (*Fin* y *Comienzo*); tarea sin *Comienzo* o sin *Fin* | Corregir las fechas en MS Project (las tareas programadas manualmente pueden quedar sin fechas). |
+| Hito con duración; tarea con duración 0 que no está marcada como hito | Un hito pone todo su % planificado en el mes de su fecha de fin; una tarea con duración 0 que no es hito no pesa en el % planificado. Corregir la marca de hito (*Información de la tarea > Avanzado*) o la duración. Se revisa si MS Project informa la duración (siempre con `.mpp` y con el XML que guarda MS Project). |
+| Duraciones estimadas (con `?`, por ejemplo `5 días?`) y tareas programadas manualmente (`Info`) | Confirmar la duración: define el % planificado. Las tareas manuales no se reprograman cuando cambian sus predecesoras. |
+| `Peso hito` en una tarea que no es un hito o en una tarea resumen; el campo `Peso hito` existe, pero ningún hito tiene peso | El peso solo se usa en los hitos de detalle; si ningún hito tiene peso, revisar `[campos] peso_hito`. |
+| Método `Hitos ponderados` en una fila sin hitos (`Advertencia`), con hitos sin peso (`Info`) o con algunos hitos sin peso (`Info`) | Sin hitos, el % ganado se calcula con el *% físico completado*; los hitos sin peso pesan igual o no suman ([Métodos de medición](metodos-de-medicion.md#33-hitos-ponderados)). |
+| Método no reconocido (por ejemplo `60/30`); subtareas con otro método en MS Project; fila sin método cuyas subtareas sí tienen | El método se indica en la tarea de la fila (paquete de trabajo) con uno de los métodos admitidos ([Métodos de medición](metodos-de-medicion.md)). |
+| Método `0/100` en un paquete de más de `meses_0_100` meses (1 por defecto) o `50/50`, `25/75`, `20/80` en uno de más de `meses_formula_fija` meses (2) | Con esos métodos el EV queda en 0 (o en el % inicial) hasta que el paquete termina. Dividir el paquete o usar un método de avance; los umbrales se ajustan en [`[validacion]`](configuracion.md#claves). |
+| Campo de método o de empresa que existe, pero está vacío en todas las tareas | Revisar el nombre o el alias del campo en la configuración. |
+| Multi-empresa: `% Reparto` en una tarea que no es `Ambas` (`Info`) | El reparto solo se usa en las tareas `Ambas`; en las demás se ignora. |
 | Recordatorio de dónde se ingresa el BAC | Ingresar el BAC de cada fila en la columna D de la hoja `PV` (o de cada empresa) ([Cálculo del PV y el EV](calculo-pv-ev.md#14-controles-y-validaciones)). |
 | Tareas sin fechas de línea base | Tareas agregadas después de guardar la línea base: su % planificado usa sus fechas actuales. Si están aprobadas, guardar la línea base de esas tareas. |
 | Pesos de hitos que suman más de 100 (o menos, sin tareas con duración), pesos negativos, filas sin pesos o sin fechas | Revisar el `Peso hito` de los hitos de la fila y las fechas de sus tareas ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)). |
@@ -33,7 +61,6 @@ trasladar o calcular).
 | Tareas sin código EDT que forman una fila `-D Otras tareas` | Tareas con duración (o hitos con peso) directamente bajo un elemento de nivel 1 o 2: la fila tiene su propio BAC. |
 | Excepciones de calendario que no se interpretan (por ejemplo, "primer lunes de mayo") | Se omiten; solo afectan el reparto del % planificado entre meses (motor XML). |
 | % planificado anterior al mes 1 o posterior al último mes | Revisar `mes_inicio` y `meses`. |
-| Códigos EDT duplicados | Por ejemplo, si no se eligió una planificación y ambas usan los mismos códigos. |
 | Filas sin método de medición | Completar el método en MS Project o en la columna C de la hoja `PV`. |
 | Tareas inactivas excluidas | Informativo (con `incluir_inactivas = false`): no forman parte del % planificado. |
 | Multi-empresa: tareas sin empresa, valores no reconocidos y `% Reparto` fuera de rango | Completar la columna `Empresa` y revisar los repartos ([Multi-empresa](multiempresa.md#7-validaciones-y-controles)). |
@@ -46,6 +73,38 @@ trasladar o calcular).
 `actualizar` informa sus controles en pantalla: filas con % ganado y sin BAC, filas cuya tarea ya no
 existe o está inactiva, tareas con código EDT sin fila en el libro, cambios del campo `Visible` y celdas
 sin la fórmula del libro ([Cálculo del PV y el EV](calculo-pv-ev.md#14-controles-y-validaciones)).
+
+### 1.2 Avance a la fecha de estado (validar)
+
+Se revisan las tareas de detalle exportadas con la fecha de estado de MS Project (o `--fecha-corte`).
+No afectan al libro de `generar`, pero sí al % ganado que calcula `actualizar`.
+
+| Observación | Qué revisar |
+|---|---|
+| *Fin real* sin *Comienzo real*, o anterior a él (`Error`) | Corregir las fechas reales. |
+| *% completado* mayor que 0 sin *Comienzo real*; 100 % sin *Fin real*; *Fin real* con menos del 100 % | Registrar el avance de forma coherente: para el programa, una tarea con *Fin real* y menos del 100 % no está terminada. |
+| *Comienzo real* o *Fin real* posterior a la fecha de estado (`Error`) | Avance registrado en el futuro: corregir la fecha real o la fecha de estado. |
+| Trabajo pendiente antes de la fecha de estado: tareas sin terminar con *Fin* anterior a la fecha de estado, o sin avance con *Comienzo* anterior | El cronograma no está actualizado: registrar el avance o reprogramar el trabajo pendiente después de la fecha de estado (*Proyecto > Actualizar proyecto*). |
+| Tareas que debían comenzar según la línea base y no comenzaron (`Info`) | Atrasos respecto de la línea base. |
+| Índice de ejecución de la línea base (BEI): tareas terminadas / tareas que debían terminar según la línea base (`Advertencia` si es menor que 0,95) | Lista las tareas que debían terminar y no terminaron. |
+| Avance cargado sin fecha de estado | `actualizar` necesita la fecha de estado de MS Project (*Proyecto > Información del proyecto*) o `--fecha-corte`. |
+
+### 1.3 Lógica del cronograma (validar)
+
+Se revisan los vínculos y las delimitaciones de las tareas exportadas con los criterios de la evaluación
+**DCMA de 14 puntos** (*Defense Contract Management Agency*), una referencia habitual de calidad de
+cronogramas. No afectan al cálculo del libro, pero un cronograma sin lógica no reprograma las fechas
+cuando cambia el avance.
+
+| Observación | Criterio DCMA | Qué revisar |
+|---|---|---|
+| El cronograma no tiene vínculos entre tareas | — | Vincular las tareas. |
+| Tareas sin terminar sin predecesoras o sin sucesoras (no cuentan la primera y la última tarea del proyecto; el vínculo de una tarea resumen cuenta para sus subtareas) | Hasta 5 % | Agregar los vínculos que faltan. |
+| Vínculos con adelanto (posición negativa) | Ninguno | Reemplazar el adelanto por un vínculo comienzo a comienzo o dividir la tarea. |
+| Vínculos con posición positiva | Hasta 5 % | Una espera fija oculta trabajo que conviene representar como tarea. |
+| Vínculos comienzo a fin (CF) y proporción de vínculos fin a comienzo (FC) | Al menos 90 % FC | Usar vínculos fin a comienzo. |
+| Tareas resumen con vínculos | — | Vincular las tareas de detalle. |
+| Delimitaciones que fijan fechas: *Debe comenzar el*, *Debe finalizar el*, *No comenzar después del*, *No finalizar después del* | Hasta 5 % | Usar *Lo antes posible* y, si hace falta, una fecha límite. |
 
 ---
 
@@ -101,7 +160,9 @@ sin la fórmula del libro ([Cálculo del PV y el EV](calculo-pv-ev.md#14-control
 | `contiene el número ... guardado como texto` | Se debe escribir ese valor como número en Excel, o ejecutar `actualizar`, que lo convierte. |
 | `La celda ... tiene una fórmula sin valor calculado` | Se debe abrir y guardar el libro en Excel, o reemplazar la fórmula de esa celda de ingreso por un número. |
 | La curva no muestra EV/AC | Se debe completar la fecha de corte en `Resumen!B5`. |
-| `No se encontró la planificación ...` | El mensaje lista las tareas de nivel superior con su código EDT; se debe indicar en `planificacion` uno de esos códigos. |
+| `No se encontró la planificación ...` | El mensaje lista las tareas de nivel superior con su código EDT; se debe indicar en `planificacion` uno de esos códigos. `validar` lo informa y revisa el proyecto completo. |
+| `El código EDT no depende del de su tarea superior ...` | El código de la tarea no empieza por el de su tarea resumen con código EDT, o no tiene un nivel más (se esperaba `1.2.x` bajo `1.2.0`). Se debe corregir el código en MS Project. |
+| `validar` termina con código 1 | Encontró errores (`[X]`); con solo advertencias termina con código 0. |
 | El libro solo muestra los elementos de primer nivel (`1.0.0`, `2.0.0`...) | Se debe revisar que el campo indicado en `[campos] edt` contenga los códigos EDT de todas las tareas. El nivel se toma del código EDT. |
 | Todas las filas tienen método `Por definir` | Se debe revisar `[campos] metodo` (nombre del campo o su alias) y que el campo esté completo en las tareas de nivel 3. |
 | El EV de una fila con `Hitos ponderados` no avanza | Los hitos deben ser subtareas de la fila con duración 0 y marcarse al 100 % al cumplirse ([Métodos de medición](metodos-de-medicion.md#33-hitos-ponderados)). |

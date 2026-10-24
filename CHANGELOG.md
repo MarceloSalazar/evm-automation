@@ -18,7 +18,27 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Nuevas funciones
 
-- Ninguna.
+- **Comando `validar`:** revisa el archivo de MS Project con la configuración y muestra el resultado en
+  pantalla, agrupado por tema, sin crear ni modificar ningún archivo. Termina con código 1 si encuentra
+  errores. Además de las observaciones de la hoja `Validación`, revisa el avance a la fecha de estado
+  (fechas reales, trabajo pendiente antes de la fecha de estado, índice BEI) y la lógica del cronograma
+  (vínculos, adelantos, posiciones y delimitaciones, con los criterios DCMA de 14 puntos)
+  ([docs/comandos.md](docs/comandos.md#validar-revisa-el-archivo-de-ms-project)).
+- **Controles nuevos en la hoja `Validación` (y en `validar`):** códigos EDT que no dependen del de su
+  tarea superior (por ejemplo `1.14.2` bajo `1.2.0`), con formato no válido, que saltan un nivel, fuera
+  de orden o con saltos en la numeración; códigos duplicados en todas las tareas (ahora como `Error`);
+  fechas invertidas, hitos con duración, tareas con duración 0 que no son hitos, duraciones estimadas y
+  tareas manuales; `Peso hito` en tareas que no son hitos; filas con `Hitos ponderados` sin hitos o con
+  hitos sin peso; métodos no reconocidos o cargados en subtareas; `% Reparto` en tareas que no son
+  `Ambas`; campos configurados que existen pero están vacíos
+  ([docs/validaciones-y-problemas.md](docs/validaciones-y-problemas.md#1-validaciones)).
+- **Método frente a la duración del paquete:** advertencia si un paquete con `0/100` dura más de 1 mes o
+  uno con `50/50`, `25/75`, `20/80` más de 2 meses (línea base). Los umbrales se configuran en la nueva
+  sección `[validacion]` (`meses_0_100`, `meses_formula_fija`).
+- La hoja `Validación` tiene la columna `Tema` para filtrar las observaciones, y las tareas sin código
+  EDT se identifican con su Id de MS Project.
+- Los lectores `.mpp` y XML leen la duración, la duración estimada, la programación manual, las
+  delimitaciones y los vínculos con las predecesoras.
 
 ### Correcciones
 
@@ -26,7 +46,7 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Otros
 
-- Ninguna.
+- El instalador prueba también `validar` con el proyecto de ejemplo.
 
 ## [2.0.0] - 2026-10-24 · PV y EV con el BAC del libro: cronograma sin importes
 
