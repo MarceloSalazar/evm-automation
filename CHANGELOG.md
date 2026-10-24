@@ -28,7 +28,7 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - Ninguna.
 
-## [2.0.0] - 2026-10-22 · PV y EV con el BAC del libro: cronograma sin importes
+## [2.0.0] - 2026-10-24 · PV y EV con el BAC del libro: cronograma sin importes
 
 ### Nuevas funciones
 
