@@ -1,12 +1,16 @@
 """Regenera las capturas del libro Excel que usa la documentación (docs/img/excel).
 
 Pasos:
-1. Genera el libro del proyecto de ejemplo (una empresa, multi-empresa y combinado con
-   el segundo proyecto de ejemplo) en una carpeta temporal y simula 24 cierres
-   mensuales (enero de 2026 a diciembre de 2027).
+1. Genera el libro del proyecto de ejemplo (una empresa,
+   multi-empresa y combinado con el segundo proyecto de ejemplo) en una carpeta
+   temporal, carga el BAC del ejemplo y simula 24 cierres mensuales (enero de 2026 a
+   diciembre de 2027), con el AC de cada mes del ejemplo.
 2. Abre cada libro con Excel por automatización COM, sin mostrarlo y en solo lectura,
    exporta cada zona a PDF y la convierte a PNG con pdftoppm (Poppler).
 3. Agrega los números de las zonas a la captura del Cuadro de Mando.
+4. Genera un libro multi-empresa con depuración de costes de EmpresaA (BAC y previsión
+   ficticios del ejemplo) y exporta sus hojas PV-EmpresaA, PV-depuración y
+   Depuración costes.
 
 Requisitos: Windows, Excel, pywin32, Pillow y Poppler (pdftoppm en el PATH, en la
 carpeta de WinGet o en la variable de entorno PDFTOPPM).
@@ -17,9 +21,11 @@ originales se restauran al terminar. El libro no se guarda.
 
 Uso (desde la carpeta raíz del repositorio):
     python docs\\herramientas\\capturas_excel.py
+    python docs\\herramientas\\capturas_excel.py --solo depuracion    (solo las capturas de un grupo)
 """
 from __future__ import annotations
 
+import argparse
 import calendar
 import datetime as dt
 import glob
@@ -43,12 +49,14 @@ SINGLE = [
     ("cdm-cpi-spi-edt", "Cuadro de Mando", "$B$46:$U$73", {}),
     ("resumen", "Resumen", "$A$1:$E$40", {}),
     ("pv", "PV", "$A$1:$P$41", {"landscape": True, "headings": True}),
+    ("pct-pv", "% PV", "$A$1:$P$41", {"landscape": True, "headings": True}),
     ("ev", "EV", "$A$1:$AD$41", {"landscape": True, "headings": True, "hide": "G:R"}),
+    ("pct-ev", "% EV", "$A$1:$AD$41", {"landscape": True, "headings": True, "hide": "G:R"}),
     ("ac", "AC", "$A$1:$AD$41", {"landscape": True, "headings": True, "hide": "G:R"}),
     ("evolucion-mensual", "Evolución mensual", "$A$1:$O$28", {"landscape": True}),
     ("indicadores-edt", "Indicadores EDT", "$A$1:$P$41", {"landscape": True}),
-    ("validacion", "Validación", "$A$1:$D$7", {"landscape": True}),
-    ("listas", "Listas", "$A$1:$B$12", {"width": ("B", 150)}),
+    ("validacion", "Validación", "$A$1:$D$9", {"landscape": True}),
+    ("listas", "Listas", "$A$1:$B$11", {"width": ("B", 150)}),
     ("cdm-mes-anterior", "Cuadro de Mando", "$B$1:$U$44", {"date": ("E5", dt.datetime(2027, 6, 1))}),
     ("cdm-eac-alternativo", "Cuadro de Mando", "$B$1:$U$23",
      {"date": ("E5", dt.datetime(2027, 12, 1)), "value": ("R5", "AC + (BAC - EV) / (CPI × SPI)")}),
@@ -71,14 +79,23 @@ SINGLE = [
 ]
 MULTI = [
     ("multi-pv-empresa-a", "PV-EmpresaA", "$A$1:$P$41", {"landscape": True, "headings": True}),
+    ("multi-pct-pv-empresa-a", "% PV-EmpresaA", "$A$1:$P$41", {"landscape": True, "headings": True}),
     ("multi-ev-empresa-b", "EV-EmpresaB", "$A$1:$AD$41", {"landscape": True, "headings": True, "hide": "G:R"}),
-    ("multi-validacion", "Validación", "$A$1:$D$8", {"landscape": True}),
+    ("multi-validacion", "Validación", "$A$1:$D$11", {"landscape": True}),
 ]
 SEVERAL = [
     ("varios-cdm", "Cuadro de Mando", "$B$1:$U$23", {}),
     ("varios-pv", "PV", "$A$1:$P$49", {"landscape": True, "headings": True, "hide_rows": "5:33"}),
-    ("varios-validacion", "Validación", "$A$1:$D$8", {"landscape": True}),
+    ("varios-validacion", "Validación", "$A$1:$D$10", {"landscape": True}),
 ]
+# Depuración de costes (horizonte de 120 meses): meses 1 a 9, total e indicador de alineamiento
+REVIEW = [
+    ("depuracion-pv-empresa-a", "PV-EmpresaA", "$A$1:$DY$26", {"landscape": True, "headings": True, "hide": "P:DV"}),
+    ("depuracion-pegado", "PV-depuración", "$A$1:$DV$31", {"landscape": True, "headings": True, "hide": "M:DS"}),
+    ("depuracion-grafico", "Depuración costes", "$A$1:$U$30", {"landscape": True}),
+    ("depuracion-grafico-paquete", "Depuración costes", "$A$1:$U$30", {"landscape": True, "value": ("B4", "1.1.2")}),
+]
+GROUPS = ("una-empresa", "multiempresa", "varios", "depuracion")
 # Números de las zonas del Cuadro de Mando: (n, x, y) en píxeles de la captura a 130 ppp
 MARKS = [(1, 58, 122), (2, 700, 122), (3, 262, 180), (4, 257, 291), (5, 104, 410),
          (6, 120, 545), (7, 612, 545), (8, 150, 916), (9, 960, 884)]
@@ -88,6 +105,16 @@ DPI = 130
 def run(*args: str) -> None:
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
     subprocess.run([sys.executable, *args], cwd=ROOT, check=True, env=env, stdout=subprocess.DEVNULL)
+
+
+def example_helper():
+    """Módulo ejemplos/generar_ejemplo.py: carga en el libro el BAC y el AC ficticios del ejemplo."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("generar_ejemplo", ROOT / "ejemplos" / "generar_ejemplo.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["generar_ejemplo"] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def build_books(work: Path) -> tuple[Path, Path, Path]:
@@ -103,13 +130,16 @@ def build_books(work: Path) -> tuple[Path, Path, Path]:
                            f'\n[[proyectos]]\nnombre = "P2"\norigen = "{examples}/proyecto2_ejemplo.xml"\n'
                            'planificacion = ""\n', encoding="utf-8")
     text = re.sub(r"^activar = false", "activar = true", text, flags=re.M)
-    text = re.sub(r"^ac_desde_project = false", "ac_desde_project = true", text, flags=re.M)
     multi_cfg.write_text(text, encoding="utf-8")
     origin = str(Path("ejemplos") / "programa_ejemplo.xml")     # relativa: es la que muestra la hoja Resumen
     books = (work / "EVM_Ejemplo.xlsx", work / "EVM_Multi.xlsx", work / "EVM_Varios.xlsx")
     for cfg, book in zip((single_cfg, multi_cfg), books):
         run("evm_export.py", "generar", "--origen", origin, "--config", str(cfg), "--salida", str(book))
     run("evm_export.py", "generar", "--config", str(several_cfg), "--salida", str(books[2]))
+    helper = example_helper()
+    files = ({"": 1}, {"": 1}, {"P1": 1, "P2": 2})
+    for book, projects in zip(books, files):
+        helper.fill_book(book, None, projects)                   # BAC de cada fila (se ingresa a mano)
     for y, m in MONTHS:
         status = f"{y:04d}-{m:02d}-{calendar.monthrange(y, m)[1]:02d}"
         progress = work / f"avance_{y:04d}-{m:02d}.xml"
@@ -117,12 +147,31 @@ def build_books(work: Path) -> tuple[Path, Path, Path]:
         run(str(ROOT / "ejemplos" / "generar_ejemplo.py"), "--fecha-estado", status, "--salida", str(progress))
         run(str(ROOT / "ejemplos" / "generar_ejemplo.py"), "--proyecto", "2", "--fecha-estado", status,
             "--salida", str(progress2))
+        for book, projects in zip(books, files):                 # AC del mes (se ingresa a mano, del ERP)
+            helper.fill_book(book, dt.date(y, m, calendar.monthrange(y, m)[1]), projects)
         for cfg, book in zip((single_cfg, multi_cfg), books):
             run("evm_export.py", "actualizar", "--origen", str(progress), "--config", str(cfg),
                 "--libro", str(book), "--sin-respaldo")
         run("evm_export.py", "actualizar", "--origen", f"P1={progress}", "--origen", f"P2={progress2}",
             "--config", str(several_cfg), "--libro", str(books[2]), "--sin-respaldo")
     return books
+
+
+def build_review_book(work: Path) -> Path:
+    """Libro multi-empresa con depuración de costes de EmpresaA: BAC y previsión ficticios del ejemplo."""
+    text = (ROOT / "config.ejemplo.toml").read_text(encoding="utf-8")
+    text = re.sub(r'^metodo = ""', 'metodo = "Método EVM"', text, flags=re.M)
+    text = re.sub(r'^peso_hito = ""', 'peso_hito = "Peso hito"', text, flags=re.M)
+    text = re.sub(r"^activar = false", "activar = true", text, flags=re.M)
+    text = re.sub(r"^depuracion_costes = false", "depuracion_costes = true", text, flags=re.M)
+    text = re.sub(r"^depuracion_alineamiento = false", "depuracion_alineamiento = true", text, flags=re.M)
+    cfg = work / "config_depuracion.toml"
+    cfg.write_text(text, encoding="utf-8")
+    book = work / "EVM_Depuracion.xlsx"
+    run("evm_export.py", "generar", "--origen", str(Path("ejemplos") / "programa_ejemplo.xml"), "--config", str(cfg),
+        "--salida", str(book))
+    example_helper().fill_book(book)            # BAC de cada fila y previsión pegada en PV-depuración
+    return book
 
 
 def find_pdftoppm() -> str:
@@ -153,9 +202,9 @@ def save_png(image, path: Path) -> None:
     image.quantize(colors=256, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(path, optimize=True)
 
 
-def spanish_dates(ws) -> None:
-    """Meses en español en las celdas y en los ejes de los gráficos ([$-C0A] = español)."""
-    for cell in ws.UsedRange.Cells:
+def spanish_dates(ws, area: str) -> None:
+    """Meses en español en las celdas de la zona y en los ejes de los gráficos ([$-C0A] = español)."""
+    for cell in ws.Range(area).Cells:
         fmt = cell.NumberFormat
         if isinstance(fmt, str) and "mmm" in fmt.lower() and not fmt.startswith("[$"):
             cell.NumberFormat = "[$-C0A]" + fmt
@@ -185,12 +234,9 @@ def export(book: Path, items: list, pdftoppm: str, tmp: Path) -> None:
         xl.DecimalSeparator = ","
         xl.ThousandsSeparator = "."
         wb = xl.Workbooks.Open(str(book), UpdateLinks=0, ReadOnly=True)
-        prepared = set()
         for name, sheet, area, opts in items:
             ws = wb.Worksheets(sheet)
-            if sheet not in prepared:
-                spanish_dates(ws)
-                prepared.add(sheet)
+            spanish_dates(ws, area)
             if "hide" in opts:
                 ws.Range(opts["hide"]).EntireColumn.Hidden = True
             if "hide_rows" in opts:
@@ -246,17 +292,26 @@ def annotate() -> None:
 
 
 def main() -> None:
+    p = argparse.ArgumentParser(description="Regenera las capturas del libro Excel de la documentación.")
+    p.add_argument("--solo", nargs="+", choices=GROUPS, help="grupos de capturas a regenerar (por defecto, todos)")
+    groups = set(p.parse_args().solo or GROUPS)
     pdftoppm = find_pdftoppm()
     OUT.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp_dir:
         work = Path(tmp_dir)
-        print("Generando los libros del ejemplo (24 meses)...")
-        single, multi, several = build_books(work)
-        print("Exportando capturas a", OUT)
-        export(single, SINGLE, pdftoppm, work)
-        export(multi, MULTI, pdftoppm, work)
-        export(several, SEVERAL, pdftoppm, work)
-        annotate()
+        if groups - {"depuracion"}:
+            print("Generando los libros del ejemplo (24 meses)...")
+            single, multi, several = build_books(work)
+            print("Exportando capturas a", OUT)
+            for group, book, items in (("una-empresa", single, SINGLE), ("multiempresa", multi, MULTI),
+                                       ("varios", several, SEVERAL)):
+                if group in groups:
+                    export(book, items, pdftoppm, work)
+            if "una-empresa" in groups:
+                annotate()
+        if "depuracion" in groups:
+            print("Generando el libro con depuración de costes...")
+            export(build_review_book(work), REVIEW, pdftoppm, work)
 
 
 if __name__ == "__main__":

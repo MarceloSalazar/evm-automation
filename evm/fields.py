@@ -73,6 +73,29 @@ def same_name(a: str, b: str) -> bool:
     return _norm(a) == _norm(b)
 
 
+VISIBLE_YES = {"si", "s", "yes", "y", "x", "1", "true", "verdadero"}
+VISIBLE_NO = {"no", "n", "0", "false", "falso"}
+
+
+def parse_visible(value) -> tuple[bool | None, bool]:
+    """Valor del campo Visible: (True = Sí, False = No, None = vacío o no reconocido; True si se reconoce).
+
+    Admite Sí, Si, SI, S, X, 1 (y Yes, True, Verdadero) y No, NO, N, 0 (y False, Falso), con o sin tilde.
+    """
+    if isinstance(value, bool):
+        return value, True
+    if isinstance(value, (int, float)):
+        value = f"{value:g}"
+    text = _norm(str(value or ""))
+    if not text:
+        return None, True
+    if text in VISIBLE_YES:
+        return True, True
+    if text in VISIBLE_NO:
+        return False, True
+    return None, False
+
+
 def parse_number(text) -> float | None:
     """Convierte números con formato local ('1.234,5', '1,234.5', '12,5', '12.5')."""
     if text is None:

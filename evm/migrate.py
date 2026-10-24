@@ -1,4 +1,4 @@
-"""Conservación de EV, AC y métodos de un libro anterior al regenerar (--migrar-desde)."""
+"""Conservación del BAC, el % ganado, el AC y los métodos de un libro anterior al regenerar (--migrar-desde)."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -6,9 +6,12 @@ from datetime import date
 
 from evm.analysis import A_CODE, A_KEY, A_MONTH, A_NAME, A_ORIGIN, SHEET_ANALYSIS, TEXT_COLS, read_entries
 from evm.config import ConfigError
+from evm.cost_review import SHEET_PASTE, month_offset, paste_months, read_paste, review_company, shift_rows
+from evm.fields import same_name
 from evm.model import MonthKey
 from evm.wbs import KIND_LEAF, SEV_ERROR, SEV_INFO, SEV_WARN, Issue, Report, ReportRow, fmt_money, iter_subtree, plural
-from evm.workbook import SHEET_LISTS, book_sources, clean_text, row_key, source_meta, split_key
+from evm.workbook import (PCT_PREFIX, SHEET_EV, SHEET_LISTS, book_sources, clean_text, pct_sheet, role_key, row_key,
+                          source_meta, split_key)
 
 
 @dataclass
@@ -18,11 +21,13 @@ class PriorRow:
     name: str
     uid: int | None
     residual: bool
-    # Valores mensuales por serie: "EV" y "AC", o en multi-empresa "EV-A", "EV-B", "AC-A" y "AC-B"
+    # Valores mensuales por serie: el % ganado de cada mes ("% EV", o en multi-empresa "% EV-A" y "% EV-B") y el
+    # AC ("AC", o "AC-A" y "AC-B")
     series: dict[str, dict[MonthKey, float]]
     method: str
     origin_method: str | None = None     # método al generarse el libro (None: libro antiguo)
     source: str = ""                     # varios archivos: nombre del archivo de la fila
+    bac: dict[str, float] = field(default_factory=dict)     # BAC ingresado ("" o "A" y "B")
 
     @property
     def method_edited(self) -> bool:
@@ -35,12 +40,25 @@ class PriorRow:
 
     @property
     def has_values(self) -> bool:
-        """True si tiene algún valor distinto de 0 (los meses cargados con 0 también se trasladan)."""
-        return any(v for data in self.series.values() for v in data.values())
+        """True si tiene algún valor distinto de 0 (los meses cargados con 0 también se trasladan) o un BAC
+        ingresado."""
+        return any(v for data in self.series.values() for v in data.values()) or any(self.bac.values())
 
     def total(self, kind: str) -> float:
-        """Suma de las series de EV o de AC."""
-        return sum(sum(v.values()) for k, v in self.series.items() if k.split("-")[0] == kind)
+        """Suma de las series de EV o de AC (el EV es el BAC × el % ganado)."""
+        out = 0.0
+        for k, v in self.series.items():
+            if k.startswith(PCT_PREFIX) and kind == SHEET_EV:
+                out += self.bac.get(_series_role(k), 0.0) * sum(v.values())
+            elif k.split("-")[0] == kind:
+                out += sum(v.values())
+        return out
+
+
+def _series_role(kind: str) -> str:
+    """Empresa de una serie: '% EV-A' -> 'A'; 'EV' o '% EV' -> ''."""
+    head, sep, tail = kind.rpartition("-")
+    return tail if sep and tail in ("A", "B") else ""
 
 
 @dataclass
@@ -59,9 +77,21 @@ class PriorData:
     methods: dict[str, str] = field(default_factory=dict)
     matched: int = 0
     unmatched: list[PriorRow] = field(default_factory=list)
+    bac: dict[str, dict[str, float]] = field(default_factory=dict)    # clave nueva -> BAC
+    # Depuración de costes: líneas de la hoja PV-depuración, empresa que se depuraba ('' = libro de una sola
+    # empresa), mes 1 del horizonte y si se trasladan al libro nuevo (lo decide plan_migration)
+    review_rows: list[list] = field(default_factory=list)
+    review_company: str = ""
+    review_start: date | None = None
+    review_keep: bool = False
 
     def values_for(self, key: str, kind: str) -> dict[MonthKey, float]:
         return self.values.get(key, {}).get(kind, {})
+
+    def bac_for(self, key: str, role: str) -> float | None:
+        """BAC ingresado en el libro anterior para la fila nueva (None si no tenía)."""
+        value = self.bac.get(key, {}).get(role)
+        return value if value else None
 
     def method_for(self, key: str) -> str | None:
         return self.methods.get(key)
@@ -71,20 +101,21 @@ def prior_from_book(path, project_name: str) -> PriorData:
     """Lee EV, AC, métodos y fecha de corte de un libro generado anteriormente."""
     from evm.update import read_book
     book = read_book(path)
-    if book.multi:
-        sources = {"EV-A": book.ev_a, "EV-B": book.ev_b, "AC-A": book.ac_a, "AC-B": book.ac_b}
-    else:
-        sources = {"EV": book.ev, "AC": book.ac}
+    sources = {role_key(pct_sheet(SHEET_EV), role or None): book.pct_ev[role] for role, _c in book.roles()}
+    sources.update({role_key("AC", role or None): (book.ac_a if role == "A" else book.ac_b if role == "B"
+                                                   else book.ac) for role, _c in book.roles()})
     rows = []
     for s in book.input_rows:
         source, uid_text, residual = split_key(s.key)
         # Los meses cargados con 0 se conservan: indican que el mes ya se informó (curvas desde ese mes)
         series = {k: {book.horizon.key(i): v for i, v in enumerate(src[s.row]) if v is not None}
                   for k, src in sources.items()}
+        bac = {role: book.bac_role[role][s.row] for role, _c in book.roles()}
         rows.append(PriorRow(
             key=s.key, code=s.code, name=s.name, uid=int(uid_text) if uid_text.isdigit() else None,
             residual=residual, series={k: v for k, v in series.items() if v},
-            method=book.method[s.row], origin_method=s.origin_method, source=source))
+            method=book.method[s.row], origin_method=s.origin_method, source=source,
+            bac={k: v for k, v in bac.items() if v}))
     methods_list = []
     from openpyxl import load_workbook
     wb = load_workbook(path, read_only=True)
@@ -95,13 +126,15 @@ def prior_from_book(path, project_name: str) -> PriorData:
             if len(value.strip()) <= 60:
                 methods_list.append(value.strip())
     analysis = read_entries(wb[SHEET_ANALYSIS]) if SHEET_ANALYSIS in wb.sheetnames else []
+    review_rows = read_paste(wb[SHEET_PASTE], book.horizon.months) if SHEET_PASTE in wb.sheetnames else []
     wb.close()
     level = book.meta.get("nivel_maximo")
     names = {n: str(source_meta(book.meta, "proyecto", n) or "") for n in book_sources(book.meta)}
     return PriorData(rows=rows, status_date=book.status_date,
                      project_name=str(book.meta.get("proyecto") or ""),
                      max_level=int(level) if level else None, methods_list=methods_list, multi=book.multi,
-                     project_names=names, analysis=analysis)
+                     project_names=names, analysis=analysis, review_rows=review_rows,
+                     review_company=str(book.meta.get("depuracion_empresa") or ""), review_start=book.horizon.start)
 
 
 def _migrate_analysis(prior: PriorData, key_map: dict[str, str]) -> list[Issue]:
@@ -129,6 +162,34 @@ def _migrate_analysis(prior: PriorData, key_map: dict[str, str]) -> list[Issue]:
     if moved:
         issues.append(Issue(SEV_INFO, "", "", f"Se {'trasladó' if moved == 1 else 'trasladaron'} "
                                               f"{plural(moved, 'fila', 'filas')} del análisis de desviaciones."))
+    return issues
+
+
+def _migrate_review(report: Report, prior: PriorData) -> list[Issue]:
+    """Depuración de costes: la previsión pegada en la hoja PV-depuración pasa al libro nuevo si también se depura
+    y es la misma empresa. Si cambia el mes 1 del horizonte, los meses se desplazan para conservar su fecha."""
+    if not prior.review_rows:
+        return []
+    lines = plural(len(prior.review_rows), "línea", "líneas")
+    if report.cost_review is None:
+        return [Issue(SEV_INFO, "", "", f"La hoja {SHEET_PASTE} del libro anterior ({lines}) no se trasladó: el libro "
+                                        "nuevo no tiene depuración de costes.")]
+    company = review_company(report)
+    if not same_name(company, prior.review_company):
+        old = prior.review_company or "el libro de una sola empresa"
+        return [Issue(SEV_WARN, "", "", f"La hoja {SHEET_PASTE} del libro anterior no se trasladó: tiene la previsión "
+                                        f"de {old} y el libro nuevo depura {company or 'un libro de una sola empresa'}. "
+                                        "Se debe pegar la previsión de nuevo.")]
+    prior.review_keep = True
+    issues = [Issue(SEV_INFO, "", "", f"Se conservó el contenido de la hoja {SHEET_PASTE} ({lines}).")]
+    offset = month_offset(prior.review_start, report.horizon.start) if prior.review_start else 0
+    if offset:
+        prior.review_rows, lost = shift_rows(prior.review_rows, offset, paste_months(report.horizon.months))
+        issues.append(Issue(SEV_WARN if lost > 0.005 else SEV_INFO, "", "",
+                            f"El mes 1 del horizonte cambió ({prior.review_start:%m/%Y} a "
+                            f"{report.horizon.start:%m/%Y}): los meses de la hoja {SHEET_PASTE} se desplazaron "
+                            f"{abs(offset)} columnas para conservar su fecha"
+                            + (f"; quedaron fuera {fmt_money(lost)}." if lost > 0.005 else ".")))
     return issues
 
 
@@ -211,18 +272,28 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
     for key, lst in sources.items():
         target = by_key[key]
         merged: dict[str, dict[MonthKey, float]] = {}
+        merged_bac: dict[str, float] = {}
+        several = len(lst) > 1
+        for old, _how in lst:
+            for role, v in old.bac.items():
+                merged_bac[role] = merged_bac.get(role, 0.0) + v
         for old, how in lst:
             for kind, data in old.series.items():
                 merged.setdefault(kind, {})
+                # Varias filas anteriores en una: el % ganado se combina ponderado por su BAC
+                bac = old.bac.get(_series_role(kind), 0.0)
+                factor = bac if (several and kind.startswith(PCT_PREFIX)) else 1.0
+                # Importe para los avisos: el EV es el BAC × el % ganado
+                worth = bac if kind.startswith(PCT_PREFIX) else 1.0
                 for k, v in data.items():
                     i = horizon.index(k)
                     if i >= horizon.months:
-                        clamped += abs(v)
+                        clamped += abs(v) * worth
                     elif i < 0:
-                        early += abs(v)
+                        early += abs(v) * worth
                     i = min(max(i, 0), horizon.months - 1)
                     nk = horizon.key(i)
-                    merged[kind][nk] = merged[kind].get(nk, 0.0) + v
+                    merged[kind][nk] = merged[kind].get(nk, 0.0) + v * factor
             if how == "rama" and old.has_values:
                 issues.append(Issue(SEV_INFO, target.code, target.name,
                                     f"Se sumó el historial de EV/AC de la fila anterior {old.code} '{old.name}'."))
@@ -230,6 +301,20 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
                 issues.append(Issue(SEV_WARN, target.code, target.name,
                                     f"Recibió el historial de EV/AC de la fila anterior {old.code} '{old.name}' "
                                     "(asociada por código EDT)."))
+        if several:
+            for kind, data in merged.items():
+                if not kind.startswith(PCT_PREFIX):
+                    continue
+                total_bac = merged_bac.get(_series_role(kind), 0.0)
+                if total_bac > 0:
+                    merged[kind] = {k: v / total_bac for k, v in data.items()}
+                elif data:
+                    merged[kind] = {}
+                    issues.append(Issue(SEV_WARN, target.code, target.name,
+                                        "Recibió el % ganado de varias filas del libro anterior sin BAC: no se pudo "
+                                        "combinar. Se debe revisar la hoja % EV de esta fila."))
+        if any(merged_bac.values()):
+            prior.bac[key] = merged_bac
         if any(merged.values()):
             prior.values[key] = merged
             if any(v for data in merged.values() for v in data.values()):
@@ -263,9 +348,14 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
         issues.append(Issue(SEV_WARN, "", "",
                             f"Hay EV/AC por {fmt_money(clamped)} cargados después del último mes del nuevo horizonte: "
                             "se acumularon en el último mes."))
+    if prior.bac:
+        issues.append(Issue(SEV_INFO, "", "", f"Se conservó el BAC de {plural(len(prior.bac), 'fila', 'filas')} del "
+                                              "libro anterior."))
+    issues += _migrate_review(report, prior)
     for old in prior.unmatched:
+        bac = f"BAC {fmt_money(sum(old.bac.values()))}, "
         issues.append(Issue(SEV_ERROR, old.code, old.name,
-                            f"No se pudo trasladar su historial (EV {fmt_money(old.total('EV'))}, AC "
+                            f"No se pudo trasladar su historial ({bac}EV {fmt_money(old.total('EV'))}, AC "
                             f"{fmt_money(old.total('AC'))}): la tarea no existe en el proyecto nuevo o se dividió "
                             "en varias filas. Se debe cargar a mano en las filas que correspondan."))
     return issues

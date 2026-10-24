@@ -11,16 +11,23 @@ from evm.workbook import FIRST_MONTH_COL, FIRST_ROW, HEADER_ROW
 
 
 @pytest.fixture()
-def book(tmp_path, example_files):
+def book(tmp_path, example_files, generator):
     out = tmp_path / "EVM.xlsx"
     assert main(["generar", "--origen", str(example_files["base"]), "--config", str(example_files["config"]),
                  "--salida", str(out)]) == 0
+    generator.fill_book(out)                        # BAC de cada fila, que se ingresa a mano
     return out
+
+
+def load_ac(book, status: date) -> None:
+    """AC del mes del ejemplo (del ERP), que se carga a mano en la hoja AC."""
+    import generar_ejemplo
+    generar_ejemplo.fill_book(book, status)
 
 
 def test_layout_matches_requested_format(book):
     wb = load_workbook(book)
-    assert wb.sheetnames[:5] == ["Cuadro de Mando", "Resumen", "PV", "EV", "AC"]
+    assert wb.sheetnames[:6] == ["Cuadro de Mando", "Resumen", "PV", "% PV", "EV", "% EV"]
     ws = wb["PV"]
     heads = [ws.cell(HEADER_ROW, c).value for c in range(1, 7)]
     assert heads == ["Código EDT", "Actividad", "Método de medición", "BAC (Presupuesto)",
@@ -47,6 +54,7 @@ def test_cli_refuses_to_overwrite(book, example_files, capsys):
 def test_update_cycle(book, example_files):
     cfg = load_config(example_files["config"])
     jun = read_xml(example_files["jun"], cfg)
+    load_ac(book, date(2027, 6, 30))
     res = run_update(jun, cfg, book, backup=False)
     assert res.status_date == date(2027, 6, 30) and res.month_index == 17
     b = read_book(book)
@@ -54,9 +62,6 @@ def test_update_cycle(book, example_files):
     assert bac == pytest.approx(44_210_000)
     ev_jun, ac_jun = sum(ev), sum(ac)
     assert ev_jun > 0 and ac_jun > 0
-    # AC = ACWP de MS Project del proyecto completo (suma de las tareas de nivel 1)
-    interno = next(t for t in jun.tasks if t.wbs == "INTERNO")
-    assert ac_jun == pytest.approx(interno.acwp, abs=0.05)
     # Repetir el mismo mes no duplica valores
     run_update(jun, cfg, book, backup=False)
     b2 = read_book(book)
@@ -78,13 +83,13 @@ def test_update_refuses_when_later_months_loaded(book, example_files):
         run_update(read_xml(example_files["jun"], cfg), cfg, book, backup=False)
 
 
-def test_update_only_ac_and_backup(book, example_files):
+def test_update_backup_and_manual_ac(book, example_files):
     cfg = load_config(example_files["config"])
-    res = run_update(read_xml(example_files["jun"], cfg), cfg, book, only="ac")
+    res = run_update(read_xml(example_files["jun"], cfg), cfg, book)
     assert res.backup is not None and res.backup.exists()
     b = read_book(book)
     _, ev, ac, _ = book_totals(b)
-    assert sum(ev) == 0 and sum(ac) > 0
+    assert sum(ev) > 0 and sum(ac) == 0                 # el AC no se carga desde MS Project
 
 
 def test_ev_matches_methods(book, example_files):
@@ -101,6 +106,7 @@ def test_ev_matches_methods(book, example_files):
 
 def test_migrate_keeps_ev_ac(book, tmp_path, example_files):
     cfg = load_config(example_files["config"])
+    load_ac(book, date(2027, 6, 30))
     run_update(read_xml(example_files["jun"], cfg), cfg, book, backup=False)
     new = tmp_path / "EVM_v2.xlsx"
     assert main(["generar", "--origen", str(example_files["base"]), "--config", str(example_files["config"]),
@@ -115,6 +121,7 @@ def test_formulas_recalculate_without_errors(book, example_files, recalc):
     """Recalcula con LibreOffice y compara con el cálculo en Python."""
     from evm.update import indicators_for
     cfg = load_config(example_files["config"])
+    load_ac(book, date(2027, 6, 30))
     run_update(read_xml(example_files["jun"], cfg), cfg, book, backup=False)
     out = recalc(book)
     wb = load_workbook(out, data_only=True)

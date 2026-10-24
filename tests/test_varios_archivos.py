@@ -15,9 +15,11 @@ from evm.config import ConfigError, load_config
 from evm.update import indicators_for, read_book
 from evm.workbook import split_key
 
+
 COMMON = ('[campos]\nmetodo = "Método EVM"\npeso_hito = "Peso hito"\n\n[horizonte]\nmes_inicio = "2026-01"\n\n'
           '[exportacion]\nplanificacion = "INTERNO"\n')
-MULTI_COMPANY = '\n[multiempresa]\nactivar = true\nac_desde_project = true\n'
+MULTI_COMPANY = '\n[multiempresa]\nactivar = true\n'
+STATUS = {"jun": date(2027, 6, 30), "jul": date(2027, 7, 31)}
 
 
 @pytest.fixture(scope="module")
@@ -47,11 +49,18 @@ def write_config(xml, name: str, entries=None, extra: str = "", common: str = CO
     return path
 
 
-def generate(cfg, out, *extra) -> None:
+def generate(cfg, out, *extra, single: int = 1, projects=None) -> None:
+    """'generar' y el BAC del ejemplo en cada fila (se ingresa a mano; con --migrar-desde se traslada)."""
     assert main(["generar", "--config", str(cfg), "--salida", str(out), "--sobrescribir", *extra]) == 0
+    import generar_ejemplo
+    if "--migrar-desde" not in extra:
+        generar_ejemplo.fill_book(out, projects=projects, single=single)
 
 
-def update(cfg, book, *extra) -> None:
+def update(cfg, book, month, *extra, single: int = 1) -> None:
+    """'actualizar' del mes; antes, el AC del mes del ejemplo (se carga a mano)."""
+    import generar_ejemplo
+    generar_ejemplo.fill_book(book, STATUS[month], single=single)
     assert main(["actualizar", "--config", str(cfg), "--libro", str(book), "--sin-respaldo", *extra]) == 0
 
 
@@ -62,7 +71,8 @@ def by_code(path) -> dict:
     for s in b.input_rows:
         values = [b.bac[s.row], b.pv[s.row], b.ev[s.row], b.ac[s.row]]
         if b.multi:
-            values += [b.bac_a[s.row], b.pv_a[s.row], b.ev_a[s.row], b.ev_b[s.row], b.ac_a[s.row], b.ac_b[s.row]]
+            values += [b.bac_role["A"][s.row], b.pct_pv["A"][s.row], b.ev_a[s.row], b.ev_b[s.row], b.ac_a[s.row],
+                       b.ac_b[s.row]]
         out[s.code] = values
     return out
 
@@ -74,9 +84,9 @@ def single_books(xml, tmp_path, extra: str = "", months=("jun", "jul")):
     books = []
     for project, cfg in ((1, cfg1), (2, cfg2)):
         book = tmp_path / f"solo{project}.xlsx"
-        generate(cfg, book, "--origen", str(xml[(project, "base")]))
+        generate(cfg, book, "--origen", str(xml[(project, "base")]), single=project)
         for m in months:
-            update(cfg, book, "--origen", str(xml[(project, m)]))
+            update(cfg, book, m, "--origen", str(xml[(project, m)]), single=project)
         books.append(book)
     return books
 
@@ -86,7 +96,7 @@ def combined_book(xml, tmp_path, extra: str = "", months=("jun", "jul"), name="E
     book = tmp_path / name
     generate(cfg, book)
     for m in months:
-        update(cfg, book, "--origen", f"P1={xml[(1, m)]}", "--origen", f"P2={xml[(2, m)]}")
+        update(cfg, book, m, "--origen", f"P1={xml[(1, m)]}", "--origen", f"P2={xml[(2, m)]}")
     return cfg, book
 
 
@@ -132,7 +142,7 @@ def test_generate_combines_files(xml, tmp_path, capsys):
     book = tmp_path / "EVM.xlsx"
     generate(cfg, book)
     out = capsys.readouterr().out
-    assert "Leyendo P1:" in out and "Leyendo P2:" in out and "BAC total: 49,010,000.00" in out
+    assert "Leyendo P1:" in out and "Leyendo P2:" in out
 
     b = read_book(book)
     assert sum(b.bac[s.row] for s in b.input_rows) == pytest.approx(44_210_000 + 4_800_000)
@@ -181,7 +191,7 @@ def test_title_order_and_start_month(xml, tmp_path):
               '[exportacion]\nplanificacion = "INTERNO"\ntitulo = "Programa"\n')
     cfg = write_config(xml, "orden.toml", entries, common=common)
     book = tmp_path / "orden.xlsx"
-    generate(cfg, book)
+    generate(cfg, book, projects={"P1": 1, "P2": 2})
     b = read_book(book)
     assert [s.code for s in b.structure if s.level == 1] == ["1.0.0", "2.0.0", "3.0.0", "4.0.0", "9.0.0"]
     assert b.horizon.start == date(2026, 1, 1)              # el primer mes con PV de los dos archivos
@@ -274,23 +284,6 @@ def test_update_status_dates(xml, tmp_path, capsys):
     assert read_book(book).status_date == date(2027, 6, 30)
 
 
-def test_update_checks_ac_per_file(xml, tmp_path, capsys):
-    """El AC de cada archivo coincide con el CRTR de su planificación (P1) o de su proyecto (P2)."""
-    cfg, book = combined_book(xml, tmp_path, months=("jun",))
-    out = capsys.readouterr().out
-    assert "difiere del costo real" not in out
-    b = read_book(book)
-    ac = {src: 0.0 for src in ("P1", "P2")}
-    for s in b.input_rows:
-        ac[split_key(s.key)[0]] += sum(v or 0.0 for v in b.ac[s.row])
-    from evm.reader_xml import read_xml
-    config = load_config(cfg)
-    p1 = read_xml(xml[(1, "jun")], config.project_config("P1"))
-    p2 = read_xml(xml[(2, "jun")], config.project_config("P2"))
-    assert ac["P1"] == pytest.approx(next(t.acwp for t in p1.tasks if t.wbs == "INTERNO"), abs=0.05)
-    assert ac["P2"] == pytest.approx(p2.summary_acwp, abs=0.05)
-
-
 def test_update_analysis_of_deviations(xml, tmp_path):
     """La hoja Análisis de desviaciones asocia cada paquete con su archivo (UniqueID repetidos)."""
     from evm.analysis import A_BAC, SHEET_ANALYSIS, read_entries
@@ -353,7 +346,7 @@ def test_migrate_single_file_book_by_code(xml, tmp_path):
     single = write_config(xml, "solo.toml", [])
     old = tmp_path / "solo.xlsx"
     generate(single, old, "--origen", str(xml[(1, "base")]))
-    update(single, old, "--origen", str(xml[(1, "jun")]))
+    update(single, old, "jun", "--origen", str(xml[(1, "jun")]))
     cfg = write_config(xml, "varios.toml")
     new = tmp_path / "EVM.xlsx"
     generate(cfg, new, "--migrar-desde", str(old))

@@ -4,7 +4,6 @@ Cubren casos límite de archivos reales (campos de recurso con el mismo alias,
 tareas sin nivel de esquema, excepciones de calendario no interpretadas,
 fondos de recursos abiertos con el archivo, etc.) sin requerir MS Project.
 """
-import logging
 import sys
 import types
 from datetime import date, datetime, timedelta, timezone
@@ -18,7 +17,6 @@ from evm.fields import TASK_NUMBER_IDS, TASK_TEXT_IDS, builtin_kind, parse_custo
 import evm.reader_com as reader_com
 from evm.reader_com import PJ_DO_NOT_SAVE, ComSession, _com_date, _dt, _f
 from evm.reader_xml import XmlFormatError, read_xml
-from evm.timeline import split_segment
 from evm.wbs import build_report
 from mspdi import (NUMBER1, RESOURCE_FIELD_IDS, TEXT3, TEXT10, calendar_xml, exception_xml, project_xml,
                    standard_week, task_xml, weekday_xml, work_week_xml)
@@ -43,9 +41,9 @@ def read(tmp_path):
 
 
 def simple_tasks(**kw) -> list[str]:
-    """Tarea resumen del proyecto (UID 0) y una tarea con línea base de 100."""
+    """Tarea resumen del proyecto (UID 0) y una tarea con línea base 0."""
     return [task_xml(0, 0, "Proyecto"),
-            task_xml(1, 1, "A", wbs="1", start=S, finish=F, cost=100, baselines=[(0, S, F, 100)], **kw)]
+            task_xml(1, 1, "A", wbs="1", start=S, finish=F, baselines=[(0, S, F, 0)], **kw)]
 
 
 def calendar_of(read, *calendars, uid=1, cfg=None):
@@ -107,61 +105,49 @@ def test_missing_fields_produce_warnings(read):
 
 
 # ----------------------------------------------------------------------------
-# Lector XML: línea base, datos escalonados y estructura
+# Lector XML: línea base y estructura
 # ----------------------------------------------------------------------------
-def test_cross_month_segment_is_split_with_project_calendar(read):
+def test_task_duration_is_split_with_project_calendar(read):
     s, f = datetime(2026, 1, 26, 8), datetime(2026, 2, 6, 17)
-    tasks = [task_xml(0, 0, "Proyecto"),
-             task_xml(1, 1, "A", wbs="1", start=s, finish=f, cost=900, baselines=[(0, s, f, 900)],
-                      timephased=[(10, s, f, 900)])]
+    tasks = [task_xml(0, 0, "Proyecto"), task_xml(1, 1, "A", wbs="1", start=s, finish=f, baselines=[(0, s, f, 0)])]
     feriado = exception_xml(date(2026, 2, 2), date(2026, 2, 2))
     xml = project_xml(tasks, calendars=[calendar_xml(1, exceptions=[feriado])], calendar_uid=1)
     # Enero: 26 al 30 (5 días); febrero: 3 al 6 (4 días, el 2 es feriado del calendario)
-    assert read(xml).tasks[0].timephased_pv == pytest.approx({(2026, 1): 500.0, (2026, 2): 400.0})
+    assert build_report(read(xml), Config()).rows[0].pct[""] == pytest.approx({(2026, 1): 5 / 9, (2026, 2): 4 / 9})
     # Los feriados de la configuración se suman a los del calendario del proyecto
-    p = read(xml, Config(holidays={date(2026, 1, 30)}))
-    assert p.tasks[0].timephased_pv == pytest.approx({(2026, 1): 450.0, (2026, 2): 450.0})
+    cfg = Config(holidays={date(2026, 1, 30)})
+    assert build_report(read(xml, cfg), cfg).rows[0].pct[""] == pytest.approx({(2026, 1): 0.5, (2026, 2): 0.5})
 
 
-def test_baseline_n_selects_timephased_type_and_ev_baseline_cost(read):
+def test_baseline_n_reads_its_dates(read):
     s, f = datetime(2026, 1, 26, 8), datetime(2026, 2, 6, 17)
-    segments = [
-        (10, s, f, 1000),                                                      # línea base 0: se ignora
-        (25, s, f, 3000),                                                      # línea base 2: cruza de mes
-        (25, datetime(2026, 3, 2, 8), datetime(2026, 3, 2, 8), 50),           # tramo instantáneo
-        (25, datetime(2026, 4, 10, 8), datetime(2026, 3, 10, 8), 70),         # fin anterior al inicio
-        (25, datetime(2026, 5, 4, 8), datetime(2026, 5, 4, 17), 0),           # monto cero
-    ]
-    tasks = [task_xml(0, 0, "Proyecto", cost=3120, baselines=[(0, S, F, 1000), (2, S, F, 3120)]),
-             task_xml(1, 1, "A", wbs="1", start=s, finish=f, cost=3120,
-                      baselines=[(0, s, f, 1000), (2, s, datetime(2026, 4, 10, 17), 3120)], timephased=segments)]
+    tasks = [task_xml(0, 0, "Proyecto"),
+             task_xml(1, 1, "A", wbs="1", start=s, finish=f,
+                      baselines=[(0, s, f, 0), (2, s, datetime(2026, 4, 10, 17), 0)])]
     p = read(project_xml(tasks, header="<BaselineForEarnedValue>0</BaselineForEarnedValue>"), Config(baseline=2))
-    t = p.tasks[0]
-    assert p.baseline_label == "Línea base 2" and p.ev_baseline == 0
-    assert (t.baseline_cost, t.ev_baseline_cost) == (pytest.approx(3120), pytest.approx(1000))
-    assert t.timephased_pv == pytest.approx({(2026, 1): 1500.0, (2026, 2): 1500.0, (2026, 3): 50.0, (2026, 4): 70.0})
-    assert any("no es comparable" in w for w in p.warnings)
-    # La tarea sin la línea base del valor acumulado: su costo para el CPTR es 0
-    only_bl1 = [task_xml(0, 0, "Proyecto"), task_xml(1, 1, "A", wbs="1", start=S, finish=F, cost=50,
-                                                     baselines=[(1, S, F, 50)])]
+    assert p.baseline_label == "Línea base 2" and p.tasks[0].baseline_finish == datetime(2026, 4, 10, 17)
+    # Sin indicar la línea base: la que el proyecto usa para el valor acumulado
+    p = read(project_xml(tasks, header="<BaselineForEarnedValue>2</BaselineForEarnedValue>"))
+    assert p.baseline_label == "Línea base 2"
+    only_bl1 = [task_xml(0, 0, "Proyecto"), task_xml(1, 1, "A", wbs="1", start=S, finish=F, baselines=[(1, S, F, 0)])]
     p1 = read(project_xml(only_bl1, header="<BaselineForEarnedValue>0</BaselineForEarnedValue>"), Config(baseline=1))
-    assert p1.baseline_found and p1.tasks[0].ev_baseline_cost == 0.0
+    assert p1.baseline_found and p1.tasks[0].baseline_start == S
 
 
 @pytest.mark.parametrize("value", ["11", "-1", "abc", ""])
 def test_invalid_ev_baseline_setting_defaults_to_baseline_0(read, value):
     p = read(project_xml(simple_tasks(), header=f"<BaselineForEarnedValue>{value}</BaselineForEarnedValue>"))
-    assert (p.ev_baseline, p.baseline_label, p.tasks[0].baseline_cost) == (0, "Línea base", pytest.approx(100))
+    assert (p.baseline_label, p.tasks[0].baseline_start) == ("Línea base", S)
 
 
 def test_requested_baseline_missing_uses_current_schedule(read):
-    tasks = [task_xml(0, 0, "Proyecto", cost=50, baselines=[(0, S, F, 40)]),
-             task_xml(1, 1, "A", wbs="1", start=S, finish=F, cost=50, baselines=[(0, S, F, 40)])]
+    s, f = datetime(2026, 2, 2, 8), datetime(2026, 2, 6, 17)
+    tasks = [task_xml(0, 0, "Proyecto", baselines=[(0, S, F, 0)]),
+             task_xml(1, 1, "A", wbs="1", start=s, finish=f, baselines=[(0, S, F, 0)])]
     p = read(project_xml(tasks), Config(baseline=3))
     t = p.tasks[0]
     assert not p.baseline_found and p.baseline_label == "Programa actual (sin línea base 3)"
-    assert (t.baseline_cost, t.baseline_start, t.baseline_finish, t.timephased_pv) == (50, S, F, None)
-    assert p.summary_baseline_cost == p.summary_cost == 50
+    assert (t.baseline_start, t.baseline_finish) == (s, f)
 
 
 @pytest.mark.parametrize("text, message", [
@@ -178,28 +164,25 @@ def test_invalid_xml_raises_xml_format_error(tmp_path, text, message):
 
 def test_external_tasks_title_fallback_order_and_flags(read):
     tasks = [
-        task_xml(3, 1, "C", wbs="3", start=S, finish=F, cost=1, baselines=[(0, S, F, 1)],
-                 extra="<FixedCostAccrual>9</FixedCostAccrual>"),
-        task_xml(1, 1, "A", wbs="1", start=S, finish=F, cost=1, baselines=[(0, S, F, 1)],
-                 extra="<FixedCostAccrual>1</FixedCostAccrual><Milestone>true</Milestone><Active>0</Active>"),
-        task_xml(2, 1, "Externa", wbs="2", start=S, finish=F, cost=1, baselines=[(0, S, F, 1)],
+        task_xml(3, 1, "C", wbs="3", start=S, finish=F, baselines=[(0, S, F, 0)]),
+        task_xml(1, 1, "A", wbs="1", start=S, finish=F, baselines=[(0, S, F, 0)],
+                 extra="<Milestone>true</Milestone><Active>0</Active>"),
+        task_xml(2, 1, "Externa", wbs="2", start=S, finish=F, baselines=[(0, S, F, 0)],
                  extra="<ExternalTask>1</ExternalTask>"),
-        task_xml(4, 1, "D", wbs="4", start=S, finish=F, cost=1, baselines=[(0, S, F, 1)],
-                 extra="<FixedCostAccrual>2</FixedCostAccrual>"),
+        task_xml(4, 1, "D", wbs="4", start=S, finish=F, baselines=[(0, S, F, 0)]),
         task_xml(5, 1, "", extra="<IsNull>1</IsNull>"),
     ]
     p = read(project_xml(tasks, title=None, header="<Name>archivo.xml</Name>"))
     assert [t.name for t in p.tasks] == ["A", "C", "D"]          # orden por ID; sin externas ni filas en blanco
-    assert p.name == "archivo" and p.summary_baseline_cost is None
+    assert p.name == "archivo"
     assert any("extern" in w for w in p.warnings)
-    assert [(t.fixed_cost_accrual, t.milestone, t.active) for t in p.tasks] == [
-        ("inicio", True, False), ("prorrateado", False, True), ("fin", False, True)]
+    assert [(t.milestone, t.active) for t in p.tasks] == [(True, False), (False, True), (False, True)]
 
 
 def test_dates_before_1984_are_empty(read):
     tasks = [task_xml(0, 0, "Proyecto"),
-             task_xml(1, 1, "A", wbs="1", start="1983-12-31T08:00:00", finish="2026-01-09T17:00:00Z", cost=1,
-                      baselines=[(0, date(2026, 1, 5), F, 1)])]
+             task_xml(1, 1, "A", wbs="1", start="1983-12-31T08:00:00", finish="2026-01-09T17:00:00Z",
+                      baselines=[(0, date(2026, 1, 5), F, 0)])]
     t = read(project_xml(tasks)).tasks[0]
     assert t.start is None and t.finish == F                    # sin zona horaria
     assert t.baseline_start == datetime(2026, 1, 5)             # fecha sin hora
@@ -207,12 +190,12 @@ def test_dates_before_1984_are_empty(read):
 
 def test_task_without_outline_level_is_not_project_summary(read):
     """Solo la tarea de UID 0 es la tarea resumen del proyecto; sin nivel de esquema (o con 0) se usa el 1."""
-    tasks = [task_xml(0, 0, "Proyecto", cost=100, baselines=[(0, S, F, 100)]),
-             task_xml(1, None, "Sin nivel", wbs="1", start=S, finish=F, cost=50, baselines=[(0, S, F, 50)]),
-             task_xml(2, 0, "Nivel cero", wbs="2", start=S, finish=F, cost=50, baselines=[(0, S, F, 50)]),
-             task_xml(3, 2, "B", wbs="2.1", start=S, finish=F, cost=50, baselines=[(0, S, F, 50)])]
+    tasks = [task_xml(0, 0, "Proyecto", baselines=[(0, S, F, 0)]),
+             task_xml(1, None, "Sin nivel", wbs="1", start=S, finish=F, baselines=[(0, S, F, 0)]),
+             task_xml(2, 0, "Nivel cero", wbs="2", start=S, finish=F, baselines=[(0, S, F, 0)]),
+             task_xml(3, 2, "B", wbs="2.1", start=S, finish=F, baselines=[(0, S, F, 0)])]
     p = read(project_xml(tasks))
-    assert p.name == "Proyecto" and p.summary_baseline_cost == pytest.approx(100)
+    assert p.name == "Proyecto"
     assert [(t.name, t.outline_level) for t in p.tasks] == [("Sin nivel", 1), ("Nivel cero", 1), ("B", 2)]
 
 
@@ -249,8 +232,8 @@ def test_legacy_exceptions_work_weeks_and_working_exception(read):
     assert cal.windows(date(2026, 3, 6)) == STANDARD
     assert cal.windows(date(2026, 1, 31)) == [(540, 690)]
     # Sábado 31/01 de 09:00 a 11:30 (150 min) y lunes 02/02 de 07:00 a 17:00 (600 min)
-    d = split_segment(750, datetime(2026, 1, 31, 8), datetime(2026, 2, 2, 17), cal)
-    assert d == pytest.approx({(2026, 1): 150.0, (2026, 2): 600.0})
+    assert cal.minutes_by_month(datetime(2026, 1, 31, 8), datetime(2026, 2, 2, 17)) == {(2026, 1): 150,
+                                                                                         (2026, 2): 600}
 
 
 @pytest.mark.parametrize("calendars, uid", [
@@ -284,7 +267,7 @@ def test_unreadable_exception_warning_names_calendar_and_exception(read):
     omitted = [w for w in p.warnings if "se omite la excepción" in w]
     assert len(omitted) == 2
     assert omitted[0].startswith("Calendario 'Turno': se omite la excepción 'Feriado móvil' (tipo 99)")
-    assert "'Sin mes' (tipo 2)" in omitted[1] and "reparto entre meses" in omitted[1]
+    assert "'Sin mes' (tipo 2)" in omitted[1] and "reparto de la duración de las tareas" in omitted[1]
     assert not p.calendar.is_working_day(date(2026, 2, 2))      # las demás excepciones se aplican
 
 
@@ -548,22 +531,20 @@ def test_com_connect_gives_up_with_a_clear_message(fake_win32com, monkeypatch):
 
 
 def test_com_cleanup_releases_objects_before_quitting(tmp_path, fake_pywintypes):
-    """Al cerrar MS Project ya no quedan referencias a sus tareas ni al proyecto (liberarlas después produce
-    errores de RPC 0x800706BA)."""
+    """Al cerrar MS Project ya no quedan referencias al proyecto (liberarlas después produce errores de RPC
+    0x800706BA)."""
     origen = str(tmp_path / "programa.mpp")
     app = SessionApp([], to_open=OpenProject(str(Path(origen).resolve())))
     s = com_session(app, origen, started_by_us=True)
     s._open()
-    s._com_tasks[1] = object()
     seen = {}
-    app.Quit = lambda save: seen.update(project=s.project, tasks=dict(s._com_tasks))
+    app.Quit = lambda save: seen.update(project=s.project)
     s._cleanup()
-    assert seen == {"project": None, "tasks": {}}
+    assert seen == {"project": None}
     assert s.app is None
 
 
-def test_com_field_resolution_external_tasks_and_timescale_failure(caplog):
-    caplog.set_level(logging.WARNING, logger="evm.reader_com")
+def test_com_field_resolution_and_external_tasks():
     company_fid = 188744000                                   # constante devuelta por FieldNameToFieldConstant
 
     class App(FakeApp):
@@ -588,28 +569,13 @@ def test_com_field_resolution_external_tasks_and_timescale_failure(caplog):
     t3 = next(t for t in p.tasks if t.uid == 3)
     assert (t3.wbs, t3.company) == ("1.1.1", "EmpresaB")      # 'EDT' sin alias: campo EDT (WBS)
     assert 9 not in [t.uid for t in p.tasks] and any("extern" in w for w in p.warnings)
-
-    def broken(*args, **kwargs):
-        raise RuntimeError("error de COM")
-
-    tasks[3].TimeScaleData = broken
-    src = s.pv_source(p, cfg)
-    rep = build_report(p, cfg, src)
-    assert (src.timephased_count, src.linear_count) == (1, 1)  # la tarea con error se reparte en forma lineal
-    assert rep.total_bac == pytest.approx(1000)
-    assert any("TimeScaleData falló" in r.getMessage() for r in caplog.records)
+    assert [r.code for r in build_report(p, cfg).rows if r.is_input] == ["1.1.1", "1.1.2"]
 
 
-def test_com_ev_baseline_mismatch_and_empty_number_field():
-    tasks = program()
-    for t in tasks:
-        if t is not None:
-            t.Baseline2Cost, t.Baseline2Start, t.Baseline2Finish = 2 * t.BaselineCost, t.BaselineStart, t.BaselineFinish
-    s = make_session(tasks)
-    p = s.read_project(Config(baseline=2, milestone_weight_field="Peso hito"))
+def test_com_empty_number_field():
+    s = make_session(program())
+    p = s.read_project(Config(milestone_weight_field="Peso hito"))
     t3 = next(t for t in p.tasks if t.uid == 3)
-    assert (t3.baseline_cost, t3.ev_baseline_cost) == (800.0, 400.0)
-    assert any("no es comparable" in w for w in p.warnings)
     # En MS Project un campo numérico vacío vale 0: se lee 0 (los métodos lo tratan como vacío)
     assert t3.milestone_weight == 0.0
 

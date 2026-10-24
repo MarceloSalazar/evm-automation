@@ -17,9 +17,6 @@ grandes y complejos. Los enlaces son de terceros y pueden cambiar; se indicaron 
 | [Establecer la fecha de estado](https://support.microsoft.com/es-es/project/set-the-status-date-for-project-reporting) | Fecha de estado y su efecto en el seguimiento y el valor acumulado. |
 | [Actualizar el trabajo en un proyecto](https://support.microsoft.com/es-es/project/update-work-on-a-project) | Registro del trabajo real, también por períodos en *Uso de tareas*. |
 | [Cuadro de diálogo Actualizar proyecto](https://support.microsoft.com/es-es/project/update-project-dialog-box) | Actualizar el avance y reprogramar el trabajo restante. |
-| [Especificar costos de recursos](https://support.microsoft.com/es-es/project/enter-costs-for-resources) | Tarifas, costo por uso, tablas de tasas de costo, recursos de costo, costos fijos y costos reales manuales. |
-| [Acumulación de costos fijos](https://support.microsoft.com/es-es/project/fixed-cost-accrual-task-field) | Cómo se devenga el costo fijo de una tarea. |
-| [Visualización de costos totales del proyecto](https://support.microsoft.com/es-es/project/view-project-cost-totals) | Dónde ver los costos del proyecto, de las tareas y de los recursos. |
 | [Cuadro de diálogo Campos personalizados](https://support.microsoft.com/es-es/project/custom-fields-dialog-box) | Campos personalizados, tablas de búsqueda, fórmulas e indicadores gráficos. |
 | [Referencia disponible sobre campos](https://support.microsoft.com/es-es/project/available-fields-reference) | Lista oficial de campos de MS Project en español (CPTP, CPTR, CRTR, IRC...). |
 | [CEF (campo de tareas)](https://support.microsoft.com/es-es/project/eac-task-field) | Cómo calcula MS Project la estimación a la conclusión. |
@@ -42,7 +39,6 @@ grandes y complejos. Los enlaces son de terceros y pueden cambiar; se indicaron 
 |---|---|
 | [MPUG — Understanding Earned Value Fields](https://mpug.com/understanding-earned-value-fields) | Explicación de los campos de valor acumulado de MS Project. |
 | [MPUG — Track Project Progress with Physical % Complete](https://mpug.com/track-project-progress-with-physical-complete) | Uso del *% físico completado* para el valor acumulado. |
-| [MPUG — Understanding and Using Cost Rate Tables](https://mpug.com/understanding-and-using-cost-rate-tables) | Tablas de tasas de costo A a E y cambios de tarifa en el tiempo. |
 | [Tensix — Microsoft Project Status Date](https://tensix.com/microsoft-project-status-date/) | Uso práctico de la fecha de estado en el seguimiento. |
 | [The Project Group — Earned Value Analysis with MS Project](https://www.theprojectgroup.com/blog/en/earned-value-analysis-ms-project/) | Configuración y lectura del valor acumulado en MS Project. |
 

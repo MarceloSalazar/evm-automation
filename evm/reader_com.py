@@ -1,9 +1,8 @@
 """Lector por automatización COM de MS Project de escritorio (Windows + pywin32).
 
-Abre el archivo .mpp en modo solo lectura, lee las tareas y obtiene el PV
-mensual con Task.TimeScaleData (costo de línea base escalonado por mes), es
-decir, exactamente la distribución que calcula MS Project (calendarios,
-perfiles de trabajo, acumulación de costos fijos, etc.).
+Abre el archivo .mpp en modo solo lectura y lee las tareas: fechas de la línea
+base, fechas actuales, avance y campos personalizados. Los costos no se leen: el
+BAC se ingresa en el libro.
 
 Precauciones:
 - Si MS Project ya estaba abierto, se usa esa instancia y no se cierra.
@@ -22,21 +21,14 @@ from pathlib import Path
 from evm.config import Config
 from evm.fields import (TASK_NUMBER_IDS, TASK_TEXT_IDS, builtin_kind, is_spanish_wbs_name, parse_custom_name,
                         parse_number, same_name)
-from evm.model import MonthKey, ProjectData, Task, use_current_schedule
-from evm.timeline import add_months, first_of_month, last_of_month
-from evm.wbs import TimephasedPVSource
+from evm.model import ProjectData, Task, use_current_schedule
 
 log = logging.getLogger(__name__)
 
 # Constantes de MS Project (referencia VBA)
-TS_COST = 5                                   # pjTaskTimescaledCost
-TS_BASELINE_COST = {0: 6, 1: 484, 2: 495, 3: 506, 4: 517, 5: 528,   # pjTaskTimescaledBaseline[N]Cost
-                    6: 546, 7: 557, 8: 568, 9: 579, 10: 590}
-PJ_TIMESCALE_MONTHS = 2                       # pjTimescaleMonths
 PJ_DO_NOT_SAVE = 0                            # pjDoNotSave
 PJ_POOL_READ_ONLY = 1                         # pjPoolReadOnly (no pregunta; abre subproyectos)
 MSO_AUTOMATION_SECURITY_FORCE_DISABLE = 3     # sin macros
-ACCRUAL = {1: "inicio", 2: "fin", 3: "prorrateado"}   # PjAccrueAt
 
 PROGID = "MSProject.Application"
 # Espera máxima (segundos) a que responda MS Project: una instancia que se está cerrando (p. ej. la que
@@ -97,7 +89,6 @@ class ComSession:
         self.opened_by_us = False
         self._orig_status = None
         self._status_changed = False
-        self._com_tasks: dict[int, object] = {}
         self._pythoncom = None
         self._prev_active = None            # proyecto activo antes de empezar (si ya había uno abierto)
         self._saved_app_props: dict[str, object] = {}
@@ -286,7 +277,6 @@ class ComSession:
 
     def _release_objects(self) -> None:
         """Libera las referencias a tareas y proyectos de MS Project (no a la aplicación)."""
-        self._com_tasks.clear()
         self.project = None
         self._prev_active = None
         gc.collect()
@@ -349,12 +339,7 @@ class ComSession:
         warnings: list[str] = []
         # Línea base: la indicada en la configuración o la que el proyecto usa para el valor acumulado
         ev_baseline = int(_f(_get(p, "EarnedValueBaseline", 0)))
-        ev_baseline = ev_baseline if 0 <= ev_baseline <= 10 else 0
-        n = cfg.baseline if cfg.baseline is not None else ev_baseline
-        if n != ev_baseline:
-            warnings.append(f"El PV y el BAC usan la línea base {n}, pero MS Project calcula su valor acumulado "
-                            f"(CPTR) con la línea base {ev_baseline}: el método 'CPTR de MS Project' no es "
-                            "comparable.")
+        n = cfg.baseline if cfg.baseline is not None else (ev_baseline if 0 <= ev_baseline <= 10 else 0)
         sfx = "" if n == 0 else str(n)
 
         wbs_ref = self._resolve_field(cfg.wbs_field)
@@ -367,6 +352,10 @@ class ComSession:
         weight_ref = self._resolve_field(cfg.milestone_weight_field) if cfg.milestone_weight_field else None
         if cfg.milestone_weight_field and weight_ref is None:
             warnings.append(f"No se encontró el campo de peso de hitos '{cfg.milestone_weight_field}'.")
+        visible_ref = self._resolve_field(cfg.visible_field) if cfg.visible_field else None
+        if cfg.visible_field_explicit and visible_ref is None:
+            warnings.append(f"No se encontró el campo Visible '{cfg.visible_field}' en MS Project: las filas del "
+                            "libro siguen el nivel máximo.")
         company_ref = split_ref = None
         if cfg.multi_enabled:
             company_ref = self._resolve_field(cfg.company_field)
@@ -390,13 +379,13 @@ class ComSession:
             uid = int(t.UniqueID)
             bl_start = _dt(_get(t, f"Baseline{sfx}Start"))
             bl_finish = _dt(_get(t, f"Baseline{sfx}Finish"))
-            bl_cost = _f(_get(t, f"Baseline{sfx}Cost"))
             has_bl = bl_start is not None or bl_finish is not None
-            any_baseline = any_baseline or has_bl or bool(bl_cost)
+            any_baseline = any_baseline or has_bl
             wbs = self._field_value(t, wbs_ref)
             weight = self._field_value(t, weight_ref)
             company = self._field_value(t, company_ref)
             split = self._field_value(t, split_ref)
+            visible = self._field_value(t, visible_ref)
             task = Task(
                 uid=uid, id=int(_get(t, "ID", 0) or 0), name=str(_get(t, "Name", "") or ""),
                 outline_level=int(_get(t, "OutlineLevel", 1) or 1),
@@ -404,25 +393,18 @@ class ComSession:
                 wbs=str(wbs or "").strip(),          # sin código EDT => la tarea no tiene fila propia
                 summary=bool(_get(t, "Summary", False)), milestone=bool(_get(t, "Milestone", False)),
                 active=bool(_get(t, "Active", True)),
-                baseline_cost=bl_cost, baseline_start=bl_start, baseline_finish=bl_finish, has_baseline=has_bl,
-                start=_dt(_get(t, "Start")), finish=_dt(_get(t, "Finish")), cost=_f(_get(t, "Cost")),
-                fixed_cost=_f(_get(t, "FixedCost")),
-                fixed_cost_accrual=ACCRUAL.get(int(_f(_get(t, "FixedCostAccrual"), 3)), "prorrateado"),
+                baseline_start=bl_start, baseline_finish=bl_finish, has_baseline=has_bl,
+                start=_dt(_get(t, "Start")), finish=_dt(_get(t, "Finish")),
                 percent_complete=_f(_get(t, "PercentComplete")),
                 physical_percent_complete=_f(_get(t, "PhysicalPercentComplete")),
                 actual_start=_dt(_get(t, "ActualStart")), actual_finish=_dt(_get(t, "ActualFinish")),
-                actual_cost=_f(_get(t, "ActualCost")),
-                acwp=_f(_get(t, "ACWP"), None) if _get(t, "ACWP") not in (None, "") else None,
-                bcwp=_f(_get(t, "BCWP"), None) if _get(t, "BCWP") not in (None, "") else None,
                 method=str(self._field_value(t, method_ref) or "").strip(),
-                ev_baseline_cost=(_f(_get(t, f"Baseline{'' if ev_baseline == 0 else ev_baseline}Cost"))
-                                  if n != ev_baseline else None),
                 milestone_weight=None if weight in (None, "") else parse_number(weight),
                 company=str(company or "").strip(),
                 split_a=None if split in (None, "") else parse_number(split),
+                visible="" if visible is None else str(visible).strip(),
             )
             tasks.append(task)
-            self._com_tasks[uid] = t
         if skipped_external:
             warnings.append(f"Se omitieron {skipped_external} tareas externas (vínculos entre proyectos).")
 
@@ -445,51 +427,8 @@ class ComSession:
             currency_symbol=str(_get(p, "CurrencyCode", "") or _get(p, "CurrencySymbol", "") or ""),
             project_start=_dt(_get(p, "ProjectStart")),
             baseline_label="Línea base" if n == 0 else f"Línea base {n}",
-            summary_baseline_cost=_f(_get(summary, f"Baseline{sfx}Cost")) if summary is not None else None,
-            summary_cost=_f(_get(summary, "Cost")) if summary is not None else None,
-            summary_acwp=(_f(_get(summary, "ACWP"), None) if summary is not None
-                          and _get(summary, "ACWP") not in (None, "") else None),
-            ev_baseline=ev_baseline,
             warnings=warnings,
         )
         if not any_baseline:
             use_current_schedule(project)
-        self._ts_type = TS_BASELINE_COST[n] if project.baseline_found else TS_COST
         return project
-
-    # -- PV mensual -------------------------------------------------------------
-    def monthly_values(self, task: Task) -> dict[MonthKey, float] | None:
-        """Costo de línea base de la tarea por mes, según MS Project."""
-        t = self._com_tasks.get(task.uid)
-        s = task.baseline_start or task.start
-        f = task.baseline_finish or task.finish
-        if t is None or s is None or f is None:
-            return None
-        start = add_months(first_of_month(min(s, f).date()), -1)
-        end = last_of_month(add_months(first_of_month(max(s, f).date()), 1))
-        try:
-            tsv = t.TimeScaleData(_com_date(start), _com_date(end), self._ts_type, PJ_TIMESCALE_MONTHS, 1)
-            out: dict[MonthKey, float] = {}
-            for i in range(1, int(tsv.Count) + 1):
-                item = tsv.Item(i)
-                value = _f(item.Value)
-                if value:
-                    d = _dt(item.StartDate)
-                    if d is not None:
-                        out[(d.year, d.month)] = out.get((d.year, d.month), 0.0) + value
-            return out
-        except Exception as exc:
-            log.warning("TimeScaleData falló para la tarea %s (%s): %s", task.uid, task.name, exc)
-            return None
-
-    def pv_source(self, project: ProjectData, cfg: Config) -> TimephasedPVSource:
-        cache: dict[int, dict[MonthKey, float] | None] = {}
-
-        def fetch(task: Task):
-            if task.uid not in cache:
-                cache[task.uid] = self.monthly_values(task)
-            return cache[task.uid]
-
-        label = ("Costo de línea base mensual calculado por MS Project (datos escalonados)"
-                 if project.baseline_found else "Costo mensual del programa actual calculado por MS Project")
-        return TimephasedPVSource(fetch, label, cfg.distribution, cfg.holidays)

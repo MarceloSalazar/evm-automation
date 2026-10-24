@@ -6,12 +6,16 @@ El **método de medición** (técnica de valor ganado) define cómo se convierte
 trabajo en **valor ganado (EV)**. Se elige uno por paquete al planificar y se mantiene durante toda su
 ejecución. Este documento describe los métodos que admite el programa, dónde se define el método y
 dónde se calcula el EV, cómo se configuran y cómo se registra el avance en MS Project para cada uno,
-cómo elegir y aprobar el método de cada paquete, y cómo usar el método de valor acumulado propio de
+cómo elegir y aprobar el método de cada paquete, y su relación con el valor acumulado propio de
 MS Project.
 
 > Las imágenes de MS Project son **esquemas ilustrativos**, no capturas. Los nombres de menú
 > corresponden a MS Project en español 2016 a 2024 y a la versión de suscripción; pueden variar
 > levemente según la versión.
+
+> **Ponderación de las subtareas.** En un paquete con subtareas, cada tarea pesa según su **duración de
+> línea base** y cada hito según su `Peso hito`, que es un % del BAC del paquete: son los mismos pesos
+> del % planificado ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)).
 
 ---
 
@@ -30,14 +34,13 @@ MS Project.
    - [3.5 % Físico completado](#35--físico-completado)
    - [3.6 Unidades completadas](#36-unidades-completadas)
    - [3.7 Avance lineal (LOE)](#37-avance-lineal-loe)
-   - [3.8 CPTR de MS Project](#38-cptr-de-ms-project)
 4. [Guía para elegir el método](#4-guía-para-elegir-el-método)
 5. [Proceso para definir el método de cada paquete](#5-proceso-para-definir-el-método-de-cada-paquete)
    - [5.1 Roles](#51-roles)
    - [5.2 Pasos](#52-pasos)
    - [5.3 Cambios de método](#53-cambios-de-método)
    - [5.4 Registro de los métodos](#54-registro-de-los-métodos)
-6. [Método del valor acumulado de MS Project (opcional)](#6-método-del-valor-acumulado-de-ms-project-opcional)
+6. [Valor acumulado de MS Project](#6-valor-acumulado-de-ms-project)
 7. [Buenas prácticas](#7-buenas-prácticas)
 
 ---
@@ -49,15 +52,15 @@ MS Project.
 | `0/100` | 0 hasta terminar; BAC al terminar. | Paquete al 100 % (o *Fin real*) al terminar. |
 | `50/50`, `25/75`, `20/80` (`X/Y`) | X % del BAC al comenzar; 100 % al terminar. | *Comienzo real* (o cualquier avance) al comenzar; 100 % al terminar. |
 | `Hitos ponderados` | BAC × Σ pesos de los hitos cumplidos / Σ pesos. | Cada hito al 100 % cuando se cumple. |
-| `% Completado` | BAC × *% completado* de las subtareas, ponderado por su costo de línea base. | *% completado* (o duración real) de las tareas. |
-| `% Físico completado` | BAC × *% físico completado* de las subtareas, ponderado por su costo de línea base. | *% físico completado* estimado o medido. |
+| `% Completado` | BAC × *% completado* de las subtareas, ponderado por su duración de línea base (un hito cumplido cuenta su `Peso hito`). | *% completado* (o duración real) de las tareas. |
+| `% Físico completado` | BAC × *% físico completado* de las subtareas, con la misma ponderación. | *% físico completado* estimado o medido. |
 | `Unidades completadas` | BAC × unidades hechas / unidades totales. | El cociente, en *% físico completado*. |
 | `Avance lineal (LOE)` | EV = PV acumulado de la fila. | Nada específico (fechas reales recomendables). |
-| `CPTR de MS Project` | EV = CPTR (valor acumulado) de MS Project, limitado al BAC. | Según el *Método de valor acumulado* de cada tarea. |
 | `Por definir` u otro texto | Se usa `% Completado` y se informa. | — |
 
-El detalle del cálculo (ponderación por costo, valor del mes, controles) está en
-[Cálculo de EV y AC](calculo-ev-ac.md#3-ev-acumulado-de-cada-fila).
+El detalle del cálculo (pesos, % del mes, controles) está en
+[Cálculo del PV y el EV](calculo-pv-ev.md#6--ganado-métodos-de-medición). En multi-empresa, cada método
+se mide por empresa, con las tareas en las que participa.
 
 ---
 
@@ -70,7 +73,8 @@ libro nuevo) o directamente en Excel, en la columna C de la hoja `PV`.
 
 Con la configuración recomendada, el método de cada paquete se define en MS Project, pero el EV no lo
 calcula MS Project ni Excel: lo calcula el programa al ejecutar `actualizar`, con el avance registrado
-en MS Project y la regla del método. Excel recibe el EV y el AC de cada mes y calcula con fórmulas el resto del informe.
+en MS Project y la regla del método. Excel recibe el % ganado de cada mes y calcula con fórmulas el EV
+(BAC × %) y el resto del informe; el BAC y el AC se ingresan a mano en el libro.
 
 ```mermaid
 flowchart LR
@@ -80,17 +84,19 @@ flowchart LR
     end
     subgraph PRG["Programa"]
         G["generar"]
-        U["actualizar<br/>EV y AC de cada paquete<br/>según su método"]
+        U["actualizar<br/>% ganado de cada paquete<br/>según su método"]
     end
     subgraph XL["Libro Excel"]
         C["Columna C de la hoja PV<br/>(método del cálculo)"]
-        V["Hojas EV y AC<br/>(valor del mes)"]
-        F["Fórmulas: acumulados,<br/>índices, pronósticos,<br/>semáforos y gráficos"]
+        V["Hoja % EV<br/>(% ganado del mes)"]
+        B["BAC y AC<br/>(a mano)"]
+        F["Fórmulas: EV, acumulados,<br/>índices, pronósticos,<br/>semáforos y gráficos"]
     end
     M1 --> G --> C
     C --> U
     M2 --> U
     U --> V --> F
+    B --> F
 ```
 
 | Qué | Dónde |
@@ -98,21 +104,21 @@ flowchart LR
 | Método de cada paquete (dato de referencia) | MS Project: campo `Método EVM` y, en los hitos, `Peso hito` ([2.2](#22-en-ms-project-campo-personalizado-método-evm)). |
 | Avance del mes | MS Project: *% completado*, *% físico completado*, hitos al 100 % y fechas reales, en las tareas de detalle y los hitos ([Preparación en MS Project](preparacion-ms-project.md#7-fecha-de-estado-y-registro-del-avance)). |
 | Método que usa el cálculo | Excel: columna C de la hoja `PV`, que `generar` copia de MS Project ([2.3](#23-en-excel-columna-c-de-la-hoja-pv)). |
-| EV y AC acumulados de cada paquete | El programa, al ejecutar `actualizar`, que escribe el valor del mes en las hojas `EV` y `AC` ([Cálculo de EV y AC](calculo-ev-ac.md#3-ev-acumulado-de-cada-fila)). |
-| Acumulados, índices, pronósticos, semáforos y gráficos | Excel, con fórmulas ([Cuadro de Mando e indicadores](cuadro-de-mando.md)). |
-| Valor acumulado de MS Project (CPTR) | MS Project. El programa lo usa solo en los paquetes con `CPTR de MS Project` ([sección 6](#6-método-del-valor-acumulado-de-ms-project-opcional)). |
+| % ganado acumulado de cada paquete | El programa, al ejecutar `actualizar`, que escribe el % del mes en la hoja `% EV` ([Cálculo del PV y el EV](calculo-pv-ev.md#6--ganado-métodos-de-medición)). |
+| BAC y AC | Excel: se ingresan a mano en la columna D de la hoja `PV` y en la hoja `AC`. |
+| EV, acumulados, índices, pronósticos, semáforos y gráficos | Excel, con fórmulas ([Cuadro de Mando e indicadores](cuadro-de-mando.md)). |
+| Valor acumulado de MS Project (*CPTR*) | No se usa ([sección 6](#6-valor-acumulado-de-ms-project)). |
 
 El reparto responde a los datos que tiene cada herramienta:
 
-- **MS Project** ofrece solo dos métodos de valor acumulado, *% completado* y *% físico completado*:
-  no tiene `0/100`, fórmulas fijas ni hitos ponderados. Se pueden imitar registrando el *% físico
-  completado* según la regla de cada paquete, pero es un trabajo manual y propenso a errores
-  ([sección 6.2](#62-formas-de-trabajo)).
+- **MS Project** ofrece solo dos métodos de valor acumulado, *% completado* y *% físico completado*,
+  que se calculan con costos: no tiene `0/100`, fórmulas fijas ni hitos ponderados.
 - **Excel** tiene una fila por paquete: no tiene las subtareas, los hitos cumplidos, los pesos ni las
   fechas reales que necesita la regla del método.
 - **El programa** lee ese detalle de MS Project y escribe en Excel el resultado de cada paquete. En un
-  paquete con subtareas, el avance es el promedio de las subtareas ponderado por su costo de línea base
-  ([Cálculo de EV y AC](calculo-ev-ac.md#31-avance-ponderado-por-costo)).
+  paquete con subtareas, el avance es el promedio de las subtareas ponderado por su duración de línea
+  base, y cada hito cuenta su `Peso hito`
+  ([Cálculo del PV y el EV](calculo-pv-ev.md#6--ganado-métodos-de-medición)).
 
 > **Importante:** `actualizar` usa el método de la **columna C**, no el de MS Project, y no compara los
 > dos. Un cambio de método en MS Project posterior a `generar` no se aplica hasta regenerar el libro con
@@ -129,7 +135,7 @@ El reparto responde a los datos que tiene cada herramienta:
    **Cambiar nombre...** se le asigna el nombre `Método EVM`.
 3. En **Atributos personalizados** se elige **Búsqueda...** y se escriben los valores de la lista:
    `0/100`, `50/50`, `25/75`, `20/80`, `Hitos ponderados`, `% Completado`, `% Físico completado`,
-   `Unidades completadas`, `Avance lineal (LOE)`, `CPTR de MS Project`. Se recomienda **desmarcar**
+   `Unidades completadas`, `Avance lineal (LOE)`. Se recomienda **desmarcar**
    *Permitir introducir elementos adicionales en los campos*, para que solo se admitan valores de la
    lista.
 4. Se inserta la columna `Método EVM` (clic derecho en un encabezado > *Insertar columna*) y se completa
@@ -141,8 +147,9 @@ El reparto responde a los datos que tiene cada herramienta:
 
 ![Esquema del cuadro Editar tabla de búsqueda con los métodos](img/ms-project/tabla-busqueda.svg)
 
-Para el método `Hitos ponderados` se crea, de la misma forma, un campo **Número** (por ejemplo
-*Número1*) con el nombre `Peso hito`, y en `config.toml` se indica `peso_hito = "Peso hito"`.
+Para el peso de los hitos (el % del BAC del paquete que vale cada hito) se crea, de la misma forma, un
+campo **Número** (por ejemplo *Número1*) con el nombre `Peso hito`, y en `config.toml` se indica
+`peso_hito = "Peso hito"`.
 
 ### 2.3 En Excel: columna C de la hoja `PV`
 
@@ -155,7 +162,9 @@ campo `Método EVM`, la columna C es la única referencia del método.
 
 Las filas sin método reciben `metodo_por_defecto` (`Por definir`) y se informan en `Validación`.
 También se reconocen otros textos: fórmulas con `%` (`50%/50%`), cualquier `X/Y` con X + Y = 100
-(`40/60`), o textos que contengan "hito", "físico", "unidad", "lineal" o "LOE".
+(`40/60`), o textos que contengan "hito", "físico", "unidad", "lineal" o "LOE". Un texto no reconocido
+(por ejemplo, `CPTR de MS Project`) se calcula como `% Completado` y `actualizar` lo informa en
+pantalla.
 
 ---
 
@@ -203,20 +212,21 @@ recomendado para paquetes largos porque es **objetivo**.
 
 1. **Estructura:** el paquete es una tarea de nivel 3 (con código EDT) cuyas subtareas son las
    actividades de trabajo y los **hitos** (tareas de duración 0, o marcadas con *Marcar tarea como hito*
-   en *Información de la tarea > Avanzado*). Los hitos no necesitan código EDT: el programa los suma en
-   su paquete.
+   en *Información de la tarea > Avanzado*). Los hitos no necesitan código EDT: el programa los incluye
+   en su paquete.
 2. **Vínculos:** cada hito se vincula como sucesor de las actividades que producen su entregable, para
    que su fecha se mueva con el trabajo.
-3. **Costos:** el presupuesto se carga en las actividades de trabajo, no en los hitos
-   ([Presupuesto](presupuesto-bac.md)). El EV del paquete depende de los pesos, no de qué actividad
-   tiene el costo.
-4. **Pesos:** campo `Peso hito` (*Número1*) en cada hito. Se recomienda que sumen 100 y que sean
-   proporcionales al presupuesto del trabajo que lleva a cada hito. Un peso negativo se toma como 0; si
-   ningún hito tiene peso positivo, todos pesan igual.
-5. **Método:** `Hitos ponderados` en el campo `Método EVM` del paquete.
-6. **Criterio de cumplimiento:** en las *Notas* de cada hito se escribe la evidencia que lo da por
+3. **Pesos:** campo `Peso hito` (*Número1*) en cada hito: es el % del BAC del paquete que se planifica
+   en el mes del hito ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)).
+   Los pesos deben sumar 100 y ser proporcionales al presupuesto del trabajo que lleva a cada hito: así
+   el PV del paquete se concentra en los meses de sus hitos. Si suman menos de 100, el resto del %
+   planificado se reparte entre las actividades según su duración, pero el % ganado solo cuenta los
+   hitos. Un peso negativo se toma como 0; si ningún hito tiene peso positivo, en el % ganado todos
+   pesan igual.
+4. **Método:** `Hitos ponderados` en el campo `Método EVM` del paquete.
+5. **Criterio de cumplimiento:** en las *Notas* de cada hito se escribe la evidencia que lo da por
    cumplido (por ejemplo, "plano aprobado por el cliente", "acta de prueba FAT firmada").
-7. **Cada mes:** se marca al **100 %** cada hito cumplido en el mes, con su *Fin real*. Un hito no
+6. **Cada mes:** se marca al **100 %** cada hito cumplido en el mes, con su *Fin real*. Un hito no
    cumplido no se marca parcialmente: se reprograma.
 
 ![Esquema de las columnas de medición en MS Project, con un paquete de hitos ponderados](img/ms-project/columnas-evm.svg)
@@ -243,7 +253,8 @@ cualquier nivel.
 
 ### 3.4 % Completado
 
-**Regla:** BAC × *% completado* de las subtareas, ponderado por su costo de línea base.
+**Regla:** BAC × *% completado* de las subtareas, ponderado por su duración de línea base; un hito
+cumplido cuenta su `Peso hito`.
 
 **Cuándo usarlo:** cuando no hay una medida física mejor y la duración transcurrida es un indicador
 razonable del avance.
@@ -252,13 +263,17 @@ razonable del avance.
 pestaña *Tarea*, tabla *Seguimiento*, o *Proyecto > Actualizar proyecto*), o la *Duración real* y la
 *Duración restante*.
 
+**Ejemplo:** paquete de 900.000 € con dos tareas de 30 y 10 días de línea base, sin hitos con peso: pesan
+75 % y 25 %. Con la primera al 60 % y la segunda sin comenzar, el % ganado es 75 % × 60 % = 45 % y el EV
+405.000 €.
+
 **Precaución:** el *% completado* de MS Project mide el **% de la duración** transcurrida, no del
 trabajo realizado: una tarea al 50 % de su duración puede tener mucho menos trabajo hecho. Para medir
 el avance físico se recomienda `% Físico completado` o `Hitos ponderados`.
 
 ### 3.5 % Físico completado
 
-**Regla:** BAC × *% físico completado* de las subtareas, ponderado por su costo de línea base.
+**Regla:** BAC × *% físico completado* de las subtareas, con la misma ponderación que `% Completado`.
 
 **Cuándo usarlo:** trabajo cuyo avance se puede estimar o medir con independencia de la duración
 (planos emitidos sobre el total, metros de cañería montados, porcentaje de una obra certificado).
@@ -284,8 +299,6 @@ equipos instalados).
    hechas / unidades totales × 100) como referencia.
 2. Cada mes se actualiza `Unidades hechas` y se copia el porcentaje calculado en *% físico completado*
    (el campo *% físico completado* no admite fórmulas).
-3. Si el presupuesto se cargó con un **recurso material** ([Presupuesto](presupuesto-bac.md#3-opción-b-recursos-materiales)),
-   las unidades totales son las de la asignación.
 
 **Ejemplo:** movimiento de tierras de 40.000 m³ con BAC 3.200.000 €; al cierre de mes se excavaron
 18.000 m³ → 45 % → EV = 1.440.000 €.
@@ -303,31 +316,6 @@ cronograma sea coherente.
 
 **Precaución:** el LOE "diluye" los índices del proyecto (aporta SPI = 1). Se debe limitar a lo
 indispensable y no mezclar en el mismo paquete trabajo de soporte con trabajo medible.
-
-### 3.8 CPTR de MS Project
-
-**Regla:** EV = CPTR (*BCWP*, valor acumulado) que calcula MS Project a la fecha de estado, limitado al
-BAC de la fila.
-
-**Cuándo usarlo:** cuando el avance se gestiona con el método de valor acumulado de MS Project y se
-quiere que el libro coincida exactamente con las tablas de valor acumulado de MS Project
-([sección 6](#6-método-del-valor-acumulado-de-ms-project-opcional)).
-
-**Cómo calcula MS Project el CPTR** (según el *Método de valor acumulado* de la tarea):
-
-- **% completado:** aplica el *% completado* sobre la duración de la línea base y suma el costo previsto
-  escalonado hasta ese punto. Si la línea base no es lineal (por ejemplo, con costos al comienzo), el
-  resultado difiere de BAC × % completado.
-- **% físico completado:** usa el *% físico completado* registrado, con independencia de la duración.
-
-**Requisitos y comportamiento del programa:**
-
-- La línea base del informe debe ser la misma que MS Project usa para el valor acumulado. Si no lo es,
-  el programa usa la fracción CPTR / costo de esa línea base y lo advierte.
-- Si el CPTR supera el BAC de la fila, se limita y se informa. Si MS Project no informa el CPTR, se usa
-  `% Completado`.
-- Con archivos XML, el CPTR es el calculado al guardar el archivo: se debe guardar después de fijar la
-  fecha de estado.
 
 ---
 
@@ -355,7 +343,6 @@ flowchart TD
 | 3 meses o más, con entregables intermedios | `Hitos ponderados` (al menos un hito por mes) |
 | Trabajo medible en cantidades (m³, planos, equipos) | `% Físico completado` o `Unidades completadas` |
 | Gestión, soporte, supervisión | `Avance lineal (LOE)`, limitado a lo indispensable |
-| Gestión del avance con el valor acumulado de MS Project | `CPTR de MS Project` |
 
 ---
 
@@ -406,7 +393,6 @@ flowchart TD
    | `Unidades completadas` | La unidad, la cantidad total y la fuente de la medición mensual. |
    | `% Completado` | Por qué no hay una medida física mejor. |
    | `Avance lineal (LOE)` | Por qué el paquete no tiene entregables medibles. |
-   | `CPTR de MS Project` | El *Método de valor acumulado* de sus tareas y, si el *% físico completado* se registra según la regla de otro método, cuál ([sección 6.2](#62-formas-de-trabajo)). |
 
 4. **Revisar el conjunto.** Antes de aprobar se revisa:
    - la parte del BAC medida con `Avance lineal (LOE)` y con `% Completado`. Conviene acordar un tope:
@@ -440,9 +426,9 @@ comience. Para aplicar un cambio aprobado:
 2. Se escribe el mismo método en la columna C de la hoja `PV`, para que se aplique en el próximo
    `actualizar` sin regenerar el libro. Si en el mismo cambio se regenera el libro con
    `--migrar-desde` (por ejemplo, por una nueva línea base), este paso no es necesario.
-3. En el próximo `actualizar`, el EV acumulado del paquete se recalcula con el método nuevo y toda la
-   diferencia queda en el mes de corte: puede resultar un valor del mes negativo o mayor que el
-   habitual ([Cálculo de EV y AC](calculo-ev-ac.md#5-del-valor-acumulado-al-valor-del-mes)). El salto se
+3. En el próximo `actualizar`, el % ganado acumulado del paquete se recalcula con el método nuevo y
+   toda la diferencia queda en el mes de corte: puede resultar un % del mes negativo o mayor que el
+   habitual ([Cálculo del PV y el EV](calculo-pv-ev.md#7-del--acumulado-al--del-mes)). El salto se
    explica en el informe y, si el paquete queda fuera de umbral, en
    [Análisis de desviaciones](analisis-desviaciones.md).
 
@@ -461,54 +447,22 @@ sirve de referencia para medir el avance cada mes y para explicar el informe. Ej
 
 ---
 
-## 6. Método del valor acumulado de MS Project (opcional)
+## 6. Valor acumulado de MS Project
 
-MS Project calcula su propio valor ganado, que llama **valor acumulado** (campo **CPTR**), con el
-campo **Método de valor acumulado** de cada tarea: **% completado** (por defecto) o **% físico
-completado**. Usarlo es opcional: el programa calcula los métodos de la sección 3 por su cuenta a partir
-del avance registrado.
+MS Project calcula su propio valor ganado, que llama **valor acumulado** (campo *CPTR*), con el costo
+de la línea base y el *Método de valor acumulado* de cada tarea (*% completado* o *% físico
+completado*). El programa no lo usa: el cronograma no necesita costos, y el % ganado de cada paquete se
+calcula con el método de la columna C y el avance registrado ([sección 3](#3-los-métodos-en-detalle)).
+Por eso no hace falta configurar el *Método de valor acumulado* de las tareas, y las tablas de valor
+acumulado de MS Project (*CPTP*, *CPTR*, *CRTR*, ver el [glosario](glosario.md)) no coinciden con el
+libro.
 
-### 6.1 Configuración
+De las opciones de valor acumulado del proyecto (*Archivo > Opciones > Avanzadas > Opciones de valor
+acumulado para este proyecto*), el programa usa solo la **línea base para el cálculo del valor
+acumulado**: es la línea base cuyas fechas definen el % planificado, salvo que se indique otra con
+`linea_base` en la [configuración](configuracion.md) o con `--linea-base N`.
 
-1. **Para el proyecto** (valor por defecto de las tareas nuevas y línea base del valor acumulado):
-   *Archivo > Opciones > Avanzadas > Opciones de valor acumulado para este proyecto*:
-   - *Método predeterminado del valor acumulado de tarea*: `% completado` o `% físico completado`;
-   - la **línea base** con la que MS Project calcula el valor acumulado. Debe ser la misma que la del
-     informe (`linea_base` en la [configuración](configuracion.md)); por defecto el programa usa esta.
-
-   ![Esquema de las opciones de valor acumulado](img/ms-project/opciones-valor-acumulado.svg)
-
-2. **Para una tarea:** *Información de la tarea* > pestaña *Avanzado* (*Avanzada* en algunas versiones)
-   > *Método de valor acumulado*. Se pueden seleccionar varias tareas y cambiarlas juntas.
-
-   ![Esquema de Información de la tarea, pestaña Avanzado](img/ms-project/info-tarea-avanzado.svg)
-
-3. **Para consultar** el valor acumulado de MS Project: *Vista > Tablas > Más tablas* > **Valor
-   acumulado**, **Indicadores de costo del valor acumulado** o **Indicadores de programación del valor
-   acumulado**. MS Project usa la [terminología en español](glosario.md) CPTP (PV), CPTR (EV) y CRTR
-   (AC).
-
-### 6.2 Formas de trabajo
-
-| Forma | Configuración | Ventajas | Desventajas |
-|---|---|---|---|
-| **A. El programa calcula el EV** (recomendada) | MS Project con el método por defecto. Cada paquete con su método en `Método EVM` (0/100, hitos, % físico...). | Métodos que MS Project no tiene (0/100, 50/50, hitos ponderados); un solo dato de avance por tarea. | Las tablas de valor acumulado de MS Project no coinciden con el libro. |
-| **B. MS Project calcula el EV** | *% físico completado* como método de valor acumulado; `CPTR de MS Project` en `Método EVM`. El *% físico completado* se registra **según la regla** de cada paquete (ver abajo). | El libro coincide con las tablas de valor acumulado de MS Project. | La regla de cada método se aplica a mano; más propenso a errores. |
-| **C. Mixta** | `CPTR de MS Project` solo en algunos paquetes. | Flexibilidad. | Dos criterios en el mismo informe: se debe documentar. |
-
-**Registro del *% físico completado* según la regla de cada método (forma B):**
-
-| Método del paquete | *% físico completado* que se registra |
-|---|---|
-| 0/100 | 0 hasta terminar; 100 al terminar. |
-| 50/50 (X/Y) | 50 (X) al comenzar; 100 al terminar. |
-| Hitos ponderados | Suma de los pesos de los hitos cumplidos (si suman 100). |
-| Unidades completadas | Unidades hechas / unidades totales × 100. |
-| % físico | El avance medido. |
-
-MS Project calcula el CPTR de una tarea resumen sumando el de sus subtareas: el *% físico completado*
-se registra en las tareas de detalle. Por eso la forma B es práctica cuando cada paquete es una sola
-tarea; para paquetes con subtareas e hitos se recomienda la forma A.
+![Esquema de las opciones de valor acumulado](img/ms-project/opciones-valor-acumulado.svg)
 
 ---
 
@@ -526,7 +480,7 @@ tarea; para paquetes con subtareas e hitos se recomienda la forma A.
 - Mantener MS Project como referencia del método: la columna C de la hoja `PV` solo se edita para
   aplicar un cambio aprobado, que se escribe también en MS Project.
 - Revisar cada mes, con `actualizar --simular`, las observaciones por fila: métodos no definidos,
-  respaldo por falta de hitos o de CPTR, valores del mes negativos.
+  respaldo por falta de hitos, % del mes negativos.
 
 Más información de Microsoft: [Cambiar el tipo de porcentaje completado para el análisis del valor
 acumulado](https://support.microsoft.com/es-es/project/change-complete-type-for-earned-value-analysis),

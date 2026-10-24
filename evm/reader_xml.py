@@ -1,8 +1,8 @@
 """Lector de archivos XML de MS Project (Archivo > Guardar como > XML).
 
 No requiere MS Project instalado. Formato: esquema MSPDI
-(http://schemas.microsoft.com/project). En este formato los montos de costo
-se guardan multiplicados por 100 (centavos).
+(http://schemas.microsoft.com/project). Los costos del XML no se leen: el BAC se
+ingresa en el libro.
 """
 from __future__ import annotations
 
@@ -13,20 +13,10 @@ from pathlib import Path
 
 from evm.config import Config
 from evm.fields import builtin_kind, field_id, is_spanish_wbs_name, parse_custom_name, parse_number, same_name
-from evm.model import MonthKey, ProjectData, Task, use_current_schedule
-from evm.timeline import split_segment
+from evm.model import ProjectData, Task, use_current_schedule
 from evm.workcalendar import WorkCalendar, calendar_from_xml
 
 log = logging.getLogger(__name__)
-
-# Tipo de dato escalonado "costo de línea base de la tarea" según la línea base:
-# 0 -> 10; N (1..10) -> 19 + 6 * (N - 1)
-def timephased_baseline_cost_type(baseline: int) -> int:
-    return 10 if baseline == 0 else 19 + 6 * (baseline - 1)
-
-
-# FixedCostAccrual en MSPDI: 1 = comienzo, 2 = fin, 3 = prorrateado
-_ACCRUAL = {"1": "inicio", "2": "fin", "3": "prorrateado"}
 
 # Prefijo de FieldID de los campos de tarea (los de recurso usan 0x0C40xxxx y los de asignación
 # 0x0F40xxxx); <ExtendedAttributes> define los campos personalizados de todas esas entidades.
@@ -74,19 +64,6 @@ class _Reader:
             return float(t)
         except ValueError:
             return default
-
-    def money(self, el, name) -> float:
-        """Montos de costo: en MSPDI se guardan multiplicados por 100."""
-        return self.num(el, name) / 100.0
-
-    def money_opt(self, el, name) -> float | None:
-        t = self.text(el, name)
-        if not t:
-            return None
-        try:
-            return float(t) / 100.0
-        except ValueError:
-            return None
 
     def flag(self, el, name, default: bool = False) -> bool:
         t = self.text(el, name)
@@ -150,6 +127,10 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
     weight_ref = _resolve(cfg.milestone_weight_field, defs) if cfg.milestone_weight_field else None
     if cfg.milestone_weight_field and weight_ref is None:
         warnings.append(f"No se encontró el campo de peso de hitos '{cfg.milestone_weight_field}' en el XML.")
+    visible_ref = _resolve(cfg.visible_field, defs) if cfg.visible_field else None
+    if cfg.visible_field_explicit and visible_ref is None:
+        warnings.append(f"No se encontró el campo Visible '{cfg.visible_field}' en el XML: las filas del libro "
+                        "siguen el nivel máximo.")
     company_ref = split_ref = None
     if cfg.multi_enabled:
         company_ref = _resolve(cfg.company_field, defs)
@@ -161,7 +142,7 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
             warnings.append(f"No se encontró el campo de reparto '{cfg.split_field}' en el XML: las tareas "
                             f"'{cfg.company_both}' se reparten al {cfg.split_default:g} %.")
 
-    # Calendario del proyecto: reparte los tramos escalonados que cruzan de un mes a otro
+    # Calendario del proyecto: reparte la duración de las tareas entre los meses
     try:
         cal_uid = int(r.text(root, "CalendarUID"))
     except ValueError:
@@ -169,25 +150,17 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
     calendar = calendar_from_xml(r, root, cal_uid, warnings) or WorkCalendar()
     calendar.add_holidays(cfg.holidays)
 
-    # Línea base: la indicada en la configuración o la usada por el proyecto para el valor acumulado
+    # Línea base: la indicada en la configuración o la que el proyecto usa para el valor acumulado
     try:
         ev_baseline = int(r.text(root, "BaselineForEarnedValue") or 0)
     except ValueError:
         ev_baseline = 0
-    ev_baseline = ev_baseline if 0 <= ev_baseline <= 10 else 0
-    n = cfg.baseline if cfg.baseline is not None else ev_baseline
-    if n != ev_baseline:
-        warnings.append(f"El PV y el BAC usan la línea base {n}, pero MS Project calcula su valor acumulado (CPTR) "
-                        f"con la línea base {ev_baseline}: el método 'CPTR de MS Project' no es comparable.")
-    tp_type = str(timephased_baseline_cost_type(n))
+    n = cfg.baseline if cfg.baseline is not None else (ev_baseline if 0 <= ev_baseline <= 10 else 0)
     tasks_el = root.find(r.q("Tasks"))
     if tasks_el is None:
         raise XmlFormatError("El XML no contiene tareas (<Tasks>).")
 
     tasks: list[Task] = []
-    summary_bl_cost = None
-    summary_cost = None
-    summary_acwp = None
     any_baseline = False
     skipped_external = 0
 
@@ -214,46 +187,19 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
             kind, key = ref
             return r.text(el, key) if kind == "elem" else ext.get(key, "")
 
-        bl = None
-        ev_bl_cost = None
-        for b in el.findall(r.q("Baseline")):
-            if r.text(b, "Number") == str(n):
-                bl = b
-            if n != ev_baseline and r.text(b, "Number") == str(ev_baseline):
-                ev_bl_cost = r.money(b, "Cost")
-        if n != ev_baseline and ev_bl_cost is None:
-            ev_bl_cost = 0.0
+        bl = next((b for b in el.findall(r.q("Baseline")) if r.text(b, "Number") == str(n)), None)
         bl_start = r.date(bl, "Start") if bl is not None else None
         bl_finish = r.date(bl, "Finish") if bl is not None else None
-        bl_cost = r.money(bl, "Cost") if bl is not None else 0.0
         has_bl = bl_start is not None or bl_finish is not None
-        any_baseline = any_baseline or has_bl or bool(bl_cost)
+        any_baseline = any_baseline or has_bl
 
         if uid == 0:                    # tarea resumen del proyecto
-            summary_bl_cost = bl_cost
-            summary_cost = r.money(el, "Cost")
-            summary_acwp = r.money_opt(el, "ACWP")
-            if summary_acwp is None:
-                summary_acwp = r.money_opt(el, "ActualCost")
             # Mismo nombre que entrega COM (ProjectSummaryTask.Name), para reconocer el proyecto
             title = r.text(el, "Name")
             continue
         if r.flag(el, "ExternalTask"):
             skipped_external += 1
             continue
-
-        # Costo de línea base mensual (datos escalonados en el tiempo)
-        tp: dict[MonthKey, float] | None = None
-        for seg in el.findall(r.q("TimephasedData")):
-            if r.text(seg, "Type") != tp_type:
-                continue
-            s, f = r.date(seg, "Start"), r.date(seg, "Finish")
-            amount = r.money(seg, "Value")
-            if s is None or f is None or not amount:
-                continue
-            tp = tp or {}
-            for k, v in split_segment(amount, s, f, calendar).items():
-                tp[k] = tp.get(k, 0.0) + v
 
         weight = None
         if weight_ref is not None:
@@ -267,17 +213,13 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
             wbs=value_of(wbs_ref).strip(),         # sin código EDT => la tarea no tiene fila propia
             summary=r.flag(el, "Summary"), milestone=r.flag(el, "Milestone"),
             active=r.flag(el, "Active", True),
-            baseline_cost=bl_cost, baseline_start=bl_start, baseline_finish=bl_finish, has_baseline=has_bl,
-            start=r.date(el, "Start"), finish=r.date(el, "Finish"), cost=r.money(el, "Cost"),
-            fixed_cost=r.money(el, "FixedCost"),
-            fixed_cost_accrual=_ACCRUAL.get(r.text(el, "FixedCostAccrual"), "prorrateado"),
+            baseline_start=bl_start, baseline_finish=bl_finish, has_baseline=has_bl,
+            start=r.date(el, "Start"), finish=r.date(el, "Finish"),
             percent_complete=r.num(el, "PercentComplete"),
             physical_percent_complete=r.num(el, "PhysicalPercentComplete"),
             actual_start=r.date(el, "ActualStart"), actual_finish=r.date(el, "ActualFinish"),
-            actual_cost=r.money(el, "ActualCost"), acwp=r.money_opt(el, "ACWP"), bcwp=r.money_opt(el, "BCWP"),
-            method=value_of(method_ref).strip(), milestone_weight=weight, ev_baseline_cost=ev_bl_cost,
-            company=company, split_a=split_a,
-            timephased_pv=tp,
+            method=value_of(method_ref).strip(), milestone_weight=weight,
+            company=company, split_a=split_a, visible=value_of(visible_ref).strip(),
         )
         tasks.append(task)
 
@@ -292,9 +234,7 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
     project = ProjectData(
         name=title, source=str(path), backend="xml", tasks=tasks, status_date=status,
         currency_symbol=currency, project_start=r.date(root, "StartDate"), baseline_label=label,
-        baseline_found=any_baseline, summary_baseline_cost=summary_bl_cost, summary_cost=summary_cost,
-        summary_acwp=summary_acwp, ev_baseline=ev_baseline,
-        warnings=warnings, calendar=calendar,
+        baseline_found=any_baseline, warnings=warnings, calendar=calendar,
     )
     if not any_baseline:
         use_current_schedule(project)

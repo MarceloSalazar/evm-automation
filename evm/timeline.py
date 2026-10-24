@@ -1,9 +1,9 @@
-"""Horizonte mensual y reparto de montos en el tiempo."""
+"""Horizonte mensual y utilidades de meses."""
 from __future__ import annotations
 
 import calendar
 from dataclasses import dataclass
-from datetime import date, datetime, time
+from datetime import date
 
 from evm.model import MonthKey
 
@@ -66,53 +66,6 @@ class Horizon:
         return vec, before, after
 
 
-def distribute_linear(
-    amount: float,
-    start: datetime | date | None,
-    finish: datetime | date | None,
-    mode: str = "habiles",
-    calendar=None,
-) -> dict[MonthKey, float]:
-    """Reparte `amount` en forma lineal entre start y finish, mes a mes.
-
-    mode = "habiles": proporcional al tiempo laborable del calendario (por
-    defecto, lunes a viernes 8:00-12:00 y 13:00-17:00); "calendario":
-    proporcional al tiempo transcurrido. Si la tarea es instantánea (hito)
-    todo el monto cae en ese mes.
-    """
-    if not amount:
-        return {}
-    if start is None and finish is None:
-        return {}
-    start = _as_datetime(start if start is not None else finish)
-    finish = _as_datetime(finish if finish is not None else start, end_of_day=True)
-    if finish < start:
-        start, finish = finish, start
-    if finish == start or (start.year, start.month) == (finish.year, finish.month):
-        return {(start.year, start.month): float(amount)}
-    from evm.workcalendar import WorkCalendar, elapsed_by_month
-    weights = {}
-    if mode == "habiles":
-        weights = (calendar or WorkCalendar()).minutes_by_month(start, finish)
-    if not sum(weights.values()):
-        weights = elapsed_by_month(start, finish)
-    total = sum(weights.values())
-    return {k: amount * v / total for k, v in weights.items() if v}
-
-
-def _as_datetime(d: datetime | date, end_of_day: bool = False) -> datetime:
-    if isinstance(d, datetime):
-        return d.replace(tzinfo=None)
-    return datetime.combine(d, time(23, 59) if end_of_day else time(0, 0))
-
-
-def lump(amount: float, when: datetime | date | None) -> dict[MonthKey, float]:
-    """Asigna todo el monto al mes de la fecha indicada."""
-    if not amount or when is None:
-        return {}
-    return {(when.year, when.month): float(amount)}
-
-
 def add_into(target: dict[MonthKey, float], values: dict[MonthKey, float], factor: float = 1.0) -> None:
     for k, v in values.items():
         target[k] = target.get(k, 0.0) + v * factor
@@ -128,23 +81,3 @@ def round_preserving_total(values: list[float], decimals: int = 2) -> list[float
         i = max(range(len(values)), key=lambda j: abs(values[j]))
         rounded[i] = round(rounded[i] + diff, decimals)
     return rounded
-
-
-def split_segment(amount: float, start: datetime, finish: datetime, calendar=None) -> dict[MonthKey, float]:
-    """Reparte el monto de un tramo de datos escalonados [start, finish) entre meses.
-
-    MS Project agrupa en un tramo los períodos con la misma tasa por hora de
-    trabajo, por lo que el monto se reparte según el tiempo laborable del
-    calendario del proyecto. Si el tramo no tiene tiempo laborable se reparte
-    según el tiempo transcurrido.
-    """
-    if not amount:
-        return {}
-    if finish <= start or (start.year, start.month) == (finish.year, finish.month):
-        return {(start.year, start.month): float(amount)}
-    from evm.workcalendar import WorkCalendar, elapsed_by_month
-    weights = (calendar or WorkCalendar()).minutes_by_month(start, finish)
-    if not sum(weights.values()):
-        weights = elapsed_by_month(start, finish)
-    total = sum(weights.values())
-    return {k: amount * v / total for k, v in weights.items() if v}

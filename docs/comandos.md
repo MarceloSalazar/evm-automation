@@ -2,9 +2,10 @@
 
 [Inicio](../README.md) › [Documentación](README.md) › Comandos y opciones
 
-El programa tiene tres comandos: `generar` (crea el libro con el PV), `actualizar` (carga el EV y el AC
-de un mes) y `analizar` (actualiza la hoja `Análisis de desviaciones` sin leer MS Project). La ayuda se
-obtiene con:
+El programa tiene tres comandos: `generar` (crea el libro con el % planificado de cada mes),
+`actualizar` (carga el % ganado de un mes) y `analizar` (actualiza la hoja `Análisis de desviaciones`
+sin leer MS Project). El BAC y el AC se ingresan a mano en el libro
+([Cálculo del PV y el EV](calculo-pv-ev.md)). La ayuda se obtiene con:
 
 ```powershell
 python evm_export.py --help
@@ -37,7 +38,7 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 | `--linea-base N` | 0 = Línea base, 1..10 = Línea base N. Por defecto, la que el proyecto usa para el valor acumulado. Con varios archivos no se admite: se indica en cada `[[proyectos]]`. |
 | `--nivel-max N` | Nivel máximo del código EDT. Por defecto 3. |
 | `--motor auto\|com\|xml` | Forma de lectura. `auto` decide por la extensión. |
-| `--migrar-desde libro.xlsx` | Copia al libro nuevo los EV/AC ya cargados, los métodos editados en la columna C y la fecha de corte de un libro anterior ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). |
+| `--migrar-desde libro.xlsx` | Copia al libro nuevo el BAC ingresado, el % ganado y el AC ya cargados, los métodos editados en la columna C, el análisis de desviaciones y la fecha de corte de un libro anterior ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). Con depuración de costes, también la previsión pegada en `PV-depuración` ([Depuración de costes](depuracion-costes.md#8-ciclo-de-ajuste)). |
 | `--sobrescribir` | Reemplaza el libro de salida si ya existe. |
 | `--visible` | Muestra MS Project mientras se lee (solo COM). |
 
@@ -47,20 +48,24 @@ Ejemplo de salida con el proyecto de ejemplo:
 Leyendo ejemplos/programa_ejemplo.xml ...
 Proyecto: Programa de ejemplo EVM
   Planificación: INTERNO
-  Línea base  |  PV: Costo de línea base mensual del XML de MS Project (datos escalonados)
+  Línea base  |  PV: % planificado de MS Project (duración de la línea base de las tareas y peso de los hitos) × BAC ingresado en el libro
   Filas EDT: 36 (24 de ingreso)  |  Nivel máximo: 3
   Horizonte: 01/2026 a 12/2035 (120 meses)
-  BAC total: 44,210,000.00
+  BAC: se debe ingresar el BAC de cada fila en la columna D de PV (celdas amarillas).
+  [i] El PV y el EV de cada fila son el BAC × el % planificado y el % ganado (hojas % PV y % EV), que se calculan con la duración de la línea base de las tareas y el peso de los hitos. Se debe ingresar el BAC de cada fila en las celdas amarillas de la columna D de la hoja PV.
   [i] Planificación 'INTERNO': se exportan las 51 tareas que dependen de 'Planificación interna'.
-  [i] Se omitió 1 tarea sin código EDT que no depende de ningún elemento EDT (costo de línea base 0.00, que no forma parte del BAC).
+  [i] Se omitió 1 tarea sin código EDT que no depende de ningún elemento EDT: no forma parte de ninguna fila del libro.
   [i] 14 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.
   [i] 1 fila sin método de medición definido (columna C).
 Libro generado: ...\EVM_Ejemplo.xlsx
 ```
 
+Después de `generar`, se ingresa el BAC de cada fila en las celdas amarillas de la columna D de la hoja
+`PV` (en multi-empresa, de `PV-EmpresaA` y `PV-EmpresaB`).
+
 ---
 
-## `actualizar`: carga EV y AC del mes
+## `actualizar`: carga el % ganado del mes
 
 ```powershell
 python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config config.toml --libro EVM_Programa.xlsx --fecha-corte 2026-10-31
@@ -71,17 +76,21 @@ python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config con
 | `--origen` | Proyecto con el avance a la fecha de corte (`.mpp`, `.xml` o `activo`). **Obligatoria**, salvo con varios archivos: se leen todos los de `[[proyectos]]`, y `NOMBRE=RUTA` reemplaza la ruta de un archivo (relativa a la carpeta actual; se puede repetir). |
 | `--libro` | Libro creado con `generar`. **Obligatoria.** |
 | `--fecha-corte AAAA-MM-DD` | Fecha de corte. Por defecto, la fecha de estado del proyecto; si el proyecto no tiene fecha de estado, es obligatoria. Con varios archivos, sin esta opción todos deben tener la misma fecha de estado. Con `.mpp`, el programa fija esa fecha de estado en la copia abierta (no guarda el archivo). |
-| `--solo ev\|ac` | Actualiza solo EV o solo AC. En multi-empresa, `--solo ac` requiere `ac_desde_project = true` ([Multi-empresa](multiempresa.md)). |
-| `--simular` | Muestra el EV y AC calculados para cada fila y los indicadores resultantes, sin modificar el libro. |
+| `--simular` | Muestra el EV calculado para cada fila y los indicadores resultantes, sin modificar el libro. |
 | `--forzar` | Permite actualizar aunque haya valores en meses posteriores. Esos meses no se recalculan: se avisa cuáles quedaron con un acumulado que ya no coincide con MS Project, para revisarlos o volver a cargarlos en orden. |
 | `--sin-respaldo` | No crea la copia `<libro>.respaldo-AAAAMMDD-HHMMSS.xlsx` (si ya existe una con ese nombre, se agrega `-2`, `-3`...). |
 | `--config`, `--motor`, `--linea-base`, `--nivel-max`, `--visible` | Igual que en `generar`. |
 | `--planificacion` | No se aplica: `actualizar` usa siempre la planificación con la que se generó el libro (y lo advierte si la configuración indica otra). |
 
+- Escribe el % ganado del mes en la hoja `% EV` (el EV es el BAC × ese %). No modifica el AC, que se
+  carga a mano en la hoja `AC` (en multi-empresa, en `AC-EmpresaA` y `AC-EmpresaB`), antes o después de
+  `actualizar`.
 - Repetir `actualizar` para el mismo mes **reemplaza** el valor de ese mes; no lo duplica.
-- `actualizar` controla la consistencia con MS Project (tareas eliminadas o inactivas, costos y paquetes
-  nuevos sin fila, diferencia de AC con el CRTR del proyecto, celdas con texto o fórmulas, subtotales
-  sin fórmula) y lo informa en pantalla ([Cálculo de EV y AC](calculo-ev-ac.md#7-controles-de-consistencia)).
+- `actualizar` controla la consistencia con MS Project (tareas eliminadas o inactivas, tareas con código
+  EDT sin fila en el libro, filas con avance y sin BAC, celdas con texto o fórmulas, subtotales sin
+  fórmula) y lo informa en pantalla ([Cálculo del PV y el EV](calculo-pv-ev.md#14-controles-y-validaciones)).
+  Las tareas con código EDT agregadas en MS Project después de generar el libro no tienen fila: su avance
+  no se incluye en el % ganado hasta regenerar el libro con `--migrar-desde`.
 - Antes de leer MS Project verifica el libro (hojas, filas y hojas ocultas) y se detiene sin modificarlo
   si encuentra un problema; también avisa si el libro está abierto en Excel. El libro se guarda primero
   en un archivo temporal, de modo que un error al guardar no daña el libro anterior.
@@ -97,6 +106,7 @@ Leyendo ...\avance_2027-06.xml ...
 Fecha de corte: 30/06/2027 (mes 18 del horizonte)
 Observaciones por fila:
   4.2.2 Cierre administrativo: método no definido: se usó % completado
+  [i] El AC se carga a mano en la hoja 'AC'; los indicadores de costo usan los valores cargados.
 Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05): 13 (hoja 'Análisis de desviaciones')
   1.1.1      Oficina de gestión del programa (PMO)     SPI  1.00  CPI  1.11
   1.1.2      Control de proyectos y EVM                SPI  1.00  CPI  1.11
@@ -142,7 +152,7 @@ de umbral ([Análisis de desviaciones](analisis-desviaciones.md#3-cierre-mensual
 |---|---|
 | `--libro` | Libro creado con `generar`, con al menos un `actualizar`. **Obligatoria.** |
 | `--sin-respaldo` | No crea la copia de respaldo del libro. |
-| `--config` | Solo para libros de versiones anteriores a la 1.5.0: umbrales del semáforo (`[semaforo]`). |
+| `--config` | Se admite por compatibilidad, pero no se usa: el libro guarda los umbrales del semáforo al generarse. |
 
 ---
 
@@ -158,8 +168,8 @@ python evm_export.py generar --origen Programa.mpp --config config.toml --planif
 # Revisar el cálculo antes de modificar el libro
 python evm_export.py actualizar --origen Programa.mpp --config config.toml --libro EVM_Programa.xlsx --simular
 
-# AC del ERP cargado a mano: actualizar solo el EV y, después de cargar el AC, analizar las desviaciones
-python evm_export.py actualizar --origen Programa.mpp --config config.toml --libro EVM_Programa.xlsx --solo ev
+# Cierre del mes: cargar el % ganado y, después de cargar a mano el AC del mes, analizar las desviaciones
+python evm_export.py actualizar --origen Programa.mpp --config config.toml --libro EVM_Programa.xlsx
 python evm_export.py analizar --libro EVM_Programa.xlsx
 
 # Nueva línea base: libro nuevo conservando el historial

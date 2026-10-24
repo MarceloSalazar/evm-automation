@@ -19,8 +19,9 @@ from evm.config import Config, ConfigError, load_config
 from evm.migrate import plan_migration, prior_from_book
 from evm.model import ProjectData, Task
 from evm.update import book_totals, read_book, run_update
-from evm.wbs import LinearPVSource, build_report
-from evm.workbook import FIRST_MONTH_COL, FIRST_ROW, WorkbookFormatError, write_workbook
+from evm.wbs import build_report
+from evm.workbook import COL_BAC, FIRST_MONTH_COL, FIRST_ROW, WorkbookFormatError, read_structure, write_workbook
+
 
 S, F = datetime(2026, 1, 5, 8), datetime(2026, 3, 27, 17)
 ERROR = "error"     # resultado de una lectura rechazada con WorkbookFormatError
@@ -29,9 +30,8 @@ ERROR = "error"     # resultado de una lectura rechazada con WorkbookFormatError
 # ----------------------------------------------------------------------------
 # Utilidades
 # ----------------------------------------------------------------------------
-def T(uid, level, wbs, name, cost=0.0, **kw):
-    kw.setdefault("cost", cost)
-    return Task(uid=uid, id=kw.pop("id", uid), name=name, outline_level=level, wbs=wbs, baseline_cost=cost,
+def T(uid, level, wbs, name, **kw):
+    return Task(uid=uid, id=kw.pop("id", uid), name=name, outline_level=level, wbs=wbs,
                 baseline_start=kw.pop("bs", S), baseline_finish=kw.pop("bf", F), has_baseline=True,
                 start=S, finish=F, **kw)
 
@@ -40,25 +40,36 @@ def P(tasks, name="Programa", status=None, **kw):
     return ProjectData(name=name, source="p.xml", backend="xml", tasks=tasks, status_date=status, **kw)
 
 
-def make_book(path, project, cfg=None, prior=None):
+def make_book(path, project, cfg=None, prior=None, bac=None):
+    """Genera el libro e ingresa el BAC de las filas indicadas ({código: BAC}; en multi-empresa, el BAC es de la
+    empresa A)."""
     cfg = cfg or Config()
-    rep = build_report(project, cfg, LinearPVSource())
+    rep = build_report(project, cfg)
     if prior is not None:
         rep.issues.extend(plan_migration(rep, prior, cfg.max_level))
     write_workbook(rep, cfg, path, prior)
+    if bac:
+        wb = load_workbook(path)
+        rows = {s.code: s.row for s in read_structure(wb)}
+        sheet = f"PV-{cfg.company_a}" if cfg.multi_enabled else "PV"
+        for code, value in bac.items():
+            wb[sheet].cell(rows[code], COL_BAC, value)
+        wb.save(path)
     return rep
 
 
 def base_tasks():
-    return [T(1, 1, "1", "Fase", 300), T(2, 2, "1.1", "B", 100), T(3, 2, "1.2", "C", 200)]
+    return [T(1, 1, "1", "Fase"), T(2, 2, "1.1", "B"), T(3, 2, "1.2", "C")]
+
+
+BAC = {"1.1.0": 100, "1.2.0": 200}
 
 
 def progress_tasks():
-    """Avance: B 50 % (costo real 60), C 25 % (costo real 40)."""
+    """Avance: B 50 % (EV 50), C 25 % (EV 50)."""
     tasks = base_tasks()
-    tasks[1].percent_complete, tasks[1].acwp = 50, 60.0
-    tasks[2].percent_complete, tasks[2].acwp = 25, 40.0
-    tasks[0].acwp = 100.0
+    tasks[1].percent_complete = 50
+    tasks[2].percent_complete = 25
     return tasks
 
 
@@ -98,7 +109,7 @@ SMALL = Config(months=24)      # horizonte corto: libros más rápidos de leer y
 def small_template(tmp_path_factory):
     """Libro de base_tasks() generado una sola vez (se copia en cada prueba)."""
     path = tmp_path_factory.mktemp("plantilla_chica") / "b.xlsx"
-    make_book(path, P(base_tasks()), SMALL)
+    make_book(path, P(base_tasks()), SMALL, bac=BAC)
     return path
 
 
@@ -130,19 +141,15 @@ def example_book(tmp_path, example_template):
 # ----------------------------------------------------------------------------
 def residual_tasks():
     """Fase con un gasto sin código EDT (fila 1.0.0-D) terminado y los paquetes con fila propia sin avance."""
-    tasks = [T(1, 1, "1", "Fase", 400, company="EmpresaA"), T(2, 2, "1.1", "B", 100), T(3, 2, "1.2", "C", 200),
-             T(4, 2, "", "Gasto sin código", 100, company="EmpresaA", percent_complete=100)]
-    for t in tasks:
-        t.acwp = 0.0
-    tasks[0].acwp = tasks[3].acwp = 100.0
-    return tasks
+    return [T(1, 1, "1", "Fase", company="EmpresaA"), T(2, 2, "1.1", "B"), T(3, 2, "1.2", "C"),
+            T(4, 2, "", "Gasto sin código", company="EmpresaA", percent_complete=100)]
 
 
 @pytest.mark.parametrize("multi", [False, True], ids=["una_empresa", "multiempresa"])
 def test_residual_row_ev_uses_its_own_tasks(tmp_path, multi):
     cfg = Config(multi_enabled=multi, months=24)
     book = tmp_path / "b.xlsx"
-    make_book(book, P(residual_tasks()), cfg)
+    make_book(book, P(residual_tasks()), cfg, bac={"1.0.0-D": 100})
     res = run_update(P(residual_tasks()), cfg, book, date(2026, 1, 31), backup=False)
     residual = next(r for r in res.rows if r.code == "1.0.0-D")
     assert residual.bac == pytest.approx(100)
@@ -176,16 +183,15 @@ def test_update_rejects_deleted_rows_in_company_sheet(tmp_path):
 def test_new_coded_package_without_row_warns(tmp_path, with_residual):
     tasks = base_tasks()
     if with_residual:
-        tasks[0].baseline_cost = tasks[0].cost = 400
-        tasks.append(T(4, 2, "", "Gasto sin código", 100))
+        tasks.append(T(4, 2, "", "Gasto sin código"))
     book = tmp_path / "b.xlsx"
-    make_book(book, P(tasks), SMALL)
-    now = [T(t.uid, t.outline_level, t.wbs, t.name, t.baseline_cost, acwp=0.0) for t in tasks]
-    now.append(T(9, 2, "1.3", "Paquete nuevo", 0, acwp=500.0, percent_complete=50))
-    now[0].acwp = 500.0
-    res = run_update(P(now, summary_acwp=500.0), Config(), book, date(2026, 1, 31), dry_run=True)
-    assert any("1.3 'Paquete nuevo'" in w and "--migrar-desde" in w for w in res.warnings)
-    assert all(r.ac_cum == 0 for r in res.rows)              # el costo del paquete nuevo no va a la fila -D
+    make_book(book, P(tasks), SMALL, bac={**BAC, "1.0.0-D": 100} if with_residual else BAC)
+    now = [T(t.uid, t.outline_level, t.wbs, t.name) for t in tasks]
+    now.append(T(9, 2, "1.3", "Paquete nuevo", percent_complete=50))
+    res = run_update(P(now), Config(), book, date(2026, 1, 31), dry_run=True)
+    [warning] = [w for w in res.warnings if "1.3 'Paquete nuevo'" in w]
+    assert "no tiene fila en el libro" in warning and "--migrar-desde" in warning
+    assert all(not r.ev_cum for r in res.rows)               # el avance del paquete nuevo no va a la fila -D
 
 
 def test_overwritten_total_formula_is_reported(small_book):
@@ -214,35 +220,33 @@ def test_untouched_book_reports_no_formula_gaps(small_book):
 def test_task_made_inactive_after_generation_is_reported(small_book):
     tasks = progress_tasks()
     tasks[2].active = False                                  # C se desactiva en MS Project
-    res = run_update(P(tasks, summary_acwp=60.0), Config(), small_book, date(2026, 1, 31), dry_run=True)
+    res = run_update(P(tasks), Config(), small_book, date(2026, 1, 31), dry_run=True)
     assert {r.code for r in res.rows} == {"1.1.0"}
     assert any("1.2.0" in w and "inactiva" in w for w in res.warnings)
-    assert not any("difiere" in w for w in res.warnings)    # AC cargado = costo real de las tareas activas
 
 
 def renamed_tasks(shift=0):
     """Fase con dos paquetes y una tarea sin código (fila 1.0.0-D), con avance; UID desplazados en `shift`."""
-    tasks = [T(1 + shift, 1, "1", "Fase", 400), T(2 + shift, 2, "1.1", "B", 100),
-             T(3 + shift, 2, "1.2", "C", 200), T(4 + shift, 2, "", "Sin código", 100)]
-    tasks[1].percent_complete, tasks[1].acwp = 50, 60.0
-    tasks[2].percent_complete, tasks[2].acwp = 25, 40.0
-    tasks[3].percent_complete, tasks[3].acwp = 100, 30.0
-    tasks[0].acwp = 130.0
+    tasks = [T(1 + shift, 1, "1", "Fase"), T(2 + shift, 2, "1.1", "B"), T(3 + shift, 2, "1.2", "C"),
+             T(4 + shift, 2, "", "Sin código")]
+    tasks[1].percent_complete = 50
+    tasks[2].percent_complete = 25
+    tasks[3].percent_complete = 100
     return tasks
 
 
 @pytest.mark.parametrize("cfg", [Config(), Config(max_level=4)], ids=["mismo_nivel", "nivel_4"])
 def test_renamed_project_update_matches_by_code(tmp_path, cfg):
     book = tmp_path / "b.xlsx"
-    make_book(book, P(renamed_tasks()), SMALL)
+    make_book(book, P(renamed_tasks()), SMALL, bac={**BAC, "1.0.0-D": 100})
     status = date(2026, 1, 31)
     same = run_update(P(renamed_tasks()), Config(), book, status, dry_run=True)
     renamed = run_update(P(renamed_tasks(100), name="Programa (copia)"), cfg, book, status, dry_run=True)
 
     def values(res):
-        return {r.code: (r.ev_cum, r.ac_cum) for r in res.rows}
+        return {r.code: r.ev_cum for r in res.rows}
 
-    assert values(renamed) == values(same)
+    assert values(renamed) == values(same) == {"1.1.0": 50, "1.2.0": 50, "1.0.0-D": 100}
     assert set(values(same)) == {"1.1.0", "1.2.0", "1.0.0-D"}
     assert any("se asocian por código EDT" in w for w in renamed.warnings)
 
@@ -262,24 +266,24 @@ def test_cutoff_outside_horizon_is_rejected(tmp_path, status):
 
 def test_cutoff_warnings_and_negative_corrections(tmp_path):
     book = tmp_path / "b.xlsx"
-    make_book(book, P(base_tasks()), Config(months=12))
+    make_book(book, P(base_tasks()), Config(months=12), bac=BAC)
     res = run_update(P(progress_tasks()), Config(), book, date(2026, 1, 15), dry_run=True)
     assert any("último día del mes" in w for w in res.warnings)
 
     # Menos avance que en el mes anterior: valor del mes negativo, informado como corrección
     run_update(P(progress_tasks()), Config(), book, date(2026, 2, 28), backup=False)
     less = progress_tasks()
-    less[1].percent_complete, less[1].acwp = 10, 20.0
+    less[1].percent_complete = 10
     res = run_update(P(less), Config(), book, date(2026, 3, 31), backup=False)
     row = next(r for r in res.rows if r.code == "1.1.0")
-    assert row.ev_month == pytest.approx(-40) and row.ac_month == pytest.approx(-40)
-    assert "EV del mes negativo (corrección)" in row.note and "AC del mes negativo (corrección)" in row.note
+    assert row.ev_month == pytest.approx(-40)
+    assert "% EV del mes negativo (corrección)" in row.note
 
-    # Fecha de corte anterior a la última cargada (sin valores posteriores de AC): se advierte
+    # Fecha de corte anterior a la última cargada (sin valores posteriores): se advierte
     other = tmp_path / "b2.xlsx"
     make_book(other, P(base_tasks()), Config(months=12))
-    run_update(P(progress_tasks()), Config(), other, date(2026, 2, 28), only="ev", backup=False)
-    res = run_update(P(progress_tasks()), Config(), other, date(2026, 1, 31), only="ac", backup=False)
+    tamper(other, lambda wb: wb["Resumen"].__setitem__("B5", date(2026, 2, 28)))
+    res = run_update(P(progress_tasks()), Config(), other, date(2026, 1, 31), backup=False)
     assert any("anterior a la última cargada" in w for w in res.warnings)
 
 
@@ -293,7 +297,7 @@ def test_force_allows_loading_an_earlier_month(small_book):
     assert any("anterior a la última cargada" in w for w in res.warnings)
     forced = [w for w in res.warnings if "--forzar" in w]
     assert len(forced) == 1
-    assert "02/2026" in forced[0] and "EV 1.1.0" in forced[0] and "AC 1.2.0" in forced[0]
+    assert "02/2026" in forced[0] and "% EV 1.1.0" in forced[0] and "% EV 1.2.0" in forced[0]
     assert "ya no coinciden con MS Project" in forced[0] and "'actualizar'" in forced[0]
     b = read_book(small_book)
     assert b.status_date == date(2026, 1, 31)
@@ -322,7 +326,7 @@ def load_text_in_ac(path, text):
     """Valor de AC!G (fila 1.1.0) después de 'actualizar' con `text` escrito como texto, o ERROR."""
     tamper(path, lambda wb: wb["AC"].cell(row_of(wb["AC"], "1.1.0"), FIRST_MONTH_COL, text))
     try:
-        run_update(P(progress_tasks()), Config(), path, date(2026, 2, 28), only="ev", backup=False)
+        run_update(P(progress_tasks()), Config(), path, date(2026, 2, 28), backup=False)
     except WorkbookFormatError:
         return ERROR
     ws = load_workbook(path)["AC"]
@@ -551,12 +555,12 @@ def test_control_characters_in_names(tmp_path, where):
 # ----------------------------------------------------------------------------
 def old_book_with_ev(path):
     """Libro anterior con EV en enero (10), febrero (20) y mayo (5) de 2026 y fecha de corte en mayo."""
-    make_book(path, P(base_tasks()), SMALL)
+    make_book(path, P(base_tasks()), SMALL, bac=BAC)
 
     def load(wb):
-        ws = wb["EV"]
+        ws = wb["% EV"]
         r = row_of(ws, "1.1.0")
-        for i, v in ((0, 10), (1, 20), (4, 5)):
+        for i, v in ((0, 0.1), (1, 0.2), (4, 0.05)):                # BAC 100
             ws.cell(r, FIRST_MONTH_COL + i, v)
         wb["Resumen"]["B5"].value = date(2026, 5, 31)
     tamper(path, load)
@@ -565,17 +569,18 @@ def old_book_with_ev(path):
 
 def test_migration_renamed_project_by_code(tmp_path):
     old = tmp_path / "old.xlsx"
-    make_book(old, P(base_tasks()), SMALL)
+    make_book(old, P(base_tasks()), SMALL, bac=BAC)
 
     def load(wb):
-        for code, v in (("1.1.0", 10), ("1.2.0", 20)):
-            wb["EV"].cell(row_of(wb["EV"], code), FIRST_MONTH_COL, v)
+        for code in ("1.1.0", "1.2.0"):
+            wb["% EV"].cell(row_of(wb["% EV"], code), FIRST_MONTH_COL, 0.1)     # EV 10 y 20
     tamper(old, load)
-    new_tasks = [T(11, 1, "1", "Fase", 300), T(12, 2, "1.1", "B", 100), T(13, 2, "1.2", "C renombrada", 200)]
+    new_tasks = [T(11, 1, "1", "Fase"), T(12, 2, "1.1", "B"), T(13, 2, "1.2", "C renombrada")]
     new = tmp_path / "new.xlsx"
     rep = make_book(new, P(new_tasks, name="Otro nombre"), SMALL, prior=prior_from_book(old, "Otro nombre"))
     b = read_book(new)
-    assert {s.code: sum(v or 0 for v in b.ev[s.row]) for s in b.input_rows} == {"1.1.0": 10, "1.2.0": 20}
+    assert {s.code: sum(v or 0 for v in b.ev[s.row]) for s in b.input_rows} == \
+        {"1.1.0": pytest.approx(10), "1.2.0": pytest.approx(20)}
     messages = [(i.severity, i.code, i.message) for i in rep.issues]
     assert any(sev == "Advertencia" and "corresponde al proyecto 'Programa'" in m for sev, _c, m in messages)
     assert any(code == "1.2.0" and "Recibió el historial" in m for _s, code, m in messages)
@@ -586,7 +591,7 @@ def test_migration_values_after_new_horizon_end_are_accumulated(tmp_path):
     new = tmp_path / "new.xlsx"
     rep = make_book(new, P(base_tasks()), Config(months=2), prior=prior_from_book(old, "Programa"))
     b = read_book(new)
-    assert b.ev[book_row(b, "1.1.0")] == [10, 25]
+    assert b.ev[book_row(b, "1.1.0")] == pytest.approx([10, 25])
     assert any("después del último mes" in i.message for i in rep.issues)
 
 
@@ -597,17 +602,14 @@ def test_migration_values_before_new_horizon_start_warn(tmp_path):
                     prior=prior_from_book(old, "Programa"))
     b = read_book(new)
     assert sum(book_totals(b)[1]) == pytest.approx(35)        # el total se conserva
-    assert b.ev[book_row(b, "1.1.0")][:2] == [30, 5]           # enero y febrero, en el mes 1 (abril)
+    assert b.ev[book_row(b, "1.1.0")][:2] == pytest.approx([30, 5])    # enero y febrero, en el mes 1 (abril)
     assert any("EV/AC por 30.00" in i.message and "antes del primer mes" in i.message for i in rep.issues)
 
 
 def test_migration_keeps_explicit_zero_months(tmp_path):
     old = tmp_path / "old.xlsx"
-    make_book(old, P(base_tasks()), SMALL)
-    no_progress = base_tasks()
-    for t in no_progress:
-        t.acwp = 0.0
-    run_update(P(no_progress), Config(), old, date(2026, 1, 31), backup=False)       # enero cargado con 0
+    make_book(old, P(base_tasks()), SMALL, bac=BAC)
+    run_update(P(base_tasks()), Config(), old, date(2026, 1, 31), backup=False)         # enero cargado con 0
     run_update(P(progress_tasks()), Config(), old, date(2026, 2, 28), backup=False)
     new = tmp_path / "new.xlsx"
     make_book(new, P(base_tasks()), SMALL, prior=prior_from_book(old, "Programa"))
@@ -620,11 +622,8 @@ def test_migration_keeps_explicit_zero_months(tmp_path):
 
 def test_migration_zero_only_rows_are_not_reported_as_lost(tmp_path):
     old = tmp_path / "old.xlsx"
-    make_book(old, P(base_tasks()), SMALL)
-    no_progress = base_tasks()
-    for t in no_progress:
-        t.acwp = 0.0
-    run_update(P(no_progress), Config(), old, date(2026, 1, 31), backup=False)       # solo ceros
+    make_book(old, P(base_tasks()), SMALL)                                            # sin BAC
+    run_update(P(base_tasks()), Config(), old, date(2026, 1, 31), backup=False)         # solo ceros
     prior = prior_from_book(old, "Programa")
     rep = make_book(tmp_path / "new.xlsx", P(base_tasks()[:2]), SMALL, prior=prior)  # C eliminada
     assert prior.unmatched == [] and prior.matched == 0
@@ -634,6 +633,15 @@ def test_migration_zero_only_rows_are_not_reported_as_lost(tmp_path):
 # ----------------------------------------------------------------------------
 # Línea de comandos
 # ----------------------------------------------------------------------------
+@pytest.mark.parametrize("command", [[], ["generar"], ["actualizar"], ["analizar"]],
+                         ids=["programa", "generar", "actualizar", "analizar"])
+def test_cli_help_of_every_command(capsys, command):
+    """La ayuda se muestra sin errores (un % sin escapar en un texto de ayuda la rompe)."""
+    with pytest.raises(SystemExit) as exc:
+        main(command + ["--help"])
+    assert exc.value.code == 0 and "usage" in capsys.readouterr().out.lower()
+
+
 @pytest.mark.parametrize("args, message", [
     (["generar", "--origen", "{tmp}/no_existe.xml", "--salida", "{tmp}/x.xlsx"], "No existe el archivo de origen"),
     (["generar", "--origen", "{tmp}/p.txt", "--salida", "{tmp}/x.xlsx"], "No se reconoce la extensión"),

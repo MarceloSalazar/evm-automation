@@ -11,7 +11,7 @@ base.
 ![Hoja Análisis de desviaciones del ejemplo](img/excel/analisis-desviaciones.png)
 
 *Análisis de diciembre de 2027 del [proyecto de ejemplo](ejemplo-paso-a-paso.md), con el texto de tres
-paquetes como ejemplo: uno por encima del rango verde (CPI 1,11) y dos por debajo.*
+paquetes como ejemplo: uno por encima del rango verde (CPI 1,10) y dos por debajo.*
 
 ---
 
@@ -29,7 +29,7 @@ paquetes como ejemplo: uno por encima del rango verde (CPI 1,11) y dos por debaj
 
 ## 1. Qué paquetes se listan
 
-`actualizar` agrega a la hoja las **filas de ingreso** (paquetes de trabajo y filas de otros costos `-D`)
+`actualizar` agrega a la hoja las **filas de ingreso** (paquetes de trabajo y filas `-D Otras tareas`)
 cuyo **SPI o CPI acumulado** al mes de la fecha de corte está fuera del **rango verde** del semáforo:
 menor que `amarillo_inferior` o mayor que `amarillo_superior` (0,95 y 1,05 por defecto,
 [Configuración](configuracion.md)). Es decir, los paquetes con semáforo amarillo o rojo en
@@ -83,19 +83,18 @@ se debe modificar.
 
 ```mermaid
 flowchart LR
-    A["actualizar<br/>(EV y AC del mes)"] --> B{"¿AC cargado<br/>a mano?"}
-    B -- "No" --> D["Análisis de desviaciones<br/>con los paquetes del mes"]
-    B -- "Sí (ERP)" --> C["Cargar el AC en la hoja AC<br/>y ejecutar analizar"]
+    A["actualizar<br/>(% ganado del mes)"] --> B{"¿AC del mes cargado<br/>antes de actualizar?"}
+    B -- "Sí" --> D["Análisis de desviaciones<br/>con los paquetes del mes"]
+    B -- "No" --> C["Cargar el AC en la hoja AC<br/>y ejecutar analizar"]
     C --> D
     D --> E["Completar causa, impacto,<br/>acción, responsable y fecha"]
     E --> F["Informe mensual"]
 ```
 
 1. `actualizar` agrega los paquetes fuera de umbral del mes de corte.
-2. Si el AC del mes se carga **a mano** después de `actualizar` (por ejemplo, desde el ERP con
-   `--solo ev`, o en multi-empresa), al cargarlo todavía no se conocían los paquetes con CPI bajo. Se
-   ejecuta entonces `analizar`, que vuelve a calcular la lista con los valores del libro, **sin leer MS
-   Project**:
+2. Si el AC del mes se carga en la hoja `AC` **después** de `actualizar`, al ejecutarlo todavía no se
+   conocían los paquetes con CPI bajo. Se ejecuta entonces `analizar`, que vuelve a calcular la lista con
+   los valores del libro, **sin leer MS Project**:
 
    ```powershell
    python evm_export.py analizar --libro EVM_Programa.xlsx
@@ -138,9 +137,6 @@ encabezado.
 - Si el paquete ya no existe en el libro nuevo, el texto se conserva en una fila sin valores
   (antecedente `Fila inexistente en el libro nuevo`) y se advierte en `Validación`.
 
-Los libros generados con versiones anteriores a la 1.5.0 no tienen la hoja: `actualizar` (o `analizar`)
-la crea a continuación de `Indicadores EDT`, con el semáforo de la configuración.
-
 ---
 
 ## 6. Filtrar e imprimir
@@ -161,7 +157,8 @@ práctica ([Configuración](configuracion.md#ejemplos)).
 
 **¿Por qué aparece un paquete de nivel de esfuerzo (LOE) con SPI 1?** Porque su CPI está fuera del rango
 verde: el SPI de un paquete LOE siempre es 1, pero su costo puede desviarse. En el ejemplo, los paquetes
-de gestión tienen CPI 1,09 a 1,12 porque su costo real es menor que el planificado.
+de gestión tienen CPI de 1,08 a 1,10 en diciembre de 2027 porque su costo real es menor que el
+planificado.
 
 **¿Qué pasa si borro una fila del análisis?** Si el paquete sigue fuera de umbral en el mes de corte,
 vuelve a aparecer (sin texto) la próxima vez que se ejecute `actualizar` o `analizar` para ese mes.

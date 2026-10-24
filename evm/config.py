@@ -12,6 +12,11 @@ except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore[no-redef]
 
 
+# Cálculo del PV y del EV: MS Project da el % planificado y el % ganado de cada fila (por la duración de la línea
+# base de sus tareas y el peso de sus hitos); el importe es el BAC que se ingresa en el libro multiplicado por el %.
+# Libros de versiones anteriores calculados con los costos de MS Project: _meta modo = "costo" (no se admiten).
+MODE_PERCENT = "porcentaje"
+
 # Lista de métodos de medición ofrecida en el desplegable de la columna C.
 DEFAULT_METHODS = [
     "Por definir",
@@ -24,7 +29,6 @@ DEFAULT_METHODS = [
     "% Físico completado",
     "Unidades completadas",
     "Avance lineal (LOE)",
-    "CPTR de MS Project",
 ]
 
 
@@ -83,6 +87,10 @@ class Config:
     wbs_field: str = "WBS"                # WBS | OutlineNumber | Text1..Text30 | alias
     method_field: str = ""                # campo con el método de medición (p.ej. Text10)
     milestone_weight_field: str = ""      # campo numérico con el peso de cada hito (p.ej. Number1)
+    # Campo de texto "Visible": Sí = fila propia (también por debajo del nivel máximo); No = sin fila propia, se
+    # suma en su fila superior; vacío = según el nivel máximo. "" = no se lee
+    visible_field: str = "Visible"
+    visible_field_explicit: bool = False  # la clave se indicó en la configuración (avisar si no existe el campo)
 
     # [horizonte]
     start_month: date | None = None       # primer mes (mes 1); None = mes de inicio de la línea base
@@ -99,9 +107,15 @@ class Config:
     default_method: str = "Por definir"
     currency: str = "EUR"                 # "" = código de moneda del proyecto en MS Project
     decimals: int = 0
+    # Depuración de costes: filas «(coste)» con la previsión de una empresa, pegada
+    # en la hoja PV-depuración, para alinear las tareas e hitos de MS Project con esa previsión
+    cost_review: bool = False             # depuracion_costes
+    cost_review_company: str = ""         # depuracion_empresa: empresa_a o empresa_b ("" = empresa_a)
+    cost_review_alignment: bool = False   # depuracion_alineamiento: indicador de alineamiento
+    cost_review_threshold: float = 10.0   # depuracion_umbral: % del BAC a partir del cual se resalta un mes
 
-    # [metodos]
-    methods: list[str] = field(default_factory=lambda: list(DEFAULT_METHODS))
+    # [metodos] -- None = lista por defecto
+    methods_list: list[str] | None = None
 
     # [semaforo] -- umbrales comunes de SPI y CPI. Rojo: menor que el rojo inferior o mayor que el rojo
     # superior; amarillo: menor que el amarillo inferior o mayor que el amarillo superior; verde: entre ambos
@@ -118,13 +132,30 @@ class Config:
     company_both: str = "Ambas"           # valor que indica tarea de ambas empresas
     split_field: str = "% Reparto"        # % de la empresa A en las tareas "Ambas"
     split_default: float = 50.0
-    ac_from_project: bool = False         # AC por empresa desde MS Project (si no, se carga a mano)
 
     # [[proyectos]] -- varios archivos de MS Project en un mismo libro (vacío = un solo archivo)
     projects: list[ProjectSpec] = field(default_factory=list)
     title: str = ""                       # [exportacion] titulo: título del informe ("" = nombre del proyecto)
 
     source_file: str = ""                 # ruta del TOML leído (informativo)
+
+    @property
+    def cost_review_role(self) -> str | None:
+        """Hoja que se depura: "A" o "B" (PV de esa empresa), "" (hoja PV de un libro de una sola empresa) o None si
+        la depuración de costes está desactivada."""
+        if not self.cost_review:
+            return None
+        if not self.multi_enabled:
+            return ""
+        from evm.fields import same_name
+        return "B" if same_name(self.cost_review_company, self.company_b) else "A"
+
+    @property
+    def methods(self) -> list[str]:
+        """Métodos del desplegable de la columna C: los de [metodos] lista o los del programa."""
+        if self.methods_list is not None:
+            return self.methods_list
+        return list(DEFAULT_METHODS)
 
     def project_config(self, name: str) -> "Config":
         """Configuración para leer un archivo de [[proyectos]]: su planificación y su línea base (la general si el
@@ -151,7 +182,7 @@ class Config:
             raise ConfigError("Los umbrales del semáforo deben cumplir 0 < rojo_inferior <= amarillo_inferior < "
                               "amarillo_superior <= rojo_superior (por defecto 0,90 / 0,95 / 1,05 / 1,10).")
         if self.default_method and self.default_method not in self.methods:
-            self.methods.insert(0, self.default_method)
+            self.methods_list = [self.default_method] + self.methods
         if self.multi_enabled:
             from evm.fields import same_name
             for key, name in (("empresa_a", self.company_a), ("empresa_b", self.company_b)):
@@ -170,6 +201,19 @@ class Config:
                 raise ConfigError("[multiempresa] ambas debe tener un valor distinto de los nombres de las empresas.")
             if not 0 <= self.split_default <= 100:
                 raise ConfigError("[multiempresa] reparto_por_defecto debe estar entre 0 y 100.")
+            if self.cost_review:
+                company = self.cost_review_company.strip()
+                if not company:
+                    self.cost_review_company = self.company_a
+                elif same_name(company, self.company_a):
+                    self.cost_review_company = self.company_a
+                elif same_name(company, self.company_b):
+                    self.cost_review_company = self.company_b
+                else:
+                    raise ConfigError(f"depuracion_empresa = '{company}' no es una de las empresas de [multiempresa]: "
+                                      f"debe ser '{self.company_a}' o '{self.company_b}'.")
+        if not 0 < self.cost_review_threshold <= 100:
+            raise ConfigError("depuracion_umbral debe ser un % mayor que 0 y como máximo 100 (por defecto 10).")
         if self.projects:
             from evm.fields import same_name
             seen: list[str] = []
@@ -259,6 +303,9 @@ def load_config(path: str | Path | None) -> Config:
     cfg.wbs_field = _get(campos, "edt", cfg.wbs_field, str).strip() or "WBS"
     cfg.method_field = _get(campos, "metodo", cfg.method_field, str).strip()
     cfg.milestone_weight_field = _get(campos, "peso_hito", cfg.milestone_weight_field, str).strip()
+    if "visible" in campos:
+        cfg.visible_field = _get(campos, "visible", cfg.visible_field, str).strip()
+        cfg.visible_field_explicit = bool(cfg.visible_field)
 
     hor = _section(data, "horizonte")
     start = _get(hor, "mes_inicio", "", str).strip()
@@ -282,13 +329,17 @@ def load_config(path: str | Path | None) -> Config:
     cfg.currency = _get(exp, "moneda", cfg.currency, str).strip()
     cfg.decimals = _get(exp, "decimales", cfg.decimals, int)
     cfg.title = _get(exp, "titulo", cfg.title, str).strip()
+    cfg.cost_review = _get(exp, "depuracion_costes", cfg.cost_review, bool)
+    cfg.cost_review_company = _get(exp, "depuracion_empresa", cfg.cost_review_company, str).strip()
+    cfg.cost_review_alignment = _get(exp, "depuracion_alineamiento", cfg.cost_review_alignment, bool)
+    cfg.cost_review_threshold = _get(exp, "depuracion_umbral", cfg.cost_review_threshold, float)
 
     met = _section(data, "metodos")
     lista = met.get("lista")
     if lista is not None:
         if not isinstance(lista, list) or not all(isinstance(x, str) for x in lista):
             raise ConfigError("[metodos] lista debe ser una lista de textos.")
-        cfg.methods = [x.strip() for x in lista if x.strip()]
+        cfg.methods_list = [x.strip() for x in lista if x.strip()]
 
     sem = _section(data, "semaforo")
     for key, alias in (("rojo_inferior", "rojo"), ("amarillo_inferior", "amarillo")):
@@ -309,7 +360,6 @@ def load_config(path: str | Path | None) -> Config:
     cfg.company_both = _get(mul, "ambas", cfg.company_both, str).strip()
     cfg.split_field = _get(mul, "campo_reparto", cfg.split_field, str).strip()
     cfg.split_default = _get(mul, "reparto_por_defecto", cfg.split_default, float)
-    cfg.ac_from_project = _get(mul, "ac_desde_project", cfg.ac_from_project, bool)
 
     cfg.projects = _projects(data, path.parent)
 

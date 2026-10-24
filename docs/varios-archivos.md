@@ -8,8 +8,8 @@ informe EVM: PV, EV y AC de cada elemento, y los indicadores, la curva S y el Cu
 conjunto. Cada archivo aporta sus propios códigos EDT, por ejemplo `1.0.0` a `8.0.0` en un archivo y
 `9.0.0` en otro.
 
-Este modo es **opcional**: sin secciones `[[proyectos]]` en la configuración, el programa trabaja con un
-solo archivo, igual que antes.
+Es **opcional**: sin secciones `[[proyectos]]` en la configuración, el programa trabaja con un solo
+archivo, igual que antes.
 
 ---
 
@@ -37,7 +37,7 @@ solo archivo, igual que antes.
   asociado con `9.0.0`).
 
 Si todo el programa está en un solo archivo, aunque tenga varias planificaciones (`INTERNO` y
-`CLIENTE`), este modo no es necesario.
+`CLIENTE`), no se necesitan secciones `[[proyectos]]`.
 
 > MS Project también permite insertar varios archivos en un **proyecto maestro**, que el programa lee
 > como un solo proyecto. Ese camino no está validado con MS Project real
@@ -57,7 +57,7 @@ flowchart LR
     CFG["config.toml<br/>[[proyectos]] P1 y P2"]
     A1 & A2 --> G["generar<br/>(cada archivo con su<br/>línea base y planificación)"]
     CFG --> G
-    G --> XL["Libro Excel<br/>filas 1.0.0 ... 8.0.0, 9.0.0<br/>PV, BAC y TOTAL del programa"]
+    G --> XL["Libro Excel<br/>filas 1.0.0 ... 8.0.0, 9.0.0<br/>% planificado y TOTAL del programa"]
     A1 & A2 -- "actualizar (cada mes,<br/>misma fecha de corte)" --> XL
     XL --> CM["Cuadro de Mando, Resumen<br/>e Indicadores EDT del programa"]
 ```
@@ -69,7 +69,8 @@ flowchart LR
 - El libro tiene las mismas hojas que con un solo archivo. La fila **TOTAL** (*Total programa*), la
   curva S, el `Resumen`, el `Cuadro de Mando` e `Indicadores EDT` corresponden al conjunto de los
   archivos.
-- El **horizonte** comienza en el primer mes con PV de cualquiera de los archivos (o en `mes_inicio`).
+- El **horizonte** comienza en el primer mes con % planificado de cualquiera de los archivos (o en
+  `mes_inicio`).
 - MS Project numera las tareas de cada archivo desde el *Id. único* 1, por lo que los *Id. único* se
   repiten entre archivos. Por eso cada fila guarda, en la hoja oculta `_estructura`, el **nombre del
   archivo** junto con el *Id. único* de su tarea (por ejemplo `P2:15`).
@@ -85,7 +86,7 @@ Cada archivo se prepara como un proyecto individual
 |---|---|
 | **Códigos EDT distintos** en cada archivo: un mismo código no puede estar en dos archivos. | Las hojas identifican cada fila por su código EDT. Si un código se repite, `generar` se detiene sin crear el libro. |
 | Los **mismos campos personalizados** (EDT, método de medición, peso de hito y, si se usa, empresa) con el mismo nombre o alias en todos los archivos. | La sección `[campos]` de la configuración es común a todos los archivos. |
-| **Línea base** guardada en cada archivo. | El PV y el BAC de cada archivo salen de su línea base. |
+| **Línea base** guardada en cada archivo. | El % planificado de las filas de cada archivo sale de las fechas de su línea base. El BAC de cada fila se ingresa en el libro. |
 | Cada mes, la **misma fecha de estado** en todos los archivos. | El informe tiene una sola fecha de corte. |
 | La **misma moneda** en todos los archivos. | El libro muestra una sola moneda. |
 
@@ -160,13 +161,14 @@ Ejemplo de salida con los dos archivos de ejemplo:
 Leyendo P1: ...\ejemplos\programa_ejemplo.xml ...
 Leyendo P2: ...\ejemplos\proyecto2_ejemplo.xml ...
 Informe: Programa de ejemplo con dos proyectos
-  P1: Programa de ejemplo EVM  |  Planificación: INTERNO  |  Línea base  |  PV: Costo de línea base mensual del XML de MS Project (datos escalonados)
-  P2: Accesos y servicios (proyecto 2 de ejemplo)  |  Línea base  |  PV: Costo de línea base mensual del XML de MS Project (datos escalonados)
+  P1: Programa de ejemplo EVM  |  Planificación: INTERNO  |  Línea base  |  PV: % planificado de MS Project (duración de la línea base de las tareas y peso de los hitos) × BAC ingresado en el libro
+  P2: Accesos y servicios (proyecto 2 de ejemplo)  |  Línea base  |  PV: % planificado de MS Project (duración de la línea base de las tareas y peso de los hitos) × BAC ingresado en el libro
   Filas EDT: 44 (29 de ingreso)  |  Nivel máximo: 3
   Horizonte: 01/2026 a 12/2035 (120 meses)
-  BAC total: 49,010,000.00
+  BAC: se debe ingresar el BAC de cada fila en la columna D de PV (celdas amarillas).
+  [i] El PV y el EV de cada fila son el BAC × el % planificado y el % ganado (hojas % PV y % EV), ...
   [i] [P1] Planificación 'INTERNO': se exportan las 51 tareas que dependen de 'Planificación interna'.
-  [i] [P1] Se omitió 1 tarea sin código EDT que no depende de ningún elemento EDT (costo de línea base 0.00, que no forma parte del BAC).
+  [i] [P1] Se omitió 1 tarea sin código EDT que no depende de ningún elemento EDT: no forma parte de ninguna fila del libro.
   [i] [P1] 14 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.
   [i] [P2] 4 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.
   [i] 1 fila sin método de medición definido (columna C).
@@ -206,10 +208,11 @@ python evm_export.py actualizar --config config.toml --libro EVM_Programa.xlsx `
     --origen P1=C:\Cierres\P1_2026-10.xml --origen P2=C:\Cierres\P2_2026-10.xml
 ```
 
-- `--simular`, `--solo`, `--forzar` y `--sin-respaldo` funcionan igual que con un solo archivo
-  ([Comandos](comandos.md#actualizar-carga-ev-y-ac-del-mes)).
-- Los controles de consistencia se hacen **por archivo** y cada mensaje indica el archivo, por ejemplo:
-  `[P2] El AC cargado (...) difiere del costo real del proyecto en MS Project (...)`.
+- `--simular`, `--forzar` y `--sin-respaldo` funcionan igual que con un solo archivo
+  ([Comandos](comandos.md#actualizar-carga-el--ganado-del-mes)).
+- Los controles se hacen **por archivo** y cada mensaje indica el archivo, por ejemplo:
+  `[P2] 1 tarea con código EDT no tiene fila en el libro (se agregó después de generarlo): ...`.
+- El AC de cada fila se carga a mano en la hoja `AC`, como con un solo archivo.
 
 ---
 
@@ -217,7 +220,8 @@ python evm_export.py actualizar --config config.toml --libro EVM_Programa.xlsx `
 
 - **Nueva línea base** en uno o varios archivos: se genera un libro nuevo con `--migrar-desde`, igual
   que con un solo archivo ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)).
-  El historial de EV y AC de cada fila se asocia por el nombre del archivo y el *Id. único* de la tarea.
+  El BAC, el % ganado y el AC de cada fila se asocian por el nombre del archivo y el *Id. único* de la
+  tarea.
 
 ```powershell
 python evm_export.py generar --config config.toml --salida EVM_Programa_LB2.xlsx --migrar-desde EVM_Programa.xlsx
@@ -243,13 +247,12 @@ python evm_export.py generar --config config.toml --salida EVM_Programa_LB2.xlsx
 |---|---|
 | Un código EDT está en dos archivos | `generar` se detiene sin crear el libro e indica el código y los archivos. |
 | Los archivos tienen monedas distintas en MS Project (y la configuración no indica `moneda`) | Advertencia: el libro muestra la moneda del primer archivo. Se debe indicar `[exportacion] moneda`. |
-| BAC de un archivo distinto del costo de línea base de su proyecto o planificación | Advertencia del archivo, como con un solo archivo. |
 
 ![Hoja Validación con dos archivos](img/excel/varios-validacion.png)
 
 **`actualizar`** se detiene si los archivos de la configuración no son los del libro, o si las fechas de
 estado difieren y no se indicó `--fecha-corte`. El resto de los controles se informan por archivo
-([Cálculo de EV y AC](calculo-ev-ac.md#7-controles-de-consistencia)).
+([Cálculo del PV y el EV](calculo-pv-ev.md#14-controles-y-validaciones)).
 
 ---
 
@@ -284,16 +287,22 @@ origen = "ejemplos/proyecto2_ejemplo.xml"
 planificacion = ""
 ```
 
-Generar el libro, simular el avance de los dos proyectos a junio de 2027 y actualizar:
+Generar el libro, cargar el BAC ficticio de los dos proyectos, simular el avance a junio de 2027 (con
+el AC del mes) y actualizar:
 
 ```powershell
 python evm_export.py generar --config config_varios.toml --salida ejemplo_varios.xlsx
-python ejemplos\generar_ejemplo.py --fecha-estado 2027-06-30 --salida avance1.xml
+python ejemplos\generar_ejemplo.py --libro ejemplo_varios.xlsx
+python ejemplos\generar_ejemplo.py --fecha-estado 2027-06-30 --salida avance1.xml --libro ejemplo_varios.xlsx
 python ejemplos\generar_ejemplo.py --proyecto 2 --fecha-estado 2027-06-30 --salida avance2.xml
 python evm_export.py actualizar --config config_varios.toml --libro ejemplo_varios.xlsx --origen P1=avance1.xml --origen P2=avance2.xml
 ```
 
-El BAC del programa es la suma de los dos proyectos: 44.210.000 + 4.800.000 = **49.010.000**.
+Con `--libro`, `generar_ejemplo.py` escribe en el libro los datos ficticios que en un proyecto real se
+ingresan a mano: el BAC de cada fila (el presupuesto de los dos proyectos de ejemplo) y el AC del mes de
+la fecha de estado. En un libro con varios archivos, el primero es el programa de ejemplo y el segundo
+el proyecto 2. El BAC del programa es la suma de los dos proyectos: 44.210.000 + 4.800.000 =
+**49.010.000**.
 
 ![Cuadro de Mando del programa con dos archivos](img/excel/varios-cdm.png)
 

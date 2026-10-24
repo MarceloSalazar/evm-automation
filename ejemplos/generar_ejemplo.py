@@ -1,10 +1,12 @@
 """Genera un proyecto de ejemplo en formato XML de MS Project (MSPDI).
 
 Sirve para probar el exportador sin MS Project. El archivo imita lo que escribe
-MS Project al usar Archivo > Guardar como > XML: costos multiplicados por 100,
-línea base 0, costo de línea base mensualizado (TimephasedData tipo 10),
-campos personalizados con alias ("Método EVM" en Texto10 y "Peso hito" en
-Número1) y, opcionalmente, avance a una fecha de estado.
+MS Project al usar Archivo > Guardar como > XML: línea base 0, campos
+personalizados con alias ("Método EVM" en Texto10 y "Peso hito" en Número1) y,
+opcionalmente, avance a una fecha de estado. El XML incluye también costos
+(multiplicados por 100, como los escribe MS Project), que el exportador no usa:
+son el presupuesto y el costo real ficticios que --libro escribe en el libro como
+BAC y AC.
 
 El proyecto tiene dos planificaciones, con códigos EDT de alto nivel "INTERNO" y
 "CLIENTE" (la del cliente con costos un 15 % mayores). Debajo de cada una, los
@@ -28,7 +30,8 @@ from __future__ import annotations
 
 import argparse
 import calendar
-from dataclasses import dataclass, field
+import sys
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -429,18 +432,201 @@ def walk_leaves(t: T):
         yield from walk_leaves(c)
 
 
+# ----------------------------------------------------------------------------
+# Datos ficticios para el libro (BAC, AC y previsión de la depuración de costes)
+# ----------------------------------------------------------------------------
+def _import_evm() -> None:
+    """Permite usar el paquete evm al ejecutar este archivo desde la carpeta ejemplos."""
+    try:
+        import evm  # noqa: F401
+    except ModuleNotFoundError:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+
+def _every(nodes):
+    """Todas las tareas del ejemplo (resúmenes y tareas de detalle)."""
+    for n in nodes:
+        yield n
+        yield from _every(n.children)
+
+
+def fill_book(book_path: Path, status: date | None = None, projects: dict[str, int] | None = None,
+              single: int = 1) -> tuple[int, int]:
+    """Escribe en el libro los datos que en un proyecto real se ingresan a mano.
+
+    - BAC de cada fila (solo en las celdas vacías): el presupuesto ficticio del proyecto de ejemplo (la suma del
+      costo de sus tareas en el ejemplo; el programa no lee costos de MS Project).
+    - Con `status`: AC del mes de esa fecha, el costo real simulado del ejemplo (como si viniera del ERP de cada
+      empresa). El costo real simulado tiene desvíos: algunos paquetes quedan por encima de su presupuesto.
+
+    projects: {nombre del archivo en el libro: proyecto de ejemplo (1 o 2)}. Por defecto, el del libro: un
+    solo archivo es el proyecto `single` y, con varios archivos ([[proyectos]]), el primero es el proyecto 1 y el
+    segundo el proyecto 2.
+    Devuelve la cantidad de celdas de BAC y de AC escritas.
+    """
+    _import_evm()
+    import tempfile
+
+    from openpyxl import load_workbook
+
+    from evm.companies import resolve_shares
+    from evm.config import Config
+    from evm.reader_xml import read_xml
+    from evm.timeline import Horizon
+    from evm.update import _refresh_charts, _save, apply_book_settings, check_version, read_book
+    from evm.wbs import build_part, build_tree, select_scope
+    from evm.workbook import (book_sources, company_sheet, read_meta, read_structure, row_key, source_meta,
+                              split_key)
+
+    wb = load_workbook(book_path)
+    meta = read_meta(wb)
+    check_version(meta)
+    if not projects:
+        names = book_sources(meta)
+        projects = {"": single} if names == [""] else {n: i + 1 for i, n in enumerate(names[:2])}
+    cfg = apply_book_settings(Config(), meta)
+    cfg.max_level = int(meta.get("nivel_maximo") or cfg.max_level)
+    multi = bool(meta.get("multiempresa"))
+    roles = [("A", company_sheet("PV", cfg.company_a), company_sheet("AC", cfg.company_a)),
+             ("B", company_sheet("PV", cfg.company_b), company_sheet("AC", cfg.company_b))] if multi \
+        else [("", "PV", "AC")]
+    structure = [s for s in read_structure(wb) if s.is_input]
+    horizon = Horizon(meta["horizonte_inicio"], meta["meses"])
+    bac_cells = ac_cells = 0
+    with tempfile.TemporaryDirectory() as tmp:
+        for source, number in projects.items():
+            pcfg = replace(cfg, plan=str(source_meta(meta, "planificacion", source) or ""))
+            plans = PROJECTS[number][2]()
+            path = Path(tmp) / f"ejemplo{number}.xml"
+            write(plans, path, status, number)          # numera las tareas y, con fecha, simula el avance
+            model = {t.uid: t for t in _every(plans)}   # costo y costo real simulado de cada tarea del ejemplo
+            project = read_xml(path, pcfg)
+            rows = {row_key(r): r for r in build_part(project, pcfg).rows if r.is_input}
+            scope = select_scope(build_tree([t for t in project.tasks if t.outline_level >= 1]), pcfg.plan)
+            shares = resolve_shares(scope.roots, pcfg)[0] if multi else {}
+
+            def split(value) -> dict[str, float]:
+                """Monto de la fila por empresa, según la parte de cada empresa en sus tareas de detalle."""
+                total = sum(value(model[t.uid]) for t in leaves)
+                a = sum(value(model[t.uid]) * shares.get(t.uid, 0.5) for t in leaves)
+                return {"": total, "A": a, "B": total - a}
+
+            idx = horizon.index(status) if status else -1
+            for s in (x for x in structure if split_key(x.key)[0] == source):
+                _src, uid, residual = split_key(s.key)
+                row = rows.get(uid + ("-D" if residual else ""))
+                if row is None:
+                    continue
+                leaves = row.leaves
+                budget = split(lambda t: t.cost)
+                for role, pv_sheet, _ac in roles:
+                    cell = wb[pv_sheet].cell(row=s.row, column=4)
+                    if cell.value in (None, "") and budget[role] > 0.005:
+                        cell.value = round(budget[role], 2)
+                        bac_cells += 1
+                if not 0 <= idx < horizon.months:
+                    continue
+                actual = split(lambda t: t.actual_cost)          # acumulado a la fecha de estado
+                col = 7 + idx
+                for role, _pv, ac_sheet in roles:
+                    ws = wb[ac_sheet]
+                    prev = sum(float(ws.cell(row=s.row, column=7 + i).value or 0) for i in range(idx))
+                    value = round(actual[role] - prev, 2)
+                    if actual[role] or ws.cell(row=s.row, column=col).value is not None:
+                        ws.cell(row=s.row, column=col, value=value)
+                        ac_cells += 1
+    if status is None:
+        fill_review(wb, meta)
+    # openpyxl no conserva los gráficos al guardar: se vuelven a crear
+    book = read_book(book_path, wb)
+    when = status or book.status_date
+    _refresh_charts(wb, book, book.horizon.index(when) if when is not None else None, meta)
+    _save(wb, Path(book_path), False)
+    return bac_cells, ac_cells
+
+
+def fill_review(wb, meta: dict) -> int:
+    """Libro con depuración de costes: escribe en la hoja PV-depuración (si está vacía) una previsión ficticia de
+    la empresa, como la pegaría desde su plan de costes: el PV planificado de cada paquete con algunos meses
+    desplazados y algunos totales distintos del BAC, un paquete con hitos de pago (HP-01...) y otro (y los paquetes
+    «Otras tareas») con subtareas sin código numérico (XRF01...). Devuelve la cantidad de líneas escritas."""
+    from evm import cost_review
+    from evm.timeline import round_preserving_total
+    from evm.workbook import FIRST_MONTH_COL, PCT_PREFIX, read_structure
+
+    if cost_review.SHEET_PASTE not in wb.sheetnames:
+        return 0
+    paste = wb[cost_review.SHEET_PASTE]
+    first = cost_review.P_FIRST
+    if any(paste.cell(row=first + i, column=1).value not in (None, "") for i in range(5)):
+        return 0
+    sheet = str(meta.get("depuracion_hoja") or "PV")
+    pv, pct = wb[sheet], wb[PCT_PREFIX + sheet]
+    months = int(meta["meses"])
+    shifts = [0, 1, 0, -1, 2, 0, 1, 0]
+    scales = [1.0, 1.0, 0.95, 1.0, 1.0, 1.08, 1.0, 1.0]
+    lines: list[list] = []
+    k = 0
+    for s in read_structure(wb):
+        bac = pv.cell(row=s.row, column=4).value
+        if not s.is_input or not isinstance(bac, (int, float)) or bac <= 0:
+            continue
+        shares = [pct.cell(row=s.row, column=FIRST_MONTH_COL + i).value or 0.0 for i in range(months)]
+        moved = [0.0] * months
+        for i, v in enumerate(shares):
+            moved[min(months - 1, max(0, i + shifts[k % len(shifts)]))] += v * bac * scales[k % len(scales)]
+        values = round_preserving_total(moved, 0)
+        code = s.code[:-2] if s.kind == "residual" else s.code
+        if s.kind == "residual" or k == 4:  # subtareas sin código numérico bajo el código padre
+            parts = [values[:], [0.0] * months]
+            for i, v in enumerate(values):
+                parts[0][i], parts[1][i] = round(v * 0.6), v - round(v * 0.6)
+            lines.append([code, s.name.replace("Otras tareas de ", "Subtareas de "), None])
+            lines += [[f"XRF{j + 1:02d}", f"Subtarea {j + 1}", sum(p)] + p for j, p in enumerate(parts)]
+        elif k == 1:                        # hitos de pago: 30 %, 40 % y 30 % en tres meses del paquete
+            active = [i for i, v in enumerate(values) if v]
+            lines.append([code, s.name, None])
+            if active:
+                picks = [active[len(active) // 3], active[2 * len(active) // 3], active[-1]]
+                for j, (i, part) in enumerate(zip(picks, (0.3, 0.4, 0.3))):
+                    row = [0.0] * months
+                    row[i] = round(sum(values) * part)
+                    lines.append([f"HP-{j + 1:02d}", f"Hito de pago {j + 1}", row[i]] + row)
+        else:
+            lines.append([code, s.name, sum(values)] + values)
+        k += 1
+    for r, line in enumerate(lines, start=first):
+        for c, v in enumerate(line, start=1):
+            if v not in (None, 0, 0.0) or c <= 2:
+                cell = paste.cell(row=r, column=c, value=v)
+                if c >= 3:
+                    cell.number_format = "#,##0"
+    return len(lines)
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--proyecto", type=int, choices=sorted(PROJECTS), default=1,
                    help="1 = programa de ejemplo (por defecto), 2 = segundo proyecto (código EDT 9.0.0)")
     p.add_argument("--salida", help="archivo XML a crear (por defecto el archivo de ejemplo del proyecto)")
     p.add_argument("--fecha-estado", help="AAAA-MM-DD: agrega avance simulado a esa fecha")
+    p.add_argument("--libro", help="libro del exportador: escribe en él el BAC de cada fila (si está vacío) y, "
+                                   "con --fecha-estado, el AC del mes, con datos ficticios del ejemplo; en un libro "
+                                   "con depuración de costes, también la previsión de la hoja PV-depuración")
     a = p.parse_args()
     status = date.fromisoformat(a.fecha_estado) if a.fecha_estado else None
     _title, file_name, build, _first = PROJECTS[a.proyecto]
+    if a.libro and not (a.salida or a.fecha_estado):
+        bac, ac = fill_book(Path(a.libro), single=a.proyecto)
+        print(f"Libro {a.libro}: BAC escrito en {bac} celdas.")
+        return
     salida = a.salida or str(Path(__file__).with_name(file_name))
     write(build(), Path(salida), status, a.proyecto)
     print(f"Archivo generado: {salida}")
+    if a.libro:
+        bac, ac = fill_book(Path(a.libro), status, single=a.proyecto)
+        print(f"Libro {a.libro}: BAC escrito en {bac} celdas" + (f"; AC de {status:%m/%Y} en {ac} celdas." if status
+                                                                  else "."))
 
 
 if __name__ == "__main__":

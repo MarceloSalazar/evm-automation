@@ -9,13 +9,14 @@ Solo se ejecutan en un PC con MS Project y si se indica el proyecto con variable
 Opcionales:
 - EVM_CONFIG: archivo de configuración (por defecto config.toml si existe; si no, config.ejemplo.toml).
 - EVM_LINEA_BASE: línea base a comparar (0..10), como --linea-base.
-- EVM_TOLERANCIA_PV: diferencia admitida en el PV de cada mes, como fracción del BAC de la fila
-  (por defecto 0.005). El motor XML reparte por el calendario del proyecto los tramos que cruzan de un
-  mes a otro; MS Project usa además los calendarios de recursos y tareas.
+- EVM_TOLERANCIA_PV: diferencia admitida en el % planificado de cada mes (por defecto 0.005, es decir,
+  0,5 %). El motor XML reparte la duración de las tareas con el calendario del proyecto; el motor COM, con
+  lunes a viernes y los feriados de la configuración.
 
 Antes de guardar el XML se debe definir la fecha de estado (Proyecto > Fecha de estado) y guardar el
 .mpp: ambos archivos deben ser el mismo proyecto con la misma fecha de estado. Los mensajes de las
-pruebas solo muestran códigos EDT e importes, no nombres de tareas.
+pruebas solo muestran códigos EDT y porcentajes, no nombres de tareas. Los dos libros reciben el mismo BAC
+en cada fila, como se ingresa a mano.
 """
 import contextlib
 import faulthandler
@@ -30,6 +31,8 @@ import pytest
 
 from evm.cli import main
 from evm.update import read_book
+
+from builders import set_bac
 
 ROOT = Path(__file__).resolve().parents[1]
 MPP = os.environ.get("EVM_MPP", "")
@@ -55,6 +58,7 @@ def ms_project_running() -> bool:
 
 
 def config_path() -> str:
+    """Configuración de la prueba: EVM_CONFIG, config.toml si existe o config.ejemplo.toml."""
     if os.environ.get("EVM_CONFIG"):
         return os.environ["EVM_CONFIG"]
     local = ROOT / "config.toml"
@@ -111,6 +115,8 @@ def books(tmp_path_factory):
         book = d / f"EVM_{engine}.xlsx"
         for command in (["generar", "--salida", book], ["actualizar", "--libro", book, "--sin-respaldo"]):
             run(command[0], "--origen", origin, "--motor", engine, "--config", config_path(), *command[1:], *extra)
+            if command[0] == "generar":
+                set_bac(book)                   # el mismo BAC en cada fila de los dos libros
             if engine == "com" and not result["was_running"]:
                 # MS Project tarda unos segundos en cerrarse después de Quit: se espera antes del paso siguiente
                 closed.append(wait_until_closed())
@@ -141,51 +147,40 @@ def test_same_structure_methods_and_horizon(books):
     assert not methods, report(methods, "los métodos de medición")
 
 
-def test_same_bac(books):
-    com, xml = books["com"], books["xml"]
-    rows = by_row(com)
-    diffs = [f"{rows[r].code}: COM {v:,.2f} / XML {xml.bac[r]:,.2f}" for r, v in com.bac.items()
-             if abs(v - xml.bac[r]) > 0.01]
-    if com.multi:
-        diffs += [f"{rows[r].code} (empresa A): COM {v:,.2f} / XML {xml.bac_a[r]:,.2f}" for r, v in com.bac_a.items()
-                  if abs(v - xml.bac_a[r]) > 0.01]
-    assert not diffs, report(diffs, "el BAC de las filas")
-
-
-def test_same_monthly_pv(books):
+def test_same_planned_percent(books):
     com, xml = books["com"], books["xml"]
     tol = float(os.environ.get("EVM_TOLERANCIA_PV", "0.005"))
     rows = by_row(com)
     diffs = []
-    for r, months in com.pv.items():
-        limit = max(1.0, tol * abs(com.bac[r]))
-        for i, (a, b) in enumerate(zip(months, xml.pv[r])):
-            if abs(a - b) > limit:
-                diffs.append(f"{rows[r].code} mes {i + 1} ({com.horizon.month_start(i):%m/%Y}): COM {a:,.2f} / "
-                             f"XML {b:,.2f}")
-        if abs(sum(months) - sum(xml.pv[r])) > 0.05:
-            diffs.append(f"{rows[r].code} total: COM {sum(months):,.2f} / XML {sum(xml.pv[r]):,.2f}")
-    assert not diffs, report(diffs, "el PV mensual")
+    for role, company in com.roles():
+        who = f" ({company})" if company else ""
+        for r, months in com.pct_pv[role].items():
+            other = xml.pct_pv[role][r]
+            for i, (a, b) in enumerate(zip(months, other)):
+                if abs(a - b) > tol:
+                    diffs.append(f"{rows[r].code}{who} mes {i + 1} ({com.horizon.month_start(i):%m/%Y}): "
+                                 f"COM {a:.2%} / XML {b:.2%}")
+            if abs(sum(months) - sum(other)) > 1e-6:
+                diffs.append(f"{rows[r].code}{who} total: COM {sum(months):.2%} / XML {sum(other):.2%}")
+    assert not diffs, report(diffs, "el % planificado de cada mes")
 
 
-def test_same_ev_and_ac_at_cutoff(books):
+def test_same_earned_percent_at_cutoff(books):
     com, xml = books["com"], books["xml"]
     assert com.status_date == xml.status_date, (
         f"Fecha de corte: COM {com.status_date} / XML {xml.status_date}. El XML se debe guardar después de "
         "definir la fecha de estado en MS Project.")
     idx = com.horizon.index(com.status_date)
     rows = by_row(com)
-    series = [("EV", com.ev, xml.ev), ("AC", com.ac, xml.ac)]
-    if com.multi:
-        series += [("EV empresa A", com.ev_a, xml.ev_a), ("AC empresa A", com.ac_a, xml.ac_a)]
     diffs = []
-    for label, a, b in series:
-        for r in a:
-            x = sum(v or 0.0 for v in a[r][: idx + 1])
-            y = sum(v or 0.0 for v in b[r][: idx + 1])
-            if abs(x - y) > max(0.05, 1e-6 * abs(com.bac.get(r, 0.0))):
-                diffs.append(f"{rows[r].code} {label}: COM {x:,.2f} / XML {y:,.2f}")
-    assert not diffs, report(diffs, "el EV y el AC acumulados a la fecha de corte")
+    for role, company in com.roles():
+        who = f" ({company})" if company else ""
+        for r, months in com.pct_ev[role].items():
+            x = sum(v or 0.0 for v in months[: idx + 1])
+            y = sum(v or 0.0 for v in xml.pct_ev[role][r][: idx + 1])
+            if abs(x - y) > 1e-6:
+                diffs.append(f"{rows[r].code}{who}: COM {x:.2%} / XML {y:.2%}")
+    assert not diffs, report(diffs, "el % ganado acumulado a la fecha de corte")
 
 
 def test_ms_project_is_left_as_found(books):

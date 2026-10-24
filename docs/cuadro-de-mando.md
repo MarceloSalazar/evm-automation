@@ -54,7 +54,7 @@ mes.
 ![Cuadro de Mando con junio de 2027 como mes de reporte](img/excel/cdm-mes-anterior.png)
 
 *El mismo libro con junio de 2027 como mes de reporte: CPI 0,92 y SPI 0,84. En diciembre de 2027 el CPI
-cayó a 0,76 y el SPI a 0,69.*
+cayó a 0,76 y el SPI se mantuvo en 0,84.*
 
 **Método EAC (`R5`).** Define el EAC y, con él, ETC, VAC y TCPI (EAC):
 
@@ -66,7 +66,7 @@ cayó a 0,76 y el SPI a 0,69.*
 
 ![Pronósticos con el método AC + (BAC - EV) / (CPI × SPI)](img/excel/cdm-eac-alternativo.png)
 
-*Con el método `AC + (BAC - EV) / (CPI × SPI)` el EAC del ejemplo pasa de 58,5 a 78,5 millones.*
+*Con el método `AC + (BAC - EV) / (CPI × SPI)` el EAC del ejemplo pasa de 58,5 a 66,9 millones.*
 
 Estos pronósticos son estadísticos. Las buenas prácticas recomiendan contrastarlos con un **EAC por
 estimación detallada** del trabajo restante, preparado por los responsables de cada paquete, y explicar
@@ -107,8 +107,8 @@ muestra los umbrales con que se generó el libro:
 - El TCPI usa solo los umbrales inferiores: un TCPI menor que 1 indica que alcanza con una eficiencia
   menor que la lograda hasta ahora, y no es una alerta.
 
-Mientras no hay AC cargado (por ejemplo, en multi-empresa antes de cargar el AC a mano), los
-indicadores de costo (CV, CPI, ETC, EAC, VAC y TCPI) quedan vacíos.
+Mientras no hay AC cargado (el AC se ingresa a mano en la hoja `AC`), los indicadores de costo (CV,
+CPI, ETC, EAC, VAC y TCPI) quedan vacíos.
 
 ![Cabecera e indicadores del Cuadro de Mando](img/excel/cdm-indicadores.png)
 
@@ -138,10 +138,10 @@ Junto al gráfico, una tabla muestra el CPI, el SPI y el % completado de cada el
 Los gráficos de índices usan una escala fija de 0,5 a 1,5, igual en todos los informes para poder
 compararlos. Los valores fuera de escala se dibujan en el límite y su valor exacto está en la tabla.
 
-> En el ejemplo, `3.2.0 Montaje electromecánico` aparece en (0, 0) del gráfico, dibujado en el límite
-> (0,5; 0,5): el paquete `3.2.1 Suministro de equipos` (método `Hitos ponderados`) tiene costo real
-> pero aún no cumplió ningún hito. Es el comportamiento esperado del método; la tabla y la hoja
-> `Indicadores EDT` muestran el valor exacto.
+> En el ejemplo, `3.2.0 Montaje electromecánico` no aparece en el gráfico: el paquete `3.2.1 Suministro
+> de equipos` (método `Hitos ponderados`, con pesos que suman 100) tiene costo real, pero su PV está en
+> los meses de sus hitos, en 2028, y aún no cumplió ninguno. Su SPI no tiene valor y su CPI es 0. Es el
+> comportamiento esperado del método; la tabla y la hoja `Indicadores EDT` muestran los valores.
 
 ---
 
@@ -179,8 +179,8 @@ PV = BAC). El **Cronograma Ganado** mide el atraso en meses:
 - **SPI(t) = ES / AT**: eficiencia de cronograma en tiempo; a diferencia del SPI, no converge a 1.
 
 **Ejemplo.** En diciembre de 2027 (AT = 24) el EV acumulado del ejemplo es 10,19 millones. El plan
-preveía ese valor a los 21,67 meses: ES = 21,67, SV(t) = −2,33 meses y SPI(t) = 0,90. Con una duración
-planificada de 58 meses, la duración estimada es 58 / 0,90 ≈ 64 meses.
+preveía ese valor a los 22,56 meses: ES = 22,56, SV(t) = −1,44 meses y SPI(t) = 0,94. Con una duración
+planificada de 58 meses, la duración estimada es 58 / 0,94 ≈ 62 meses.
 
 Si la curva PV no alcanza el BAC dentro del horizonte, la duración planificada y el Cronograma Ganado
 quedan vacíos; en ese caso se debe aumentar `meses`.
@@ -197,7 +197,7 @@ quedan vacíos; en ese caso se debe aumentar `meses`.
 | TCPI (BAC) mucho mayor que el CPI | Terminar dentro del BAC exige una eficiencia muy superior a la histórica. Una regla práctica habitual: si la diferencia supera 0,05–0,10, el BAC es poco realista. | Informar el EAC y evaluar un cambio de línea base o de alcance. |
 | CPI y SPI > 1 | Adelanto y ahorro. | Verificar que no se deba a métodos subjetivos o a un AC incompleto (costos no registrados). |
 | CPI o SPI por encima del rango verde (> 1,05) | Desempeño mejor que el planificado, que el semáforo marca en amarillo o rojo para que se confirme. | Revisar el AC devengado, el avance informado y si el presupuesto o la línea base del paquete son demasiado holgados; explicarlo en `Análisis de desviaciones`. |
-| EV > 0 con AC = 0 en una fila | Costo real aún no registrado (facturas pendientes, AC del ERP). | Completar el AC devengado del mes. |
+| EV > 0 con AC = 0 en una fila | Costo real aún no registrado (facturas pendientes o AC del mes sin cargar en la hoja `AC`). | Completar el AC devengado del mes. |
 | Mucho LOE en el BAC | El LOE no genera variación de cronograma y "diluye" el SPI. | Revisar los métodos ([Métodos de medición](metodos-de-medicion.md#4-guía-para-elegir-el-método)). |
 
 Los indicadores acumulados reflejan toda la historia del proyecto. Para detectar cambios recientes

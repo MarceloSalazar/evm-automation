@@ -28,6 +28,68 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - Ninguna.
 
+## [2.0.0] - 2026-10-22 · PV y EV con el BAC del libro: cronograma sin importes
+
+### Nuevas funciones
+
+- **PV y EV con el BAC ingresado en el libro:** el cronograma de MS Project no necesita importes.
+  `generar` calcula el % planificado de cada fila y mes con la duración de la línea base de sus tareas y
+  el `Peso hito` de sus hitos (el % del BAC que se imputa en el mes del hito), y `actualizar` calcula el
+  % ganado según el método de medición. El BAC de cada fila se ingresa en el libro, y el PV y el EV son
+  el BAC × el % (fórmulas de Excel). El AC se carga a mano ([docs/calculo-pv-ev.md](docs/calculo-pv-ev.md)).
+- Hojas nuevas `% PV` y `% EV` (en multi-empresa, una por empresa) con el % de cada mes; las filas de
+  nivel 1 y 2 y la fila TOTAL muestran el % ponderado por el BAC.
+- Multi-empresa: el BAC de cada empresa se ingresa en su hoja `PV`, y cada empresa tiene su %
+  planificado y su % ganado con las tareas en las que participa (`Empresa` y `% Reparto`). Los métodos
+  `0/100`, `X/Y` y `Hitos ponderados` también se miden por empresa.
+- Cambio de BAC: al escribir un BAC nuevo, el PV y el EV de todos los meses de la fila se recalculan.
+- `--migrar-desde` traslada el BAC ingresado, el % ganado, el AC, los métodos y el análisis de
+  desviaciones.
+- Validaciones nuevas: tareas sin fechas de línea base, pesos de hitos que suman más de 100, filas sin
+  pesos o sin fechas, empresas que no participan en una fila y, en `actualizar`, filas con avance y sin
+  BAC, y tareas con código EDT sin fila en el libro (agregadas en MS Project después de generarlo).
+- `ejemplos/generar_ejemplo.py --libro`: escribe en el libro el BAC y el AC ficticios del proyecto de
+  ejemplo, que en un proyecto real se ingresan a mano.
+- **Depuración de costes** (opcional; `[exportacion] depuracion_costes = true`): una empresa pega en la
+  hoja nueva `PV-depuración` la previsión mensual de su plan de costes (código EDT, descripción, BAC y
+  meses 1 a 120). Con fórmulas de Excel, cada línea se asigna a una fila del libro: las subtareas sin
+  código numérico (`XRF01`) se agrupan bajo su código EDT padre, los códigos más detallados van a su fila
+  y las líneas con subtareas son subtotales. En la hoja PV de la empresa (`depuracion_empresa`), debajo de
+  cada fila va su fila «(coste)», y la hoja nueva `Depuración costes` compara las dos curvas acumuladas
+  del elemento EDT elegido. Indicador de alineamiento opcional (`depuracion_alineamiento`,
+  `depuracion_umbral`). `--migrar-desde` conserva la previsión pegada; `actualizar` y `analizar`
+  funcionan igual ([docs/depuracion-costes.md](docs/depuracion-costes.md)).
+- `ejemplos/generar_ejemplo.py --libro` en un libro con depuración de costes: escribe también una
+  previsión ficticia en `PV-depuración`, con meses desplazados, hitos de pago y subtareas.
+- `docs/herramientas/capturas_excel.py --solo GRUPO`: regenera solo un grupo de capturas.
+- **Campo `Visible`** de MS Project (`[campos] visible`, por defecto el campo con alias `Visible`): decide
+  tarea por tarea qué información muestra el libro. `Sí` da fila propia, también por debajo de
+  `nivel_maximo`; `No` deja la tarea y su rama fuera del PV, el EV y el AC, sin crear filas `-D` (si
+  todas las subtareas de una tarea tienen `No`, la tarea las representa y, si tiene fila, pasa a ser el
+  paquete de trabajo); vacío sigue `nivel_maximo`. `actualizar` usa el campo con que se generó el libro y
+  avisa si cambió ([docs/calculo-pv-ev.md](docs/calculo-pv-ev.md#33-campo-visible-más-o-menos-detalle-en-cada-rama)).
+
+### Correcciones
+
+- Ninguna.
+
+### Otros
+
+- **Se eliminó el cálculo con los costos de MS Project** (el modo costo de las versiones 1.x): el PV y
+  el EV se calculan siempre con el BAC ingresado en el libro. Para calcular el PV, el BAC y el AC con los
+  costos de MS Project se debe usar la **versión 1.5.1**.
+- Los libros generados con la versión 1.x no se pueden actualizar ni migrar con la 2.0.0: se informa que
+  se deben usar con la versión 1.x, o se genera un libro nuevo.
+- Se eliminaron la clave `[exportacion] modo` (si está en la configuración, se ignora), la clave
+  `[multiempresa] ac_desde_project`, la opción `actualizar --solo ev|ac` y el método `CPTR de MS Project`
+  (si una fila lo tiene, se informa como método no reconocido y se usa `% Completado`). El programa ya no
+  lee costos de MS Project (costo de línea base y su distribución mensual, costo real, CPTR y CRTR).
+- Documentación: [docs/calculo-pv-ev.md](docs/calculo-pv-ev.md) reúne el cálculo del PV, el EV y el AC y
+  reemplaza a `modo-porcentaje.md`, `calculo-pv.md` y `calculo-ev-ac.md`; se eliminó `presupuesto-bac.md`.
+  Tutorial, capturas del libro y presentación actualizados.
+- Pruebas: `test_calculo_pv_ev.py`; se eliminaron las pruebas de los cálculos con costos y la marca
+  `modo`.
+
 ## [1.5.1] - 2026-10-19 · Método de medición documentado e instalador para Windows
 
 ### Nuevas funciones
@@ -256,7 +318,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v1.5.1...HEAD
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/MarceloSalazar/evm-automation/compare/v1.5.1...v2.0.0
 [1.5.1]: https://github.com/MarceloSalazar/evm-automation/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/MarceloSalazar/evm-automation/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/MarceloSalazar/evm-automation/compare/v1.3.2...v1.4.0

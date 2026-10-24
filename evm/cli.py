@@ -14,7 +14,7 @@ from pathlib import Path
 
 from evm import __version__
 from evm.config import Config, ConfigError, load_config, parse_date, parse_month
-from evm.wbs import SEV_INFO, TimephasedPVSource, assemble_report, build_part
+from evm.wbs import SEV_INFO, assemble_report, build_part
 
 log = logging.getLogger("evm")
 
@@ -37,22 +37,17 @@ def _engine_for(origen: str, motor: str) -> str:
 
 @contextmanager
 def open_project(origen: str, cfg: Config, motor: str, visible: bool = False, status: date | None = None):
-    """Devuelve (ProjectData, PVSource). Con COM, MS Project queda abierto mientras dure el bloque."""
+    """Devuelve el proyecto leído (ProjectData). Con COM, MS Project queda abierto mientras dure el bloque."""
     engine = _engine_for(origen, motor)
     if origen.lower() != "activo" and not Path(origen).is_file():
         raise FileNotFoundError(f"No existe el archivo de origen: {origen}")
     if engine == "xml":
         from evm.reader_xml import read_xml
-        project = read_xml(origen, cfg)
-        yield project, TimephasedPVSource(
-            lambda t: t.timephased_pv,
-            "Costo de línea base mensual del XML de MS Project (datos escalonados)",
-            cfg.distribution, None, project.calendar)
+        yield read_xml(origen, cfg)
         return
     from evm.reader_com import ComSession
     with ComSession(origen, visible=visible) as session:
-        project = session.read_project(cfg, status_date=status)
-        yield project, session.pv_source(project, cfg)
+        yield session.read_project(cfg, status_date=status)
 
 
 def _apply_overrides(cfg: Config, args) -> Config:
@@ -144,8 +139,8 @@ def cmd_generar(args) -> int:
     parts = []
     for name, origin, pcfg in files:
         print(_reading(name, origin))
-        with open_project(origin, pcfg, args.motor, args.visible) as (project, source):
-            parts.append(build_part(project, pcfg, source, name))
+        with open_project(origin, pcfg, args.motor, args.visible) as project:
+            parts.append(build_part(project, pcfg, name))
     report = assemble_report(parts, cfg)
     prior = None
     if args.migrar_desde:
@@ -168,12 +163,13 @@ def cmd_generar(args) -> int:
         print(f"  {project.baseline_label}  |  PV: {report.pv_source}")
     print(f"  Filas EDT: {len(report.rows)} ({leaves} de ingreso)  |  Nivel máximo: {cfg.max_level}")
     print(f"  Horizonte: {report.horizon.start:%m/%Y} a {report.horizon.end:%m/%Y} ({report.horizon.months} meses)")
-    print(f"  BAC total: {report.total_bac:,.2f}")
+    sheets = (f"PV-{report.company_a} y PV-{report.company_b}" if report.multi else "PV")
+    print(f"  BAC: se debe ingresar el BAC de cada fila en la columna D de {sheets} (celdas amarillas).")
     _print_issues(report.issues)
     if prior is not None:
         lost_ev = sum(r.total("EV") for r in prior.unmatched)
         lost_ac = sum(r.total("AC") for r in prior.unmatched)
-        print(f"Migración desde {args.migrar_desde}: {prior.matched} filas con EV/AC trasladados.")
+        print(f"Migración desde {args.migrar_desde}: {prior.matched} filas con historial trasladado.")
         if prior.unmatched:
             print(f"  [!] {len(prior.unmatched)} filas no se pudieron trasladar (EV {lost_ev:,.2f}, AC {lost_ac:,.2f}). "
                   "Ver hoja 'Validación'.")
@@ -189,11 +185,10 @@ def _print_update(res, currency: str) -> None:
         def m(v):
             return "-" if v is None else f"{v:,.0f}"
 
-        company_cols = sorted({k for r in res.rows for k in r.by_company}, key=lambda k: (k[:2] == "AC", k))
-        print(f"{'Código':<10} {'EV del mes':>16} {'EV acumulado':>16} {'AC del mes':>16} {'AC acumulado':>16}"
-              + "".join(f" {k:>16}" for k in company_cols))
+        company_cols = sorted({k for r in res.rows for k in r.by_company})
+        print(f"{'Código':<10} {'EV del mes':>16} {'EV acumulado':>16}" + "".join(f" {k:>16}" for k in company_cols))
         for r in res.rows:
-            print(f"{r.code:<10} {m(r.ev_month):>16} {m(r.ev_cum):>16} {m(r.ac_month):>16} {m(r.ac_cum):>16}"
+            print(f"{r.code:<10} {m(r.ev_month):>16} {m(r.ev_cum):>16}"
                   + "".join(f" {m(r.by_company.get(k)):>16}" for k in company_cols))
     shown = [r for r in res.rows if r.note]
     if shown:
@@ -206,9 +201,11 @@ def _print_update(res, currency: str) -> None:
         print(f"  [!] {w}")
     if len(res.warnings) > 30:
         print(f"  ... y {len(res.warnings) - 30} advertencias más.")
-    if res.book is not None and res.book.multi and not res.ac_loaded:
+    if res.book is not None and res.book.multi:
         print(f"  [i] El AC se carga a mano en las hojas 'AC-{res.book.company_a}' y 'AC-{res.book.company_b}'; "
               "los indicadores de costo usan los valores cargados.")
+    elif res.book is not None:
+        print("  [i] El AC se carga a mano en la hoja 'AC'; los indicadores de costo usan los valores cargados.")
     _print_deviations(res)
     if res.book is not None:
         print()
@@ -257,23 +254,21 @@ def cmd_analizar(args) -> int:
 def cmd_actualizar(args) -> int:
     cfg = _apply_overrides(load_config(args.config), args)
     status = parse_date(args.fecha_corte) if args.fecha_corte else None
-    from evm.update import apply_book_settings, book_meta, check_only, check_sources, run_update
+    from evm.update import apply_book_settings, book_meta, check_sources, run_update
     # Multi-empresa: se usan los nombres y campos con los que se generó el libro
     meta = book_meta(args.libro)
     cfg = apply_book_settings(cfg, meta)
     files = _sources(cfg, args)
     check_sources(meta, [name for name, _origin, _cfg in files])
-    check_only(cfg, args.solo)
     if not args.simular:
         from evm.workbook import check_writable
         check_writable(args.libro)              # libro abierto en Excel: se informa antes de leer MS Project
     projects = {}
     for name, origin, pcfg in files:
         print(_reading(name, origin))
-        with open_project(origin, pcfg, args.motor, args.visible, status) as (project, _source):
-            pass
-        projects[name] = project
-    res = run_update(projects if cfg.projects else projects[""], cfg, args.libro, status, args.solo,
+        with open_project(origin, pcfg, args.motor, args.visible, status) as project:
+            projects[name] = project
+    res = run_update(projects if cfg.projects else projects[""], cfg, args.libro, status,
                      backup=not args.sin_respaldo, force=args.forzar, dry_run=args.simular)
     _print_update(res, str(res.book.meta.get("moneda") or "") if res.book else "")
     if args.simular:
@@ -318,16 +313,15 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--salida", help="libro .xlsx a crear (por defecto <origen>_EVM.xlsx)")
     g.add_argument("--mes-inicio", help="primer mes del horizonte, AAAA-MM (por defecto el inicio de la línea base)")
     g.add_argument("--meses", type=int, help="cantidad de meses (por defecto 120)")
-    g.add_argument("--migrar-desde", help="libro anterior del que se copian los EV/AC ya cargados")
+    g.add_argument("--migrar-desde", help="libro anterior del que se copian el BAC, el %% ganado y el AC ya cargados")
     g.add_argument("--sobrescribir", action="store_true", help="reemplaza el libro de salida si existe")
     g.set_defaults(func=cmd_generar)
 
-    a = sub.add_parser("actualizar", help="calcula EV y AC a la fecha de corte y los carga en el mes correspondiente")
+    a = sub.add_parser("actualizar", help="calcula el %% ganado a la fecha de corte y lo carga en el mes correspondiente (el AC se carga a mano)")
     common_source(a)
     a.add_argument("--libro", required=True, help="libro .xlsx generado con 'generar'")
     a.add_argument("--fecha-corte", help="fecha de corte AAAA-MM-DD (por defecto la fecha de estado del proyecto; "
                                          "si el proyecto no la tiene, es obligatoria)")
-    a.add_argument("--solo", choices=["ev", "ac"], help="actualiza solo EV o solo AC")
     a.add_argument("--forzar", action="store_true", help="permite actualizar aunque haya meses posteriores cargados")
     a.add_argument("--sin-respaldo", action="store_true", help="no crea copia de respaldo del libro")
     a.add_argument("--simular", action="store_true", help="muestra el resultado sin modificar el libro")
@@ -336,8 +330,8 @@ def build_parser() -> argparse.ArgumentParser:
     n = sub.add_parser("analizar", help="actualiza la hoja 'Análisis de desviaciones' con los valores del libro, "
                                         "sin leer MS Project (p. ej. después de cargar a mano el AC del mes)")
     n.add_argument("--libro", required=True, help="libro .xlsx generado con 'generar'")
-    n.add_argument("--config", help="archivo de configuración TOML (solo se usa el semáforo, en libros de versiones "
-                                    "anteriores a la 1.5.0)")
+    n.add_argument("--config", help="se admite por compatibilidad y no se usa: el libro guarda los umbrales del "
+                                    "semáforo")
     n.add_argument("--sin-respaldo", action="store_true", help="no crea copia de respaldo del libro")
     n.set_defaults(func=cmd_analizar)
 

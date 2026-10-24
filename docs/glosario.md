@@ -34,30 +34,28 @@ ambos.
 > **Atención:** en MS Project en español, **VP** es la variación del cronograma (SV), no el valor
 > planificado. El valor planificado es el **CPTP**.
 
+El programa no lee estos campos de MS Project: el cronograma no necesita costos, el PV y el EV son el
+BAC que se ingresa en el libro × el % planificado y el % ganado, y el AC se carga a mano
+([Cálculo del PV y el EV](calculo-pv-ev.md)).
+
 ---
 
 ## Términos de MS Project usados en la documentación
 
 | Español (MS Project) | Inglés | Uso en el programa |
 |---|---|---|
-| Línea base, Línea base 1..10 | Baseline, Baseline1..10 | Define el BAC y el PV. |
-| Costo previsto | Baseline Cost | BAC de cada tarea. |
+| Línea base, Línea base 1..10 | Baseline, Baseline1..10 | Sus fechas definen el % planificado. |
 | Comienzo previsto, Fin previsto | Baseline Start, Baseline Finish | Fechas del plan (columnas E y F de la hoja `PV`). |
 | Plan provisional | Interim plan | Copia de líneas base para el historial. |
 | Fecha de estado | Status Date | Fecha de corte. |
 | % completado | % Complete | Métodos `% Completado`, `0/100`, `X/Y`, hitos. |
 | % físico completado | Physical % Complete | Métodos `% Físico completado` y `Unidades completadas`. |
-| Método de valor acumulado | Earned Value Method | Cómo calcula MS Project el CPTR. |
+| Método de valor acumulado | Earned Value Method | Cómo calcula MS Project su valor acumulado (CPTR). El programa no lo usa. |
 | Comienzo real, Fin real | Actual Start, Actual Finish | Comienzo y fin de los paquetes. |
-| Costo real | Actual Cost | AC (si no hay CRTR). |
-| Costo fijo, Acumulación de costos fijos | Fixed Cost, Fixed Cost Accrual | Presupuesto por tarea y su distribución. |
-| Tasa estándar, Costo/Uso, Acumular | Standard Rate, Cost/Use, Accrue At | Costo de los recursos y su distribución. |
-| Recurso de trabajo, material, de costo | Work, Material, Cost resource | Formas de cargar el presupuesto. |
 | EDT, Número de esquema | WBS, Outline Number | Código EDT de cada tarea. |
-| Texto1..30, Número1..20 | Text1..30, Number1..20 | Campos personalizados (método, peso, empresa). |
-| Hito | Milestone | Método `Hitos ponderados`. |
+| Texto1..30, Número1..20 | Text1..30, Number1..20 | Campos personalizados (método, peso de los hitos, empresa, visible). |
+| Hito | Milestone | Su `Peso hito` es un % del BAC del paquete; método `Hitos ponderados`. |
 | Activo / Desactivar | Active / Inactivate | Tareas inactivas excluidas. |
-| Uso de tareas | Task Usage | Vista para verificar el PV mensual. |
 
 ---
 
@@ -65,10 +63,14 @@ ambos.
 
 | Término | Significado |
 |---|---|
+| BAC de una fila | Presupuesto del paquete, que se ingresa a mano en la columna D de la hoja `PV` (o de `PV-EmpresaA` y `PV-EmpresaB`). |
+| % planificado | Parte del BAC de una fila planificada en cada mes (hoja `% PV`); suma 100 % en cada fila. Lo calcula `generar` con las fechas de línea base de las tareas y el `Peso hito` de los hitos ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)). |
+| % ganado | Parte del BAC de una fila ganada en cada mes (hoja `% EV`), según su método de medición. La escribe `actualizar` ([Cálculo del PV y el EV](calculo-pv-ev.md#6--ganado-métodos-de-medición)). |
+| Peso de una tarea | Fracción del BAC de la fila que le corresponde, por su duración de línea base o, en un hito, por su `Peso hito`. |
 | Fecha de corte | Último día del mes informado. Por defecto, la fecha de estado de MS Project. |
-| Fila de ingreso | Fila de nivel 3 (o sin hijos) donde se cargan EV y AC. Las de nivel 1 y 2 son subtotales. |
-| Fila `-D Otros costos` | Fila que recoge el costo propio de una tarea resumen o de tareas sin código EDT bajo un elemento de nivel 1 o 2. |
+| Fila de ingreso | Fila de nivel 3 (o sin hijos) donde se ingresan el BAC y el AC, y cuyo % ganado escribe `actualizar`. Las de nivel 1 y 2 son subtotales. |
+| Fila `-D Otras tareas` | Fila `<código>-D Otras tareas de «tarea»` que reúne las tareas sin código EDT que dependen directamente de un elemento de nivel 1 o 2, con su propio BAC. |
 | Planificación | Rama del proyecto bajo una tarea de primer nivel con código EDT (`INTERNO`, `CLIENTE`) que se exporta a un libro. |
 | Horizonte | Meses del libro (120 por defecto). Mes 1 = mes de inicio de la línea base. |
 | Mes de reporte | Mes que muestra el `Cuadro de Mando` (celda `E5`). |
-| Valor del mes | EV o AC de un mes (no acumulado), que se escribe en las hojas `EV` y `AC`. |
+| Valor del mes | Valor de un mes, no acumulado: el % ganado que `actualizar` escribe en la hoja `% EV` (el EV del mes es el BAC × ese %) o el AC que se ingresa en la hoja `AC`. |
