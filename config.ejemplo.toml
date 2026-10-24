@@ -31,8 +31,9 @@ peso_hito = ""
 # (por ejemplo "Text5", o su alias "Visible"; ver docs/calculo-pv.md):
 #   "Sí" (Si, SI, S, X, 1)  fila propia, también por debajo de nivel_maximo (la
 #                           tarea necesita código EDT)
-#   "No" (NO, N, 0)         sin fila propia: la tarea y su rama se suman en la
-#                           fila superior (su PV, EV y AC no se pierden)
+#   "No" (NO, N, 0)         la tarea y su rama quedan fuera del PV, el EV y el
+#                           AC; si todas las subtareas de una tarea tienen "No",
+#                           la tarea las representa (se calculan con ella)
 #   vacío                   según nivel_maximo
 # Si se omite la clave, se lee el campo con alias "Visible" cuando existe.
 # Vacío ("") = no se lee.

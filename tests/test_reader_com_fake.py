@@ -158,7 +158,9 @@ def test_visible_field_by_alias():
     assert {t.uid: t.visible for t in p.tasks}[5] == "Sí" and not p.warnings
     rep = build_report(p, Config(), s.pv_source(p, Config()))
     assert [r.code for r in rep.rows if r.kind == KIND_LEAF] == ["1.1.2.1"]
-    assert rep.total_bac == pytest.approx(1000)
+    assert not [r.code for r in rep.rows if r.code.endswith("-D")]    # 1.1.1 queda fuera del cálculo
+    assert rep.total_bac == pytest.approx(600)
+    assert not [i for i in rep.issues if "costo propio" in i.message or "difiere" in i.message]
 
 
 def test_without_baseline_uses_current_cost():

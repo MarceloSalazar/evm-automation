@@ -64,10 +64,10 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   previsión ficticia en `PV-depuración`, con meses desplazados, hitos de pago y subtareas.
 - `docs/herramientas/capturas_excel.py --solo GRUPO`: regenera solo un grupo de capturas.
 - **Campo `Visible`** de MS Project (`[campos] visible`, por defecto el campo con alias `Visible`): decide
-  tarea por tarea qué filas tiene el libro. `Sí` da fila propia, también por debajo de `nivel_maximo`;
-  `No` quita la fila y suma la tarea y su rama en la fila superior (si todas las subtareas de una fila
-  quedan ocultas, esa fila pasa a ser el paquete de trabajo; si solo algunas, forman la fila `-D`);
-  vacío sigue `nivel_maximo`. `actualizar` usa el campo con que se generó el libro y avisa si cambió
+  tarea por tarea qué información muestra el libro. `Sí` da fila propia, también por debajo de
+  `nivel_maximo`; `No` deja la tarea y su rama fuera del PV, el EV y el AC, sin crear filas `-D` (si
+  todas las subtareas de una tarea tienen `No`, la tarea las representa y, si tiene fila, pasa a ser el
+  paquete de trabajo); vacío sigue `nivel_maximo`. `actualizar` usa el campo con que se generó el libro y avisa si cambió
   ([docs/calculo-pv.md](docs/calculo-pv.md#31-campo-visible-más-o-menos-detalle-en-cada-rama)).
 
 ### Correcciones

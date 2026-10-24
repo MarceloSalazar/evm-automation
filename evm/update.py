@@ -529,9 +529,11 @@ def _unlisted_packages(book: BookData, matches: dict[int, Task], visibility: Vis
     with_row = {t.uid for t in matches.values()}
     out: dict[int, list[Task]] = {}
 
+    out_ids = visibility.excluded_uids()
+
     def visit(node: Task, found: list[Task]) -> None:
         for c in node.children:
-            if c.uid in with_row:
+            if c.uid in with_row or c.uid in out_ids:     # ramas con Visible = No: fuera del cálculo
                 continue
             if visibility.has_row(c):
                 found.append(c)
@@ -567,9 +569,10 @@ def _visibility_warnings(book: BookData, matches: dict[int, Task], scope: Scope,
 
 
 def _coverage_warnings(scope: Scope, book: BookData, matches: dict[int, Task],
-                       unlisted: dict[int, list[Task]]) -> list[str]:
-    """Costo real de tareas de la planificación que no queda en ninguna fila del libro."""
-    covered: set[int] = set()
+                       unlisted: dict[int, list[Task]], skip: set[int] = frozenset()) -> list[str]:
+    """Costo real de tareas de la planificación que no queda en ninguna fila del libro (salvo las tareas `skip`,
+    excluidas con Visible = No)."""
+    covered: set[int] = set(skip)
     for s in book.input_rows:
         task = matches.get(s.row)
         if task is not None:
@@ -713,6 +716,7 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     scopes: dict[str, Scope] = {}
     shares_of: dict[str, dict[int, float]] = {}
     calendars: dict[str, object] = {}                # modo porcentaje: calendario de cada archivo
+    hidden: dict[str, tuple[set[int], set[int], float]] = {}   # Visible = No: tareas, ramas y costo real excluidos
     level = book_level(book, cfg)
     if multi:
         from evm.companies import ac_by_company, ev_by_company, resolve_shares
@@ -724,9 +728,11 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
         warnings += [_tag(n, x) for x in w]
         visibility = row_visibility(scope, replace(pcfg, max_level=level))
         warnings += [_tag(n, x) for x in _visibility_warnings(book, found, scope, visibility, n)]
+        hidden[n] = (visibility.excluded_uids(), {t.uid for t in visibility.excluded},
+                     sum(_acwp(t) for t in visibility.excluded))
         extra = _unlisted_packages(book, found, visibility)
         if only != "ev" and load_ac:
-            warnings += [_tag(n, x) for x in _coverage_warnings(scope, book, found, extra)]
+            warnings += [_tag(n, x) for x in _coverage_warnings(scope, book, found, extra, hidden[n][0])]
         matches.update(found)
         unlisted.update(extra)
         scopes[n] = scope
@@ -754,14 +760,19 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
         pv_cum = sum(book.pv[s.row][: idx + 1])
         residual = s.kind == "residual"
         siblings = _row_children(book, s, matches) + unlisted.get(s.row, []) if residual else []
-        bcwp = _own_bcwp(task, siblings) if residual else task.bcwp
+        # Tareas que forman la fila: en una fila -D, el avance se mide solo con las tareas sin fila propia; las
+        # ramas con Visible = No (cut) no forman parte de la fila
+        contributors = _contributors(book, s, task, matches, unlisted.get(s.row, []))
+        out_ids, out_roots, _ac_out = hidden.get(src, (set(), set(), 0.0))
+        cut = [t for t in contributors if t.uid in out_roots]
+        if cut:
+            contributors = [t for t in contributors if t.uid not in out_ids]
+        deduct = siblings + cut                     # ramas de la tarea que no forman parte de la fila
+        partial = residual or bool(cut)
+        bcwp = _own_bcwp(task, deduct) if deduct else task.bcwp
         bcwp_base = None
         if task.ev_baseline_cost is not None:       # CPTR calculado con otra línea base
-            bcwp_base = task.ev_baseline_cost
-            if residual:
-                bcwp_base -= sum(c.ev_baseline_cost or 0.0 for c in siblings)
-        # Tareas que forman la fila: en una fila -D, el avance se mide solo con las tareas sin fila propia
-        contributors = _contributors(book, s, task, matches, unlisted.get(s.row, []))
+            bcwp_base = task.ev_baseline_cost - sum(c.ev_baseline_cost or 0.0 for c in deduct)
         if percent:
             res, parts = _percent_row(book, s, contributors, shares, calendars[src], cfg, idx)
             for role, company, frac, bac_c in parts:
@@ -785,7 +796,7 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
             rows.append(res)
             continue
         frac, note = ev_fraction(method, task, (pv_cum / bac) if bac else 0.0, bac=bac, bcwp=bcwp,
-                                 bcwp_base=bcwp_base, tasks=contributors if residual else None)
+                                 bcwp_base=bcwp_base, tasks=contributors if partial else None)
 
         # (tipo, hoja, valor acumulado, serie del libro)
         targets: list[tuple[str, str, float, list]] = []
@@ -802,7 +813,7 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
                             ("ac", sheets[(SHEET_AC, "B")], round(ac_b, 2), book.ac_b[s.row])]
         else:
             targets += [("ev", SHEET_EV, round(bac * frac, 2), book.ev[s.row]),
-                        ("ac", SHEET_AC, round(_own_ac(task, siblings) if residual else _acwp(task), 2),
+                        ("ac", SHEET_AC, round(_own_ac(task, deduct) if deduct else _acwp(task), 2),
                          book.ac[s.row])]
 
         res = RowResult(s.code, s.name, method_text, bac, None, None, None, None, note)
@@ -845,6 +856,8 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     for n, project in projects.items():
         scope = scopes[n]
         reference = _acwp(scope.plan) if scope.plan is not None else project.summary_acwp
+        if reference is not None:
+            reference -= hidden.get(n, (set(), set(), 0.0))[2]     # costo real de las ramas con Visible = No
         if only != "ev" and load_ac and reference is not None:
             loaded = ac_total.get(n, 0.0)
             diff = reference - loaded

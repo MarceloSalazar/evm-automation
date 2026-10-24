@@ -99,28 +99,32 @@ def test_without_values_rows_follow_the_maximum_level():
 
 
 @COST
-def test_hidden_tasks_are_summed_in_their_parent_row():
+def test_when_all_subtasks_are_hidden_the_parent_is_the_work_package():
     rep = report(tasks(PMO="No", Control="no"))
     rows = rows_by_code(rep)
     assert "1.1.1" not in rows and "1.1.2" not in rows
     assert rows["1.1.0"].kind == KIND_LEAF and rows["1.1.0"].bac == 300
-    assert rep.total_bac == 1500
-    assert issues_with(rep, "2 tareas tienen Visible = No", SEV_INFO)
+    assert rep.total_bac == 1500 and not [r for r in rows if r.endswith("-D")]
+    assert issues_with(rep, "Todas sus subtareas tienen Visible = No: la fila es el paquete de trabajo", SEV_INFO)
 
 
 @COST
-def test_partially_hidden_children_form_the_other_costs_row():
+def test_hidden_task_with_visible_siblings_is_left_out_without_other_costs_row():
     rep = report(tasks(Obras="NO"))
     rows = rows_by_code(rep)
     assert "1.2.2" not in rows and rows["1.2.0"].kind == KIND_SUMMARY
-    assert rows["1.2.0-D"].kind == KIND_RESIDUAL and rows["1.2.0-D"].bac == 400
-    assert rep.total_bac == 1500 and issues_with(rep, "u ocultas (Visible = No)")
+    assert not [r for r in rows if r.endswith("-D")]
+    assert rep.total_bac == 1100
+    assert issues_with(rep, "1 tarea con Visible = No (con sus subtareas) queda fuera del PV, el EV y el AC (1.2.2)")
+    assert issues_with(rep, "costo de línea base (400.00) no forma parte del BAC")
 
 
-def test_percent_mode_hidden_task_goes_to_the_other_tasks_row():
-    rep = report(tasks(Obras="No"))
+def test_percent_mode_hidden_task_is_left_out_of_the_planned_percent():
+    rep = report(tasks(Obras="No", Pliegos="No"))
     rows = rows_by_code(rep)
-    assert rows["1.2.0-D"].name.startswith("Otras tareas") and [t.name for t in rows["1.2.0-D"].leaves] == ["Obras"]
+    assert not [r for r in rows if r.endswith("-D")] and "1.2.2" not in rows
+    assert [t.name for t in rows["1.2.1"].leaves] == ["Adjudicación"]      # dentro del paquete, también fuera
+    assert issues_with(rep, "no forman parte del % planificado ni del % ganado")
 
 
 @COST
@@ -140,21 +144,23 @@ def test_yes_shows_tasks_below_the_maximum_level():
 def test_no_prevails_over_yes_in_its_branch():
     rep = report(tasks(Contratos="No", Pliegos="Sí"))
     rows = rows_by_code(rep)
-    assert not [c for c in rows if c.startswith("1.2")]
-    assert rows["1.0.0-D"].bac == 700 and rep.total_bac == 1500
-    assert issues_with(rep, "depende de 1.2.0 «Contratos», con Visible = No", SEV_WARN)
+    assert not [c for c in rows if c.startswith("1.2")] and "1.0.0-D" not in rows
+    assert rep.total_bac == 800
+    assert issues_with(rep, "depende de 1.2.0 «Contratos», con Visible = No: queda fuera del cálculo", SEV_WARN)
 
 
 @COST
-def test_no_without_a_parent_row_is_ignored_and_other_problems_are_warned():
-    task_list = tasks(Gestión="No", Básica="Quizás")
+def test_level_one_elements_and_other_problems():
+    rep = report(tasks(Gestión="No"))
+    assert codes(rep) == ["2.0.0", "2.1.0"] and rep.total_bac == 500
+    both = report(tasks(Gestión="No", Ingeniería="No"))            # todos: se ignora (el libro no tendría filas)
+    assert "1.0.0" in rows_by_code(both) and issues_with(both, "Todos los elementos de nivel superior", SEV_WARN)
+    task_list = tasks(Básica="Quizás")
     task_list.append(tree("- Suelta 0")[0])
     task_list[-1].uid = task_list[-1].id = 99
     task_list[-1].outline_level = 3
     task_list[-1].visible = "Sí"
     rep = report(task_list)
-    assert "1.0.0" in rows_by_code(rep) and "2.1.0" in rows_by_code(rep)
-    assert issues_with(rep, "sin fila superior donde sumarlo: se ignora", SEV_WARN)
     assert issues_with(rep, "Visible = 'Quizás' no se reconoce", SEV_WARN)
     assert issues_with(rep, "Visible = Sí en una tarea sin código EDT", SEV_WARN)
 
@@ -168,27 +174,56 @@ def test_field_disabled_in_the_configuration_ignores_the_values():
 # ----------------------------------------------------------------------------
 # actualizar y --migrar-desde
 # ----------------------------------------------------------------------------
-def test_update_counts_hidden_tasks_and_warns_when_the_field_changes(tmp_path):
-    path = tmp_path / "libro.xlsx"
-    cfg = Config()
-    task_list = tasks(Obras="No")
-    write_workbook(build_report(P(task_list), cfg, LinearPVSource()), cfg, path)
+def bac(path, values: dict[str, float]) -> dict[str, int]:
+    """Ingresa el BAC de las filas indicadas en la hoja PV y devuelve las filas del libro por código."""
     wb = load_workbook(path)
     rows = {s.code: s.row for s in read_structure(wb)}
-    wb["PV"].cell(row=rows["1.2.0-D"], column=4, value=1000)
+    for code, value in values.items():
+        wb["PV"].cell(row=rows[code], column=4, value=value)
     wb.save(path)
-    meta = {k: v for k, v in wb["_meta"].iter_rows(min_row=2, values_only=True)}
+    return rows
+
+
+def test_update_leaves_hidden_tasks_out_and_warns_when_the_field_changes(tmp_path):
+    path = tmp_path / "libro.xlsx"
+    cfg = Config()
+    write_workbook(build_report(P(tasks(Pliegos="No")), cfg, LinearPVSource()), cfg, path)
+    rows = bac(path, {"1.2.1": 1000})
+    meta = {k: v for k, v in load_workbook(path)["_meta"].iter_rows(min_row=2, values_only=True)}
     assert meta["campo_visible"] == "Visible"
-    progress = tasks(Obras="No")
-    by_name(progress)["Obras"].percent_complete = 100
+    progress = tasks(Pliegos="No")
+    by_name(progress)["Pliegos"].percent_complete = 100                    # fuera del cálculo: no cuenta
+    by_name(progress)["Adjudicación"].percent_complete = 50
     res = run_update(P(progress), Config(), path, date(2026, 3, 31), backup=False)
     book = read_book(path)
-    assert sum(v or 0 for v in book.ev[rows["1.2.0-D"]]) == pytest.approx(1000)
+    assert sum(v or 0 for v in book.ev[rows["1.2.1"]]) == pytest.approx(500)
     assert not [w for w in res.warnings if "campo Visible" in w]
 
-    changed = tasks(Obras="Sí")
+    changed = tasks(Pliegos="Sí")
     res = run_update(P(changed), Config(), path, date(2026, 3, 31), backup=False, dry_run=True)
-    assert [w for w in res.warnings if "campo Visible de 1 tarea (1.2.2)" in w and "--migrar-desde" in w]
+    assert [w for w in res.warnings if "campo Visible de 1 tarea (1.2.1.1)" in w and "--migrar-desde" in w]
+
+
+@COST
+def test_cost_mode_update_leaves_out_the_cost_and_progress_of_hidden_tasks(tmp_path):
+    path = tmp_path / "libro.xlsx"
+    cfg = Config(months=12)
+
+    def project(task_list):
+        names = by_name(task_list)
+        names["Pliegos"].percent_complete, names["Pliegos"].acwp = 100, 120.0
+        names["Adjudicación"].percent_complete, names["Adjudicación"].acwp = 50, 90.0
+        names["Obras"].percent_complete, names["Obras"].acwp = 100, 400.0
+        names["Licitación"].acwp = 210.0                                   # acumulados de MS Project
+        names["Contratos"].acwp = names["Gestión"].acwp = 610.0
+        return P(task_list, summary_acwp=610.0)
+
+    write_workbook(build_report(project(tasks(Pliegos="No", Obras="No")), cfg, LinearPVSource()), cfg, path)
+    res = run_update(project(tasks(Pliegos="No", Obras="No")), cfg, path, date(2026, 3, 31), backup=False)
+    by_code = {r.code: r for r in res.rows}
+    assert by_code["1.2.1"].ac_cum == pytest.approx(90) and by_code["1.2.1"].ev_cum == pytest.approx(90)
+    assert "1.2.2" not in by_code
+    assert not [w for w in res.warnings if "sin fila en el libro" in w or "difiere del costo real" in w]
 
 
 @COST

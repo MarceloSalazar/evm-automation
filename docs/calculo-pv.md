@@ -107,37 +107,46 @@ flowchart TD
 (*Texto5* o el que indique `[campos] visible`), se decide tarea por tarea qué información económica
 muestra el libro:
 
-| Visible | Fila en el libro |
+| Visible | Resultado |
 |---|---|
 | `Sí` (también Si, SI, S, X, 1) | **Fila propia**, aunque su código EDT sea más detallado que `nivel_maximo` (por ejemplo `2.1.1.4` con nivel 3). Su tarea superior pasa a ser subtotal. La tarea necesita código EDT. |
-| `No` (también NO, N, 0) | **Sin fila propia**: la tarea y toda su rama se suman en la fila superior, como las tareas por debajo del nivel máximo. Su PV, EV y AC no se pierden. |
+| `No` (también NO, N, 0) | **Fuera del cálculo**: la tarea y toda su rama no forman parte del PV, el EV ni el AC, y no aparecen en el libro. |
 | Vacío | Según `nivel_maximo`, como hasta ahora. |
 
-- Si **todas** las subtareas de una fila quedan sin fila propia, esa fila pasa a ser un paquete de
-  trabajo (fila de ingreso) con toda su rama.
-- Si solo **algunas** quedan sin fila propia, se suman en la fila `<código>-D` («Otras tareas de
-  «tarea»» en el modo porcentaje, «Otros costos de «tarea»» en el modo costo).
-- `No` prevalece sobre un `Sí` en su rama: la rama completa se suma en la fila superior.
-- `No` se ignora en un elemento sin fila superior donde sumarlo (un elemento de nivel 1).
-- Los valores no reconocidos, un `Sí` en una tarea sin código EDT y los casos anteriores se informan en
-  `Validación`.
+- Si **todas** las subtareas de una tarea tienen `No`, la tarea las representa: no tienen fila propia,
+  pero se calculan con ella. Si la tarea tiene fila, pasa a ser el paquete de trabajo con toda su rama.
+  En MS Project una tarea resumen acumula las fechas, el avance y el costo de sus subtareas.
+- Si solo **algunas** tienen `No`, esas quedan fuera del cálculo y las demás siguen como siempre. No se
+  crea ninguna fila `-D` por ellas.
+- Dentro de un paquete se aplica igual: una subtarea con `No` no pesa en su % planificado ni en su %
+  ganado (ni, en el modo costo, en su BAC, su EV y su AC), salvo que todas las subtareas del paquete
+  tengan `No`.
+- Un elemento de nivel 1 con `No` queda fuera del libro. Si todos los elementos de nivel 1 tienen `No`,
+  se ignora en ellos (el libro no tendría filas).
+- `No` prevalece sobre un `Sí` en su rama.
+- La hoja `Validación` lista las tareas que quedan fuera del cálculo (en el modo costo, con su costo de
+  línea base), las tareas que representan a sus subtareas, los valores no reconocidos y los `Sí` que no
+  se pueden aplicar.
 
 Ejemplo con `nivel_maximo = 3`:
 
 | Tarea | Visible | Resultado |
 |---|---|---|
 | `1.1.1 PMO` y `1.1.2 Control` | `No` en las dos | Sin filas propias: `1.1.0 Dirección` es el paquete de trabajo, con las dos tareas. |
-| `1.2.2 Obras` | `No` | Sin fila propia: forma la fila `1.2.0-D` con su PV. |
+| `1.2.2 Obras` | `No` | Fuera del cálculo: `1.2.0 Contratos` suma solo `1.2.1`. |
 | `1.2.1.1 Pliegos` (nivel 4) | `Sí` | Fila propia de nivel 4; `1.2.1` pasa a ser subtotal y su otra subtarea forma `1.2.1-D`. |
 
-> **Confidencialidad.** El importe de una tarea oculta se puede deducir si sus tareas hermanas son
-> visibles (es la fila `-D`, o el subtotal menos las visibles). Para no mostrar el detalle económico de
-> un paquete, se ocultan **todas** sus subtareas.
+**BAC y AC de lo que queda fuera.** En el modo porcentaje, el BAC y el AC que se ingresan en el libro
+no deben incluir las tareas con `No`. En el modo costo, el BAC del libro queda por debajo del de
+MS Project y `actualizar` no carga su costo real; los controles de `generar` y `actualizar` descuentan lo
+excluido.
 
 El campo se aplica al generar el libro. Si `Visible` cambia después, el libro conserva sus filas
-(`actualizar` lo informa) y se debe regenerar con `--migrar-desde`: el historial de las filas que se
-ocultan se suma en su fila superior; el de un paquete que se divide (por un `Sí` nuevo) no se puede
-repartir y se informa en `Validación` para cargarlo a mano ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)).
+(`actualizar` lo informa) y se debe regenerar con `--migrar-desde`:
+- el historial de las filas cuyas subtareas pasan todas a `No` se suma en la fila que las representa;
+- el de una fila que queda fuera del cálculo, o de un paquete que se divide por un `Sí` nuevo, no se
+  puede trasladar y se informa en `Validación` para cargarlo a mano
+  ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)).
 
 Si se omite `[campos] visible`, se lee el campo con alias `Visible` cuando el proyecto lo tiene. Con
 `visible = ""` no se lee; así se puede generar, del mismo cronograma, un libro con todo el detalle hasta
