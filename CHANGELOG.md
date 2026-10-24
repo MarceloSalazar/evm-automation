@@ -18,7 +18,15 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Nuevas funciones
 
-- Ninguna.
+- **Comando `generar-fichas`:** crea un documento Markdown (`.md`) para el cliente con una ficha por
+  cada elemento EDT del libro: código EDT, nombre, inicio y fin planificados, duración en días
+  laborables (de la línea base, como el % planificado), y predecesoras y sucesoras (`código - nombre`).
+  Los vínculos entre tareas de detalle se trasladan a los elementos con ficha que las contienen. Los
+  vínculos con tareas sin ficha (otra planificación, inactivas, con `Visible = No`) no se muestran
+  ([docs/comandos.md](docs/comandos.md#generar-fichas-fichas-de-tareas-para-el-cliente)).
+- Nueva clave `[campos] descripcion`: agrega a cada ficha las notas de la tarea (`"Notas"`) o un campo de
+  texto. Por defecto no se lee.
+- Los lectores `.mpp` y XML leen la duración de la línea base y las horas por día del proyecto.
 
 ### Correcciones
 

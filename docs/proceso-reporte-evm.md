@@ -91,6 +91,9 @@ costo real y el análisis tengan un responsable claro.
    filas `Por definir`.
 7. Si el proyecto ya está en ejecución: cargar el **historial mensual** de % ganado y AC, si existe,
    antes del primer `actualizar` ([Cálculo del PV y el EV](calculo-pv-ev.md#7-del--acumulado-al--del-mes)).
+8. Opcional: crear con `generar-fichas` las **fichas de tareas** para el cliente (fechas y duración de la
+   línea base, predecesoras y sucesoras de cada elemento EDT del libro)
+   ([Comandos](comandos.md#generar-fichas-fichas-de-tareas-para-el-cliente)).
 
 ---
 
@@ -191,7 +194,8 @@ flowchart TD
 - **No** se recomienda volver a guardar la línea base de todo el proyecto cada mes: el PV pasaría a
   coincidir con el avance real y la SV dejaría de tener sentido.
 - El libro nuevo se genera con `--migrar-desde` para conservar el BAC ingresado, el % ganado y el AC
-  ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)).
+  ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). Si se entregaron
+  fichas de tareas al cliente, se vuelven a crear con `generar-fichas`.
 - Un cambio aprobado del **presupuesto** de un paquete se registra escribiendo su nuevo BAC en la
   columna D: el PV y el EV de todos sus meses se recalculan
   ([Cálculo del PV y el EV](calculo-pv-ev.md#13-cambios-de-bac-y-de-línea-base)).

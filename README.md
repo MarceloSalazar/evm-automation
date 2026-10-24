@@ -121,6 +121,9 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 #    calcular el % ganado a la fecha de corte y cargarlo en el libro; luego, cargar el AC del mes
 #    en la hoja AC
 python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config config.toml --libro EVM_Programa.xlsx --fecha-corte 2026-10-31
+
+# Opcional: fichas de tareas para el cliente (fechas y duración de la línea base, predecesoras y sucesoras)
+python evm_export.py generar-fichas --origen "C:\Programa\Programa.mpp" --config config.toml --salida Fichas_Programa.md
 ```
 
 Los indicadores y los gráficos se consultan en las hojas `Cuadro de Mando`, `Resumen` e
@@ -159,7 +162,7 @@ El [tutorial](docs/ejemplo-paso-a-paso.md) recorre el ciclo completo con 24 mese
 | Hojas del libro, reglas de uso y `--migrar-desde` | [El libro Excel](docs/libro-excel.md) |
 | Tablero, gráficos, fórmulas e interpretación | [Cuadro de Mando e indicadores](docs/cuadro-de-mando.md) |
 | Paquetes fuera de umbral: causa, impacto y acción correctiva | [Análisis de desviaciones](docs/analisis-desviaciones.md) |
-| `validar`, `generar`, `actualizar`, `analizar` y sus opciones | [Comandos y opciones](docs/comandos.md) |
+| `validar`, `generar`, `actualizar`, `analizar`, `generar-fichas` (fichas de tareas para el cliente) y sus opciones | [Comandos y opciones](docs/comandos.md) |
 | `config.toml` | [Configuración](docs/configuracion.md) |
 | Comando `validar`, hoja `Validación`, limitaciones y mensajes de error | [Validaciones y solución de problemas](docs/validaciones-y-problemas.md) |
 | Siglas EVM y campos de MS Project en español | [Glosario](docs/glosario.md) |

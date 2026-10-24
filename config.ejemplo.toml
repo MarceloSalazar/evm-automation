@@ -39,6 +39,12 @@ peso_hito = ""
 # Vacío ("") = no se lee.
 # visible = "Visible"
 
+# Descripción de cada ficha de tareas (comando generar-fichas; ver
+# docs/comandos.md): "Notas" = las notas de la tarea en MS Project, o un campo de
+# texto (por ejemplo "Text20", o su alias "Descripción"). Vacío = no se lee: las
+# fichas no tienen descripción.
+descripcion = ""
+
 [horizonte]
 # Primer mes del horizonte (mes 1), formato "AAAA-MM".
 # Vacío o sin la clave = mes en que comienza la línea base del proyecto.

@@ -33,6 +33,7 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 | `test_proyectos_aleatorios.py` | Proyectos aleatorios de punta a punta (`generar`, varias fechas de corte, migración y recálculo). |
 | `test_analisis_desviaciones.py` | Hoja `Análisis de desviaciones`: lista calculada aparte, texto conservado y copiado al mes siguiente, `analizar` con AC cargado a mano, libros antiguos, `--migrar-desde` y recálculo de sus fórmulas con LibreOffice. |
 | `test_validar.py` | Comando `validar` y controles del archivo: códigos EDT (dependencia de la tarea superior, formato, orden, duplicados), fechas y duración, pesos, método frente a la duración, empresas, avance a la fecha de estado, lógica del cronograma (DCMA), lectura de duración, vínculos y delimitaciones (XML y COM) y columna `Tema` de la hoja `Validación`. |
+| `test_fichas_tareas.py` | Comando `generar-fichas`: fichas de los elementos del libro, vínculos trasladados al elemento con ficha (internos, repetidos y con tareas sin ficha), fechas y duración de la línea base, documento Markdown, varios archivos y lectura de la duración de la línea base, las horas por día y la descripción (XML y COM). |
 | `test_varios_archivos.py` | Varios archivos de MS Project (`[[proyectos]]`): el libro combinado coincide, fila por fila, con el libro de cada archivo (también en multi-empresa, con UniqueID repetidos entre archivos); errores de configuración y de la línea de comandos, fechas de estado y `--migrar-desde`. |
 | Resto | Casos del programa de ejemplo, Cuadro de Mando, multi-empresa y planificación. |
 
@@ -87,7 +88,7 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm_export.py` | Punto de entrada. |
 | `evm/cli.py` | Comandos y opciones. |
 | `evm/config.py` | Configuración TOML. |
-| `evm/model.py` | Datos comunes: tareas (fechas de la línea base y actuales, avance, duración, vínculos, delimitaciones y campos personalizados) y proyecto leídos de MS Project. |
+| `evm/model.py` | Datos comunes: tareas (fechas y duración de la línea base, fechas actuales, avance, duración, vínculos, delimitaciones, campos personalizados y descripción) y proyecto leídos de MS Project. |
 | `evm/reader_com.py` | Lectura de `.mpp` con MS Project (COM): fechas, avance y campos personalizados. Los costos no se leen. |
 | `evm/reader_xml.py`, `evm/workcalendar.py` | Lectura del XML de MS Project (los costos no se leen) y calendario laboral con el que se reparte la duración de las tareas entre los meses. |
 | `evm/fields.py` | Identificación de campos personalizados (Texto1..30, Número1..20 y alias). |
@@ -104,6 +105,7 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/update.py` | Comandos `actualizar` (% ganado del mes) y `analizar`, y lectura y verificación del libro. |
 | `evm/migrate.py` | Traslado del BAC, el % ganado, el AC y los métodos al regenerar el libro (`--migrar-desde`). |
 | `evm/indicators.py` | Indicadores que se muestran en pantalla (mismos cálculos que la hoja `Resumen`). |
+| `evm/task_cards.py` | Comando `generar-fichas`: ficha de cada elemento EDT del libro (fechas y duración de la línea base, predecesoras y sucesoras) y documento Markdown. |
 | `instalador/` | Instalador de Windows: `construir.py`, especificación de PyInstaller, script de Inno Setup y consola ([3.2](#32-instalador-de-windows)). |
 
 ```mermaid
