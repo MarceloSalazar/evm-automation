@@ -121,7 +121,8 @@ def task_xml(uid: int, level: int | None, name: str = "Tarea", *, tid: int | Non
     """<Task>.
 
     level None omite <OutlineLevel>. baselines: tuplas (número, inicio, fin, costo) con
-    inicio/fin None si no existen. timephased: tuplas (tipo, inicio, fin, monto) de
+    inicio/fin None si no existen, y opcionalmente la duración (p. ej. "PT80H0M0S") como quinto
+    elemento. timephased: tuplas (tipo, inicio, fin, monto) de
     <TimephasedData> (tipo 10 = costo de línea base; 19 + 6 * (N - 1) = línea base N).
     ext: {FieldID: valor} de campos personalizados. extra: XML agregado tal cual.
     """
@@ -130,9 +131,10 @@ def task_xml(uid: int, level: int | None, name: str = "Tarea", *, tid: int | Non
              _el("Finish", iso(finish) or None), _el("Cost", None if cost is None else money(cost)), extra]
     for fid, value in (ext or {}).items():
         parts.append(f"<ExtendedAttribute><FieldID>{fid}</FieldID>{_el('Value', value)}</ExtendedAttribute>")
-    for number, bl_start, bl_finish, bl_cost in baselines:
+    for number, bl_start, bl_finish, bl_cost, *bl_duration in baselines:
         parts.append(f"<Baseline><Number>{number}</Number>{_el('Start', iso(bl_start) or None)}"
-                     f"{_el('Finish', iso(bl_finish) or None)}<Cost>{money(bl_cost)}</Cost></Baseline>")
+                     f"{_el('Finish', iso(bl_finish) or None)}{_el('Duration', bl_duration[0] if bl_duration else None)}"
+                     f"<Cost>{money(bl_cost)}</Cost></Baseline>")
     for kind, seg_start, seg_finish, amount in timephased:
         parts.append(f"<TimephasedData><Type>{kind}</Type><UID>{uid}</UID><Start>{iso(seg_start)}</Start>"
                      f"<Finish>{iso(seg_finish)}</Finish><Unit>2</Unit><Value>{money(amount)}</Value>"

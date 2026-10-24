@@ -5,7 +5,8 @@ Pasos:
    y PyInstaller.
 2. Genera con PyInstaller la carpeta ExportadorEVM con evm_export.exe y generar_ejemplo.exe
    (instalador\\ExportadorEVM.spec).
-3. Prueba los ejecutables con el proyecto de ejemplo: validar, generar, avance simulado, actualizar y analizar.
+3. Prueba los ejecutables con el proyecto de ejemplo: validar, generar, avance simulado, actualizar, analizar y
+   generar-fichas.
 4. Compila con Inno Setup dist\\ExportadorEVM-X.Y.Z-instalador.exe (instalador\\ExportadorEVM.iss).
 
 Requisitos: Windows con Python 3.11 o posterior (el instalador incluye esa versión de Python), conexión a
@@ -89,6 +90,11 @@ def smoke_test(folder: Path, ver: str) -> None:
         run([ejemplo, "--fecha-estado", "2027-06-30", "--salida", avance, "--libro", libro], **quiet)
         run([evm, "actualizar", "--origen", avance, "--config", config, "--libro", libro, "--sin-respaldo"], **quiet)
         run([evm, "analizar", "--libro", libro, "--sin-respaldo"], **quiet)
+        fichas = tmp / "fichas.md"
+        run([evm, "generar-fichas", "--origen", ROOT / "ejemplos" / "programa_ejemplo.xml", "--config", config,
+             "--salida", fichas], **quiet)
+        if "## 1.0.0 " not in fichas.read_text(encoding="utf-8"):
+            raise SystemExit("generar-fichas no escribió las fichas del proyecto de ejemplo.")
     print("Prueba de los ejecutables: correcta.")
 
 

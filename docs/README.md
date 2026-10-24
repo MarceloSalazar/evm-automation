@@ -32,7 +32,7 @@ rápido están en el [README principal](../README.md).
 |---|---|
 | [Tutorial con el proyecto de ejemplo](ejemplo-paso-a-paso.md) | Ciclo completo con el XML de ejemplo: generar el libro, ingresar el BAC, simular 24 meses de avance y revisar el resultado. |
 | [Proceso de reporte EVM](proceso-reporte-evm.md) | Puesta en marcha, cierre mensual, cambios de línea base, roles, calendario, buenas prácticas y lista de control. |
-| [Comandos y opciones](comandos.md) | `validar`, `generar`, `actualizar` y `analizar`, todas sus opciones y ejemplos de salida. |
+| [Comandos y opciones](comandos.md) | `validar`, `generar`, `actualizar`, `analizar` y `generar-fichas` (fichas de tareas para el cliente en Markdown), todas sus opciones y ejemplos de salida. |
 | [Configuración](configuracion.md) | Claves del archivo `config.toml` y ejemplos. |
 | [Presentación para el equipo de proyecto](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) | 37 diapositivas para unos 30 minutos, con notas para el presentador: conceptos EVM y semáforo, preparación en MS Project (incluidas la línea base y la definición del método de medición), `generar` y `actualizar`, Cuadro de Mando, análisis de desviaciones y cierre mensual. Se abre con PowerPoint o LibreOffice Impress. |
 

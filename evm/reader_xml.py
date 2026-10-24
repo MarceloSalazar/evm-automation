@@ -13,7 +13,8 @@ from datetime import datetime
 from pathlib import Path
 
 from evm.config import Config
-from evm.fields import builtin_kind, field_id, is_spanish_wbs_name, parse_custom_name, parse_number, same_name
+from evm.fields import (builtin_kind, field_id, is_notes_name, is_spanish_wbs_name, parse_custom_name, parse_number,
+                        same_name)
 from evm.model import Link, ProjectData, Task, use_current_schedule
 from evm.workcalendar import WorkCalendar, calendar_from_xml
 
@@ -110,6 +111,8 @@ def _resolve(name: str, defs: dict[int, tuple[str, str]]) -> tuple[str, object] 
             return ("ext", fid)
     if is_spanish_wbs_name(name):
         return ("elem", "WBS")
+    if is_notes_name(name):
+        return ("elem", "Notes")
     return None
 
 
@@ -157,6 +160,10 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
     if cfg.visible_field_explicit and visible_ref is None:
         warnings.append(f"No se encontró el campo Visible '{cfg.visible_field}' en el XML: las filas del libro "
                         "siguen el nivel máximo.")
+    description_ref = _resolve(cfg.description_field, defs) if cfg.description_field else None
+    if cfg.description_field and description_ref is None:
+        warnings.append(f"No se encontró el campo de descripción '{cfg.description_field}' en el XML: las fichas de "
+                        "tareas no tienen descripción.")
     company_ref = split_ref = None
     if cfg.multi_enabled:
         company_ref = _resolve(cfg.company_field, defs)
@@ -218,6 +225,7 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
         bl = next((b for b in el.findall(r.q("Baseline")) if r.text(b, "Number") == str(n)), None)
         bl_start = r.date(bl, "Start") if bl is not None else None
         bl_finish = r.date(bl, "Finish") if bl is not None else None
+        bl_duration = duration_minutes(r.text(bl, "Duration")) if bl is not None else None
         has_bl = bl_start is not None or bl_finish is not None
         any_baseline = any_baseline or has_bl
 
@@ -244,6 +252,7 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
             summary=r.flag(el, "Summary"), milestone=r.flag(el, "Milestone"),
             active=r.flag(el, "Active", True),
             baseline_start=bl_start, baseline_finish=bl_finish, has_baseline=has_bl,
+            baseline_duration=bl_duration if has_bl else None,
             start=r.date(el, "Start"), finish=r.date(el, "Finish"),
             percent_complete=r.num(el, "PercentComplete"),
             physical_percent_complete=r.num(el, "PhysicalPercentComplete"),
@@ -253,6 +262,7 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
             constraint_date=r.date(el, "ConstraintDate"), predecessors=links,
             method=value_of(method_ref).strip(), milestone_weight=weight,
             company=company, split_a=split_a, visible=value_of(visible_ref).strip(),
+            description=value_of(description_ref).strip(),
         )
         tasks.append(task)
 
@@ -264,10 +274,12 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
         warnings.append(f"Se omitieron {skipped_external} tareas externas (vínculos entre proyectos).")
 
     label = "Línea base" if n == 0 else f"Línea base {n}"
+    per_day = r.num(root, "MinutesPerDay", 480.0)
     project = ProjectData(
         name=title, source=str(path), backend="xml", tasks=tasks, status_date=status,
         currency_symbol=currency, project_start=r.date(root, "StartDate"), baseline_label=label,
         baseline_found=any_baseline, warnings=warnings, calendar=calendar, fields_found=found,
+        minutes_per_day=per_day if per_day > 0 else 480.0,
     )
     if not any_baseline:
         use_current_schedule(project)

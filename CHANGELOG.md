@@ -28,6 +28,31 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - Ninguna.
 
+## [2.2.0] - 2026-10-24 · Comando generar-fichas: fichas de tareas para el cliente
+
+### Nuevas funciones
+
+- **Comando `generar-fichas`:** crea un documento Markdown (`.md`) para el cliente con una ficha por
+  cada elemento EDT del libro: código EDT, nombre, inicio y fin planificados, duración en días
+  laborables (de la línea base, como el % planificado), y predecesoras y sucesoras (`código - nombre`).
+  Los vínculos entre tareas de detalle se trasladan a los elementos con ficha que las contienen. Los
+  vínculos con tareas sin ficha (otra planificación, inactivas, con `Visible = No`) no se muestran
+  ([docs/comandos.md](docs/comandos.md#generar-fichas-fichas-de-tareas-para-el-cliente)).
+- Nueva clave `[campos] descripcion`: agrega a cada ficha las notas de la tarea (`"Notas"`) o un campo de
+  texto. Por defecto no se lee.
+- Los lectores `.mpp` y XML leen la duración de la línea base y las horas por día del proyecto.
+
+### Correcciones
+
+- Ninguna.
+
+### Otros
+
+- Instalador de Windows de esta versión, que incluye también el comando `validar` de la versión 2.1.0.
+  El instalador prueba también `generar-fichas` con el proyecto de ejemplo.
+- `.gitignore` ignora las fichas generadas (`*_fichas.md`).
+- Portada de la presentación con la versión 2.2.0.
+
 ## [2.1.0] - 2026-10-24 · Comando validar: revisión del archivo de MS Project
 
 ### Nuevas funciones
@@ -356,7 +381,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.1.0...HEAD
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/MarceloSalazar/evm-automation/compare/v1.5.1...v2.0.0
 [1.5.1]: https://github.com/MarceloSalazar/evm-automation/compare/v1.5.0...v1.5.1

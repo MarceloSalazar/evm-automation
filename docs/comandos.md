@@ -2,17 +2,18 @@
 
 [Inicio](../README.md) › [Documentación](README.md) › Comandos y opciones
 
-El programa tiene cuatro comandos: `validar` (revisa el archivo de MS Project sin crear ningún
+El programa tiene cinco comandos: `validar` (revisa el archivo de MS Project sin crear ningún
 archivo), `generar` (crea el libro con el % planificado de cada mes), `actualizar` (carga el % ganado
-de un mes) y `analizar` (actualiza la hoja `Análisis de desviaciones` sin leer MS Project). El BAC y el
-AC se ingresan a mano en el libro ([Cálculo del PV y el EV](calculo-pv-ev.md)). La ayuda se obtiene
-con:
+de un mes), `analizar` (actualiza la hoja `Análisis de desviaciones` sin leer MS Project) y
+`generar-fichas` (crea un documento con la ficha de cada tarea para el cliente). El BAC y el AC se
+ingresan a mano en el libro ([Cálculo del PV y el EV](calculo-pv-ev.md)). La ayuda se obtiene con:
 
 ```powershell
 python evm_export.py --help
 python evm_export.py validar --help
 python evm_export.py generar --help
 python evm_export.py actualizar --help
+python evm_export.py generar-fichas --help
 ```
 
 Con el [instalador de Windows](../README.md#opción-1-instalador-para-windows-sin-python), el programa se
@@ -238,6 +239,99 @@ de umbral ([Análisis de desviaciones](analisis-desviaciones.md#3-cierre-mensual
 
 ---
 
+## `generar-fichas`: fichas de tareas para el cliente
+
+```powershell
+python evm_export.py generar-fichas --origen "C:\Programa\Programa.mpp" --config config.toml --salida Fichas_Programa.md
+```
+
+Crea un documento Markdown (`.md`) con una ficha por cada elemento EDT, para entregar al cliente. **No
+crea ni modifica el libro.** Las fichas corresponden a las filas del libro (planificación,
+`nivel_maximo`, campo `Visible`, tareas inactivas y varios archivos), sin las filas «-D». Cada ficha
+tiene como título el código EDT y el nombre, con el nivel de su fila (`##` para `1.0.0`, `###` para
+`1.1.0`...), y estos datos:
+
+| Dato | Origen |
+|---|---|
+| Inicio y fin planificados | Fechas de la línea base, las mismas del % planificado (`linea_base`). Si una tarea no tiene línea base, se usan sus fechas actuales y la ficha lo indica en una observación. Si el proyecto no tiene línea base, todas las fichas usan el programa actual y la cabecera del documento lo indica. |
+| Duración | Duración de la línea base en días laborables: la duración ÷ las horas por día del proyecto (*Archivo > Opciones > Programación*, 8 por defecto). Si el archivo no tiene la duración, se usa el tiempo laborable del calendario entre las dos fechas. Los hitos muestran `0 días (hito)`. |
+| Predecesoras y sucesoras | `código - nombre` de los elementos con ficha vinculados, en el orden del libro. |
+| Descripción (opcional) | Las notas de la tarea o un campo de texto, si se indica `[campos] descripcion` ([Configuración](configuracion.md)). Por defecto no se lee. |
+
+**Vínculos.** En MS Project, los vínculos suelen estar entre tareas de detalle, por debajo del nivel
+máximo. Cada vínculo se traslada a los elementos con ficha que contienen sus dos tareas. Por ejemplo, si
+una tarea de `1.2.3` tiene como predecesora una tarea de `1.2.1`, la ficha de `1.2.3` muestra `1.2.1`
+como predecesora y la de `1.2.1` muestra `1.2.3` como sucesora.
+
+- Los vínculos entre tareas del mismo elemento no se muestran. Si hay varios vínculos entre los mismos
+  dos elementos, se muestran una sola vez.
+- La ficha de un elemento resumen (por ejemplo `1.2.0`, con fichas debajo) muestra solo los vínculos
+  de la propia tarea resumen y de sus tareas sin ficha propia (por ejemplo, las tareas sin código EDT
+  que dependen directamente de ella).
+- Los vínculos con tareas sin ficha (de otra planificación, inactivas, con `Visible = No` o de otro
+  proyecto) no se muestran, para que el documento no incluya tareas que no se entregan. La consola
+  indica cuántos se omitieron.
+- No se indica el tipo de vínculo (fin a comienzo, comienzo a comienzo...) ni la posición o el adelanto.
+
+| Opción | Descripción |
+|---|---|
+| `--salida` | Archivo `.md` a crear. Por defecto `<origen>_fichas.md`; obligatoria con varios archivos. |
+| `--sobrescribir` | Reemplaza el archivo de salida si ya existe. |
+| `--origen`, `--config`, `--motor`, `--planificacion`, `--linea-base`, `--nivel-max`, `--visible` | Igual que en `generar`. Con varios archivos (`[[proyectos]]`) se crea un solo documento con las fichas de todos, en el orden del libro. |
+
+Ejemplo de salida con el proyecto de ejemplo, que no tiene vínculos entre tareas:
+
+```text
+Leyendo ejemplos/programa_ejemplo.xml ...
+Proyecto: Programa de ejemplo EVM
+  Planificación: INTERNO
+  Línea base
+  Fichas: 36  |  Nivel máximo: 3  |  Vínculos entre fichas: 0
+Fichas generadas: ...\ejemplos\programa_ejemplo_fichas.md
+```
+
+Fragmento de un documento con tareas ilustrativas. Los estudios de terreno tienen dos tareas de detalle,
+*Topografía* y *Geotecnia*, que en MS Project son las predecesoras de *Diseño conceptual*:
+
+```markdown
+# Fichas de tareas: Programa de ejemplo EVM
+
+- Planificación: INTERNO
+- Fechas planificadas: Línea base
+- Duración: en días laborables
+- Nivel de desglose EDT: 3
+- Fichas: 5
+- Fecha de emisión: 24/10/2026
+
+...
+
+#### 2.1.1 Estudios de terreno
+
+- Inicio planificado: 05/01/2026
+- Fin planificado: 13/02/2026
+- Duración: 30 días
+- Predecesoras: ninguna
+- Sucesoras:
+    - 2.1.2 - Diseño conceptual
+
+#### 2.1.2 Diseño conceptual
+
+- Inicio planificado: 16/02/2026
+- Fin planificado: 27/03/2026
+- Duración: 30 días
+- Predecesoras:
+    - 2.1.1 - Estudios de terreno
+- Sucesoras:
+    - 2.1.3 - Ingeniería básica civil
+```
+
+El documento se abre con cualquier editor o visor de Markdown (por ejemplo, Visual Studio Code). Para
+enviarlo en Word o PDF se puede convertir, por ejemplo, con [Pandoc](https://pandoc.org/):
+`pandoc Fichas_Programa.md -o Fichas_Programa.docx`. Los títulos de las fichas pasan a ser títulos de
+Word, con los que se puede insertar un índice.
+
+---
+
 ## Ejemplos frecuentes
 
 ```powershell
@@ -256,6 +350,9 @@ python evm_export.py actualizar --origen Programa.mpp --config config.toml --lib
 # Cierre del mes: cargar el % ganado y, después de cargar a mano el AC del mes, analizar las desviaciones
 python evm_export.py actualizar --origen Programa.mpp --config config.toml --libro EVM_Programa.xlsx
 python evm_export.py analizar --libro EVM_Programa.xlsx
+
+# Fichas de tareas de la planificación del cliente (documento Markdown)
+python evm_export.py generar-fichas --origen Programa.mpp --config config.toml --planificacion CLIENTE --salida Fichas_Cliente.md
 
 # Nueva línea base: libro nuevo conservando el historial
 python evm_export.py generar --origen Programa.mpp --config config.toml --salida EVM_Programa_LB2.xlsx --migrar-desde EVM_Programa.xlsx

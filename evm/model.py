@@ -45,6 +45,7 @@ class Task:
     baseline_start: datetime | None = None
     baseline_finish: datetime | None = None
     has_baseline: bool = False          # la tarea tiene fechas de línea base guardadas
+    baseline_duration: float | None = None      # duración de la línea base en minutos (None = no se leyó)
 
     # Programa actual
     start: datetime | None = None
@@ -70,6 +71,7 @@ class Task:
     company: str = ""                   # multi-empresa: empresa responsable (columna "Empresa")
     split_a: float | None = None        # multi-empresa: % de la empresa A en tareas "Ambas"
     visible: str = ""                   # campo "Visible": "Sí", "No" o vacío (texto tal como está en MS Project)
+    description: str = ""               # campo de descripción de las fichas de tareas (p. ej. las notas)
 
     # Estructura (la completa wbs.build_tree)
     parent: "Task | None" = field(default=None, repr=False)
@@ -95,6 +97,7 @@ class ProjectData:
     baseline_found: bool = True          # False => se usaron las fechas actuales
     warnings: list[str] = field(default_factory=list)
     calendar: object | None = None                # WorkCalendar del proyecto (motor XML)
+    minutes_per_day: float = 480.0                # minutos de un día de duración (Opciones > Programación)
     # Campos configurados que existen en el archivo ([campos] y [multiempresa]): clave de la configuración ->
     # nombre del campo. Sirve para avisar de los campos que existen pero están vacíos en todas las tareas
     fields_found: dict[str, str] = field(default_factory=dict)
@@ -107,3 +110,4 @@ def use_current_schedule(project: ProjectData) -> None:
     for t in project.tasks:
         t.baseline_start = t.start
         t.baseline_finish = t.finish
+        t.baseline_duration = t.duration

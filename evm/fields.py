@@ -42,6 +42,12 @@ def is_spanish_wbs_name(name: str) -> bool:
     return _norm(name) == "edt"
 
 
+def is_notes_name(name: str) -> bool:
+    """'Notas' (o 'Notes'): el texto de las notas de la tarea. Se usa solo si ningún campo personalizado se llama
+    así, como 'EDT'."""
+    return _norm(name) in ("notas", "nota", "notes", "note")
+
+
 def parse_custom_name(name: str) -> tuple[str, int] | None:
     """'Text10', 'Texto10', 'Number1', 'Número1' -> ('Text', 10) / ('Number', 1)."""
     m = re.fullmatch(r"(text|texto|number|numero)(\d{1,2})", _norm(name))

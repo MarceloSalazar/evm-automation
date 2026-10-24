@@ -16,6 +16,8 @@ venv/
 !docs/img/**/*.png
 *.mpp
 /*.xml
+*_fichas.md
+/Fichas*.md
 ~$*
 salida/
 

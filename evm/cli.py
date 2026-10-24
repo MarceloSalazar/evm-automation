@@ -3,6 +3,7 @@
     python evm_export.py generar    --origen proyecto.mpp --salida EVM.xlsx
     python evm_export.py actualizar --origen proyecto.mpp --libro EVM.xlsx --fecha-corte 2026-10-31
     python evm_export.py validar    --origen proyecto.mpp
+    python evm_export.py generar-fichas --origen proyecto.mpp --salida Fichas.md
 """
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ from pathlib import Path
 
 from evm import __version__
 from evm.config import Config, ConfigError, load_config, parse_date, parse_month
-from evm.wbs import SEV_ERROR, SEV_INFO, SEV_WARN, assemble_report, build_part
+from evm.wbs import SEV_ERROR, SEV_INFO, SEV_WARN, assemble_report, build_part, plural
 
 log = logging.getLogger("evm")
 
@@ -361,6 +362,64 @@ def cmd_validar(args) -> int:
     return 1 if errors else 0
 
 
+def cmd_generar_fichas(args) -> int:
+    cfg = _apply_overrides(load_config(args.config), args)
+    files = _sources(cfg, args)
+    origen = files[0][1]
+    if args.salida:
+        salida = Path(args.salida)
+    elif cfg.projects:
+        raise ConfigError("Con varios archivos ([[proyectos]]) se debe indicar el archivo de las fichas con --salida.")
+    elif origen.lower() == "activo":
+        salida = Path("Fichas.md")
+    else:
+        salida = Path(origen).with_name(Path(origen).stem + "_fichas.md")
+    if salida.suffix.lower() != ".md":
+        raise ConfigError("Las fichas se guardan en un archivo .md (Markdown).")
+    if salida.exists() and not args.sobrescribir:
+        raise ConfigError(f"'{salida}' ya existe. Para reemplazarlo se debe usar --sobrescribir.")
+
+    parts = []
+    for name, origin, pcfg in files:
+        print(_reading(name, origin))
+        with open_project(origin, pcfg, args.motor, args.visible) as project:
+            parts.append(build_part(project, pcfg, name))
+    report = assemble_report(parts, cfg)
+    from evm.task_cards import build_cards, write_cards
+    cards = build_cards(report, parts, cfg)
+    write_cards(cards, cfg, salida)
+
+    if report.multi_file:
+        print(f"Fichas: {report.title}")
+        for s in report.sources:
+            plan = f"  |  Planificación: {s.plan}" if s.plan else ""
+            print(f"  {s.name}: {s.project.name}{plan}  |  {s.project.baseline_label}")
+    else:
+        print(f"Proyecto: {report.project.name}")
+        if report.plan:
+            print(f"  Planificación: {report.plan}")
+        print(f"  {report.project.baseline_label}")
+    print(f"  Fichas: {len(cards.cards)}  |  Nivel máximo: {cfg.max_level}  |  Vínculos entre fichas: {cards.links}")
+    for s in report.sources:
+        for w in s.project.warnings:
+            print(f"  [!] {f'[{s.name}] ' if s.name else ''}{w}")
+    if not cards.cards:
+        print("  [!] Ninguna tarea tiene código EDT: no hay fichas. Se debe revisar el campo EDT configurado "
+              "([campos] edt) y la planificación elegida.")
+    if cards.hidden:
+        print(f"  [i] {plural(cards.hidden, 'vínculo', 'vínculos')} con tareas sin ficha (de otra planificación, "
+              "inactivas, con Visible = No o de otro proyecto): no se muestran.")
+    if cards.current:
+        print(f"  [!] {plural(cards.current, 'ficha', 'fichas')} sin línea base: se usaron las fechas y la duración "
+              "del programa actual (se indica en la ficha).")
+    errors = sum(1 for i in report.issues if i.severity == SEV_ERROR)
+    if errors:
+        print(f"  [!] El archivo tiene {plural(errors, 'error', 'errores')} (por ejemplo, códigos EDT duplicados): "
+              "se recomienda revisarlo con 'validar'.")
+    print(f"Fichas generadas: {salida.resolve()}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="evm_export",
@@ -415,6 +474,14 @@ def build_parser() -> argparse.ArgumentParser:
     v.add_argument("--todas", action="store_true", help="muestra todas las observaciones (por defecto, hasta 20 "
                                                         "por tema)")
     v.set_defaults(func=cmd_validar)
+
+    f = sub.add_parser("generar-fichas", help="crea un documento Markdown (.md) con la ficha de cada tarea "
+                                              "exportada: código EDT, nombre, fechas y duración de la línea base, "
+                                              "predecesoras y sucesoras")
+    common_source(f)
+    f.add_argument("--salida", help="archivo .md a crear (por defecto <origen>_fichas.md)")
+    f.add_argument("--sobrescribir", action="store_true", help="reemplaza el archivo de salida si existe")
+    f.set_defaults(func=cmd_generar_fichas)
 
     n = sub.add_parser("analizar", help="actualiza la hoja 'Análisis de desviaciones' con los valores del libro, "
                                         "sin leer MS Project (p. ej. después de cargar a mano el AC del mes)")
