@@ -87,8 +87,9 @@ class Config:
     wbs_field: str = "WBS"                # WBS | OutlineNumber | Text1..Text30 | alias
     method_field: str = ""                # campo con el método de medición (p.ej. Text10)
     milestone_weight_field: str = ""      # campo numérico con el peso de cada hito (p.ej. Number1)
-    # Campo de texto "Visible": Sí = fila propia (también por debajo del nivel máximo); No = sin fila propia, se
-    # suma en su fila superior; vacío = según el nivel máximo. "" = no se lee
+    # Campo de texto "Visible": Sí = fila propia (también por debajo del nivel máximo); No = la tarea y su rama
+    # quedan fuera del PV, el EV y el AC (si todas las subtareas tienen No, las representa su tarea superior);
+    # vacío = según el nivel máximo. "" = no se lee
     visible_field: str = "Visible"
     visible_field_explicit: bool = False  # la clave se indicó en la configuración (avisar si no existe el campo)
     # Descripción de cada ficha (generar-fichas): "Notas" = notas de la tarea, o un campo de texto; "" = no se lee

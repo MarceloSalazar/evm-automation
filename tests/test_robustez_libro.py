@@ -603,7 +603,7 @@ def test_migration_values_before_new_horizon_start_warn(tmp_path):
     b = read_book(new)
     assert sum(book_totals(b)[1]) == pytest.approx(35)        # el total se conserva
     assert b.ev[book_row(b, "1.1.0")][:2] == pytest.approx([30, 5])    # enero y febrero, en el mes 1 (abril)
-    assert any("EV/AC por 30.00" in i.message and "antes del primer mes" in i.message for i in rep.issues)
+    assert any("EV/AC por 30,00" in i.message and "antes del primer mes" in i.message for i in rep.issues)
 
 
 def test_migration_keeps_explicit_zero_months(tmp_path):

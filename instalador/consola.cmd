@@ -6,7 +6,7 @@ set "PATH=%~dp0;%PATH%"
 evm_export --version
 echo Carpeta de trabajo: %CD%
 echo.
-echo   evm_export --help        ayuda y comandos (generar, actualizar, analizar)
+echo   evm_export --help        ayuda y comandos (validar, generar, actualizar, analizar, generar-fichas)
 echo   copy "%~dp0config.ejemplo.toml" config.toml
 echo                            configuración de ejemplo en esta carpeta
 echo   Documentación: https://github.com/MarceloSalazar/evm-automation

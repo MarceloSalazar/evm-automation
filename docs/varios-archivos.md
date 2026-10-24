@@ -9,7 +9,7 @@ conjunto. Cada archivo aporta sus propios códigos EDT, por ejemplo `1.0.0` a `8
 `9.0.0` en otro.
 
 Es **opcional**: sin secciones `[[proyectos]]` en la configuración, el programa trabaja con un solo
-archivo, igual que antes.
+archivo, indicado con `--origen`.
 
 ---
 
@@ -85,7 +85,7 @@ Cada archivo se prepara como un proyecto individual
 | Condición | Motivo |
 |---|---|
 | **Códigos EDT distintos** en cada archivo: un mismo código no puede estar en dos archivos. | Las hojas identifican cada fila por su código EDT. Si un código se repite, `generar` se detiene sin crear el libro. |
-| Los **mismos campos personalizados** (EDT, método de medición, peso de hito y, si se usa, empresa) con el mismo nombre o alias en todos los archivos. | La sección `[campos]` de la configuración es común a todos los archivos. |
+| Los **mismos campos personalizados** (EDT, método de medición, peso de hito y, si se usan, `Visible`, descripción y empresa) con el mismo nombre o alias en todos los archivos. | La sección `[campos]` de la configuración es común a todos los archivos. |
 | **Línea base** guardada en cada archivo. | El % planificado de las filas de cada archivo sale de las fechas de su línea base. El BAC de cada fila se ingresa en el libro. |
 | Cada mes, la **misma fecha de estado** en todos los archivos. | El informe tiene una sola fecha de corte. |
 | La **misma moneda** en todos los archivos. | El libro muestra una sola moneda. |
@@ -102,7 +102,7 @@ personalizado de texto (por ejemplo `Item EDT`), que permite escribir el código
 
 Cada archivo se indica en una sección `[[proyectos]]` (con **dos corchetes**) del archivo de
 configuración. El resto de la configuración (`[campos]`, `[horizonte]`, `[exportacion]`, `[metodos]`,
-`[semaforo]` y `[multiempresa]`) es común a todos los archivos.
+`[semaforo]`, `[validacion]` y `[multiempresa]`) es común a todos los archivos.
 
 ```toml
 [campos]
@@ -191,9 +191,11 @@ elementos `4.0.0` del primer archivo y `9.0.0` del segundo, y la fila TOTAL del 
 
 ## 6. Cierre mensual
 
-1. En **cada archivo** se registra el avance del mes y se fija la **misma fecha de estado** (el último
-   día del mes) ([Proceso de reporte](proceso-reporte-evm.md#4-cierre-mensual)).
-2. Se ejecuta `actualizar`, que lee todos los archivos:
+1. En **cada archivo** se fija la **misma fecha de estado** (el último día del mes) y se registra el
+   avance del mes ([Proceso de reporte](proceso-reporte-evm.md#4-cierre-mensual)).
+2. Se ejecuta `validar`, que revisa todos los archivos
+   (`python evm_export.py validar --config config.toml`).
+3. Se ejecuta `actualizar`, que lee todos los archivos:
 
 ```powershell
 python evm_export.py actualizar --config config.toml --libro EVM_Programa.xlsx --simular
@@ -257,6 +259,9 @@ python evm_export.py generar --config config.toml --salida EVM_Programa_LB2.xlsx
 
 ![Hoja Validación con dos archivos](img/excel/varios-validacion.png)
 
+**`validar`** revisa todos los archivos de `[[proyectos]]` con el mismo prefijo por archivo; un código EDT
+repetido entre archivos se informa como `Error`, sin detenerse.
+
 **`actualizar`** se detiene si los archivos de la configuración no son los del libro, o si las fechas de
 estado difieren y no se indicó `--fecha-corte`. El resto de los controles se informan por archivo
 ([Cálculo del PV y el EV](calculo-pv-ev.md#14-controles-y-validaciones)).
@@ -269,7 +274,8 @@ La carpeta `ejemplos` incluye un segundo proyecto, `proyecto2_ejemplo.xml` (*Acc
 el código EDT `9.0.0` y sin planificaciones), que se combina con el programa de ejemplo. Los dos
 archivos numeran sus tareas desde el *Id. único* 1.
 
-Configuración (`config_varios.toml`, en la carpeta raíz del repositorio):
+Configuración (se guarda como `config_varios.toml` en la carpeta raíz del repositorio, porque las rutas
+de `origen` se toman desde la carpeta del archivo de configuración):
 
 ```toml
 [campos]
@@ -295,7 +301,7 @@ planificacion = ""
 ```
 
 Generar el libro, cargar el BAC ficticio de los dos proyectos, simular el avance a junio de 2027 (con
-el AC del mes) y actualizar:
+el AC acumulado hasta esa fecha, que queda cargado en junio) y actualizar:
 
 ```powershell
 python evm_export.py generar --config config_varios.toml --salida ejemplo_varios.xlsx
@@ -313,8 +319,8 @@ el proyecto 2. El BAC del programa es la suma de los dos proyectos: 44.210.000 +
 
 ![Cuadro de Mando del programa con dos archivos](img/excel/varios-cdm.png)
 
-*Cuadro de Mando del ejemplo combinado después de 24 meses de avance simulado: el encabezado indica los
-archivos, con la planificación y la línea base de cada uno.*
+*Cuadro de Mando del ejemplo combinado con 24 cierres mensuales simulados, como en el tutorial (con los
+comandos anteriores, el libro tiene un solo cierre, a junio de 2027): el encabezado indica los archivos, con la planificación y la línea base de cada uno.*
 
 ---
 

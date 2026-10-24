@@ -57,8 +57,8 @@ Las tres hojas tienen la misma estructura:
 | D | BAC: presupuesto de la fila. Se ingresa a mano en la hoja `PV` (en multi-empresa, en `PV-EmpresaA` y `PV-EmpresaB`), en las celdas amarillas; las demás hojas lo toman de allí. |
 | E | Fecha inicio Plan (PV): inicio de la línea base. |
 | F | Fecha fin Plan (PV): fin de la línea base. |
-| G ... DV | Un mes por columna, del mes 1 al mes 120. Fila 3: número de mes; fila 4: fecha del mes. |
-| Al final | Columna **Total horizonte** (en rojo si no coincide con el BAC) y fila **TOTAL**. |
+| G ... DV | Un mes por columna, del mes 1 al último mes del horizonte (`meses`; con 120, el valor por defecto, hasta la columna DV). Fila 3: número de mes; fila 4: fecha del mes. |
+| Al final | Columna **Total horizonte** (en la hoja `PV`, en rojo si no coincide con el BAC) y fila **TOTAL**. |
 
 ![Hoja PV del proyecto de ejemplo](img/excel/pv.png)
 
@@ -79,8 +79,9 @@ Los valores mensuales son el **valor del mes**, no el acumulado.
 
 ## 3. Reglas de uso
 
-- Las **filas de nivel 1 y 2** con subelementos son **subtotales** (fórmulas `SUM` de sus hijos). Los
-  valores se ingresan solo en las filas de nivel 3 o en filas sin hijos.
+- Las **filas con subelementos** (las de nivel 1 y 2 y, si el campo `Visible` agrega detalle, también
+  otras) son **subtotales** (fórmulas `SUM` de sus hijos). Los valores se ingresan solo en las filas sin
+  subelementos: paquetes de trabajo y filas `-D`.
 - Las filas se pueden **contraer por nivel** con los botones de esquema (1, 2, 3) a la izquierda.
 - **No se deben insertar, eliminar ni ordenar filas o columnas** en `PV`, `% PV`, `EV`, `% EV`, `AC` ni
   en las hojas de cada empresa: `actualizar` ubica cada fila por su posición. Si los códigos EDT de la columna A no
@@ -167,7 +168,7 @@ tarea; al agregar o quitar archivos, o al pasar de un solo archivo a varios, se 
 Tabla calculada con fórmulas a partir de la fila TOTAL de las hojas `PV`, `EV` y `AC`: PV, EV y AC del
 mes y acumulados, % de avance, SPI y CPI acumulados y BAC. Un mes tiene EV cargado cuando `actualizar`
 escribió su % ganado. EV y AC acumulados se muestran desde el primer mes con datos hasta la fecha de
-corte; después aparecen como `#N/A` para que los gráficos no dibujen esos meses.
+corte; fuera de ese tramo aparecen como `#N/A` para que los gráficos no dibujen esos meses.
 
 ![Hoja Evolución mensual](img/excel/evolucion-mensual.png)
 
@@ -175,7 +176,8 @@ corte; después aparecen como `#N/A` para que los gráficos no dibujen esos mese
 
 Para cada fila de la EDT, a la fecha de corte: BAC, PV, EV y AC acumulados, SV, CV, SPI, CPI, EAC, VAC
 y porcentajes planificado, completado y gastado, con semáforo en SPI y CPI. Permite identificar qué
-paquetes explican la desviación del proyecto.
+paquetes explican la desviación del proyecto. El EAC de cada fila es BAC / CPI; si la fila no tiene CPI
+(sin AC cargado), es AC + (BAC − EV). No depende del método EAC elegido en el `Cuadro de Mando`.
 
 ![Hoja Indicadores EDT](img/excel/indicadores-edt.png)
 
@@ -190,8 +192,8 @@ al actualizar y con `--migrar-desde`. Ver [Análisis de desviaciones](analisis-d
 
 Advertencias y observaciones de la exportación, con su severidad (`Info`, `Advertencia`, `Error`), el
 código EDT, la tarea afectada y el tema (columna E, para filtrar). Ver
-[Validaciones](validaciones-y-problemas.md#1-validaciones). El comando `validar` muestra las mismas
-observaciones en pantalla sin crear el libro.
+[Validaciones](validaciones-y-problemas.md#1-validaciones). El comando `validar` muestra en pantalla las
+mismas observaciones, y además las del avance y la lógica del cronograma, sin crear el libro.
 
 ![Hoja Validación](img/excel/validacion.png)
 

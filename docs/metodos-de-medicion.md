@@ -160,7 +160,9 @@ método se define en MS Project, un cambio en la columna C se escribe también a
 se conserva solo si fue **editado en Excel**; si no, se toma el de MS Project. Si el proyecto no usa el
 campo `Método EVM`, la columna C es la única referencia del método.
 
-Las filas sin método reciben `metodo_por_defecto` (`Por definir`) y se informan en `Validación`.
+Las filas sin método reciben `metodo_por_defecto` (`Por definir`) y se informan en `Validación`. Las
+filas `-D Otras tareas` no tienen tarea propia en MS Project: siempre reciben `metodo_por_defecto` y su
+método se define en la columna C.
 También se reconocen otros textos: fórmulas con `%` (`50%/50%`), cualquier `X/Y` con X + Y = 100
 (`40/60`), o textos que contengan "hito", "físico", "unidad", "lineal" o "LOE". Un texto no reconocido
 (por ejemplo, `CPTR de MS Project`) se calcula como `% Completado` y `actualizar` lo informa en

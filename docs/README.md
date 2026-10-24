@@ -14,6 +14,8 @@ rápido están en el [README principal](../README.md).
 | Ver el programa funcionando sin MS Project | [Tutorial con el proyecto de ejemplo](ejemplo-paso-a-paso.md) |
 | Preparar un proyecto real por primera vez | [Cálculo del PV y el EV](calculo-pv-ev.md) → [Preparación en MS Project](preparacion-ms-project.md) → [Métodos de medición](metodos-de-medicion.md) |
 | Organizar el cierre mensual | [Proceso de reporte EVM](proceso-reporte-evm.md) |
+| Revisar el archivo de MS Project antes de generar o actualizar el libro | [Comando `validar`](comandos.md#validar-revisa-el-archivo-de-ms-project) |
+| Entregar al cliente las fichas de tareas | [Comando `generar-fichas`](comandos.md#generar-fichas-fichas-de-tareas-para-el-cliente) |
 | Reunir varios archivos de MS Project en un informe | [Varios archivos de MS Project](varios-archivos.md) |
 | Alinear el cronograma con el plan de costes de una empresa | [Depuración de costes](depuracion-costes.md) |
 | Interpretar los indicadores y los gráficos | [Cuadro de Mando e indicadores](cuadro-de-mando.md) |
@@ -34,7 +36,7 @@ rápido están en el [README principal](../README.md).
 | [Proceso de reporte EVM](proceso-reporte-evm.md) | Puesta en marcha, cierre mensual, cambios de línea base, roles, calendario, buenas prácticas y lista de control. |
 | [Comandos y opciones](comandos.md) | `validar`, `generar`, `actualizar`, `analizar` y `generar-fichas` (fichas de tareas para el cliente en Markdown), todas sus opciones y ejemplos de salida. |
 | [Configuración](configuracion.md) | Claves del archivo `config.toml` y ejemplos. |
-| [Presentación para el equipo de proyecto](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) | 37 diapositivas para unos 30 minutos, con notas para el presentador: conceptos EVM y semáforo, preparación en MS Project (incluidas la línea base y la definición del método de medición), `generar` y `actualizar`, Cuadro de Mando, análisis de desviaciones y cierre mensual. Se abre con PowerPoint o LibreOffice Impress. |
+| [Presentación para el equipo de proyecto](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) | 37 diapositivas para unos 30 minutos, con notas para el presentador: conceptos EVM y semáforo, preparación en MS Project (incluidas la línea base y la definición del método de medición), `validar`, `generar` y `actualizar`, Cuadro de Mando, análisis de desviaciones y cierre mensual. Se abre con PowerPoint o LibreOffice Impress. |
 
 **Preparación en MS Project**
 

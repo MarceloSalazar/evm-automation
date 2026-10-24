@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 
 from evm.config import Config, ConfigError
+from evm.fields import fmt_number
 from evm.model import MonthKey, ProjectData, Task
 from evm.timeline import Horizon, first_of_month
 
@@ -198,7 +199,7 @@ def tolerance(amount: float) -> float:
 
 
 def fmt_money(v: float) -> str:
-    return f"{v:,.2f}"
+    return fmt_number(v)
 
 
 # ----------------------------------------------------------------------------
@@ -619,7 +620,7 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
                                 f"{plural(len(missing), 'tarea', 'tareas')} sin empresa en la columna "
                                 f"'{cfg.company_field}' (ni en sus tareas superiores): se "
                                 f"{'trata' if one else 'tratan'} como '{cfg.company_both}' "
-                                f"({cfg.split_default:g} % para {cfg.company_a}).", TOPIC_COMPANY))
+                                f"({fmt_number(cfg.split_default, trim=True)} % para {cfg.company_a}).", TOPIC_COMPANY))
             for t in top_missing[:50]:
                 issues.append(Issue(SEV_WARN, code_of(t), task_name(t, code_of),
                                     f"Sin empresa: se trata como '{cfg.company_both}'"
@@ -632,8 +633,9 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
                                 TOPIC_COMPANY))
         for t in notes["reparto"][:50]:
             issues.append(Issue(SEV_WARN, code_of(t), task_name(t, code_of),
-                                f"'{cfg.split_field}' = {t.split_a:g} fuera de rango (debe ser mayor que 0 y como "
-                                f"máximo 100): se usa {cfg.split_default:g} %.", TOPIC_COMPANY))
+                                f"'{cfg.split_field}' = {fmt_number(t.split_a, trim=True)} fuera de rango (debe ser "
+                                f"mayor que 0 y como máximo 100): se usa {fmt_number(cfg.split_default, trim=True)} %.",
+                                TOPIC_COMPANY))
 
     # --- Controles del archivo ------------------------------------------------
     checks: list[Issue] = []

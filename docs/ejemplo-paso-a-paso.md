@@ -4,8 +4,10 @@
 
 El repositorio incluye un programa ficticio en formato XML de MS Project para probar el programa sin
 MS Project. Este tutorial genera el libro, carga el BAC, simula 24 meses de avance y de costo real, y
-recorre el resultado ([Cálculo del PV y el EV](calculo-pv-ev.md)). Todas las imágenes de la
-documentación se obtuvieron con estos pasos.
+recorre el resultado ([Cálculo del PV y el EV](calculo-pv-ev.md)). Las capturas del libro de la
+documentación (`docs/img/excel`) se obtuvieron con estos pasos y sus variantes multi-empresa, con dos
+archivos y con depuración de costes ([Desarrollo](desarrollo.md#4-documentación-e-imágenes)); las
+imágenes de MS Project son esquemas.
 
 ---
 
@@ -115,7 +117,7 @@ Proyecto: Programa de ejemplo EVM
   [!] 4.1.1 Pruebas en frío: Método 0/100 en un paquete de 2,7 meses (línea base), más de 1: ...
   [!] 4.1.2 Pruebas en caliente: Método 20/80 en un paquete de 2,7 meses (línea base), más de 2: ...
   [!] 4.2.1 Capacitación y entrega: Método 50/50 en un paquete de 2,7 meses (línea base), más de 2: ...
-Libro generado: ejemplo.xlsx
+Libro generado: ...\ejemplo.xlsx
 ```
 
 Las observaciones son las esperadas: la reunión de arranque no tiene código EDT, las subtareas y los
@@ -177,15 +179,15 @@ los indicadores; el último mes:
 ```text
 Fecha de corte: 31/12/2027 (mes 24 del horizonte)
 ...
-BAC (EUR)              44,210,000
-PV acumulado             12,092,032   % planificado 27.4 %
-EV acumulado             10,190,540   % completado  23.1 %
-AC acumulado             13,491,360   % gastado     30.5 %
-SV = EV - PV             -1,901,492   SPI = 0.84
-CV = EV - AC             -3,300,820   CPI = 0.76
-EAC = BAC/CPI            58,530,071   VAC = -14,320,071
-TCPI                           1.11
-ES (meses)                    22.56   AT = 24  SV(t) = -1.44  SPI(t) = 0.94
+BAC (EUR)              44.210.000
+PV acumulado             12.092.032   % planificado 27,4 %
+EV acumulado             10.190.540   % completado  23,1 %
+AC acumulado             13.491.360   % gastado     30,5 %
+SV = EV - PV             -1.901.492   SPI = 0,84
+CV = EV - AC             -3.300.820   CPI = 0,76
+EAC = BAC/CPI            58.530.071   VAC = -14.320.071
+TCPI                           1,11
+ES (meses)                    22,56   AT = 24  SV(t) = -1,44  SPI(t) = 0,94
 ```
 
 > `--sin-respaldo` evita crear 24 copias de respaldo durante la prueba. En el uso real conviene
@@ -235,8 +237,8 @@ junio de 2027.
 
 **Cambiar el método de un paquete.** En la hoja `PV` se cambia el método de `4.2.2 Cierre
 administrativo` o de `1.2.1 Licitación de ingeniería` (por ejemplo, de `0/100` a `% Completado`), se
-guarda el libro y se repite `actualizar` para el último mes: el valor de ese mes se reemplaza con el
-nuevo cálculo.
+guarda el libro y se repite `actualizar` para el último mes. Con `--simular` se ve el nuevo EV de la
+fila sin modificar el libro; sin esa opción, el valor de ese mes se reemplaza con el nuevo cálculo.
 
 ```powershell
 python ejemplos\generar_ejemplo.py --fecha-estado 2027-12-31 --salida avance.xml
@@ -261,5 +263,13 @@ nuevo y se repiten los pasos: `generar_ejemplo.py --libro` escribe el BAC y el A
 EDT `9.0.0`) se combina con el programa de ejemplo en un mismo libro. Ver el ejemplo de
 [Varios archivos](varios-archivos.md#9-ejemplo-con-dos-archivos).
 
-Los archivos `config.toml`, `*.xlsx` y los XML de la carpeta raíz no se suben al repositorio (están en
+**Fichas de tareas.** Este comando crea el documento Markdown con la ficha de cada elemento EDT
+([`generar-fichas`](comandos.md#generar-fichas-fichas-de-tareas-para-el-cliente)). El proyecto de
+ejemplo no tiene vínculos entre tareas: las fichas no muestran predecesoras ni sucesoras.
+
+```powershell
+python evm_export.py generar-fichas --origen ejemplos\programa_ejemplo.xml --config config.toml --salida ejemplo_fichas.md
+```
+
+Los archivos `config.toml`, `*.xlsx`, `*_fichas.md` y los XML de la carpeta raíz no se suben al repositorio (están en
 `.gitignore`).

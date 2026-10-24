@@ -22,6 +22,9 @@ simulado.*
   compartir (con el cliente o entre las empresas que ejecutan el proyecto) sin importes.
 - Selección de la **planificación** a exportar cuando el proyecto tiene varias (por ejemplo `INTERNO` y
   `CLIENTE`).
+- **Revisión del archivo de MS Project** antes de exportar (comando `validar`, sin crear archivos):
+  códigos EDT, fechas y duración, pesos de los hitos, método de medición, avance a la fecha de estado y
+  lógica del cronograma (criterios DCMA).
 - Cálculo del **% ganado** de cada paquete a la fecha de corte, según su **método de medición** (0/100,
   50/50, hitos ponderados, % completado, % físico completado, unidades y LOE), y carga del valor del mes
   en el libro. El **AC** se carga a mano.
@@ -38,6 +41,8 @@ simulado.*
   ejemplo, `1.0.0` a `8.0.0` en un archivo y `9.0.0` en otro).
 - Opcional: **depuración de costes**, para comparar el PV planificado de una empresa con la previsión
   mensual de su plan de costes y alinear con ella las tareas e hitos de MS Project.
+- Opcional: **fichas de tareas** para el cliente (comando `generar-fichas`), en un documento Markdown sin
+  importes: fechas y duración de la línea base, predecesoras y sucesoras de cada elemento de la EDT.
 - Montos en **euros (EUR)** por defecto.
 
 ```mermaid
@@ -122,6 +127,9 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 #    en la hoja AC
 python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config config.toml --libro EVM_Programa.xlsx --fecha-corte 2026-10-31
 
+# 4) Después de cargar el AC del mes: incluir en el análisis de desviaciones los paquetes con CPI fuera de umbral
+python evm_export.py analizar --libro EVM_Programa.xlsx
+
 # Opcional: fichas de tareas para el cliente (fechas y duración de la línea base, predecesoras y sucesoras)
 python evm_export.py generar-fichas --origen "C:\Programa\Programa.mpp" --config config.toml --salida Fichas_Programa.md
 ```
@@ -155,7 +163,7 @@ El [tutorial](docs/ejemplo-paso-a-paso.md) recorre el ciclo completo con 24 mese
 | Puesta en marcha, cierre mensual, cambios de línea base y buenas prácticas | [Proceso de reporte EVM](docs/proceso-reporte-evm.md) |
 | BAC en el libro, % planificado y % ganado de MS Project, filas del libro, AC, valor del mes y controles | [Cálculo del PV y el EV](docs/calculo-pv-ev.md) |
 | Código EDT, campos personalizados, línea base, fecha de estado y avance | [Preparación en MS Project](docs/preparacion-ms-project.md) |
-| 0/100, fórmulas fijas, hitos ponderados, % físico y LOE; cómo elegir y aprobar el método de cada paquete | [Métodos de medición](docs/metodos-de-medicion.md) |
+| 0/100, fórmulas fijas, hitos ponderados, % completado, % físico, unidades y LOE; cómo elegir y aprobar el método de cada paquete | [Métodos de medición](docs/metodos-de-medicion.md) |
 | PV, EV y AC de dos empresas | [Multi-empresa (opcional)](docs/multiempresa.md) |
 | Varios archivos de MS Project en un mismo informe | [Varios archivos (opcional)](docs/varios-archivos.md) |
 | PV planificado frente al plan de costes de una empresa | [Depuración de costes (opcional)](docs/depuracion-costes.md) |

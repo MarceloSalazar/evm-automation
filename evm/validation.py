@@ -13,7 +13,7 @@ from dataclasses import replace
 from datetime import date, datetime
 
 from evm.config import Config, ConfigError
-from evm.fields import same_name
+from evm.fields import fmt_number, same_name
 from evm.methods import FIXED, MILESTONES, UNKNOWN, is_complete, is_started, parse_method
 from evm.model import (CONSTRAINT_FNLT, CONSTRAINT_MFO, CONSTRAINT_MSO, CONSTRAINT_SNLT, LINK_FS, LINK_SF,
                        ProjectData, Task)
@@ -44,8 +44,7 @@ HARD_CONSTRAINTS = {
 
 def _num(v: float, decimals: int = 1) -> str:
     """Número con coma decimal y sin ceros finales: 2,5; 3."""
-    text = f"{v:.{decimals}f}".rstrip("0").rstrip(".")
-    return text.replace(".", ",")
+    return fmt_number(v, decimals, trim=True)
 
 
 def _pct(part: int, total: int) -> str:
