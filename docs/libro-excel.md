@@ -189,7 +189,9 @@ al actualizar y con `--migrar-desde`. Ver [Análisis de desviaciones](analisis-d
 ### Validación
 
 Advertencias y observaciones de la exportación, con su severidad (`Info`, `Advertencia`, `Error`), el
-código EDT y la tarea afectada. Ver [Validaciones](validaciones-y-problemas.md#1-validaciones).
+código EDT, la tarea afectada y el tema (columna E, para filtrar). Ver
+[Validaciones](validaciones-y-problemas.md#1-validaciones). El comando `validar` muestra las mismas
+observaciones en pantalla sin crear el libro.
 
 ![Hoja Validación](img/excel/validacion.png)
 

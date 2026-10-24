@@ -35,7 +35,11 @@ def test_report_limits_level_and_planned_percent(example_files):
     conceptual = next(r for r in rep.rows if r.name == "Diseño conceptual")
     assert conceptual.kind == KIND_LEAF and conceptual.hidden_tasks == 6
     assert rep.horizon.start == date(2026, 1, 1)
-    assert not [i for i in rep.issues if i.severity != "Info"]
+    # Solo advierte del método de los paquetes más largos que lo recomendado para 0/100 y las fórmulas fijas (el
+    # ejemplo los mantiene para mostrar cada método)
+    warnings = [i for i in rep.issues if i.severity != "Info"]
+    assert {i.code for i in warnings} == {"1.2.1", "1.2.2", "2.1.1", "4.1.1", "4.1.2", "4.2.1"}
+    assert all("Método" in i.message and "meses (línea base)" in i.message for i in warnings)
 
 
 def _t(uid, level, name, start=None, finish=None, **kw):

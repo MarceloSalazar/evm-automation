@@ -82,8 +82,9 @@ costo real y el análisis tengan un responsable claro.
      [proceso de Métodos de medición](metodos-de-medicion.md#5-proceso-para-definir-el-método-de-cada-paquete).
 2. **Guardar la línea base** aprobada.
 3. **Configurar** `config.toml` ([Configuración](configuracion.md)).
-4. **Generar el libro** y revisar la hoja `Validación`; corregir en MS Project lo que corresponda y
-   volver a generar.
+4. **Validar el archivo** con `validar` y corregir en MS Project los errores (códigos EDT, fechas,
+   pesos de los hitos, métodos). Luego **generar el libro** y revisar la hoja `Validación`; si se corrige
+   algo en MS Project, volver a generar.
 5. **Ingresar el BAC** de cada fila en la columna D de la hoja `PV` (o de `PV-EmpresaA` y
    `PV-EmpresaB`) y verificar que la fila TOTAL coincida con el presupuesto aprobado.
 6. **Verificar los métodos** de la columna C de la hoja `PV`: deben coincidir con los aprobados, sin
@@ -250,6 +251,7 @@ flowchart TD
 - [ ] Hitos cumplidos marcados al 100 %; hitos no cumplidos reprogramados.
 - [ ] Trabajo pendiente reprogramado después de la fecha de estado.
 - [ ] Fecha de estado = último día del mes.
+- [ ] `validar` sin errores y sin trabajo pendiente antes de la fecha de estado.
 - [ ] Costo real devengado del mes recibido de Finanzas (ERP o contabilidad).
 - [ ] `actualizar --simular` revisado: sin métodos `Por definir`, sin valores del mes negativos sin
       explicar, sin tareas con código EDT sin fila en el libro ni filas sin BAC.

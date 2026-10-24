@@ -7,6 +7,25 @@ from datetime import datetime
 # Clave de mes: (año, mes)
 MonthKey = tuple[int, int]
 
+# Tipos de vínculo (PjTaskLinkType de VBA = <Type> de <PredecessorLink> en el XML)
+LINK_FF, LINK_FS, LINK_SF, LINK_SS = 0, 1, 2, 3
+
+# Delimitaciones (PjConstraint de VBA = <ConstraintType> en el XML)
+CONSTRAINT_ASAP = 0             # Lo antes posible
+CONSTRAINT_MSO = 2              # Debe comenzar el
+CONSTRAINT_MFO = 3              # Debe finalizar el
+CONSTRAINT_SNLT = 5             # No comenzar después del
+CONSTRAINT_FNLT = 7             # No finalizar después del
+
+
+@dataclass
+class Link:
+    """Vínculo con una tarea predecesora."""
+
+    uid: int                            # UniqueID de la predecesora
+    kind: int = LINK_FS                 # LINK_FF, LINK_FS, LINK_SF o LINK_SS
+    lag: float = 0.0                    # posición (negativa = adelanto); solo se usa su signo
+
 
 @dataclass
 class Task:
@@ -36,6 +55,14 @@ class Task:
     physical_percent_complete: float = 0.0
     actual_start: datetime | None = None
     actual_finish: datetime | None = None
+
+    # Programación (para las validaciones)
+    duration: float | None = None       # duración del programa actual en minutos (None = no se leyó)
+    estimated: bool = False             # duración estimada ("5 días?")
+    manual: bool = False                # programada manualmente
+    constraint_type: int = CONSTRAINT_ASAP
+    constraint_date: datetime | None = None
+    predecessors: list[Link] = field(default_factory=list)
 
     # Campos personalizados configurados
     method: str = ""                    # método de medición
@@ -68,6 +95,9 @@ class ProjectData:
     baseline_found: bool = True          # False => se usaron las fechas actuales
     warnings: list[str] = field(default_factory=list)
     calendar: object | None = None                # WorkCalendar del proyecto (motor XML)
+    # Campos configurados que existen en el archivo ([campos] y [multiempresa]): clave de la configuración ->
+    # nombre del campo. Sirve para avisar de los campos que existen pero están vacíos en todas las tareas
+    fields_found: dict[str, str] = field(default_factory=dict)
 
 
 def use_current_schedule(project: ProjectData) -> None:

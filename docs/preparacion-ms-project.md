@@ -45,6 +45,8 @@ MS Project **no necesita costos ni recursos**: el BAC de cada fila se ingresa en
 - [ ] Multi-empresa (opcional): columnas `Empresa` y `% Reparto` completas ([Multi-empresa](multiempresa.md)).
 - [ ] **Línea base guardada** y resumida en las tareas resumen.
 - [ ] `config.toml` con los nombres de los campos ([Configuración](configuracion.md)).
+- [ ] `validar` sin errores: códigos EDT coherentes con su tarea superior, fechas, duraciones, pesos y
+      métodos ([Validaciones](validaciones-y-problemas.md#1-validaciones)).
 
 **Cada mes, antes de `actualizar`:**
 
@@ -52,6 +54,7 @@ MS Project **no necesita costos ni recursos**: el BAC de cada fila se ingresa en
 - [ ] Trabajo pendiente reprogramado después de la fecha de estado.
 - [ ] **Fecha de estado** = último día del mes.
 - [ ] Si se usa XML: archivo guardado **después** de fijar la fecha de estado.
+- [ ] `validar` sin errores ni trabajo pendiente antes de la fecha de estado.
 
 ---
 
@@ -77,6 +80,9 @@ Recomendaciones:
 - Las actividades de detalle y los hitos de un paquete **no necesitan** código EDT.
 - Las tareas que no dependen de ningún elemento EDT (por ejemplo, una reunión de arranque bajo la
   planificación) no forman parte del cálculo: se omiten y se informan en `Validación`.
+- El código de cada tarea empieza por el de su tarea superior y tiene un nivel más: bajo `1.2.0` van
+  `1.2.1`, `1.2.2`... `validar` y la hoja `Validación` informan los códigos que no lo cumplen (por
+  ejemplo `1.14.2` bajo `1.2.0`), los niveles salteados, el orden y los duplicados.
 
 ---
 

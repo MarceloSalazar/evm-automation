@@ -2,6 +2,7 @@
 
     python evm_export.py generar    --origen proyecto.mpp --salida EVM.xlsx
     python evm_export.py actualizar --origen proyecto.mpp --libro EVM.xlsx --fecha-corte 2026-10-31
+    python evm_export.py validar    --origen proyecto.mpp
 """
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ from pathlib import Path
 
 from evm import __version__
 from evm.config import Config, ConfigError, load_config, parse_date, parse_month
-from evm.wbs import SEV_INFO, assemble_report, build_part
+from evm.wbs import SEV_ERROR, SEV_INFO, SEV_WARN, assemble_report, build_part
 
 log = logging.getLogger("evm")
 
@@ -101,14 +102,22 @@ def _reading(name: str, origin: str) -> str:
     return f"Leyendo {name}: {origin} ..." if name else f"Leyendo {origin} ..."
 
 
+MARKS = {SEV_ERROR: "[X]", SEV_WARN: "[!]", SEV_INFO: "[i]"}
+
+
+def _issue_line(i) -> str:
+    where = f"{i.code} {i.name}".strip()
+    return f"  {MARKS.get(i.severity, '[!]')} {where + ': ' if where else ''}{i.message}"
+
+
 def _print_issues(issues, limit: int = 15) -> None:
     serious = [i for i in issues if i.severity != SEV_INFO]
     infos = [i for i in issues if i.severity == SEV_INFO]
     for i in infos:
         print(f"  [i] {i.message}")
+    serious.sort(key=lambda i: i.severity != SEV_ERROR)
     for i in serious[:limit]:
-        where = f"{i.code} {i.name}".strip()
-        print(f"  [!] {where + ': ' if where else ''}{i.message}")
+        print(_issue_line(i))
     if len(serious) > limit:
         print(f"  ... y {len(serious) - limit} observaciones más (ver hoja 'Validación').")
 
@@ -282,6 +291,76 @@ def cmd_actualizar(args) -> int:
     return 0
 
 
+def _count_text(issues) -> str:
+    counts = [(sum(1 for i in issues if i.severity == sev), one, many)
+              for sev, one, many in ((SEV_ERROR, "error", "errores"), (SEV_WARN, "advertencia", "advertencias"),
+                                     (SEV_INFO, "informativa", "informativas"))]
+    parts = [f"{n} {one if n == 1 else many}" for n, one, many in counts if n]
+    return ", ".join(parts) if parts else "sin observaciones"
+
+
+def _print_validation(issues, limit: int | None) -> None:
+    """Observaciones agrupadas por tema (el tema Libro, solo si tiene observaciones)."""
+    from evm.wbs import TOPIC_BOOK, TOPICS
+    order = {SEV_ERROR: 0, SEV_WARN: 1, SEV_INFO: 2}
+    for topic in TOPICS:
+        found = sorted((i for i in issues if i.topic == topic), key=lambda i: order.get(i.severity, 1))
+        if not found and topic == TOPIC_BOOK:
+            continue
+        print()
+        print(f"{topic}: {_count_text(found)}")
+        shown = found if limit is None else found[:limit]
+        for i in shown:
+            print(_issue_line(i))
+        if len(found) > len(shown):
+            print(f"  ... y {len(found) - len(shown)} más (--todas para verlas todas).")
+
+
+def cmd_validar(args) -> int:
+    cfg = _apply_overrides(load_config(args.config), args)
+    files = _sources(cfg, args)
+    status = parse_date(args.fecha_corte) if args.fecha_corte else None
+    from evm.validation import combine, validate_part
+    parts = []
+    for name, origin, pcfg in files:
+        print(_reading(name, origin))
+        with open_project(origin, pcfg, args.motor, args.visible) as project:
+            parts.append(validate_part(project, pcfg, name, status))
+    report, issues = combine(parts, cfg)
+
+    def when(project) -> str:
+        if status is not None:
+            return f"Fecha de estado: {status:%d/%m/%Y} (--fecha-corte)"
+        if project.status_date:
+            return f"Fecha de estado: {project.status_date:%d/%m/%Y}"
+        return "Sin fecha de estado"
+
+    reviewed = sum(1 for p in parts for _ in p.scope.tasks())
+    if any(p.source.name for p in parts):
+        print(f"Validación: {report.title if report else ' + '.join(p.source.project.name for p in parts)}")
+        for p in parts:
+            plan = f"  |  Planificación: {p.source.plan}" if p.source.plan else ""
+            print(f"  {p.source.name}: {p.source.project.name}{plan}  |  {p.source.project.baseline_label}  |  "
+                  f"{when(p.source.project)}")
+    else:
+        project = parts[0].source.project
+        print(f"Validación: {project.name}")
+        plan = f"Planificación: {parts[0].source.plan}  |  " if parts[0].source.plan else ""
+        print(f"  {plan}{project.baseline_label}  |  {when(project)}")
+    rows = report.rows if report else [r for p in parts for r in p.rows]
+    leaves = sum(1 for r in rows if r.is_input)
+    print(f"  Tareas revisadas: {reviewed}  |  Filas EDT: {len(rows)} ({leaves} de ingreso)  |  Nivel máximo: "
+          f"{cfg.max_level}")
+    _print_validation(issues, None if args.todas else 20)
+    errors = sum(1 for i in issues if i.severity == SEV_ERROR)
+    print()
+    print(f"Resultado: {_count_text(issues)}.")
+    if errors:
+        print("Se deben corregir los errores en MS Project antes de generar o actualizar el libro.")
+    print("No se creó ni se modificó ningún archivo.")
+    return 1 if errors else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="evm_export",
@@ -326,6 +405,16 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--sin-respaldo", action="store_true", help="no crea copia de respaldo del libro")
     a.add_argument("--simular", action="store_true", help="muestra el resultado sin modificar el libro")
     a.set_defaults(func=cmd_actualizar)
+
+    v = sub.add_parser("validar", help="revisa el archivo de MS Project (códigos EDT, fechas, duración, pesos, "
+                                       "método, empresas, avance y lógica del cronograma) y muestra el resultado, "
+                                       "sin crear ningún archivo")
+    common_source(v)
+    v.add_argument("--fecha-corte", help="fecha de estado para revisar el avance, AAAA-MM-DD (por defecto la fecha de "
+                                         "estado del proyecto)")
+    v.add_argument("--todas", action="store_true", help="muestra todas las observaciones (por defecto, hasta 20 "
+                                                        "por tema)")
+    v.set_defaults(func=cmd_validar)
 
     n = sub.add_parser("analizar", help="actualiza la hoja 'Análisis de desviaciones' con los valores del libro, "
                                         "sin leer MS Project (p. ej. después de cargar a mano el AC del mes)")

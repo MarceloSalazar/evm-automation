@@ -1063,7 +1063,7 @@ def _write_indicators(ws, report: Report, cfg: Config, lay: _Layout) -> None:
 
 def _write_validation(ws, report: Report) -> None:
     ws.cell(row=1, column=1, value="Validación de la exportación").font = FONT_TITLE
-    _header(ws, 3, [(1, "Severidad"), (2, "Código EDT"), (3, "Tarea"), (4, "Detalle")])
+    _header(ws, 3, [(1, "Severidad"), (2, "Código EDT"), (3, "Tarea"), (4, "Detalle"), (5, "Tema")])
     if not report.issues:
         ws.cell(row=4, column=1, value="OK")
         ws.cell(row=4, column=4, value="No se encontraron observaciones.")
@@ -1072,11 +1072,12 @@ def _write_validation(ws, report: Report) -> None:
         put_text(ws, i, 2, issue.code)
         put_text(ws, i, 3, issue.name)
         put_text(ws, i, 4, issue.message).alignment = Alignment(wrap_text=True, vertical="top")
+        put_text(ws, i, 5, issue.topic)
         if issue.severity != "Info":
             ws.cell(row=i, column=1).fill = FILL_YELLOW if issue.severity == "Advertencia" else FILL_RED
-    for c_, w in {1: 13, 2: 14, 3: 40, 4: 110}.items():
+    for c_, w in {1: 13, 2: 14, 3: 40, 4: 110, 5: 26}.items():
         ws.column_dimensions[col(c_)].width = w
-    ws.auto_filter.ref = f"A3:D{max(4, 3 + len(report.issues))}"
+    ws.auto_filter.ref = f"A3:E{max(4, 3 + len(report.issues))}"
 
 
 def _append_texts(ws, values: list) -> None:

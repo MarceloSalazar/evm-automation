@@ -13,6 +13,7 @@ from evm import cli
 from evm.cli import main
 from evm.config import ConfigError, load_config
 from evm.update import indicators_for, read_book
+from evm.wbs import TOPIC_METHOD
 from evm.workbook import split_key
 
 
@@ -322,7 +323,9 @@ def test_migrate_combined_book_keeps_history(xml, tmp_path):
     new = tmp_path / "EVM_LB2.xlsx"
     generate(cfg, new, "--migrar-desde", str(book))
     assert by_code(new) == by_code(book)
-    assert not [r for r in validation(new) if r[0] in ("Error", "Advertencia")]
+    # Solo advierte del método de los paquetes largos del ejemplo (0/100 y fórmulas fijas)
+    serious = [r for r in validation(new) if r[0] in ("Error", "Advertencia")]
+    assert serious and all(r[4] == TOPIC_METHOD and "meses (línea base)" in r[3] for r in serious)
     assert read_book(new).status_date == date(2027, 7, 31)
 
 

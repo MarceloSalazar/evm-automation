@@ -109,6 +109,9 @@ es la primera compatible con Python 3.14).
 ## Uso rápido
 
 ```powershell
+# 0) Revisar el archivo de MS Project (códigos EDT, fechas, pesos, método, avance y lógica), sin crear archivos
+python evm_export.py validar --origen "C:\Programa\Programa.mpp" --config config.toml
+
 # 1) Una vez (y con cada nueva línea base): crear el libro con el % planificado de cada mes
 python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config.toml --salida EVM_Programa.xlsx
 
@@ -156,9 +159,9 @@ El [tutorial](docs/ejemplo-paso-a-paso.md) recorre el ciclo completo con 24 mese
 | Hojas del libro, reglas de uso y `--migrar-desde` | [El libro Excel](docs/libro-excel.md) |
 | Tablero, gráficos, fórmulas e interpretación | [Cuadro de Mando e indicadores](docs/cuadro-de-mando.md) |
 | Paquetes fuera de umbral: causa, impacto y acción correctiva | [Análisis de desviaciones](docs/analisis-desviaciones.md) |
-| `generar`, `actualizar`, `analizar` y sus opciones | [Comandos y opciones](docs/comandos.md) |
+| `validar`, `generar`, `actualizar`, `analizar` y sus opciones | [Comandos y opciones](docs/comandos.md) |
 | `config.toml` | [Configuración](docs/configuracion.md) |
-| Hoja `Validación`, limitaciones y mensajes de error | [Validaciones y solución de problemas](docs/validaciones-y-problemas.md) |
+| Comando `validar`, hoja `Validación`, limitaciones y mensajes de error | [Validaciones y solución de problemas](docs/validaciones-y-problemas.md) |
 | Siglas EVM y campos de MS Project en español | [Glosario](docs/glosario.md) |
 | Microsoft, PMI, GAO y otras referencias | [Recursos externos](docs/recursos-externos.md) |
 | Pruebas, estructura del código, flujo del repositorio, versiones e instalador de Windows | [Desarrollo](docs/desarrollo.md) |

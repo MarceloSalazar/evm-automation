@@ -32,6 +32,7 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 | `test_robustez_libro.py` | `actualizar`, `--migrar-desde`, libros modificados a mano, errores de la línea de comandos y del archivo de configuración. |
 | `test_proyectos_aleatorios.py` | Proyectos aleatorios de punta a punta (`generar`, varias fechas de corte, migración y recálculo). |
 | `test_analisis_desviaciones.py` | Hoja `Análisis de desviaciones`: lista calculada aparte, texto conservado y copiado al mes siguiente, `analizar` con AC cargado a mano, libros antiguos, `--migrar-desde` y recálculo de sus fórmulas con LibreOffice. |
+| `test_validar.py` | Comando `validar` y controles del archivo: códigos EDT (dependencia de la tarea superior, formato, orden, duplicados), fechas y duración, pesos, método frente a la duración, empresas, avance a la fecha de estado, lógica del cronograma (DCMA), lectura de duración, vínculos y delimitaciones (XML y COM) y columna `Tema` de la hoja `Validación`. |
 | `test_varios_archivos.py` | Varios archivos de MS Project (`[[proyectos]]`): el libro combinado coincide, fila por fila, con el libro de cada archivo (también en multi-empresa, con UniqueID repetidos entre archivos); errores de configuración y de la línea de comandos, fechas de estado y `--migrar-desde`. |
 | Resto | Casos del programa de ejemplo, Cuadro de Mando, multi-empresa y planificación. |
 
@@ -86,11 +87,12 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm_export.py` | Punto de entrada. |
 | `evm/cli.py` | Comandos y opciones. |
 | `evm/config.py` | Configuración TOML. |
-| `evm/model.py` | Datos comunes: tareas (fechas de la línea base y actuales, avance y campos personalizados) y proyecto leídos de MS Project. |
+| `evm/model.py` | Datos comunes: tareas (fechas de la línea base y actuales, avance, duración, vínculos, delimitaciones y campos personalizados) y proyecto leídos de MS Project. |
 | `evm/reader_com.py` | Lectura de `.mpp` con MS Project (COM): fechas, avance y campos personalizados. Los costos no se leen. |
 | `evm/reader_xml.py`, `evm/workcalendar.py` | Lectura del XML de MS Project (los costos no se leen) y calendario laboral con el que se reparte la duración de las tareas entre los meses. |
 | `evm/fields.py` | Identificación de campos personalizados (Texto1..30, Número1..20 y alias). |
 | `evm/wbs.py` | Estructura EDT hasta el nivel máximo o el detalle que indique el campo `Visible`, % planificado de cada fila, combinación de varios archivos y horizonte. |
+| `evm/validation.py` | Controles del archivo de MS Project: códigos EDT, fechas y duración, pesos, método y empresas (hoja `Validación` y `validar`), avance a la fecha de estado y lógica del cronograma (solo `validar`). |
 | `evm/percent.py` | Peso de cada tarea (duración de la línea base y `Peso hito`), % planificado y % ganado de cada fila y de cada empresa. |
 | `evm/cost_review.py` | Depuración de costes: hojas `PV-depuración`, `Depuración costes` y `_depuracion` (asignación con fórmulas de la previsión pegada) e indicador de alineamiento. |
 | `evm/companies.py` | Multi-empresa: parte de cada empresa en cada tarea (columnas `Empresa` y `% Reparto`, con herencia de la tarea superior). |
