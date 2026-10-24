@@ -19,8 +19,8 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from evm.config import Config
-from evm.fields import (TASK_NUMBER_IDS, TASK_TEXT_IDS, builtin_kind, is_spanish_wbs_name, parse_custom_name,
-                        parse_number, same_name)
+from evm.fields import (TASK_NUMBER_IDS, TASK_TEXT_IDS, builtin_kind, is_notes_name, is_spanish_wbs_name,
+                        parse_custom_name, parse_number, same_name)
 from evm.model import CONSTRAINT_ASAP, LINK_FS, Link, ProjectData, Task, use_current_schedule
 
 log = logging.getLogger(__name__)
@@ -331,6 +331,8 @@ class ComSession:
                     return ("attr", f"{kind}{idx}")
         if is_spanish_wbs_name(name):
             return ("attr", "WBS")
+        if is_notes_name(name):
+            return ("attr", "Notes")
         try:
             return ("fid", int(self.app.FieldNameToFieldConstant(name, 0)))
         except Exception:
@@ -390,6 +392,10 @@ class ComSession:
         if cfg.visible_field_explicit and visible_ref is None:
             warnings.append(f"No se encontró el campo Visible '{cfg.visible_field}' en MS Project: las filas del "
                             "libro siguen el nivel máximo.")
+        description_ref = self._resolve_field(cfg.description_field) if cfg.description_field else None
+        if cfg.description_field and description_ref is None:
+            warnings.append(f"No se encontró el campo de descripción '{cfg.description_field}' en MS Project: las "
+                            "fichas de tareas no tienen descripción.")
         company_ref = split_ref = None
         if cfg.multi_enabled:
             company_ref = self._resolve_field(cfg.company_field)
@@ -422,6 +428,7 @@ class ComSession:
             company = self._field_value(t, company_ref)
             split = self._field_value(t, split_ref)
             visible = self._field_value(t, visible_ref)
+            description = self._field_value(t, description_ref)
             task = Task(
                 uid=uid, id=int(_get(t, "ID", 0) or 0), name=str(_get(t, "Name", "") or ""),
                 outline_level=int(_get(t, "OutlineLevel", 1) or 1),
@@ -430,6 +437,7 @@ class ComSession:
                 summary=bool(_get(t, "Summary", False)), milestone=bool(_get(t, "Milestone", False)),
                 active=bool(_get(t, "Active", True)),
                 baseline_start=bl_start, baseline_finish=bl_finish, has_baseline=has_bl,
+                baseline_duration=_number(_get(t, f"Baseline{sfx}Duration")) if has_bl else None,
                 start=_dt(_get(t, "Start")), finish=_dt(_get(t, "Finish")),
                 percent_complete=_f(_get(t, "PercentComplete")),
                 physical_percent_complete=_f(_get(t, "PhysicalPercentComplete")),
@@ -443,6 +451,7 @@ class ComSession:
                 company=str(company or "").strip(),
                 split_a=None if split in (None, "") else parse_number(split),
                 visible="" if visible is None else str(visible).strip(),
+                description="" if description is None else str(description).strip(),
             )
             tasks.append(task)
         if skipped_external:
@@ -460,6 +469,7 @@ class ComSession:
         summary = _get(p, "ProjectSummaryTask")
         title = str(_get(summary, "Name", "") or "") if summary is not None else ""
         status = _dt(_get(p, "StatusDate"))
+        hours = _number(_get(p, "HoursPerDay"))
         project = ProjectData(
             name=title or str(_get(p, "Name", "") or Path(self.origen).stem),
             source=str(_get(p, "FullName", "") or self.origen), backend="com", tasks=tasks,
@@ -468,6 +478,7 @@ class ComSession:
             project_start=_dt(_get(p, "ProjectStart")),
             baseline_label="Línea base" if n == 0 else f"Línea base {n}",
             warnings=warnings, fields_found=found,
+            minutes_per_day=hours * 60 if hours and hours > 0 else 480.0,
         )
         if not any_baseline:
             use_current_schedule(project)

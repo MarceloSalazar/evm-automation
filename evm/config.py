@@ -91,6 +91,8 @@ class Config:
     # suma en su fila superior; vacío = según el nivel máximo. "" = no se lee
     visible_field: str = "Visible"
     visible_field_explicit: bool = False  # la clave se indicó en la configuración (avisar si no existe el campo)
+    # Descripción de cada ficha (generar-fichas): "Notas" = notas de la tarea, o un campo de texto; "" = no se lee
+    description_field: str = ""
 
     # [horizonte]
     start_month: date | None = None       # primer mes (mes 1); None = mes de inicio de la línea base
@@ -314,6 +316,7 @@ def load_config(path: str | Path | None) -> Config:
     if "visible" in campos:
         cfg.visible_field = _get(campos, "visible", cfg.visible_field, str).strip()
         cfg.visible_field_explicit = bool(cfg.visible_field)
+    cfg.description_field = _get(campos, "descripcion", cfg.description_field, str).strip()
 
     hor = _section(data, "horizonte")
     start = _get(hor, "mes_inicio", "", str).strip()
