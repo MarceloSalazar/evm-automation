@@ -197,8 +197,8 @@ genera `instalador\construir.py`:
    script.
 2. Genera con PyInstaller la carpeta `ExportadorEVM`, con `evm_export.exe` y `generar_ejemplo.exe` y la
    versión del programa en sus propiedades (`instalador\ExportadorEVM.spec`).
-3. Prueba los ejecutables con el proyecto de ejemplo: `--version`, `generar`, avance simulado,
-   `actualizar` y `analizar`. Si una prueba falla, se detiene.
+3. Prueba los ejecutables con el proyecto de ejemplo: `--version`, `validar`, `generar`, avance
+   simulado, `actualizar`, `analizar` y `generar-fichas`. Si una prueba falla, se detiene.
 4. Compila con Inno Setup el instalador (`instalador\ExportadorEVM.iss`) en la carpeta `dist`.
 
 Avisa, sin detenerse, si hay cambios sin confirmar o si el commit no tiene la etiqueta `vX.Y.Z`: el
