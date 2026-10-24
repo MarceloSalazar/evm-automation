@@ -284,7 +284,7 @@ Limitaciones:
 planificado; los indicadores, el Cuadro de Mando y `actualizar` usan las mismas filas que un libro sin
 depuración.
 
-**¿Puedo cargar los cierres mensuales en el libro de depuración?** Sí, `actualizar` y `analizar`
+**¿Se pueden cargar los cierres mensuales en el libro de depuración?** Sí, `actualizar` y `analizar`
 funcionan igual. Pero el libro muestra la previsión de costes de la empresa: para entregar o compartir
 el libro, se genera sin depuración.
 
@@ -292,12 +292,12 @@ el libro, se genera sin depuración.
 subtareas. Si la fila del padre tenía además importes propios, esos importes no se suman; la columna
 `Observación` lo marca para corregir el plan de costes o pegarlos en una subtarea.
 
-**¿Y si mi plan de costes tiene más detalle que el libro?** Los códigos más detallados se suman en su
+**¿Y si el plan de costes tiene más detalle que el libro?** Los códigos más detallados se suman en su
 fila del libro (`2.3.4.1.5` en `2.3.4.1`), y las subtareas sin código numérico en su código padre.
 
-**¿Puedo depurar con un libro de una sola empresa?** Sí: se depura la hoja `PV`.
+**¿Se puede depurar con un libro de una sola empresa?** Sí: se depura la hoja `PV`.
 
-**¿Cómo pruebo la función sin un proyecto real?** Con el [proyecto de ejemplo](ejemplo-paso-a-paso.md):
+**¿Cómo se prueba la función sin un proyecto real?** Con el [proyecto de ejemplo](ejemplo-paso-a-paso.md):
 se genera el libro multi-empresa con `depuracion_costes = true` y se ejecuta
 `python ejemplos\generar_ejemplo.py --libro EVM_Depuracion.xlsx`, que escribe el BAC de cada fila y una
 previsión ficticia de EmpresaA en `PV-depuración` (con meses desplazados, hitos de pago y subtareas).

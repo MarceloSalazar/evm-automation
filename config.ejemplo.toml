@@ -1,9 +1,10 @@
 # Configuración del exportador EVM.
 # Este archivo se debe copiar como config.toml y ajustar a cada proyecto.
 # Uso:  python evm_export.py generar --origen Programa.mpp --config config.toml
-# Los valores de este archivo son los del programa. Todas las claves son
-# opcionales: si se omite una clave, se usa el valor por defecto indicado en su
-# comentario.
+# Salvo edt, mes_inicio y planificacion, ajustados al proyecto de ejemplo, los
+# valores de este archivo son los del programa. Todas las claves son opcionales
+# (salvo nombre y origen en cada sección [[proyectos]]): si se omite una clave,
+# se usa el valor por defecto indicado en su comentario.
 
 [campos]
 # Campo de MS Project con el código EDT de cada tarea:
@@ -54,9 +55,10 @@ mes_inicio = "2026-01"
 meses = 120
 
 [exportacion]
-# Cálculo del PV y del EV (ver docs/calculo-pv-ev.md): MS Project da el %
-# planificado y el % ganado de cada fila, por la duración de la línea base de sus
-# tareas y el peso de sus hitos. El BAC de cada fila se ingresa en el libro
+# Cálculo del PV y del EV (ver docs/calculo-pv-ev.md): el programa calcula con
+# los datos de MS Project el % planificado (duración de la línea base de las
+# tareas y peso de los hitos) y el % ganado (método de medición y avance) de cada
+# fila. El BAC de cada fila se ingresa en el libro
 # (columna D de la hoja PV, o de PV-EmpresaA y PV-EmpresaB) y el PV y el EV son
 # el BAC × el %. El AC se carga a mano.
 
@@ -105,7 +107,8 @@ moneda = "EUR"
 # Decimales en los montos del libro (0 a 4).
 decimales = 0
 
-# Título del informe (Cuadro de Mando y Resumen). Si se omite, se usa el nombre
+# Título del informe (Cuadro de Mando, Resumen y documento de generar-fichas).
+# Si se omite, se usa el nombre
 # del proyecto en MS Project (con varios archivos, los nombres unidos con "+").
 # titulo = "Programa de ejemplo"
 
@@ -196,8 +199,8 @@ reparto_por_defecto = 50
 
 # Varios archivos de MS Project en un mismo libro (ver docs/varios-archivos.md).
 # Sin secciones [[proyectos]], el archivo se indica con --origen (un solo archivo).
-# Con ellas, 'generar' y 'actualizar' leen todos los archivos y no se indica
-# --origen. Los códigos EDT no se deben repetir entre archivos (por ejemplo,
+# Con ellas, 'validar', 'generar', 'actualizar' y 'generar-fichas' leen todos los
+# archivos y no se indica --origen. Los códigos EDT no se deben repetir entre archivos (por ejemplo,
 # 1.0.0 a 8.0.0 en un archivo y 9.0.0 en otro). Una sección por archivo:
 #   nombre        nombre corto y fijo del archivo en el libro (no se debe cambiar)
 #   origen        archivo .mpp o .xml; las rutas relativas se toman desde la

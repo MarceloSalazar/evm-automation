@@ -3,6 +3,7 @@
     python evm_export.py generar    --origen proyecto.mpp --salida EVM.xlsx
     python evm_export.py actualizar --origen proyecto.mpp --libro EVM.xlsx --fecha-corte 2026-10-31
     python evm_export.py validar    --origen proyecto.mpp
+    python evm_export.py analizar   --libro EVM.xlsx
     python evm_export.py generar-fichas --origen proyecto.mpp --salida Fichas.md
 """
 from __future__ import annotations
@@ -440,7 +441,7 @@ def build_parser() -> argparse.ArgumentParser:
                         help="forma de lectura (por defecto según la extensión)")
         sp.add_argument("--linea-base", type=int, choices=range(0, 11), metavar="N",
                         help="línea base a usar: 0 = Línea base, 1..10 = Línea base N")
-        sp.add_argument("--nivel-max", type=int, help="nivel máximo del código EDT (por defecto 3)")
+        sp.add_argument("--nivel-max", type=int, help="nivel máximo del código EDT (por defecto, nivel_maximo de la configuración: 3)")
         sp.add_argument("--planificacion", metavar="CODIGO",
                         help="código EDT de la planificación a exportar, p. ej. INTERNO o CLIENTE (reemplaza el "
                              "valor del archivo de configuración; \"\" = todas)")
@@ -449,8 +450,8 @@ def build_parser() -> argparse.ArgumentParser:
     g = sub.add_parser("generar", help="crea el libro Excel con el PV mensual a partir de MS Project")
     common_source(g)
     g.add_argument("--salida", help="libro .xlsx a crear (por defecto <origen>_EVM.xlsx)")
-    g.add_argument("--mes-inicio", help="primer mes del horizonte, AAAA-MM (por defecto el inicio de la línea base)")
-    g.add_argument("--meses", type=int, help="cantidad de meses (por defecto 120)")
+    g.add_argument("--mes-inicio", help="primer mes del horizonte, AAAA-MM (por defecto, mes_inicio de la configuración o el inicio de la línea base)")
+    g.add_argument("--meses", type=int, help="cantidad de meses (por defecto, meses de la configuración: 120)")
     g.add_argument("--migrar-desde", help="libro anterior del que se copian el BAC, el %% ganado y el AC ya cargados")
     g.add_argument("--sobrescribir", action="store_true", help="reemplaza el libro de salida si existe")
     g.set_defaults(func=cmd_generar)

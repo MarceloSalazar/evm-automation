@@ -43,9 +43,9 @@ cronograma de las secciones [1.2](#12-avance-a-la-fecha-de-estado-validar) y
 | Códigos EDT duplicados (`Error`) | Por ejemplo, si no se eligió una planificación y ambas usan los mismos códigos. Se revisan todas las tareas exportadas, también las de nivel mayor al máximo. |
 | Fin anterior al comienzo (`Error`), en la línea base (*Fin previsto* y *Comienzo previsto*) o en el programa actual (*Fin* y *Comienzo*); tarea sin *Comienzo* o sin *Fin* | Corregir las fechas en MS Project (las tareas programadas manualmente pueden quedar sin fechas). |
 | Hito con duración; tarea con duración 0 que no está marcada como hito | Un hito pone todo su % planificado en el mes de su fecha de fin; una tarea con duración 0 que no es hito no pesa en el % planificado. Corregir la marca de hito (*Información de la tarea > Avanzado*) o la duración. Se revisa si MS Project informa la duración (siempre con `.mpp` y con el XML que guarda MS Project). |
-| Duraciones estimadas (con `?`, por ejemplo `5 días?`) y tareas programadas manualmente (`Info`) | Confirmar la duración: define el % planificado. Las tareas manuales no se reprograman cuando cambian sus predecesoras. |
+| Duraciones estimadas (`Advertencia`; con `?`, por ejemplo `5 días?`) y tareas programadas manualmente (`Info`) | Confirmar la duración: define el % planificado. Las tareas manuales no se reprograman cuando cambian sus predecesoras. |
 | `Peso hito` en una tarea que no es un hito o en una tarea resumen; el campo `Peso hito` existe, pero ningún hito tiene peso | El peso solo se usa en los hitos de detalle; si ningún hito tiene peso, revisar `[campos] peso_hito`. |
-| Método `Hitos ponderados` en una fila sin hitos (`Advertencia`), con hitos sin peso (`Info`) o con algunos hitos sin peso (`Info`) | Sin hitos, el % ganado se calcula con el *% físico completado*; los hitos sin peso pesan igual o no suman ([Métodos de medición](metodos-de-medicion.md#33-hitos-ponderados)). |
+| Método `Hitos ponderados` en una fila sin hitos (`Advertencia`), con hitos sin peso (`Info`) o con algunos hitos sin peso (`Info`) | Sin hitos, el % ganado se calcula con el *% físico completado* si alguna tarea lo tiene registrado y, si no, con el *% completado*; los hitos sin peso pesan igual o no suman ([Métodos de medición](metodos-de-medicion.md#33-hitos-ponderados)). |
 | Método no reconocido (por ejemplo `60/30`); subtareas con otro método en MS Project; fila sin método cuyas subtareas sí tienen | El método se indica en la tarea de la fila (paquete de trabajo) con uno de los métodos admitidos ([Métodos de medición](metodos-de-medicion.md)). |
 | Método `0/100` en un paquete de más de `meses_0_100` meses (1 por defecto) o `50/50`, `25/75`, `20/80` en uno de más de `meses_formula_fija` meses (2) | Con esos métodos el EV queda en 0 (o en el % inicial) hasta que el paquete termina. Dividir el paquete o usar un método de avance; los umbrales se ajustan en [`[validacion]`](configuracion.md#claves). |
 | Campo de método o de empresa que existe, pero está vacío en todas las tareas | Revisar el nombre o el alias del campo en la configuración. |
@@ -73,6 +73,9 @@ cronograma de las secciones [1.2](#12-avance-a-la-fecha-de-estado-validar) y
 `actualizar` informa sus controles en pantalla: filas con % ganado y sin BAC, filas cuya tarea ya no
 existe o está inactiva, tareas con código EDT sin fila en el libro, cambios del campo `Visible` y celdas
 sin la fórmula del libro ([Cálculo del PV y el EV](calculo-pv-ev.md#14-controles-y-validaciones)).
+
+Las observaciones de `--migrar-desde` y los recordatorios del BAC y de la depuración de costes solo
+aparecen en la hoja `Validación` de `generar`.
 
 ### 1.2 Avance a la fecha de estado (validar)
 
@@ -158,11 +161,11 @@ cuando cambia el avance.
 | `El archivo de configuración ... no está guardado en UTF-8` | Se debe guardar con codificación UTF-8 (en el Bloc de notas: *Guardar como*, *Codificación: UTF-8*). |
 | `El proyecto no tiene fecha de estado` | Se debe definir la fecha de estado en MS Project o indicar `--fecha-corte`. |
 | `contiene el número ... guardado como texto` | Se debe escribir ese valor como número en Excel, o ejecutar `actualizar`, que lo convierte. |
-| `La celda ... tiene una fórmula sin valor calculado` | Se debe abrir y guardar el libro en Excel, o reemplazar la fórmula de esa celda de ingreso por un número. |
+| `La celda ... tiene una fórmula sin valor numérico calculado` | Se debe abrir y guardar el libro en Excel, o reemplazar la fórmula de esa celda de ingreso por un número. |
 | La curva no muestra EV/AC | Se debe completar la fecha de corte en `Resumen!B5`. |
 | `No se encontró la planificación ...` | El mensaje lista las tareas de nivel superior con su código EDT; se debe indicar en `planificacion` uno de esos códigos. `validar` lo informa y revisa el proyecto completo. |
 | `El código EDT no depende del de su tarea superior ...` | El código de la tarea no empieza por el de su tarea resumen con código EDT, o no tiene un nivel más (se esperaba `1.2.x` bajo `1.2.0`). Se debe corregir el código en MS Project. |
-| `validar` termina con código 1 | Encontró errores (`[X]`); con solo advertencias termina con código 0. |
+| `validar` termina con código 1 o 2 | Código 1: encontró errores (`[X]`); con solo advertencias termina con código 0. Código 2: no pudo leer la configuración o el archivo de MS Project (`ERROR: ...`). |
 | El libro solo muestra los elementos de primer nivel (`1.0.0`, `2.0.0`...) | Se debe revisar que el campo indicado en `[campos] edt` contenga los códigos EDT de todas las tareas. El nivel se toma del código EDT. |
 | Todas las filas tienen método `Por definir` | Se debe revisar `[campos] metodo` (nombre del campo o su alias) y que el campo esté completo en las tareas de nivel 3. |
 | El EV de una fila con `Hitos ponderados` no avanza | Los hitos deben ser subtareas de la fila con duración 0 y marcarse al 100 % al cumplirse ([Métodos de medición](metodos-de-medicion.md#33-hitos-ponderados)). |

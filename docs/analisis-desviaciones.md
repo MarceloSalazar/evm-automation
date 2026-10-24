@@ -49,7 +49,8 @@ menor que `amarillo_inferior` o mayor que `amarillo_superior` (0,95 y 1,05 por d
 - Con [varios archivos de MS Project](varios-archivos.md), se listan los paquetes de todos los
   archivos.
 
-La pantalla también muestra la lista al terminar `actualizar`, incluso con `--simular`:
+La pantalla también muestra la lista al terminar `actualizar`, incluso con `--simular` (ejemplo a junio
+de 2027, el de [Comandos](comandos.md#actualizar-carga-el--ganado-del-mes)):
 
 ```text
 Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05): 13 (hoja 'Análisis de desviaciones')
@@ -157,12 +158,15 @@ práctica ([Configuración](configuracion.md#ejemplos)).
 
 **¿Por qué aparece un paquete de nivel de esfuerzo (LOE) con SPI 1?** Porque su CPI está fuera del rango
 verde: el SPI de un paquete LOE siempre es 1, pero su costo puede desviarse. En el ejemplo, los paquetes
-de gestión tienen CPI de 1,08 a 1,10 en diciembre de 2027 porque su costo real es menor que el
-planificado.
+LOE de gestión (`1.1.1` a `1.1.3` y `1.2.3`) tienen CPI de 1,08 a 1,10 en diciembre de 2027 porque su
+costo real es menor que el planificado.
 
 **¿Qué pasa si borro una fila del análisis?** Si el paquete sigue fuera de umbral en el mes de corte,
 vuelve a aparecer (sin texto) la próxima vez que se ejecute `actualizar` o `analizar` para ese mes.
 
-**¿Se puede analizar un mes anterior?** `actualizar` con la fecha de corte de ese mes (y `--forzar` si hay
-meses posteriores cargados) vuelve a calcular la lista de ese mes, y conserva su texto. Las filas sin
-texto de los demás meses se eliminan.
+**¿Se puede analizar un mes anterior?** Para ver sus valores basta con elegirlo como mes de reporte en el
+`Cuadro de Mando`. Para volver a calcular su lista, `actualizar` con la fecha de corte de ese mes (y
+`--forzar` si hay meses posteriores cargados) la recalcula y conserva su texto, pero también vuelve a
+escribir el % ganado de ese mes con el avance que tiene el archivo de MS Project: se debe usar el
+archivo (o el XML) guardado en ese cierre y, después, volver a ejecutar `actualizar` con la última fecha
+de corte. Las filas sin texto de los demás meses se eliminan.

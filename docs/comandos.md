@@ -13,6 +13,7 @@ python evm_export.py --help
 python evm_export.py validar --help
 python evm_export.py generar --help
 python evm_export.py actualizar --help
+python evm_export.py analizar --help
 python evm_export.py generar-fichas --help
 ```
 
@@ -38,9 +39,9 @@ observaciones agrupadas por tema. **No crea ni modifica ningún archivo.** Revis
   `1.2.1`, `1.2.2`...; `1.14.2` es un error), su formato, los niveles salteados, el orden y los
   duplicados;
 - las fechas y la duración: tareas sin línea base, fechas invertidas, hitos con duración, tareas con
-  duración 0 que no son hitos, duraciones estimadas y tareas manuales;
-- los pesos de los hitos, el método de medición (también frente a la duración del paquete) y las
-  empresas.
+  duración 0 que no son hitos, duraciones estimadas y tareas programadas manualmente;
+- los pesos de los hitos, el campo `Visible`, el método de medición (también frente a la duración del
+  paquete) y las empresas.
 
 Además, revisa dos aspectos del cronograma que no afectan al libro:
 
@@ -57,13 +58,14 @@ recomienda ejecutar `validar` antes de `generar` y antes de cada `actualizar`.
 | Opción | Descripción |
 |---|---|
 | `--origen`, `--config`, `--motor`, `--planificacion`, `--linea-base`, `--nivel-max`, `--visible` | Igual que en `generar`. Con varios archivos (`[[proyectos]]`) se revisan todos. |
-| `--fecha-corte AAAA-MM-DD` | Fecha de estado con la que se revisa el avance. Por defecto, la fecha de estado de cada archivo. Sin fecha de estado, solo se revisa la coherencia de las fechas reales. |
+| `--fecha-corte AAAA-MM-DD` | Fecha de corte (fecha de estado) con la que se revisa el avance. Por defecto, la fecha de estado de cada archivo. Sin fecha de estado, solo se revisa la coherencia de las fechas reales. |
 | `--todas` | Muestra todas las observaciones. Por defecto, hasta 20 por tema. |
 
 Si la planificación indicada no existe, o si dos archivos de `[[proyectos]]` tienen el mismo código
 EDT (casos en los que `generar` se detiene), `validar` lo informa como error y revisa lo que puede. El
 programa termina con código 1 si encuentra errores y con 0 si no los hay (aunque haya advertencias),
-para usarlo en procesos automáticos.
+para usarlo en procesos automáticos. Si no puede leer la configuración o el archivo de MS Project,
+termina con código 2.
 
 Ejemplo de salida con el avance simulado del proyecto de ejemplo a junio de 2027 (`config.toml` del
 [tutorial](ejemplo-paso-a-paso.md#2-configuración); se omiten algunas líneas):
@@ -112,20 +114,20 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 
 | Opción | Descripción |
 |---|---|
-| `--origen` | Archivo `.mpp` (requiere MS Project), `.xml` de MS Project, o `activo` para usar el proyecto abierto en MS Project. **Obligatoria**, salvo con varios archivos (`[[proyectos]]` en la configuración): en ese caso se omite, o se indica `NOMBRE=RUTA` para reemplazar la ruta de un archivo ([Varios archivos](varios-archivos.md)). |
-| `--salida` | Libro `.xlsx` a crear. Por defecto `<origen>_EVM.xlsx`; obligatoria con varios archivos. |
+| `--origen` | Archivo `.mpp` (requiere MS Project), `.xml` de MS Project, o `activo` para usar el proyecto abierto en MS Project. **Obligatoria**, salvo con varios archivos (`[[proyectos]]` en la configuración): en ese caso se omite, o se indica `NOMBRE=RUTA` para reemplazar la ruta de un archivo ([Varios archivos](varios-archivos.md)). `NOMBRE=RUTA` se puede repetir; una ruta relativa se toma desde la carpeta actual (no desde la del archivo de configuración). |
+| `--salida` | Libro `.xlsx` a crear. Por defecto `<origen>_EVM.xlsx` (con `--origen activo`, `EVM.xlsx` en la carpeta actual); obligatoria con varios archivos. |
 | `--config` | Archivo de configuración TOML ([Configuración](configuracion.md)). |
-| `--mes-inicio AAAA-MM` | Primer mes del horizonte (mes 1). Por defecto, el mes en que comienza la línea base. |
-| `--meses N` | Cantidad de meses (columnas). Por defecto 120. |
+| `--mes-inicio AAAA-MM` | Primer mes del horizonte (mes 1). Por defecto, `mes_inicio` de la configuración o, si no se indica, el mes en que comienza la línea base. |
+| `--meses N` | Cantidad de meses (columnas). Por defecto, `meses` de la configuración (120). |
 | `--planificacion CODIGO` | Código EDT de la planificación a exportar (`INTERNO`, `CLIENTE`...). Reemplaza el valor del archivo de configuración; `""` exporta todas. Con varios archivos no se admite: la planificación se indica en cada `[[proyectos]]`. |
 | `--linea-base N` | 0 = Línea base, 1..10 = Línea base N. Por defecto, la que el proyecto usa para el valor acumulado. Con varios archivos no se admite: se indica en cada `[[proyectos]]`. |
-| `--nivel-max N` | Nivel máximo del código EDT. Por defecto 3. |
+| `--nivel-max N` | Nivel máximo del código EDT. Por defecto, `nivel_maximo` de la configuración (3). |
 | `--motor auto\|com\|xml` | Forma de lectura. `auto` decide por la extensión. |
 | `--migrar-desde libro.xlsx` | Copia al libro nuevo el BAC ingresado, el % ganado y el AC ya cargados, los métodos editados en la columna C, el análisis de desviaciones y la fecha de corte de un libro anterior ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). Con depuración de costes, también la previsión pegada en `PV-depuración` ([Depuración de costes](depuracion-costes.md#8-ciclo-de-ajuste)). |
 | `--sobrescribir` | Reemplaza el libro de salida si ya existe. |
-| `--visible` | Muestra MS Project mientras se lee (solo COM). |
+| `--visible` | Muestra la ventana de MS Project mientras se lee (solo COM). No tiene relación con el campo `Visible`. |
 
-Ejemplo de salida con el proyecto de ejemplo:
+Ejemplo de salida con el proyecto de ejemplo (se omiten algunas líneas):
 
 ```text
 Leyendo ejemplos/programa_ejemplo.xml ...
@@ -140,6 +142,8 @@ Proyecto: Programa de ejemplo EVM
   [i] Se omitió 1 tarea sin código EDT que no depende de ningún elemento EDT: no forma parte de ninguna fila del libro.
   [i] 14 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.
   [i] 1 fila sin método de medición definido (columna C).
+  [!] 1.2.1 Licitación de ingeniería: Método 0/100 en un paquete de 3,6 meses (línea base), más de 1: el EV queda en 0 hasta que termina. Se recomienda dividir el paquete o usar un método de avance (% completado, hitos ponderados). Umbral: [validacion] meses_0_100.
+  ...
 Libro generado: ...\EVM_Ejemplo.xlsx
 ```
 
@@ -162,8 +166,9 @@ python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config con
 | `--simular` | Muestra el EV calculado para cada fila y los indicadores resultantes, sin modificar el libro. |
 | `--forzar` | Permite actualizar aunque haya valores en meses posteriores. Esos meses no se recalculan: se avisa cuáles quedaron con un acumulado que ya no coincide con MS Project, para revisarlos o volver a cargarlos en orden. |
 | `--sin-respaldo` | No crea la copia `<libro>.respaldo-AAAAMMDD-HHMMSS.xlsx` (si ya existe una con ese nombre, se agrega `-2`, `-3`...). |
-| `--config`, `--motor`, `--linea-base`, `--nivel-max`, `--visible` | Igual que en `generar`. |
-| `--planificacion` | No se aplica: `actualizar` usa siempre la planificación con la que se generó el libro (y lo advierte si la configuración indica otra). |
+| `--config`, `--motor`, `--visible` | Igual que en `generar`. |
+| `--linea-base N` | Igual que en `generar`. Debe ser la misma línea base con la que se generó el libro: sus duraciones definen el peso de cada tarea en el % ganado. |
+| `--planificacion`, `--nivel-max` | No se aplican: `actualizar` usa siempre la planificación y el nivel máximo con los que se generó el libro (si la configuración indica otra planificación, lo advierte). |
 
 - Escribe el % ganado del mes en la hoja `% EV` (el EV es el BAC × ese %). No modifica el AC, que se
   carga a mano en la hoja `AC` (en multi-empresa, en `AC-EmpresaA` y `AC-EmpresaB`), antes o después de
@@ -275,7 +280,7 @@ como predecesora y la de `1.2.1` muestra `1.2.3` como sucesora.
 
 | Opción | Descripción |
 |---|---|
-| `--salida` | Archivo `.md` a crear. Por defecto `<origen>_fichas.md`; obligatoria con varios archivos. |
+| `--salida` | Archivo `.md` a crear. Por defecto `<origen>_fichas.md` (con `--origen activo`, `Fichas.md` en la carpeta actual); obligatoria con varios archivos. |
 | `--sobrescribir` | Reemplaza el archivo de salida si ya existe. |
 | `--origen`, `--config`, `--motor`, `--planificacion`, `--linea-base`, `--nivel-max`, `--visible` | Igual que en `generar`. Con varios archivos (`[[proyectos]]`) se crea un solo documento con las fichas de todos, en el orden del libro. |
 

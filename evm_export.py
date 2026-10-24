@@ -1,6 +1,6 @@
 """Punto de entrada: python evm_export.py <comando> [opciones]
 
-Comandos: generar y actualizar. El detalle se obtiene con --help.
+Comandos: validar, generar, actualizar, analizar y generar-fichas. El detalle se obtiene con --help.
 """
 from evm.cli import main
 

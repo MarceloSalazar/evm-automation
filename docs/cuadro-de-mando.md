@@ -47,7 +47,7 @@ La hoja se imprime en vertical, en una página de ancho, lista para adjuntar al 
 ## 2. Mes de reporte y método EAC
 
 **Mes de reporte (`E5`).** El desplegable ofrece los meses hasta la fecha de corte de la hoja
-`Resumen`. `actualizar` lo fija en el mes de corte. Para revisar un informe anterior se elige otro mes:
+`Resumen`. `actualizar` (y `analizar`) lo fijan en el mes de corte. Para revisar un informe anterior se elige otro mes:
 todos los valores, la tabla por elemento EDT y la línea vertical del gráfico de evolución pasan a ese
 mes.
 
@@ -80,7 +80,7 @@ las diferencias en el informe.
 |---|---|---|
 | CV, CV % | EV − AC; CV / EV | < 0: sobrecosto. |
 | SV, SV % | EV − PV; SV / PV | < 0: atraso (en valor, no en tiempo). |
-| CPI | EV / AC | < 1: cada euro gastado produce menos de un euro de trabajo planificado. |
+| CPI | EV / AC | < 1: cada euro gastado produce menos de un euro de valor ganado (trabajo realizado, valorado a precio de presupuesto). |
 | SPI | EV / PV | < 1: se realizó menos trabajo que el planificado. |
 | ETC | EAC − AC | Costo estimado para terminar. |
 | EAC | Según el método elegido | Costo estimado a la conclusión. |
@@ -107,8 +107,8 @@ muestra los umbrales con que se generó el libro:
 - El TCPI usa solo los umbrales inferiores: un TCPI menor que 1 indica que alcanza con una eficiencia
   menor que la lograda hasta ahora, y no es una alerta.
 
-Mientras no hay AC cargado (el AC se ingresa a mano en la hoja `AC`), los indicadores de costo (CV,
-CPI, ETC, EAC, VAC y TCPI) quedan vacíos.
+Mientras no hay AC cargado (el AC se ingresa a mano en la hoja `AC`), los indicadores de costo del
+`Cuadro de Mando` (CV, CPI, ETC, EAC, VAC y TCPI) quedan vacíos.
 
 ![Cabecera e indicadores del Cuadro de Mando](img/excel/cdm-indicadores.png)
 
@@ -125,7 +125,7 @@ o el mes de reporte.
 | Gráfico | Contenido | Qué observar |
 |---|---|---|
 | **Evolución EVM** | PV, EV y AC acumulados y BAC. El PV abarca hasta el fin del plan (o hasta la fecha de corte, si es posterior); EV y AC, hasta el mes de reporte, marcado con una línea vertical. | La distancia vertical entre EV y PV es el SV; entre EV y AC, el CV. Si la curva AC queda por encima de EV, hay sobrecosto. |
-| **Evolución de CPI y SPI** | CPI y SPI acumulados mes a mes hasta la fecha de corte, sobre las zonas del semáforo (de abajo hacia arriba: roja, amarilla, verde, amarilla y roja) y la línea objetivo 1,00. | Tendencia más que valor puntual. En los primeros meses los índices acumulados oscilan mucho porque los montos son pequeños (en el ejemplo, de enero a agosto de 2026). |
+| **Evolución de CPI y SPI** | CPI y SPI acumulados mes a mes hasta el mes de reporte (el eje abarca hasta la fecha de corte), sobre las zonas del semáforo (de abajo hacia arriba: roja, amarilla, verde, amarilla y roja) y la línea objetivo 1,00. | Tendencia más que valor puntual. En los primeros meses los índices acumulados oscilan mucho porque los montos son pequeños (en el ejemplo, de enero a agosto de 2026). |
 
 ![Desempeño por elemento EDT](img/excel/cdm-cpi-spi-edt.png)
 
@@ -182,8 +182,9 @@ PV = BAC). El **Cronograma Ganado** mide el atraso en meses:
 preveía ese valor a los 22,56 meses: ES = 22,56, SV(t) = −1,44 meses y SPI(t) = 0,94. Con una duración
 planificada de 58 meses, la duración estimada es 58 / 0,94 ≈ 62 meses.
 
-Si la curva PV no alcanza el BAC dentro del horizonte, la duración planificada y el Cronograma Ganado
-quedan vacíos; en ese caso se debe aumentar `meses`.
+Si la curva PV no alcanza el BAC dentro del horizonte, la duración planificada, la duración estimada y
+el término estimado quedan vacíos (el ES, el SV(t) y el SPI(t) se calculan igual); en ese caso se debe
+aumentar `meses`.
 
 ---
 

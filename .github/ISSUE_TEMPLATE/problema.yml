@@ -14,7 +14,7 @@ body:
     attributes:
       label: Qué ocurrió
       description: Descripción del problema y qué se esperaba que ocurriera.
-      placeholder: Al ejecutar actualizar con la fecha de corte de octubre, el AC del paquete 2.1.3 queda en cero, aunque en MS Project el costo real es...
+      placeholder: Al ejecutar actualizar con la fecha de corte de octubre, el % ganado del paquete 2.1.3 queda en 0, aunque en MS Project sus tareas tienen un 40 % completado...
     validations:
       required: true
   - type: textarea
@@ -44,15 +44,15 @@ body:
     id: version
     attributes:
       label: Versión del programa
-      description: Resultado de `python evm_export.py --version`.
-      placeholder: evm_export 1.5.0
+      description: Resultado de `python evm_export.py --version` (con el instalador de Windows, `evm_export --version`).
+      placeholder: evm_export 2.2.0
     validations:
       required: true
   - type: input
     id: python
     attributes:
       label: Versión de Python
-      description: Resultado de `python --version`.
+      description: Resultado de `python --version` (no aplica con el instalador de Windows).
       placeholder: Python 3.14.8
   - type: dropdown
     id: origen
@@ -81,7 +81,10 @@ body:
         - Multi-empresa
         - Varios archivos de MS Project ([[proyectos]])
         - --migrar-desde
-        - AC cargado a mano (--solo ev, analizar)
+        - Campo Visible
+        - Depuración de costes
+        - analizar (AC cargado después de actualizar)
+        - generar-fichas
         - Ninguna de las anteriores
   - type: checkboxes
     id: confirmaciones

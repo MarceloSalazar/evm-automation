@@ -8,7 +8,7 @@ El PV y el EV son el **BAC que se ingresa en el libro** multiplicado por ese %. 
 
 > Las versiones 1.x calculaban el PV y el BAC con los costos cargados en MS Project y podían leer el
 > costo real. Esa forma de cálculo se eliminó en la versión 2.0.0: para usarla se debe instalar la versión
-> 1.5.1. Los libros generados con la versión 1.x no se pueden actualizar con la 2.0.0.
+> 1.5.1. Los libros generados con la versión 1.x no se pueden actualizar con la versión 2.x.
 
 ---
 
@@ -64,7 +64,7 @@ AC del mes = se ingresa a mano                        (hoja AC)
 - El PV y el EV son **fórmulas de Excel**: al escribir o cambiar el BAC de una fila, se recalculan
   todos sus meses.
 - El BAC y el AC deben estar en la **misma base** (por ejemplo, ambos a precio de contrato), para que el
-  CPI compare valores comparables.
+  CPI compare magnitudes homogéneas.
 
 Así, el cronograma se puede **compartir** (con el cliente o entre las empresas que ejecutan el proyecto)
 sin importes, y el presupuesto de cada paquete puede venir de otra fuente (contrato, oferta, presupuesto
@@ -82,8 +82,8 @@ cálculo:
 | Código EDT | Cada fila del libro es un elemento EDT hasta el nivel máximo, o el detalle que indique el campo `Visible` de cada tarea ([sección 3](#3-filas-del-libro)). |
 | Línea base | Guardada (*Proyecto > Establecer línea base*): el % planificado usa sus **fechas**. |
 | Tareas de detalle | Su **duración** define su peso dentro del paquete: conviene que las tareas representen el trabajo del paquete. Una tarea larga de poco valor pesa más que una corta de mucho valor. |
-| Hitos | Con el campo `Peso hito` (*Número1*): el % del BAC del paquete que se gana al cumplir el hito ([sección 4](#4--planificado-peso-de-cada-tarea)). |
-| Método de medición | Campo `Método EVM` (*Texto10*) ([Métodos de medición](metodos-de-medicion.md)). |
+| Hitos | Con el campo `Peso hito` (*Número1*), que se indica en `[campos] peso_hito`: el % del BAC del paquete que se planifica en el mes del hito ([sección 4](#4--planificado-peso-de-cada-tarea)). Cómo cuenta en el % ganado depende del método ([sección 6](#6--ganado-métodos-de-medición)). |
+| Método de medición | Campo `Método EVM` (*Texto10*), que se indica en `[campos] metodo` ([Métodos de medición](metodos-de-medicion.md)). |
 | Avance | *% completado*, *% físico completado*, comienzo y fin reales, y la fecha de estado. |
 | Multi-empresa | Columnas `Empresa` y `% Reparto` ([sección 10](#10-multi-empresa)). |
 
@@ -205,8 +205,10 @@ Ejemplo con `nivel_maximo = 3`:
 **BAC y AC de lo que queda fuera.** El BAC y el AC que se ingresan en el libro no deben incluir las
 tareas con `No`.
 
-El campo se aplica al generar el libro. Si `Visible` cambia después, el libro conserva sus filas
-(`actualizar` lo informa) y se debe regenerar con `--migrar-desde`:
+El campo se aplica al generar el libro. Si `Visible` cambia después, el libro conserva sus filas y su %
+planificado, pero `actualizar` usa el valor actual para el % ganado: una subtarea que pasa a `No` deja
+de contar en el avance de su paquete (y una que deja de tener `No` vuelve a contar). Si el cambio afecta
+a las filas, `actualizar` lo informa. Para aplicarlo se debe regenerar el libro con `--migrar-desde`:
 - el historial de las filas cuyas subtareas pasan todas a `No` se suma en la fila que las representa;
 - el de una fila que queda fuera del cálculo, o de un paquete que se divide por un `Sí` nuevo, no se
   puede trasladar y se informa en `Validación` para cargarlo a mano
@@ -222,8 +224,10 @@ Las tareas sin código EDT no tienen fila propia. Si dependen de un elemento EDT
 elemento:
 
 - dentro de un paquete de nivel 3, del propio paquete;
-- directamente bajo un elemento de nivel 1 o 2, de la fila `<código>-D Otras tareas de «tarea»`, que
-  tiene su propio BAC.
+- directamente bajo una fila resumen (de nivel 1 o 2, o de nivel 3 que pasa a ser subtotal por un
+  `Sí`), de la fila `<código>-D Otras tareas de «tarea»`, que tiene su propio BAC. Esa fila reúne
+  también las tareas con código más detallado que `nivel_maximo` que dependen directamente de la fila
+  resumen.
 
 Si no dependen de ningún elemento EDT (por ejemplo, un hito suelto bajo la planificación), se omiten y
 se informan en `Validación`. Un hito sin peso no forma una fila `-D` por sí solo.
@@ -236,12 +240,12 @@ Cada tarea de detalle de la fila recibe un peso (una fracción del BAC de la fil
 
 | Tarea | Peso | Reparto en el tiempo |
 |---|---|---|
-| Tarea con duración | Su **duración laborable de la línea base**. Los pesos de las tareas se reparten el % que no tienen los hitos. | Proporcional al tiempo laborable de cada mes entre su comienzo y su fin (`distribucion = "habiles"`), o a los días corridos (`"calendario"`). |
+| Tarea con duración | Su **duración de la línea base**: el tiempo laborable entre su comienzo y su fin (`distribucion = "habiles"`, por defecto) o los días corridos (`"calendario"`). Los pesos de las tareas se reparten el % que no tienen los hitos. | Proporcional a esa misma duración en cada mes. |
 | Hito con `Peso hito` | Ese **% del BAC** de la fila. | Entero en el mes de su fecha. |
 | Hito sin peso | Ninguno: es solo un evento. | — |
 
-El calendario es el del proyecto (XML) o de lunes a viernes con los `feriados` de la configuración
-(`.mpp`).
+El calendario es el del proyecto (XML), al que se agregan los `feriados` de la configuración, o de lunes
+a viernes con esos `feriados` (`.mpp`).
 
 Casos especiales (se informan en `Validación`):
 
@@ -255,7 +259,8 @@ Casos especiales (se informan en `Validación`):
 | Tarea sin fechas de línea base (agregada después de guardarla) | Se usan sus fechas actuales y se advierte. |
 | Ninguna tarea de la fila tiene fechas | La fila no tiene % planificado: su BAC no se puede repartir en el tiempo. |
 
-**Ejemplo.** Paquete `3.2.1 Suministro de equipos`, BAC 1.000.000:
+**Ejemplo** (caso ilustrativo, con datos distintos de los del proyecto de ejemplo). Paquete
+`3.2.1 Suministro de equipos`, BAC 1.000.000:
 
 | Tarea | Duración | Peso hito | Peso | PV |
 |---|---:|---:|---:|---:|
@@ -282,9 +287,9 @@ Las filas de nivel 1 y 2 muestran el % ponderado por el BAC.*
 ## 5. Horizonte de meses y proyecto sin línea base
 
 - El libro tiene 120 columnas mensuales por defecto (10 años); se cambia con `meses` o `--meses`.
-- El **mes 1** es, por defecto, el mes de inicio de la línea base; se cambia con `mes_inicio` o
-  `--mes-inicio AAAA-MM`. Con varios archivos ([Varios archivos](varios-archivos.md)), es el primer mes
-  con % planificado de cualquiera de ellos.
+- El **mes 1** es, por defecto, el primer mes con % planificado: en general, el de inicio de la línea
+  base (con [varios archivos](varios-archivos.md), el de cualquiera de ellos). Se cambia con
+  `mes_inicio` o `--mes-inicio AAAA-MM`.
 - Si se elige un mes de inicio posterior, el % planificado de los meses anteriores se **acumula en el
   mes 1** para que la curva acumulada sea correcta.
 - El % planificado posterior al último mes no aparece en las columnas y se informa en `Validación`; en
@@ -316,7 +321,7 @@ planificado:
 | `Hitos ponderados` | Σ `Peso hito` de los hitos cumplidos / Σ pesos de todos los hitos de la fila. |
 | `% Completado` | Σ peso de cada tarea × su *% completado*. Un hito cuenta su peso cuando está cumplido. |
 | `% Físico completado` | Igual, con el *% físico completado*. |
-| `Unidades completadas` | Igual que `% Físico completado` (allí se registra unidades hechas / unidades totales). |
+| `Unidades completadas` | Igual que `% Físico completado` (en ese campo se registra el cociente unidades hechas / unidades totales). |
 | `Avance lineal (LOE)` | El % planificado acumulado a la fecha de corte (EV = PV). |
 | `Por definir` u otro texto | Se usa `% Completado` y se informa. |
 
@@ -436,8 +441,8 @@ Con `[multiempresa] activar = true` ([Multi-empresa](multiempresa.md)):
   |---|---|
   | Empresa A | Toda su duración. |
   | Empresa B | Nada. |
-  | `Ambas` | Su duración × `% Reparto`; si está vacío, 50 %. |
-  | Vacía | La de su tarea superior. |
+  | `Ambas` | Su duración × `% Reparto`; si está vacío, `reparto_por_defecto` (50 %). |
+  | Vacía | La de su tarea superior; si ninguna tiene empresa, se trata como `Ambas`. |
 
 - Un **hito** vale su `Peso hito` para cada empresa que participa en él: el `% Reparto` reparte la
   duración de las tareas, no el peso de los hitos.
@@ -447,7 +452,8 @@ Con `[multiempresa] activar = true` ([Multi-empresa](multiempresa.md)):
   y el avance de la fila completa (se informa en `Validación` y en `actualizar`).
 - El **AC** de cada empresa se carga a mano en `AC-EmpresaA` y `AC-EmpresaB`.
 
-**Ejemplo.** Paquete `3.1.1 Movimiento de tierras`:
+**Ejemplo** (caso ilustrativo, con datos distintos de los del proyecto de ejemplo). Paquete
+`3.1.1 Movimiento de tierras`:
 
 - Excavación, de la empresa A: 20 días hábiles en febrero.
 - Estructura, `Ambas` con `% Reparto` = 40: 30 días hábiles, 10 en marzo y 20 en abril.
@@ -595,7 +601,7 @@ comportamiento esperado de ese método.
 | Filas con % ganado y sin BAC | Su EV no se puede valorar hasta ingresar el BAC. Si ninguna fila tiene BAC, los indicadores quedan en 0. |
 | Fila cuya tarea ya no existe o está inactiva | La tarea se eliminó, se desactivó o cambió de UniqueID en MS Project: la fila se omite y se conservan los valores ya cargados. Si cambió la EDT, se debe regenerar el libro con `--migrar-desde` ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). |
 | Tarea con código EDT sin fila en el libro | Paquetes con código EDT agregados en MS Project después de generar el libro: su avance no se incluye en el % ganado. Se debe regenerar el libro con `--migrar-desde`. |
-| Campo `Visible` distinto de las filas del libro | `Visible` cambió después de generar el libro: el libro conserva sus filas hasta regenerarlo. |
+| Campo `Visible` distinto de las filas del libro | `Visible` cambió después de generar el libro: el libro conserva sus filas y su % planificado hasta regenerarlo; el % ganado usa el valor actual ([sección 3.3](#33-campo-visible-más-o-menos-detalle-en-cada-rama)). |
 | Libro de otro proyecto | Si el nombre del proyecto no coincide con el del libro, las filas se asocian por código EDT y se recomienda verificar los resultados. |
 | Planificación distinta | `actualizar` usa siempre la planificación con la que se generó el libro. |
 | Celdas convertidas | Celdas de ingreso con texto o fórmulas que se reemplazaron por su valor numérico. |

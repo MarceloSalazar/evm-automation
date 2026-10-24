@@ -28,13 +28,15 @@ flowchart LR
     subgraph INI["Puesta en marcha"]
         direction TB
         A1["EDT, tareas, hitos<br/>y métodos en MS Project"] --> A2["Guardar la<br/>línea base"]
-        A2 --> A3["generar<br/>% planificado"]
+        A2 --> AV["validar"]
+        AV --> A3["generar<br/>% planificado"]
         A3 --> A4["Ingresar el BAC<br/>y revisar Validación"]
     end
     subgraph MES["Cada mes"]
         direction TB
-        B1["Registrar avance"] --> B2["Fecha de estado =<br/>último día del mes"]
-        B2 --> B3["actualizar<br/>% ganado del mes<br/>y cargar el AC"]
+        B1["Fecha de estado =<br/>último día del mes"] --> B2["Registrar avance"]
+        B2 --> BV["validar"]
+        BV --> B3["actualizar<br/>% ganado del mes<br/>y cargar el AC"]
         B3 --> B4["Analizar el<br/>Cuadro de Mando"]
         B4 --> B5["Informe y<br/>acciones"]
     end
@@ -63,7 +65,7 @@ gráficos) para que el tiempo del cierre se dedique a analizar las desviaciones 
 |---|---|
 | **Jefe de Proyecto / Jefe de Programa** | Dueño del informe. Aprueba la línea base y los métodos de medición, ejecuta o supervisa `actualizar`, analiza las desviaciones y propone acciones y EAC. |
 | **Responsables de paquete** (cuentas de control) | Confirman el método y definen el criterio de medición de sus paquetes, informan el avance físico con evidencia objetiva (entregables, hitos, cantidades) y explican las desviaciones que superan los umbrales. |
-| **Planificador / Control de proyectos (PMO)** | Propone el método de medición de cada paquete. Mantiene el cronograma en MS Project: carga los métodos aprobados, registra el avance, fija la fecha de estado, guarda las líneas base aprobadas y verifica la hoja `Validación`. |
+| **Planificador / Control de proyectos (PMO)** | Propone el método de medición de cada paquete. Mantiene el cronograma en MS Project: carga los métodos aprobados, fija la fecha de estado, registra el avance, guarda las líneas base aprobadas, ejecuta `validar` y verifica la hoja `Validación`. |
 | **Finanzas / Administración** | Entrega el presupuesto (BAC) de cada paquete al comienzo y el costo real devengado del período (ERP), con la misma fecha de corte y en la misma base que el BAC, y las estimaciones de costos devengados no facturados. |
 | **Dirección / Cliente** | Recibe el informe, aprueba los cambios de línea base y las acciones correctivas. |
 
@@ -105,8 +107,9 @@ costo real y el análisis tengan un responsable claro.
 flowchart TD
     S(["Fin de mes"]) --> R1["Responsables de paquete:<br/>avance físico con evidencia"]
     S --> R2["Finanzas: costo real<br/>devengado del mes"]
-    R1 --> P1["MS Project: registrar avance<br/>(% completado, % físico,<br/>fechas reales, hitos cumplidos)"]
-    P1 --> P2["MS Project: fecha de estado =<br/>último día del mes"]
+    R1 --> P0["MS Project: fecha de estado =<br/>último día del mes"]
+    P0 --> P1["MS Project: registrar avance<br/>(% completado, % físico,<br/>fechas reales, hitos cumplidos)"]
+    P1 --> P2["validar"]
     P2 --> U1["actualizar --simular"]
     U1 --> V{"¿Observaciones<br/>razonables?"}
     V -- "No" --> P1
@@ -133,7 +136,7 @@ gantt
     tickInterval 1day
     section Datos
     Avance físico de los paquetes         :a1, 2026-02-01, 2d
-    Registro del avance en MS Project     :a2, after a1, 1d
+    Avance en MS Project y validar        :a2, after a1, 1d
     Costo real devengado (ERP)            :a3, 2026-02-01, 3d
     section Cálculo
     actualizar --simular y revisión       :b1, after a2, 1d
@@ -145,24 +148,28 @@ gantt
 
 ### 4.3 Pasos detallados
 
-1. **Registrar el avance** en MS Project con la fecha de estado del cierre: *% completado* o duración
-   real, *% físico completado*, fechas de comienzo y fin reales, hitos cumplidos al 100 %
+1. **Fijar la fecha de estado** en el último día del mes (*Proyecto > Fecha de estado*).
+2. **Registrar el avance** en MS Project a esa fecha de estado: *% completado* o duración real,
+   *% físico completado*, fechas de comienzo y fin reales, hitos cumplidos al 100 %
    ([Preparación en MS Project](preparacion-ms-project.md#7-fecha-de-estado-y-registro-del-avance)).
-2. **Reprogramar el trabajo pendiente** (mover a después de la fecha de estado el trabajo no realizado)
-   para que el cronograma siga siendo una previsión realista. Esto no cambia la línea base ni el PV.
-3. **Fijar la fecha de estado** en el último día del mes.
-4. Ejecutar **`actualizar --simular`** y revisar las observaciones por fila: métodos no definidos,
+3. **Reprogramar el trabajo pendiente** (mover a después de la fecha de estado el trabajo no realizado)
+   para que el cronograma siga siendo una previsión realista. Esto no cambia la línea base ni el PV. Si
+   se trabaja con XML, guardar el XML después de este paso.
+4. Ejecutar **`validar`** y corregir en MS Project los errores (`[X]`) y el trabajo pendiente programado
+   antes de la fecha de estado
+   ([Validaciones](validaciones-y-problemas.md#12-avance-a-la-fecha-de-estado-validar)).
+5. Ejecutar **`actualizar --simular`** y revisar las observaciones por fila: métodos no definidos,
    valores del mes negativos, tareas con código EDT sin fila en el libro y filas sin BAC.
-5. Ejecutar **`actualizar`**, cargar en la hoja `AC` (o en las de cada empresa) el costo real devengado
+6. Ejecutar **`actualizar`**, cargar en la hoja `AC` (o en las de cada empresa) el costo real devengado
    del mes que entrega Finanzas (ERP o contabilidad) y ejecutar **`analizar`** para completar la lista de
    paquetes fuera de umbral ([Análisis de desviaciones](analisis-desviaciones.md#3-cierre-mensual)).
-6. **Abrir el libro** y revisar el `Cuadro de Mando` (mes de reporte = mes de corte) e `Indicadores EDT`.
-7. **Analizar las desviaciones** de los paquetes fuera de umbral: causa, impacto en plazo y costo, y
+7. **Abrir el libro** y revisar el `Cuadro de Mando` (mes de reporte = mes de corte) e `Indicadores EDT`.
+8. **Analizar las desviaciones** de los paquetes fuera de umbral: causa, impacto en plazo y costo, y
    acción correctiva con responsable y fecha, en la hoja
    [Análisis de desviaciones](analisis-desviaciones.md), que los lista y conserva el texto de cada mes.
-8. **Revisar el EAC**: comparar los pronósticos del libro con la estimación de los responsables de
+9. **Revisar el EAC**: comparar los pronósticos del libro con la estimación de los responsables de
    paquete ([Cuadro de Mando](cuadro-de-mando.md#2-mes-de-reporte-y-método-eac)).
-9. **Emitir el informe** (el `Cuadro de Mando` se imprime en una página) y archivar una copia del libro
+10. **Emitir el informe** (el `Cuadro de Mando` se imprime en una página) y archivar una copia del libro
    del mes.
 
 > Aunque el informe sea bimestral, se recomienda registrar el estado **todos los meses**: la curva S y
@@ -183,13 +190,14 @@ flowchart TD
     C -- "Sí" --> D["MS Project: copiar la línea base<br/>vigente en Línea base N (historial)"]
     D --> E["Incorporar el cambio:<br/>tareas nuevas o modificadas"]
     E --> F["Guardar la línea base<br/>(tareas seleccionadas o proyecto)"]
-    F --> G["generar --migrar-desde<br/>libro anterior"]
+    F --> VA["validar"]
+    VA --> G["generar --migrar-desde<br/>libro anterior"]
     G --> H["Revisar Validación:<br/>historial no trasladado"]
     H --> I["Registrar fecha, motivo e<br/>importe del cambio en el informe"]
 ```
 
 - Las **tareas nuevas aprobadas** se agregan a la línea base con *Tareas seleccionadas* y *Resumir
-  líneas base: en todas las tareas de resumen*
+  líneas base: Para todas las tareas de resumen*
   ([Preparación en MS Project](preparacion-ms-project.md#6-línea-base)).
 - **No** se recomienda volver a guardar la línea base de todo el proyecto cada mes: el PV pasaría a
   coincidir con el avance real y la SV dejaría de tener sentido.
@@ -251,10 +259,10 @@ flowchart TD
 
 ## 8. Lista de control mensual
 
+- [ ] Fecha de estado = último día del mes.
 - [ ] Avance de todos los paquetes en curso registrado en MS Project, con evidencia.
 - [ ] Hitos cumplidos marcados al 100 %; hitos no cumplidos reprogramados.
 - [ ] Trabajo pendiente reprogramado después de la fecha de estado.
-- [ ] Fecha de estado = último día del mes.
 - [ ] `validar` sin errores y sin trabajo pendiente antes de la fecha de estado.
 - [ ] Costo real devengado del mes recibido de Finanzas (ERP o contabilidad).
 - [ ] `actualizar --simular` revisado: sin métodos `Por definir`, sin valores del mes negativos sin

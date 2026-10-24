@@ -18,6 +18,8 @@ venv/
 /*.xml
 *_fichas.md
 /Fichas*.md
+/config_*.toml
+/notas.md
 ~$*
 salida/
 
