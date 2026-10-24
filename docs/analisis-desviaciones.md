@@ -54,11 +54,11 @@ de 2027, el de [Comandos](comandos.md#actualizar-carga-el--ganado-del-mes)):
 
 ```text
 Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05): 13 (hoja 'Análisis de desviaciones')
-  1.1.1      Oficina de gestión del programa (PMO)     SPI  1.00  CPI  1.11
-  1.1.2      Control de proyectos y EVM                SPI  1.00  CPI  1.11
-  1.1.3      Gestión de riesgos                        SPI  1.00  CPI  1.09
-  1.2.1      Licitación de ingeniería                  SPI  0.00  CPI  0.00
-  1.2.2      Licitación de obras                       SPI  0.50  CPI  0.54
+  1.1.1      Oficina de gestión del programa (PMO)     SPI  1,00  CPI  1,11
+  1.1.2      Control de proyectos y EVM                SPI  1,00  CPI  1,11
+  1.1.3      Gestión de riesgos                        SPI  1,00  CPI  1,09
+  1.2.1      Licitación de ingeniería                  SPI  0,00  CPI  0,00
+  1.2.2      Licitación de obras                       SPI  0,50  CPI  0,54
   ...
 ```
 

@@ -544,25 +544,25 @@ hasta noviembre):
 ```text
 Fecha de corte: 31/12/2027 (mes 24 del horizonte)
 Código           EV del mes     EV acumulado
-1.1.1                33,120          748,800
+1.1.1                33.120          748.800
 1.2.1                     0                0
-2.1.2                     0          600,000
-2.2.2                29,000        1,232,500
-3.1.1               416,000        2,208,000
+2.1.2                     0          600.000
+2.2.2                29.000        1.232.500
+3.1.1               416.000        2.208.000
 ...
 Observaciones por fila:
   4.2.2 Cierre administrativo: método no definido: se usó % completado
   [i] El AC se carga a mano en la hoja 'AC'; los indicadores de costo usan los valores cargados.
 ...
-BAC (EUR)              44,210,000
-PV acumulado             12,092,032   % planificado 27.4 %
-EV acumulado             10,190,540   % completado  23.1 %
-AC acumulado             11,602,548   % gastado     26.2 %
-SV = EV - PV             -1,901,492   SPI = 0.84
-CV = EV - AC             -1,412,008   CPI = 0.88
-EAC = BAC/CPI            50,335,767   VAC = -6,125,767
-TCPI                           1.04
-ES (meses)                    22.56   AT = 24  SV(t) = -1.44  SPI(t) = 0.94
+BAC (EUR)              44.210.000
+PV acumulado             12.092.032   % planificado 27,4 %
+EV acumulado             10.190.540   % completado  23,1 %
+AC acumulado             11.602.548   % gastado     26,2 %
+SV = EV - PV             -1.901.492   SPI = 0,84
+CV = EV - AC             -1.412.008   CPI = 0,88
+EAC = BAC/CPI            50.335.767   VAC = -6.125.767
+TCPI                           1,04
+ES (meses)                    22,56   AT = 24  SV(t) = -1,44  SPI(t) = 0,94
 Simulación: no se modificó el libro.
 ```
 

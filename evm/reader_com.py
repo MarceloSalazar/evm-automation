@@ -19,8 +19,8 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from evm.config import Config
-from evm.fields import (TASK_NUMBER_IDS, TASK_TEXT_IDS, builtin_kind, is_notes_name, is_spanish_wbs_name,
-                        parse_custom_name, parse_number, same_name)
+from evm.fields import (TASK_NUMBER_IDS, TASK_TEXT_IDS, builtin_kind, fmt_number, is_notes_name,
+                        is_spanish_wbs_name, parse_custom_name, parse_number, same_name)
 from evm.model import CONSTRAINT_ASAP, LINK_FS, Link, ProjectData, Task, use_current_schedule
 
 log = logging.getLogger(__name__)
@@ -407,7 +407,7 @@ class ComSession:
             split_ref = self._resolve_field(cfg.split_field)
             if split_ref is None:
                 warnings.append(f"No se encontró el campo de reparto '{cfg.split_field}' en MS Project: las tareas "
-                                f"'{cfg.company_both}' se reparten al {cfg.split_default:g} %.")
+                                f"'{cfg.company_both}' se reparten al {fmt_number(cfg.split_default, trim=True)} %.")
 
         tasks: list[Task] = []
         any_baseline = False

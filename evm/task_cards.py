@@ -14,6 +14,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from evm.config import Config
+from evm.fields import fmt_number
 from evm.model import ProjectData, Task
 from evm.percent import calendar_for, task_dates
 from evm.wbs import KIND_RESIDUAL, Report, ReportPart, ReportRow
@@ -146,7 +147,7 @@ def _duration(c: Card) -> str:
     if c.days is None:
         return "sin datos"
     v = round(c.days, 2)
-    text = f"{v:.2f}".rstrip("0").rstrip(".").replace(".", ",")
+    text = fmt_number(v, trim=True)
     return f"{text} {'día' if v == 1 else 'días'}" + (" (hito)" if c.milestone else "")
 
 

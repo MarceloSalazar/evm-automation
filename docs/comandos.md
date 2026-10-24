@@ -196,29 +196,29 @@ Observaciones por fila:
   4.2.2 Cierre administrativo: método no definido: se usó % completado
   [i] El AC se carga a mano en la hoja 'AC'; los indicadores de costo usan los valores cargados.
 Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05): 13 (hoja 'Análisis de desviaciones')
-  1.1.1      Oficina de gestión del programa (PMO)     SPI  1.00  CPI  1.11
-  1.1.2      Control de proyectos y EVM                SPI  1.00  CPI  1.11
-  1.1.3      Gestión de riesgos                        SPI  1.00  CPI  1.09
-  1.2.1      Licitación de ingeniería                  SPI  0.00  CPI  0.00
-  1.2.2      Licitación de obras                       SPI  0.50  CPI  0.54
-  1.2.3      Administración de contratos               SPI  1.00  CPI  1.12
-  2.1.1      Estudios de terreno                       SPI  0.50  CPI  0.54
-  2.1.2      Diseño conceptual                         SPI  1.00  CPI  1.09
-  2.1.3      Ingeniería básica civil                   SPI  0.85  CPI  0.93
-  2.1.4      Ingeniería básica eléctrica               SPI  0.85  CPI  0.93
-  2.2.1      Detalle civil                             SPI  0.84  CPI  0.93
-  2.2.2      Detalle mecánico                          SPI  0.86  CPI  0.93
-  2.2.3      Detalle eléctrico y control               SPI  0.84  CPI  0.93
+  1.1.1      Oficina de gestión del programa (PMO)     SPI  1,00  CPI  1,11
+  1.1.2      Control de proyectos y EVM                SPI  1,00  CPI  1,11
+  1.1.3      Gestión de riesgos                        SPI  1,00  CPI  1,09
+  1.2.1      Licitación de ingeniería                  SPI  0,00  CPI  0,00
+  1.2.2      Licitación de obras                       SPI  0,50  CPI  0,54
+  1.2.3      Administración de contratos               SPI  1,00  CPI  1,12
+  2.1.1      Estudios de terreno                       SPI  0,50  CPI  0,54
+  2.1.2      Diseño conceptual                         SPI  1,00  CPI  1,09
+  2.1.3      Ingeniería básica civil                   SPI  0,85  CPI  0,93
+  2.1.4      Ingeniería básica eléctrica               SPI  0,85  CPI  0,93
+  2.2.1      Detalle civil                             SPI  0,84  CPI  0,93
+  2.2.2      Detalle mecánico                          SPI  0,86  CPI  0,93
+  2.2.3      Detalle eléctrico y control               SPI  0,84  CPI  0,93
 
-BAC (EUR)              44,210,000
-PV acumulado              5,895,918   % planificado 13.3 %
-EV acumulado              4,946,380   % completado  11.2 %
-AC acumulado              5,393,844   % gastado     12.2 %
-SV = EV - PV               -949,538   SPI = 0.84
-CV = EV - AC               -447,464   CPI = 0.92
-EAC = BAC/CPI            48,209,366   VAC = -3,999,366
-TCPI                           1.01
-ES (meses)                    15.98   AT = 18  SV(t) = -2.02  SPI(t) = 0.89
+BAC (EUR)              44.210.000
+PV acumulado              5.895.918   % planificado 13,3 %
+EV acumulado              4.946.380   % completado  11,2 %
+AC acumulado              5.393.844   % gastado     12,2 %
+SV = EV - PV               -949.538   SPI = 0,84
+CV = EV - AC               -447.464   CPI = 0,92
+EAC = BAC/CPI            48.209.366   VAC = -3.999.366
+TCPI                           1,01
+ES (meses)                    15,98   AT = 18  SV(t) = -2,02  SPI(t) = 0,89
 Libro actualizado: ...\EVM_Ejemplo.xlsx
 Los indicadores y los gráficos se calculan en el libro (hojas 'Cuadro de Mando', 'Resumen' e 'Indicadores EDT').
 ```

@@ -17,7 +17,8 @@ from pathlib import Path
 
 from evm import __version__
 from evm.config import Config, ConfigError, load_config, parse_date, parse_month
-from evm.wbs import SEV_ERROR, SEV_INFO, SEV_WARN, assemble_report, build_part, plural
+from evm.fields import fmt_number
+from evm.wbs import SEV_ERROR, SEV_INFO, SEV_WARN, assemble_report, build_part, fmt_money, plural
 
 log = logging.getLogger("evm")
 
@@ -182,8 +183,8 @@ def cmd_generar(args) -> int:
         lost_ac = sum(r.total("AC") for r in prior.unmatched)
         print(f"Migración desde {args.migrar_desde}: {prior.matched} filas con historial trasladado.")
         if prior.unmatched:
-            print(f"  [!] {len(prior.unmatched)} filas no se pudieron trasladar (EV {lost_ev:,.2f}, AC {lost_ac:,.2f}). "
-                  "Ver hoja 'Validación'.")
+            print(f"  [!] {len(prior.unmatched)} filas no se pudieron trasladar (EV {fmt_money(lost_ev)}, AC "
+                  f"{fmt_money(lost_ac)}). Ver hoja 'Validación'.")
     print(f"Libro generado: {salida.resolve()}")
     return 0
 
@@ -194,7 +195,7 @@ def _print_update(res, currency: str) -> None:
     print(f"Fecha de corte: {res.status_date:%d/%m/%Y} (mes {res.month_index + 1} del horizonte)")
     if res.dry_run:
         def m(v):
-            return "-" if v is None else f"{v:,.0f}"
+            return "-" if v is None else fmt_number(v, 0)
 
         company_cols = sorted({k for r in res.rows for k in r.by_company})
         print(f"{'Código':<10} {'EV del mes':>16} {'EV acumulado':>16}" + "".join(f" {k:>16}" for k in company_cols))
@@ -236,7 +237,7 @@ def _print_deviations(res, limit: int = 25) -> None:
         return
 
     def r(v):
-        return "-" if v is None else f"{v:.2f}"
+        return "-" if v is None else fmt_number(v)
 
     print(f"Paquetes fuera de umbral ({rule}): {len(found)}"
           + ("" if res.dry_run else " (hoja 'Análisis de desviaciones')"))

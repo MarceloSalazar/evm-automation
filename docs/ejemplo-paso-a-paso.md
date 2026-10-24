@@ -179,15 +179,15 @@ los indicadores; el último mes:
 ```text
 Fecha de corte: 31/12/2027 (mes 24 del horizonte)
 ...
-BAC (EUR)              44,210,000
-PV acumulado             12,092,032   % planificado 27.4 %
-EV acumulado             10,190,540   % completado  23.1 %
-AC acumulado             13,491,360   % gastado     30.5 %
-SV = EV - PV             -1,901,492   SPI = 0.84
-CV = EV - AC             -3,300,820   CPI = 0.76
-EAC = BAC/CPI            58,530,071   VAC = -14,320,071
-TCPI                           1.11
-ES (meses)                    22.56   AT = 24  SV(t) = -1.44  SPI(t) = 0.94
+BAC (EUR)              44.210.000
+PV acumulado             12.092.032   % planificado 27,4 %
+EV acumulado             10.190.540   % completado  23,1 %
+AC acumulado             13.491.360   % gastado     30,5 %
+SV = EV - PV             -1.901.492   SPI = 0,84
+CV = EV - AC             -3.300.820   CPI = 0,76
+EAC = BAC/CPI            58.530.071   VAC = -14.320.071
+TCPI                           1,11
+ES (meses)                    22,56   AT = 24  SV(t) = -1,44  SPI(t) = 0,94
 ```
 
 > `--sin-respaldo` evita crear 24 copias de respaldo durante la prueba. En el uso real conviene

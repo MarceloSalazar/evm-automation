@@ -22,7 +22,10 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Correcciones
 
-- Ninguna.
+- La consola muestra todos los números con punto de miles y coma decimal, como Excel en español:
+  indicadores de `actualizar` (`44.210.000`, `SPI = 0,84`, `27,4 %`), paquetes fuera de umbral, tabla de
+  `--simular` e importes de `--migrar-desde`. Antes se mezclaban `0,95 a 1,05` con `1.00` y
+  `44,210,000`. Los mensajes de la hoja `Validación` con importes o porcentajes usan el mismo formato.
 
 ### Otros
 

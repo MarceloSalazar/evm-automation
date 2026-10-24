@@ -123,3 +123,19 @@ def parse_number(text) -> float | None:
         return float(s)
     except ValueError:
         return None
+
+
+_SPANISH_SEPARATORS = str.maketrans(",.", ".,")
+
+
+def fmt_number(v: float, decimals: int = 2, trim: bool = False) -> str:
+    """Número para la consola y los textos, con punto de miles y coma decimal, como Excel en español.
+
+    1234567.891 -> '1.234.567,89'; trim quita los ceros decimales finales: 2.5 -> '2,5', 3.0 -> '3'.
+    """
+    if abs(v) < 0.5 / 10 ** decimals:
+        v = 0.0                                     # sin '-0,00'
+    text = f"{v:,.{decimals}f}"
+    if trim and decimals:
+        text = text.rstrip("0").rstrip(".")
+    return text.translate(_SPANISH_SEPARATORS)

@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from evm.config import Config
-from evm.fields import TASK_NUMBER_IDS, TASK_TEXT_IDS, builtin_kind, parse_custom_name, parse_number
+from evm.fields import TASK_NUMBER_IDS, TASK_TEXT_IDS, builtin_kind, fmt_number, parse_custom_name, parse_number
 import evm.reader_com as reader_com
 from evm.reader_com import PJ_DO_NOT_SAVE, ComSession, _com_date, _dt, _f
 from evm.reader_xml import XmlFormatError, read_xml
@@ -281,6 +281,16 @@ def test_unreadable_exception_warning_names_calendar_and_exception(read):
 ])
 def test_parse_number_locale_formats(text, expected):
     assert parse_number(text) == expected
+
+
+@pytest.mark.parametrize("value, decimals, trim, expected", [
+    (44210000, 0, False, "44.210.000"), (-1901492.4, 0, False, "-1.901.492"), (0.84, 2, False, "0,84"),
+    (1234.5, 2, False, "1.234,50"), (27.44, 1, False, "27,4"), (-0.004, 2, False, "0,00"),
+    (2.5, 2, True, "2,5"), (100.0, 2, True, "100"), (1000.0, 1, True, "1.000"), (1000.0, 0, True, "1.000"),
+])
+def test_fmt_number_spanish_separators(value, decimals, trim, expected):
+    # Punto de miles y coma decimal, como Excel en español; sin '-0,00'
+    assert fmt_number(value, decimals, trim) == expected
 
 
 def test_field_id_tables_and_custom_names():
