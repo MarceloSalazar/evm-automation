@@ -69,8 +69,17 @@ planificacion = "INTERNO"
 
 # Nivel máximo del código EDT que se exporta (2.0.0 = nivel 1, 2.1.0 = nivel 2,
 # 2.1.1 = nivel 3). Las tareas de nivel inferior se agregan (suman) en su
-# elemento de este nivel.
+# elemento de este nivel. Un 0 intermedio no cuenta: 1.2.0.1 es de nivel 3, hijo
+# de 1.2.0.0 (como 1.2.1.0).
 nivel_maximo = 3
+
+# Lista EDT: archivo de texto con los códigos EDT que tienen fila en el libro,
+# uno por línea (1.0.0, 1.1.0, 1.1.1, 2.0...). Se ignoran las líneas vacías, las
+# que empiezan con # y el texto que sigue al código. Reemplaza a nivel_maximo y al
+# campo Visible para decidir las filas: las tareas que no están en la lista se
+# suman en su elemento listado más cercano (ver docs/calculo-pv-ev.md). Las rutas
+# relativas se toman desde la carpeta de este archivo. Vacío = no se usa.
+# lista_edt = 'C:\Programa\edt.txt'
 
 # Línea base cuyas fechas definen el % planificado:
 # 0 = "Línea base", 1..10 = "Línea base N".

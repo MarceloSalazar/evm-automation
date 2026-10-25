@@ -63,6 +63,10 @@ BAC que se ingresa en el libro × el % planificado y el % ganado, y el AC se car
 | Predecesoras, sucesoras, vínculos FC, CC, FF y CF | Predecessors, successors, FS, SS, FF and SF links | `validar`: lógica del cronograma. `generar-fichas`: predecesoras y sucesoras de cada ficha. |
 | Posiciones (positivas o negativas, adelantos) | Lag (lead) | `validar`: esperas y adelantos en los vínculos. |
 | Delimitación (*Debe comenzar el*, *No finalizar después del*...) | Constraint (Must Start On, Finish No Later Than...) | `validar`: delimitaciones que fijan las fechas. |
+| Comienzo, Fin | Start, Finish | Cronograma vigente: el fin previsto de cada paquete. |
+| Holgura total | Total Slack | Tiempo que una tarea puede atrasarse sin atrasar el fin del proyecto (columna `Holgura` de `Indicadores EDT`, en días laborables). |
+| Crítica, camino crítico | Critical, critical path | Tareas sin holgura: su atraso atrasa el fin del proyecto (columna `Crítica`). |
+| Variación de fin | Finish Variance | Equivale al desvío de fin del libro (que se cuenta con el calendario del programa). |
 
 ---
 
@@ -82,3 +86,7 @@ BAC que se ingresa en el libro × el % planificado y el % ganado, y el AC se car
 | Mes de reporte | Mes que muestra el `Cuadro de Mando` (celda `E5`). |
 | DCMA de 14 puntos | Evaluación de calidad de cronogramas de la *Defense Contract Management Agency* de EE. UU.: `validar` usa sus criterios de lógica, delimitaciones e índice de ejecución de la línea base (BEI) ([Validaciones](validaciones-y-problemas.md#13-lógica-del-cronograma-validar)). |
 | Valor del mes | Valor de un mes, no acumulado: el % ganado que `actualizar` escribe en la hoja `% EV` (el EV del mes es el BAC × ese %) o el AC que se ingresa en la hoja `AC`. |
+| Desvío de fin | Días laborables entre el fin de la línea base y el fin previsto de una fila o del proyecto, según el cronograma de MS Project (> 0 = atraso) ([Indicadores EDT](libro-excel.md#indicadores-edt)). |
+| Mes anterior con datos | Último mes con EV cargado antes del mes de corte o de reporte: con informes bimestrales, el del informe anterior. Base de las variaciones de la tendencia. |
+| Últimos 3 meses | CPI y SPI calculados con el EV, el AC y el PV de los 3 meses que terminan en el mes de corte o de reporte: el desempeño reciente ([Cuadro de Mando](cuadro-de-mando.md#4-tendencia-y-plazo)). |
+| Lista EDT | Archivo de texto con los códigos EDT que tienen fila en el libro (`[exportacion] lista_edt`); reemplaza a `nivel_maximo` y al campo `Visible` ([Cálculo del PV y el EV](calculo-pv-ev.md#34-lista-edt-filas-definidas-en-un-archivo)). |

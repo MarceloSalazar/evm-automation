@@ -33,9 +33,10 @@ from evm.config import Config
 from evm.wbs import KIND_RESIDUAL, Report
 from evm.workbook import (C_AC, C_ACN, C_DATE, C_EV, C_EVN, C_PVC, CURVE_FIRST_ROW, CUT_MONTH_CELL, DARK,
                           FILL_GREEN, FILL_HEADER, FILL_INPUT, FILL_RED, FILL_YELLOW, FMT_DATE, FMT_RATIO,
-                          MONTHNUM_ROW, NAME_START, NAME_STATUS, SHEET_AC, SHEET_CURVE, SHEET_EV, SHEET_PV,
-                          SHEET_SUMMARY, Thresholds, _Layout, _traffic_light, col, fmt_decimal, money_format,
-                          put_text)
+                          MONTHNUM_ROW, NAME_START, NAME_STATUS, ROW_BL_FINISH, ROW_CRITICAL, ROW_ES_FINISH,
+                          ROW_FINISH, ROW_LATE, ROW_PLAN_STATUS, ROW_VARIANCE, SHEET_AC, SHEET_CURVE, SHEET_EV,
+                          SHEET_PV, SHEET_SUMMARY, Thresholds, _Layout, _traffic_light, col, fmt_decimal,
+                          loaded_month, money_format, month_sum, put_text)
 
 SHEET_DASHBOARD = "Cuadro de Mando"
 SHEET_CHARTDATA = "_graficos"
@@ -56,10 +57,17 @@ MAX_SCATTER = 200                       # Excel admite hasta 255 series por grá
 # Cuadrícula de la hoja: columnas B a U de 50 píxeles
 GRID_FIRST, GRID_LAST = 2, 21
 GRID_WIDTH = 7.140625                   # ancho que Excel muestra como 50 píxeles (Calibri 11)
-ROW_CHARTS = 25                         # gráficos 1 y 2
+ROW_CHARTS = 25                         # gráficos 1 y 2 (disposición 1; en la 2, LAYOUT_SHIFT filas más abajo)
 ROW_CHARTS_END = 44
 ROW_SCATTER = 47                        # gráfico 3 y tabla de elementos EDT
 ROW_SCATTER_END = 72
+# Disposición de la hoja: 1 = libros de versiones anteriores a la 2.3.0; 2 = con las secciones de tendencia y de
+# plazo sobre los gráficos (_meta disposicion_cuadro_mando). 'actualizar' vuelve a crear los gráficos de cada libro
+# en las filas de su disposición.
+LAYOUT = 2
+LAYOUT_SHIFT = 10
+ROW_TREND = 23                          # sección de tendencia (tarjetas en las filas 24 a 26)
+ROW_PLAN = 28                           # sección de plazo (tarjetas en las filas 29 a 31)
 
 # Hoja _graficos: parámetros (A1:B9), cuadrantes (D1:F5), serie mensual y elementos EDT (desde la fila 11).
 # Las columnas no se deben mover: 'actualizar' vuelve a crear los gráficos de libros de versiones anteriores
@@ -69,6 +77,10 @@ D_HEADER_ROW, D_FIRST_ROW = 10, 11
  M_CPI_RAW, M_SPI_RAW) = range(1, 16)
 (P_CODE, P_LEVEL, P_BAC, P_PV, P_EV, P_AC, P_CPI_RAW, P_SPI_RAW, P_CPI, P_SPI) = range(17, 27)
 M_YELLOW_HIGH, M_RED_HIGH = 27, 28
+# Tendencia (disposición 2): mes anterior con datos e inicio de los últimos 3 meses (N° de mes) y PV, EV y AC
+# acumulados en esos meses (filas 1 a 8)
+T_LABEL, T_VALUE = 30, 31
+T_PREV_N, T_BASE_N, T_PV1, T_EV1, T_AC1, T_PV3, T_EV3, T_AC3 = range(1, 9)
 
 ACCENT_BAC, ACCENT_PV, ACCENT_EV, ACCENT_AC = "7F7F7F", "1F4E79", "548235", "C00000"
 COLOR_CPI, COLOR_SPI = "1F4E79", "ED7D31"
@@ -100,6 +112,12 @@ def chart_packages(rows) -> list[ChartPackage]:
     return out
 
 
+def chart_rows(layout: int = LAYOUT) -> tuple[int, int, int, int]:
+    """Filas de los gráficos según la disposición de la hoja: (gráficos 1 y 2, su fin, gráfico 3, su fin)."""
+    shift = LAYOUT_SHIFT if layout >= 2 else 0
+    return ROW_CHARTS + shift, ROW_CHARTS_END + shift, ROW_SCATTER + shift, ROW_SCATTER_END + shift
+
+
 def chart_months(months: int, plan_end: int, cutoff: int | None) -> tuple[int, int]:
     """Meses de los gráficos: evolución EVM (hasta el fin del plan o la fecha de corte, lo último)
     y evolución de CPI y SPI (hasta la fecha de corte)."""
@@ -127,6 +145,11 @@ def _month_cum(sheet: str, row: int, lay: _Layout) -> str:
     return f'SUMIFS({months},{nums},"<="&{NAME_REPORT_N})'
 
 
+def trend_ref(row: int) -> str:
+    """Celda de la hoja _graficos con un acumulado anterior al mes de reporte (T_PV1...)."""
+    return f"'{SHEET_CHARTDATA}'!${col(T_VALUE)}${row}"
+
+
 def write_chart_data(ws, cfg: Config, lay: _Layout, packages: list[ChartPackage]) -> None:
     """Hoja oculta con los datos de los gráficos (fórmulas que dependen del mes de reporte)."""
     th = Thresholds.from_config(cfg)
@@ -151,6 +174,20 @@ def write_chart_data(ws, cfg: Config, lay: _Layout, packages: list[ChartPackage]
     for i, (label, value) in enumerate(params, start=1):
         ws.cell(row=i, column=1, value=label)
         ws.cell(row=i, column=2, value=value)
+    ws.cell(row=T_PREV_N, column=T_LABEL, value="Mes anterior con datos (N°)")
+    ws.cell(row=T_PREV_N, column=T_VALUE, value="=" + loaded_month("$B$1", 1, lay.months))
+    ws.cell(row=T_BASE_N, column=T_LABEL, value="Inicio de los últimos 3 meses (N°)")
+    ws.cell(row=T_BASE_N, column=T_VALUE, value="=" + loaded_month("$B$1", 3, lay.months))
+    for r, label, sheet, month_row in (
+            (T_PV1, "PV acumulado del mes anterior", SHEET_PV, T_PREV_N),
+            (T_EV1, "EV acumulado del mes anterior", SHEET_EV, T_PREV_N),
+            (T_AC1, "AC acumulado del mes anterior", SHEET_AC, T_PREV_N),
+            (T_PV3, "PV acumulado al inicio de los 3 meses", SHEET_PV, T_BASE_N),
+            (T_EV3, "EV acumulado al inicio de los 3 meses", SHEET_EV, T_BASE_N),
+            (T_AC3, "AC acumulado al inicio de los 3 meses", SHEET_AC, T_BASE_N)):
+        n = f"${col(T_VALUE)}${month_row}"
+        ws.cell(row=r, column=T_LABEL, value=label)
+        ws.cell(row=r, column=T_VALUE, value=f'=IF({n}="","",{month_sum(sheet, tr, lay.months, n)})')
 
     # Rótulos de los cuadrantes del gráfico CPI-SPI (series de un punto, sin marcador)
     ws.cell(row=1, column=4, value="Cuadrante")
@@ -475,16 +512,22 @@ def write_dashboard(ws, report: Report, cfg: Config, lay: _Layout, packages: lis
     for ref in (tcpi_bac, tcpi_eac):
         _tcpi_light(ws, ref.replace("$", ""), cfg)
 
-    # Gráficos (la fila 22 es más baja para compensar la escala del semáforo de la fila 17)
-    ws.row_dimensions[22].height = 5
-    _section(ws, 23, "Evolución en el tiempo")
-    ws.row_dimensions[24].height = 6
-    ws.row_dimensions[ROW_CHARTS_END].height = 10
-    _section(ws, ROW_CHARTS_END + 1, "Desempeño por elemento EDT (niveles 1 y 2) al mes de reporte")
-    ws.row_dimensions[ROW_CHARTS_END + 2].height = 6
+    ws.row_dimensions[22].height = 10
+    _trend_cards(ws, money, cfg.decimals, th, dict(bac=bac, pv=pv, ev=ev, ac=ac, cpi=cpi, spi=spi, eac=eac))
+    ws.row_dimensions[27].height = 10
+    _plan_cards(ws)
+
+    # Gráficos (la fila anterior a la sección es más baja para compensar la escala del semáforo de la fila 17)
+    charts, charts_end, scatter, scatter_end = chart_rows(LAYOUT)
+    ws.row_dimensions[charts - 3].height = 5
+    _section(ws, charts - 2, "Evolución en el tiempo")
+    ws.row_dimensions[charts - 1].height = 6
+    ws.row_dimensions[charts_end].height = 10
+    _section(ws, charts_end + 1, "Desempeño por elemento EDT (niveles 1 y 2) al mes de reporte")
+    ws.row_dimensions[charts_end + 2].height = 6
 
     # Tabla de elementos EDT (junto al gráfico CPI-SPI)
-    hr = ROW_SCATTER
+    hr = scatter
     for c1, c2, text in ((12, 13, "Código"), (14, 18, "Elemento EDT"), (19, 19, "CPI"), (20, 20, "SPI"),
                          (21, 21, "% Compl.")):
         _merge(ws, hr, c1, c2, text)
@@ -520,7 +563,7 @@ def write_dashboard(ws, report: Report, cfg: Config, lay: _Layout, packages: lis
     if packages:
         last = hr + len(packages)
         _traffic_light(ws, f"S{hr + 1}:T{last}", th)
-    note_row = max(ROW_SCATTER_END, hr + len(packages)) + 1
+    note_row = max(scatter_end, hr + len(packages)) + 1
     note = _merge(ws, note_row, GRID_FIRST, GRID_LAST,
                   f"Gráficos de índices: escala de {fmt_decimal(INDEX_MIN)} a {fmt_decimal(INDEX_MAX)}; los "
                   "valores fuera de escala se dibujan en el límite de la escala (los valores exactos están en la "
@@ -540,6 +583,63 @@ def write_dashboard(ws, report: Report, cfg: Config, lay: _Layout, packages: lis
     ws.print_options.horizontalCentered = True
     ws.page_margins.left = ws.page_margins.right = 0.4
     ws.page_margins.top = ws.page_margins.bottom = 0.5
+
+
+def _card_rows(ws, row: int) -> None:
+    ws.row_dimensions[row].height = 17
+    ws.row_dimensions[row + 1].height = 32
+    ws.row_dimensions[row + 2].height = 16
+
+
+def _trend_cards(ws, money: str, decimals: int, th: Thresholds, ref: dict) -> None:
+    """Tendencia al mes de reporte: CPI y SPI de los últimos 3 meses y variación respecto del mes anterior
+    (redondeada a los decimales que se muestran: una variación menor no se marca como mejora ni empeoramiento)."""
+    _section(ws, ROW_TREND, "Tendencia: últimos 3 meses y variación respecto del mes anterior")
+    row = ROW_TREND + 1
+    _card_rows(ws, row)
+    bac, pv, ev, ac, cpi, spi, eac = (ref[k] for k in ("bac", "pv", "ev", "ac", "cpi", "spi", "eac"))
+    prev, base, pv1, ev1, ac1, pv3, ev3, ac3 = (trend_ref(r) for r in (T_PREV_N, T_BASE_N, T_PV1, T_EV1, T_AC1,
+                                                                       T_PV3, T_EV3, T_AC3))
+    cpi3 = _card(ws, row, 2, 5, "CPI  ·  últimos 3 meses",
+                 f'=IFERROR(IF(OR({base}="",{ac}=""),"",IF({ac}-{ac3}=0,"",({ev}-{ev3})/({ac}-{ac3}))),"")',
+                 FMT_RATIO, "EV / AC de los 3 meses")
+    spi3 = _card(ws, row, 6, 9, "SPI  ·  últimos 3 meses",
+                 f'=IFERROR(IF(OR({base}="",{pv}=""),"",({ev}-{ev3})/({pv}-{pv3})),"")', FMT_RATIO,
+                 "EV / PV de los 3 meses")
+    for r in (cpi3, spi3):
+        _traffic_light(ws, r.replace("$", ""), th)
+    up_good, up_bad = '[Color10]+0.00;[Red]-0.00;0.00', f'[Red]+{money};[Color10]-{money};{money}'
+    cpi1 = f'=IFERROR(IF({prev}="","",{ev1}/{ac1}),"")'
+    spi1 = f'=IFERROR(IF({prev}="","",{ev1}/{pv1}),"")'
+    m = NAME_EAC_METHOD
+    eac1 = (f'=IFERROR(IF(OR({prev}="",{ac1}=0),"",IF({m}="{EAC_METHODS[1]}",{ac1}+{bac}-{ev1},'
+            f'IF({m}="{EAC_METHODS[2]}",{ac1}+({bac}-{ev1})/(({ev1}/{ac1})*({ev1}/{pv1})),{bac}/({ev1}/{ac1})))),"")')
+    for c1, c2, label, current, previous, fmt, prev_fmt, digits in (
+            (10, 13, "Δ CPI  ·  mes anterior", cpi, cpi1, up_good, '"Mes anterior: "0.00', 2),
+            (14, 17, "Δ SPI  ·  mes anterior", spi, spi1, up_good, '"Mes anterior: "0.00', 2),
+            (18, 21, "Δ EAC  ·  mes anterior", eac, eac1, up_bad, f'"Mes anterior: "{money}', decimals)):
+        caption = f"${col(c1)}${row + 2}"
+        _card(ws, row, c1, c2, label, f'=IFERROR(ROUND({current}-{caption},{digits}),"")', fmt, previous, prev_fmt)
+
+
+def _plan_cards(ws) -> None:
+    """Plazo según el cronograma de MS Project (valores de la hoja Resumen, de la última lectura)."""
+    _section(ws, ROW_PLAN, "Plazo según el cronograma de MS Project (última lectura)")
+    row = ROW_PLAN + 1
+    _card_rows(ws, row)
+
+    def ref(r: int) -> str:
+        cell = f"'{SHEET_SUMMARY}'!$B${r}"
+        return f'=IF({cell}="","",{cell})'
+
+    _card(ws, row, 2, 5, "Fin de línea base", ref(ROW_BL_FINISH), FMT_DATE, "Última tarea del proyecto")
+    _card(ws, row, 6, 9, "Fin previsto  ·  MS Project", ref(ROW_FINISH), FMT_DATE, ref(ROW_PLAN_STATUS),
+          '"Fecha de estado "dd/mm/yyyy')
+    _card(ws, row, 10, 13, "Desvío de fin", ref(ROW_VARIANCE), '[Red]+0" días";[Color10]-0" días";0" días"',
+          "Días laborables  ·  > 0: atraso")
+    _card(ws, row, 14, 17, "Paquetes críticos", ref(ROW_CRITICAL), "0", ref(ROW_LATE), '0" con fin atrasado"')
+    _card(ws, row, 18, 21, "Término estimado  ·  SPI(t)", ref(ROW_ES_FINISH), "mmm-yyyy",
+          "Earned Schedule al corte (Resumen)")
 
 
 def define_names(wb, lay: _Layout) -> None:
@@ -771,16 +871,18 @@ def _scatter_chart(data, packages: list[ChartPackage]):
 
 
 def add_dashboard_charts(wb, packages: list[ChartPackage], months: int, plan_end: int, cutoff: int | None,
-                         bac: float, currency: str, data_months: int = 0) -> None:
+                         bac: float, currency: str, data_months: int = 0, layout: int = LAYOUT) -> None:
     """Agrega (o vuelve a agregar) los tres gráficos de la hoja Cuadro de Mando.
 
     data_months: meses con EV o AC cargados hasta la fecha de corte (con 1 o 2, EV y AC llevan marcadores).
+    layout: disposición de la hoja (libros de versiones anteriores a la 2.3.0: 1).
     """
     ws = wb[SHEET_DASHBOARD]
     data = wb[SHEET_CHARTDATA]
     ws._charts = []  # openpyxl no conserva gráficos al reabrir: se recrean siempre
     evm_months, index_months = chart_months(months, plan_end, cutoff)
-    r1, r2 = ROW_CHARTS - 1, ROW_CHARTS_END - 1
+    charts, charts_end, scatter, scatter_end = chart_rows(layout)
+    r1, r2 = charts - 1, charts_end - 1
 
     chart = _evm_chart(data, evm_months, bac, currency, data_months)
     _frame(chart, "Evolución EVM - valores acumulados", 496, 380)
@@ -794,6 +896,6 @@ def add_dashboard_charts(wb, packages: list[ChartPackage], months: int, plan_end
 
     chart = _scatter_chart(data, packages)
     _frame(chart, "CPI vs SPI por elemento EDT", 496, 500)
-    chart.anchor = _anchor(GRID_FIRST - 1, ROW_SCATTER - 1, 10, ROW_SCATTER_END - 1, 0, 46)
+    chart.anchor = _anchor(GRID_FIRST - 1, scatter - 1, 10, scatter_end - 1, 0, 46)
     ws.add_chart(chart)
 

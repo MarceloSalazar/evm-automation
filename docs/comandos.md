@@ -23,6 +23,17 @@ ejecuta con `evm_export` en lugar de `python evm_export.py` (por ejemplo, `evm_e
 Para ver mensajes de diagnóstico se agrega `-v` **antes** del comando:
 `python evm_export.py -v generar ...`
 
+Todos los comandos muestran en la primera línea la versión del programa (`Exportador EVM 2.3.0`). En
+una consola, mientras trabajan, muestran también una barra de progreso con la tarea en curso, el % de esa
+tarea y del total, y el tiempo restante estimado:
+
+```text
+[██████░░░░░░░░░░░░░░]  31 %  Lectura de MS Project: 1.234 de 3.000 tareas (41 %)  ·  ETA 0:42
+```
+
+La barra se borra al terminar. Con la salida redirigida a un archivo (por ejemplo, en un registro
+automático) no se muestra.
+
 ---
 
 ## `validar`: revisa el archivo de MS Project
@@ -71,6 +82,7 @@ Ejemplo de salida con el avance simulado del proyecto de ejemplo a junio de 2027
 [tutorial](ejemplo-paso-a-paso.md#2-configuración); se omiten algunas líneas):
 
 ```text
+Exportador EVM 2.3.0
 Leyendo avance.xml ...
 Validación: Programa de ejemplo EVM
   Planificación: INTERNO  |  Línea base  |  Fecha de estado: 30/06/2027
@@ -121,7 +133,7 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 | `--meses N` | Cantidad de meses (columnas). Por defecto, `meses` de la configuración (120). |
 | `--planificacion CODIGO` | Código EDT de la planificación a exportar (`INTERNO`, `CLIENTE`...). Reemplaza el valor del archivo de configuración; `""` exporta todas. Con varios archivos no se admite: la planificación se indica en cada `[[proyectos]]`. |
 | `--linea-base N` | 0 = Línea base, 1..10 = Línea base N. Por defecto, la que el proyecto usa para el valor acumulado. Con varios archivos no se admite: se indica en cada `[[proyectos]]`. |
-| `--nivel-max N` | Nivel máximo del código EDT. Por defecto, `nivel_maximo` de la configuración (3). |
+| `--nivel-max N` | Nivel máximo del código EDT. Por defecto, `nivel_maximo` de la configuración (3). Con `lista_edt`, las filas las decide la lista y el nivel solo se usa para completar los códigos con ceros ([Lista EDT](calculo-pv-ev.md#34-lista-edt-filas-definidas-en-un-archivo)). |
 | `--motor auto\|com\|xml` | Forma de lectura. `auto` decide por la extensión. |
 | `--migrar-desde libro.xlsx` | Copia al libro nuevo el BAC ingresado, el % ganado y el AC ya cargados, los métodos editados en la columna C, el análisis de desviaciones y la fecha de corte de un libro anterior ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). Con depuración de costes, también la previsión pegada en `PV-depuración` ([Depuración de costes](depuracion-costes.md#8-ciclo-de-ajuste)). |
 | `--sobrescribir` | Reemplaza el libro de salida si ya existe. |
@@ -130,6 +142,7 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 Ejemplo de salida con el proyecto de ejemplo (se omiten algunas líneas):
 
 ```text
+Exportador EVM 2.3.0
 Leyendo ejemplos/programa_ejemplo.xml ...
 Proyecto: Programa de ejemplo EVM
   Planificación: INTERNO
@@ -168,7 +181,7 @@ python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config con
 | `--sin-respaldo` | No crea la copia `<libro>.respaldo-AAAAMMDD-HHMMSS.xlsx` (si ya existe una con ese nombre, se agrega `-2`, `-3`...). |
 | `--config`, `--motor`, `--visible` | Igual que en `generar`. |
 | `--linea-base N` | Igual que en `generar`. Debe ser la misma línea base con la que se generó el libro: sus duraciones definen el peso de cada tarea en el % ganado. |
-| `--planificacion`, `--nivel-max` | No se aplican: `actualizar` usa siempre la planificación y el nivel máximo con los que se generó el libro (si la configuración indica otra planificación, lo advierte). |
+| `--planificacion`, `--nivel-max` | No se aplican: `actualizar` usa siempre la planificación, el nivel máximo y la lista EDT con los que se generó el libro (si la configuración indica otra planificación u otra lista, lo advierte). |
 
 - Escribe el % ganado del mes en la hoja `% EV` (el EV es el BAC × ese %). No modifica el AC, que se
   carga a mano en la hoja `AC` (en multi-empresa, en `AC-EmpresaA` y `AC-EmpresaB`), antes o después de
@@ -184,12 +197,16 @@ python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config con
   en un archivo temporal, de modo que un error al guardar no daña el libro anterior.
 - Agrega a la hoja `Análisis de desviaciones` los paquetes con SPI o CPI fuera del rango verde del
   semáforo en el mes de corte, y conserva lo ya escrito ([Análisis de desviaciones](analisis-desviaciones.md)).
-- Al terminar, muestra los paquetes fuera de umbral y los indicadores a la fecha de corte, con los
-  mismos cálculos que la hoja `Resumen`.
+- Escribe el plazo según el cronograma de MS Project: columnas Q a U de `Indicadores EDT` (fin previsto,
+  desvío de fin, holgura y crítica de cada elemento) y la sección de plazo del `Resumen`
+  ([El libro Excel](libro-excel.md#indicadores-edt)).
+- Al terminar, muestra los paquetes fuera de umbral, los indicadores a la fecha de corte (con los mismos
+  cálculos que la hoja `Resumen`, incluida la tendencia) y el plazo del proyecto.
 
 Ejemplo de salida:
 
 ```text
+Exportador EVM 2.3.0
 Leyendo ...\avance_2027-06.xml ...
 Fecha de corte: 30/06/2027 (mes 18 del horizonte)
 Observaciones por fila:
@@ -219,6 +236,11 @@ CV = EV - AC               -447.464   CPI = 0,92
 EAC = BAC/CPI            48.209.366   VAC = -3.999.366
 TCPI                           1,01
 ES (meses)                    15,98   AT = 18  SV(t) = -2,02  SPI(t) = 0,89
+Últimos 3 meses                CPI = 0,95  SPI = 0,88
+Mes anterior                   CPI = 0,91  SPI = 0,84  EAC = 48.494.504  (variación del EAC: -285.138)
+
+Plazo según MS Project: fin de línea base 18/10/2030  |  fin previsto 09/12/2030 (desvío +36 días laborables)
+  Paquetes críticos sin terminar: 5 (5 con fin atrasado)
 Libro actualizado: ...\EVM_Ejemplo.xlsx
 Los indicadores y los gráficos se calculan en el libro (hojas 'Cuadro de Mando', 'Resumen' e 'Indicadores EDT').
 ```
@@ -287,6 +309,7 @@ como predecesora y la de `1.2.1` muestra `1.2.3` como sucesora.
 Ejemplo de salida con el proyecto de ejemplo, que no tiene vínculos entre tareas:
 
 ```text
+Exportador EVM 2.3.0
 Leyendo ejemplos/programa_ejemplo.xml ...
 Proyecto: Programa de ejemplo EVM
   Planificación: INTERNO

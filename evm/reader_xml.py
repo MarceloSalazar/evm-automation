@@ -12,6 +12,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 
+from evm import progress
 from evm.config import Config
 from evm.fields import (builtin_kind, field_id, fmt_number, is_notes_name, is_spanish_wbs_name, parse_custom_name,
                         parse_number, same_name)
@@ -41,6 +42,14 @@ def duration_minutes(text: str) -> float | None:
     y, mo, d, h, mi, s = (float(g) if g else 0.0 for g in m.groups())
     minutes = ((y * 365 + mo * 30 + d) * 24 + h) * 60 + mi + s / 60
     return -minutes if text.strip().startswith("-") else minutes
+
+
+def _slack_minutes(text: str) -> float | None:
+    """Holgura del XML (<TotalSlack>, en décimas de minuto) en minutos; None si no está."""
+    try:
+        return float(text) / 10.0 if text else None
+    except ValueError:
+        return None
 
 
 class _Reader:
@@ -199,7 +208,9 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
     any_baseline = False
     skipped_external = 0
 
-    for el in tasks_el.findall(r.q("Task")):
+    elements = tasks_el.findall(r.q("Task"))
+    for i, el in enumerate(elements, start=1):
+        progress.step(i, len(elements), "tareas")
         if r.flag(el, "IsNull"):
             continue
         try:
@@ -254,6 +265,7 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
             baseline_start=bl_start, baseline_finish=bl_finish, has_baseline=has_bl,
             baseline_duration=bl_duration if has_bl else None,
             start=r.date(el, "Start"), finish=r.date(el, "Finish"),
+            total_slack=_slack_minutes(r.text(el, "TotalSlack")), critical=r.flag(el, "Critical"),
             percent_complete=r.num(el, "PercentComplete"),
             physical_percent_complete=r.num(el, "PhysicalPercentComplete"),
             actual_start=r.date(el, "ActualStart"), actual_finish=r.date(el, "ActualFinish"),

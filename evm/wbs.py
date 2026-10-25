@@ -6,6 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
+from evm import progress
 from evm.config import Config, ConfigError
 from evm.fields import fmt_number
 from evm.model import MonthKey, ProjectData, Task
@@ -117,6 +118,7 @@ class ReportPart:
     first_date: date | None     # inicio del horizonte si ninguna fila tiene % planificado
     scope: "Scope | None" = None                # tareas exportadas (sin las inactivas ni las de Visible = No)
     code_of: Callable[[Task], str] | None = None    # código EDT de una tarea, como en el libro
+    list_matched: set[str] | None = None        # lista EDT: códigos de la lista que tienen tarea (None = sin lista)
 
 
 # ----------------------------------------------------------------------------
@@ -206,13 +208,16 @@ def fmt_money(v: float) -> str:
 # Códigos EDT y planificación
 # ----------------------------------------------------------------------------
 def code_level(code: str) -> int:
-    """Nivel de un código EDT: cantidad de segmentos sin contar los ceros finales.
+    """Nivel de un código EDT: cantidad de segmentos sin contar los ceros finales ni los intermedios.
 
-    '2.0.0' -> 1, '2.1.0' -> 2, '2.1.1' -> 3, '2.1.1.4' -> 4, 'INTERNO' -> 1.
+    '2.0.0' -> 1, '2.1.0' -> 2, '2.1.1' -> 3, '2.1.1.4' -> 4, 'INTERNO' -> 1. Un 0 intermedio indica un hijo
+    directo del elemento anterior: '1.2.0.1' -> 3 (hijo de 1.2, como 1.2.1.0).
     """
     parts = [p.strip() for p in (code or "").strip().split(".")]
     while len(parts) > 1 and not parts[-1].strip("0"):
         parts.pop()
+    if all(p.isdigit() for p in parts):
+        return 1 + sum(1 for p in parts[1:] if p.strip("0"))
     return len(parts)
 
 
@@ -230,15 +235,20 @@ class Scope:
 
     def raw_code(self, task: Task) -> str:
         """Código EDT de la tarea, sin el prefijo de la planificación si lo tuviera."""
-        code = (task.wbs or "").strip()
-        p = self.prefix
-        if p and len(code) > len(p) + 1 and code[:len(p)].upper() == p.upper() and code[len(p)] in ".-_ /":
-            code = code[len(p) + 1:].strip()
-        return code
+        return strip_prefix(task.wbs or "", self.prefix)
 
     def tasks(self):
         for r in self.roots:
             yield from iter_subtree(r)
+
+
+def strip_prefix(code: str, prefix: str) -> str:
+    """Código EDT sin el prefijo de la planificación ('INTERNO.1.2.0' -> '1.2.0'), si lo tiene."""
+    code = (code or "").strip()
+    p = prefix
+    if p and len(code) > len(p) + 1 and code[:len(p)].upper() == p.upper() and code[len(p)] in ".-_ /":
+        code = code[len(p) + 1:].strip()
+    return code
 
 
 def select_scope(roots: list[Task], plan_code: str) -> Scope:
@@ -271,6 +281,8 @@ class Visibility:
     excluded: list[Task] = field(default_factory=list)
     # Tareas cuyas subtareas tienen todas Visible = No: la tarea las representa (con toda su rama)
     represented: list[Task] = field(default_factory=list)
+    listed: bool = False                # las filas las decide la lista EDT (lista_edt)
+    matched: set[str] = field(default_factory=set)     # códigos de la lista EDT que tienen tarea
 
     def has_row(self, task: Task) -> bool:
         return self.rows.get(task.uid, False)
@@ -289,6 +301,8 @@ def row_visibility(scope: Scope, cfg: Config, code_of=None) -> Visibility:
       tienen Visible = No, esa tarea las representa: no tienen fila propia, pero su rama se suma en la fila de la
       tarea (que, si tiene fila, pasa a ser el paquete de trabajo). Prevalece sobre un Sí en la rama.
     """
+    if cfg.wbs_list is not None:
+        return list_visibility(scope, cfg)
     from evm.fields import parse_visible
     code_of = code_of or scope.raw_code
     out = Visibility({}, [])
@@ -354,6 +368,55 @@ def row_visibility(scope: Scope, cfg: Config, code_of=None) -> Visibility:
     return out
 
 
+def list_code(entry: str, prefix: str, cfg: Config) -> str:
+    """Código de la lista EDT como queda en el libro: sin el prefijo de la planificación y completado con ceros."""
+    code = strip_prefix(entry, prefix)
+    return pad_code(code, cfg.max_level) if cfg.pad_wbs else code
+
+
+def list_visibility(scope: Scope, cfg: Config) -> Visibility:
+    """Filas según la lista EDT (lista_edt): tiene fila cada tarea cuyo código está en la lista. Las demás se suman
+    en su elemento listado más cercano. La lista reemplaza al nivel máximo y al campo Visible."""
+    def book_code(t: Task) -> str:
+        raw = scope.raw_code(t)
+        return pad_code(raw, cfg.max_level) if cfg.pad_wbs else raw
+
+    wanted: dict[str, list[str]] = {}           # código como en el libro -> líneas de la lista
+    for entry in cfg.wbs_list or []:
+        wanted.setdefault(list_code(entry, scope.prefix, cfg), []).append(entry)
+    out = Visibility({}, [], listed=True)
+    tasks = list(scope.tasks())
+    for t in tasks:
+        code = book_code(t)
+        listed = bool(code) and code in wanted
+        out.rows[t.uid] = listed
+        if listed:
+            out.matched.update(wanted[code])
+    with_value = sum(1 for t in tasks if (t.visible or "").strip()) if cfg.visible_field else 0
+    if with_value:
+        out.issues.append(Issue(SEV_INFO, "", "",
+                                f"{plural(with_value, 'tarea tiene', 'tareas tienen')} valor en el campo Visible: con "
+                                "lista_edt, las filas del libro las decide la lista EDT y el campo Visible no se "
+                                "usa.", TOPIC_VISIBLE))
+    # Elementos listados cuya tarea superior tiene código EDT y no está en la lista
+    in_scope = {t.uid for t in tasks}
+    for t in tasks:
+        parent = t.parent
+        if not out.rows[t.uid] or parent is None or parent.uid not in in_scope or out.rows.get(parent.uid):
+            continue
+        if not book_code(parent):
+            continue
+        above = parent.parent
+        while above is not None and above.uid in in_scope and not out.rows.get(above.uid):
+            above = above.parent
+        where = (f"queda debajo de {book_code(above)} «{above.name}»" if above is not None and above.uid in in_scope
+                 else "queda en el primer nivel del libro")
+        out.issues.append(Issue(SEV_INFO, book_code(t), t.name,
+                                f"Está en la lista EDT y su tarea superior {book_code(parent)} «{parent.name}» no: la "
+                                f"fila {where}.", TOPIC_WBS))
+    return out
+
+
 def prune_hidden(scope: Scope, visibility: Visibility) -> dict[int, list[Task]]:
     """Quita del árbol las ramas excluidas por Visible = No (como las tareas inactivas). Devuelve
     {UniqueID de la tarea superior: ramas quitadas}."""
@@ -398,7 +461,8 @@ def _percent_curves(project: ProjectData, cfg: Config, rows: list[ReportRow], co
         roles = [(pct.ROLE_A, cfg.company_a, share), (pct.ROLE_B, cfg.company_b, lambda t: 1.0 - share(t))]
     else:
         roles = [(pct.ROLE_ALL, "", None)]
-    for row in rows:
+    for i, row in enumerate(rows, start=1):
+        progress.step(i, len(rows), "filas")
         if not row.is_input:
             continue
         times = [cache.setdefault(t.uid, pct.task_time(t, calendar, cfg.distribution)) for t in row.leaves]
@@ -549,13 +613,15 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
         return with_row, loose_full, loose_own
 
     aggregated = 0      # tareas sin fila propia sumadas en una fila
+    beyond = "que no están en la lista EDT" if visibility.listed else f"de nivel mayor a {cfg.max_level}"
 
     def visit(t: Task, parent: ReportRow | None) -> None:
         nonlocal aggregated
         s, f = subtree_dates(t)
         row_tasks, loose_full, loose_own = gather(t)
         # En el nivel máximo la fila suma toda su rama, salvo que una tarea de la rama tenga Visible = Sí
-        is_leaf_row = not row_tasks or (code_level(scope.raw_code(t)) >= cfg.max_level
+        is_leaf_row = not row_tasks or (not visibility.listed
+                                        and code_level(scope.raw_code(t)) >= cfg.max_level
                                         and not any(code_level(scope.raw_code(c)) > cfg.max_level
                                                     for c in row_tasks))
         row = ReportRow(code=code_of(t), name=t.name, level=(parent.level + 1) if parent else 1,
@@ -588,8 +654,8 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
             rows.append(res)
             row.children.append(res)
             issues.append(Issue(SEV_INFO, row.code, t.name,
-                                f"Tareas sin código EDT o de nivel mayor a {cfg.max_level}: forman la fila "
-                                f"{row.code}-D, con su propio BAC.", TOPIC_WBS))
+                                f"Tareas sin código EDT o {beyond}: forman la fila {row.code}-D, con su propio BAC.",
+                                TOPIC_WBS))
 
     omitted: list[Task] = []
 
@@ -639,7 +705,18 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
 
     # --- Controles del archivo ------------------------------------------------
     checks: list[Issue] = []
-    if omitted:
+    if omitted and visibility.listed:
+        one = len(omitted) == 1
+        out_ids = {n.uid for n in omitted}
+        coded = [n for n in omitted if scope.raw_code(n) and (n.parent is None or n.parent.uid not in out_ids)]
+        shown = ", ".join(code_of(n) for n in coded[:10]) + (f" y {len(coded) - 10} más" if len(coded) > 10 else "")
+        checks.append(Issue(SEV_WARN if any(_has_weight(n) for n in omitted if not n.children) else SEV_INFO,
+                            "", "",
+                            f"Se {'omitió' if one else 'omitieron'} {plural(len(omitted), 'tarea', 'tareas')} que no "
+                            f"{'está' if one else 'están'} en la lista EDT ni {'depende' if one else 'dependen'} de "
+                            f"un elemento de la lista: no {'forma' if one else 'forman'} parte de ninguna fila del "
+                            f"libro ni del PV y el EV" + (f" ({shown})." if shown else "."), TOPIC_WBS))
+    elif omitted:
         one = len(omitted) == 1
         checks.append(Issue(SEV_WARN if any(_has_weight(n) for n in omitted if not n.children) else SEV_INFO,
                             "", "",
@@ -654,10 +731,10 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
     checks += data_checks(project, scope, rows, cfg, code_of)
 
     if aggregated:
+        beyond_edt = "que no están en la lista EDT" if visibility.listed else f"de nivel EDT mayor a {cfg.max_level}"
         checks.append(Issue(SEV_INFO, "", "",
-                            f"{plural(aggregated, 'tarea', 'tareas')} sin código EDT o de nivel EDT mayor a "
-                            f"{cfg.max_level} se {'agregó' if aggregated == 1 else 'agregaron'} en su elemento EDT "
-                            "superior.", TOPIC_WBS))
+                            f"{plural(aggregated, 'tarea', 'tareas')} sin código EDT o {beyond_edt} se "
+                            f"{'agregó' if aggregated == 1 else 'agregaron'} en su elemento EDT superior.", TOPIC_WBS))
     if visibility.excluded:
         n = len(visibility.excluded)
         names = ", ".join(code_of(t) or t.name for t in visibility.excluded[:10])
@@ -686,7 +763,31 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
     ref = min(dates) if dates else project.project_start
     first_date = (ref.date() if isinstance(ref, datetime) else ref) if ref else None
     return ReportPart(Source(name, project, scope.prefix, PERCENT_PV_SOURCE), rows, report_roots, issues, checks,
-                      first_date, scope, code_of)
+                      first_date, scope, code_of, visibility.matched if visibility.listed else None)
+
+
+def list_issues(parts: list[ReportPart], cfg: Config) -> list[Issue]:
+    """Lista EDT: códigos de la lista que no tienen tarea en ningún archivo (no tienen fila en el libro). Si no
+    existe ninguno, el libro no tendría filas: es un error de configuración."""
+    if cfg.wbs_list is None:
+        return []
+    matched = set().union(*(p.list_matched or set() for p in parts))
+    missing = [e for e in cfg.wbs_list if e not in matched]
+    if not missing:
+        return []
+    if len(missing) == len(cfg.wbs_list):
+        raise ConfigError(f"Ningún código de la lista EDT ({cfg.wbs_list_file}) existe en MS Project: se deben revisar "
+                          "la lista, el campo EDT ([campos] edt) y la planificación elegida.")
+    one = len(missing) == 1
+    shown = ", ".join(missing[:15]) + (f" y {len(missing) - 15} más" if len(missing) > 15 else "")
+    out = [Issue(SEV_WARN, "", "",
+                 f"{plural(len(missing), 'código', 'códigos')} de la lista EDT no {'existe' if one else 'existen'} en "
+                 f"MS Project, o {'su tarea está' if one else 'sus tareas están'} inactiva{'' if one else 's'} o fuera "
+                 f"de la planificación elegida: no {'tiene' if one else 'tienen'} fila en el libro ({shown}).",
+                 TOPIC_WBS)]
+    out += [Issue(SEV_WARN, code, "", "Código de la lista EDT sin tarea en MS Project: no tiene fila en el libro.",
+                  TOPIC_WBS) for code in missing[:200]]
+    return out
 
 
 def _code_order(row: ReportRow) -> tuple:
@@ -787,6 +888,7 @@ def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:
     # --- Controles -------------------------------------------------------------
     for part in parts:
         issues += tagged_issues(part, part.checks)
+    issues += list_issues(parts, cfg)
     sheets = (f"PV-{cfg.company_a} y PV-{cfg.company_b}" if cfg.multi_enabled else "PV")
     issues.insert(0, Issue(SEV_INFO, "", "",
                            "El PV y el EV de cada fila son el BAC × el % planificado y el % ganado (hojas % PV y "

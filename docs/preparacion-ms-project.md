@@ -83,6 +83,11 @@ Recomendaciones:
 - El código de cada tarea empieza por el de su tarea superior y tiene un nivel más: bajo `1.2.0` van
   `1.2.1`, `1.2.2`... `validar` y la hoja `Validación` informan los códigos que no lo cumplen (por
   ejemplo `1.14.2` bajo `1.2.0`), los niveles salteados, el orden y los duplicados.
+- Para insertar un elemento sin renumerar a sus hermanos se puede usar un 0 intermedio: debajo de
+  `1.2.0.0`, `1.2.0.1` va antes de `1.2.1.0` y es de su mismo nivel.
+- Si las filas del libro deben seguir una EDT acordada, se pueden indicar en un archivo con
+  `[exportacion] lista_edt`, sin marcar el campo `Visible` en el cronograma
+  ([Lista EDT](calculo-pv-ev.md#34-lista-edt-filas-definidas-en-un-archivo)).
 
 ---
 
@@ -190,7 +195,10 @@ Buenas prácticas del registro:
 - Registrar el avance **a la fecha de estado**, no a la fecha en que se hace la actualización.
 - **Reprogramar el trabajo pendiente** a partir de la fecha de estado (*Proyecto > Actualizar proyecto >
   Reprogramar trabajo restante para que empiece después de*), para que las fechas futuras sigan siendo
-  una previsión realista.
+  una previsión realista. El libro toma de ese cronograma el fin previsto, la holgura total y las tareas
+  críticas de cada paquete ([Indicadores EDT](libro-excel.md#indicadores-edt)): con vínculos completos
+  entre tareas, MS Project calcula una holgura y un camino crítico fiables (criterios que revisa
+  `validar`).
 - No modificar la línea base al registrar el avance.
 
 El costo real no se registra en MS Project: el AC de cada mes se carga en la hoja `AC` del libro

@@ -43,39 +43,41 @@ MONTHS = [(2026 + (m - 1) // 12, (m - 1) % 12 + 1) for m in range(1, 25)]
 
 # (archivo, hoja, rango, opciones)
 SINGLE = [
-    ("cuadro-de-mando", "Cuadro de Mando", "$B$1:$U$73", {}),
-    ("cdm-indicadores", "Cuadro de Mando", "$B$1:$U$23", {}),
-    ("cdm-evolucion", "Cuadro de Mando", "$B$24:$U$45", {}),
-    ("cdm-cpi-spi-edt", "Cuadro de Mando", "$B$46:$U$73", {}),
+    ("cuadro-de-mando", "Cuadro de Mando", "$B$1:$U$83", {}),
+    ("cdm-indicadores", "Cuadro de Mando", "$B$1:$U$22", {}),
+    ("cdm-tendencia-plazo", "Cuadro de Mando", "$B$23:$U$31", {}),
+    ("cdm-evolucion", "Cuadro de Mando", "$B$34:$U$55", {}),
+    ("cdm-cpi-spi-edt", "Cuadro de Mando", "$B$56:$U$83", {}),
     ("resumen", "Resumen", "$A$1:$E$40", {}),
+    ("resumen-tendencia-plazo", "Resumen", "$A$48:$E$63", {}),
     ("pv", "PV", "$A$1:$P$41", {"landscape": True, "headings": True}),
     ("pct-pv", "% PV", "$A$1:$P$41", {"landscape": True, "headings": True}),
     ("ev", "EV", "$A$1:$AD$41", {"landscape": True, "headings": True, "hide": "G:R"}),
     ("pct-ev", "% EV", "$A$1:$AD$41", {"landscape": True, "headings": True, "hide": "G:R"}),
     ("ac", "AC", "$A$1:$AD$41", {"landscape": True, "headings": True, "hide": "G:R"}),
     ("evolucion-mensual", "Evolución mensual", "$A$1:$O$28", {"landscape": True}),
-    ("indicadores-edt", "Indicadores EDT", "$A$1:$P$41", {"landscape": True}),
+    ("indicadores-edt", "Indicadores EDT", "$A$1:$U$41", {"landscape": True}),
     ("validacion", "Validación", "$A$1:$D$9", {"landscape": True}),
     ("listas", "Listas", "$A$1:$B$11", {"width": ("B", 150)}),
-    ("cdm-mes-anterior", "Cuadro de Mando", "$B$1:$U$44", {"date": ("E5", dt.datetime(2027, 6, 1))}),
-    ("cdm-eac-alternativo", "Cuadro de Mando", "$B$1:$U$23",
+    ("cdm-mes-anterior", "Cuadro de Mando", "$B$1:$U$54", {"date": ("E5", dt.datetime(2027, 6, 1))}),
+    ("cdm-eac-alternativo", "Cuadro de Mando", "$B$1:$U$22",
      {"date": ("E5", dt.datetime(2027, 12, 1)), "value": ("R5", "AC + (BAC - EV) / (CPI × SPI)")}),
     # Análisis de desviaciones de diciembre de 2027, con el texto de dos paquetes como ejemplo
     # (filas: 1.1.1 por encima del rango verde, 2.2.1 y 3.2.1 por debajo)
-    ("analisis-desviaciones", "Análisis de desviaciones", "$A$1:$R$21",
+    ("analisis-desviaciones", "Análisis de desviaciones", "$A$1:$X$21",
      {"landscape": True, "values": [
-         ("N5", "Dos puestos de la PMO sin cubrir desde octubre."),
-         ("O5", "Ahorro de costo, con riesgo de menor control del programa."),
-         ("P5", "Cubrir los puestos vacantes de la PMO."),
-         ("Q5", "Director del Programa"), ("R5", dt.datetime(2028, 1, 15)),
-         ("N15", "Planos de los proveedores de equipos recibidos con 6 semanas de atraso."),
-         ("O15", "Atraso de 1 mes en la emisión para construcción; sin impacto en costo."),
-         ("P15", "Reforzar el equipo de detalle con 2 proyectistas hasta marzo."),
-         ("Q15", "Jefe de Ingeniería"), ("R15", dt.datetime(2028, 1, 31)),
-         ("N21", "Retraso en la fabricación (FAT reprogramado)."),
-         ("O21", "Riesgo de atraso del montaje mecánico; penalidad al proveedor."),
-         ("P21", "Inspección semanal en fábrica y plan de recuperación del proveedor."),
-         ("Q21", "Jefe de Compras"), ("R21", dt.datetime(2028, 2, 15))]}),
+         ("T5", "Dos puestos de la PMO sin cubrir desde octubre."),
+         ("U5", "Ahorro de costo, con riesgo de menor control del programa."),
+         ("V5", "Cubrir los puestos vacantes de la PMO."),
+         ("W5", "Director del Programa"), ("X5", dt.datetime(2028, 1, 15)),
+         ("T15", "Planos de los proveedores de equipos recibidos con 6 semanas de atraso."),
+         ("U15", "Atraso de 1 mes en la emisión para construcción; sin impacto en costo."),
+         ("V15", "Reforzar el equipo de detalle con 2 proyectistas hasta marzo."),
+         ("W15", "Jefe de Ingeniería"), ("X15", dt.datetime(2028, 1, 31)),
+         ("T21", "Retraso en la fabricación (FAT reprogramado)."),
+         ("U21", "Riesgo de atraso del montaje mecánico; penalidad al proveedor."),
+         ("V21", "Inspección semanal en fábrica y plan de recuperación del proveedor."),
+         ("W21", "Jefe de Compras"), ("X21", dt.datetime(2028, 2, 15))]}),
 ]
 MULTI = [
     ("multi-pv-empresa-a", "PV-EmpresaA", "$A$1:$P$41", {"landscape": True, "headings": True}),
@@ -84,7 +86,7 @@ MULTI = [
     ("multi-validacion", "Validación", "$A$1:$D$11", {"landscape": True}),
 ]
 SEVERAL = [
-    ("varios-cdm", "Cuadro de Mando", "$B$1:$U$23", {}),
+    ("varios-cdm", "Cuadro de Mando", "$B$1:$U$22", {}),
     ("varios-pv", "PV", "$A$1:$P$49", {"landscape": True, "headings": True, "hide_rows": "5:33"}),
     ("varios-validacion", "Validación", "$A$1:$D$10", {"landscape": True}),
 ]
@@ -97,8 +99,8 @@ REVIEW = [
 ]
 GROUPS = ("una-empresa", "multiempresa", "varios", "depuracion")
 # Números de las zonas del Cuadro de Mando: (n, x, y) en píxeles de la captura a 130 ppp
-MARKS = [(1, 58, 122), (2, 700, 122), (3, 262, 180), (4, 257, 291), (5, 104, 410),
-         (6, 120, 545), (7, 612, 545), (8, 150, 916), (9, 960, 884)]
+MARKS = [(1, 50, 106), (2, 608, 106), (3, 232, 156), (4, 229, 253), (5, 90, 356), (6, 372, 449), (7, 340, 544),
+         (8, 104, 662), (9, 530, 662), (10, 127, 983), (11, 834, 955)]
 DPI = 130
 
 

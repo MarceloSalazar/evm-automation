@@ -97,12 +97,27 @@ def _pattern(prefix: tuple[int, ...]) -> str:
     return ".".join(str(n) for n in prefix) + ".x"
 
 
+def _depth(sig: tuple[int, ...]) -> int:
+    """Nivel de un código: sus segmentos significativos sin los ceros intermedios ((1, 2, 0, 1) -> 3)."""
+    return 1 + sum(1 for n in sig[1:] if n)
+
+
+def _upper(sig: tuple[int, ...]) -> tuple[int, ...]:
+    """Código del elemento del que depende un código: (1, 2, 3) -> (1, 2); (1, 2, 0, 1) -> (1, 2)."""
+    up = list(sig[:-1])
+    while len(up) > 1 and up[-1] == 0:
+        up.pop()
+    return tuple(up)
+
+
 def wbs_checks(scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
     """Códigos EDT de las tareas exportadas: formato, dependencia de su tarea superior, orden y duplicados.
 
     El código de cada tarea debe empezar por el de su tarea superior con código EDT y tener un nivel más: bajo
-    1.2.0 van 1.2.1, 1.2.2... (1.14.2 es un error). Los códigos no numéricos sin puntos (p. ej. INTERNO) y el
-    código 0 (el proyecto) se admiten como contenedores: sus subtareas no se comparan con ellos.
+    1.2.0 van 1.2.1, 1.2.2... (1.14.2 es un error). Un 0 intermedio indica un hijo directo del elemento anterior:
+    1.2.0.1 depende de 1.2, como 1.2.1.0 (sirve para insertar un elemento sin renumerar a sus hermanos). Los
+    códigos no numéricos sin puntos (p. ej. INTERNO) y el código 0 (el proyecto) se admiten como contenedores: sus
+    subtareas no se comparan con ellos.
     """
     issues: list[Issue] = []
     tasks = list(scope.tasks())
@@ -141,21 +156,15 @@ def wbs_checks(scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
                                          "punto (p. ej. 1.2.3); no se puede comprobar con su tarea superior.",
                                          TOPIC_WBS))
             continue
-        if 0 in mine[1:]:
-            bad_format.append(_issue(SEV_ERROR, t, code_of,
-                                     f"Código EDT '{raw}': el 0 solo se admite al final, como relleno (p. ej. "
-                                     "1.2.0); un 0 seguido de otro número no corresponde a ningún nivel.",
-                                     TOPIC_WBS))
-            continue
         top = sig.get(parent.uid) if parent is not None else None
         if top == (0,):                                 # 0 (o 0.0.0) = el proyecto: contenedor, como INTERNO
             top = None
         if top is None:                                 # sin tarea superior con código numérico
-            if len(mine) > 1:
-                upper = ".".join(str(n) for n in mine[:-1])
+            if _depth(mine) > 1:
+                upper = ".".join(str(n) for n in _upper(mine))
                 upper = pad_code(upper, cfg.max_level) if cfg.pad_wbs else upper
                 issues.append(_issue(SEV_WARN, t, code_of,
-                                     f"Código de nivel {len(mine)} sin una tarea superior con código EDT: debería "
+                                     f"Código de nivel {_depth(mine)} sin una tarea superior con código EDT: debería "
                                      f"depender de la tarea {upper}.", TOPIC_WBS))
             groups.setdefault(parent.uid if parent is not None else None, []).append((t, mine))
             continue
@@ -166,11 +175,11 @@ def wbs_checks(scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
             issues.append(_issue(SEV_ERROR, t, code_of,
                                  f"El código EDT no depende del de {where}: se esperaba {_pattern(top)}.",
                                  TOPIC_WBS))
-        elif len(mine) > len(top) + 1:
+        elif _depth(mine) > _depth(top) + 1:
             issues.append(_issue(SEV_WARN, t, code_of,
-                                 f"El código EDT salta un nivel: depende de {where}, de nivel {len(top)}, y su "
-                                 f"código es de nivel {len(mine)} (se esperaba {_pattern(top)}). Si hay una tarea "
-                                 "intermedia sin código EDT, se le debe asignar uno.", TOPIC_WBS))
+                                 f"El código EDT salta un nivel: depende de {where}, de nivel {_depth(top)}, y su "
+                                 f"código es de nivel {_depth(mine)} (se esperaba {_pattern(top)}). Si hay una "
+                                 "tarea intermedia sin código EDT, se le debe asignar uno.", TOPIC_WBS))
         else:
             groups.setdefault(parent.uid, []).append((t, mine))
 

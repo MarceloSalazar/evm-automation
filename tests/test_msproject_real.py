@@ -121,6 +121,7 @@ def books(tmp_path_factory):
                 # MS Project tarda unos segundos en cerrarse después de Quit: se espera antes del paso siguiente
                 closed.append(wait_until_closed())
         result[engine] = read_book(book)
+        result[f"{engine}_path"] = book
     result["running_after"] = ms_project_running() if result["was_running"] else not all(closed)
     return result
 
@@ -181,6 +182,26 @@ def test_same_earned_percent_at_cutoff(books):
             if abs(x - y) > 1e-6:
                 diffs.append(f"{rows[r].code}{who}: COM {x:.2%} / XML {y:.2%}")
     assert not diffs, report(diffs, "el % ganado acumulado a la fecha de corte")
+
+
+def test_same_schedule(books):
+    """Plazo según el cronograma (columnas Q a U de Indicadores EDT): fin previsto, holgura total y crítica leídos
+    por COM (TotalSlack en minutos) y del XML (en décimas de minuto). El desvío se cuenta con el calendario del
+    XML o con lunes a viernes y los feriados de la configuración (.mpp): puede diferir si el calendario del
+    proyecto tiene otros días no laborables."""
+    from openpyxl import load_workbook
+
+    from evm.workbook import I_CRITICAL, I_FINISH, I_SLACK, SHEET_IND
+    sheets = {e: load_workbook(books[f"{e}_path"], read_only=True)[SHEET_IND] for e in ("com", "xml")}
+    rows = by_row(books["com"])
+    diffs = []
+    for r, s in rows.items():
+        a, b = ([sheets[e].cell(row=r, column=c).value for c in (I_FINISH, I_SLACK, I_CRITICAL)] for e in sheets)
+        if a[0] != b[0] or a[2] != b[2] or (a[1] is None) != (b[1] is None) or (
+                a[1] is not None and abs(a[1] - b[1]) > 0.01):
+            diffs.append(f"{s.code}: COM fin {a[0]}, holgura {a[1]}, crítica {a[2]} / XML fin {b[0]}, holgura "
+                         f"{b[1]}, crítica {b[2]}")
+    assert not diffs, report(diffs, "el plazo según el cronograma")
 
 
 def test_ms_project_is_left_as_found(books):

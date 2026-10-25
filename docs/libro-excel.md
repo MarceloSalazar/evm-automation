@@ -28,7 +28,7 @@ El BAC de cada fila se ingresa en la hoja `PV`, el PV y el EV son el BAC × el %
 | Hoja | Contenido |
 |---|---|
 | **Cuadro de Mando** | Tablero del mes de reporte: valores acumulados, desviaciones, índices con semáforo, pronósticos y tres gráficos. Ver [Cuadro de Mando e indicadores](cuadro-de-mando.md). |
-| **Resumen** | Fecha de corte (celda amarilla `B5`, con nombre `FechaCorte`), parámetros de la exportación e indicadores del proyecto a la fecha de corte, incluido el Cronograma Ganado. |
+| **Resumen** | Fecha de corte (celda amarilla `B5`, con nombre `FechaCorte`), parámetros de la exportación e indicadores del proyecto a la fecha de corte, incluidos el Cronograma Ganado, la tendencia (últimos 3 meses y mes anterior) y el plazo según el cronograma de MS Project. |
 | **PV** | Valor planificado: columnas A–F con la EDT y el BAC, y una columna por mes. El BAC se ingresa en la columna D (celdas amarillas) y cada mes es el BAC × el % planificado. |
 | **% PV** | % planificado de cada mes, que calcula `generar`. |
 | **EV** | Valor ganado de cada mes: el BAC × el % ganado. |
@@ -36,12 +36,12 @@ El BAC de cada fila se ingresa en la hoja `PV`, el PV y el EV son el BAC × el %
 | **AC** | Costo real de cada mes (celdas amarillas), que se ingresa a mano. |
 | **PV-EmpresaA**, **% PV-EmpresaA**, **EV-EmpresaA**, **% EV-EmpresaA**, **AC-EmpresaA** y las de EmpresaB | Solo en multi-empresa: valores de cada empresa, en lugar de las hojas `% PV` y `% EV`. Las hojas `PV`, `EV` y `AC` son la suma de las dos ([Multi-empresa](multiempresa.md)). |
 | **Evolución mensual** | Tabla mensual del proyecto (datos de la curva S). |
-| **Indicadores EDT** | Indicadores de cada elemento de la EDT a la fecha de corte. |
+| **Indicadores EDT** | Indicadores de cada elemento de la EDT a la fecha de corte y su plazo según el cronograma de MS Project (fin previsto, desvío de fin, holgura y camino crítico). |
 | **Análisis de desviaciones** | Paquetes fuera de umbral de cada mes, con causa, impacto, acción correctiva, responsable y fecha ([Análisis de desviaciones](analisis-desviaciones.md)). |
 | **Validación** | Advertencias de la exportación ([Validaciones](validaciones-y-problemas.md#1-validaciones)). |
 | **Listas** | Métodos de medición del desplegable de la columna C y su regla de cálculo. |
 | **Depuración costes** y **PV-depuración** | Solo con `depuracion_costes = true`: gráfico comparativo y previsión pegada del plan de costes de una empresa; la hoja PV de esa empresa lleva una fila «(coste)» debajo de cada fila, y en las demás hojas esas filas quedan vacías y ocultas ([Depuración de costes](depuracion-costes.md)). |
-| `_graficos`, `_estructura`, `_meta` (y `_depuracion`) | Hojas ocultas con los datos de los gráficos, los datos que usan `actualizar` y `--migrar-desde` y, con depuración de costes, la asignación de la previsión pegada. **No se deben modificar.** |
+| `_graficos`, `_estructura`, `_meta` (y `_depuracion`, `_lista_edt`) | Hojas ocultas con los datos de los gráficos, los datos que usan `actualizar` y `--migrar-desde`, con depuración de costes, la asignación de la previsión pegada y, con `lista_edt`, la lista EDT con que se generó el libro. **No se deben modificar.** |
 
 ---
 
@@ -179,6 +179,24 @@ y porcentajes planificado, completado y gastado, con semáforo en SPI y CPI. Per
 paquetes explican la desviación del proyecto. El EAC de cada fila es BAC / CPI; si la fila no tiene CPI
 (sin AC cargado), es AC + (BAC − EV). No depende del método EAC elegido en el `Cuadro de Mando`.
 
+Las columnas Q a U muestran el **plazo según el cronograma de MS Project**, con los datos de la última
+lectura (`generar` o `actualizar`; la fila 3 indica cuál y su fecha de estado). Se calculan con las
+tareas de detalle de cada fila, las mismas del % ganado:
+
+| Columna | Contenido |
+|---|---|
+| Fin línea base | Fin de la última tarea según la línea base. |
+| Fin previsto | Fin de la última tarea según el cronograma vigente (fin real si terminó). |
+| Desvío fin (días lab.) | Días laborables entre los dos: > 0 = atraso. Con XML se cuentan con el calendario del proyecto; con `.mpp`, de lunes a viernes con los `feriados` de la configuración. |
+| Holgura (días lab.) | Menor holgura total de las tareas sin terminar, como la calcula MS Project. Negativa: la fecha de fin del proyecto está comprometida. |
+| Crítica | `Sí` si alguna tarea sin terminar es crítica en MS Project, `No`, o `Terminado`. |
+
+Las filas resumen y la fila TOTAL combinan sus filas. El desvío se marca en rojo si la fila es crítica o
+tiene holgura negativa, y en amarillo si no lo es. Como el SPI compara valores y no fechas, estas
+columnas indican si un atraso afecta la fecha de fin. Requieren que el cronograma esté actualizado a la
+fecha de estado, con el trabajo pendiente reprogramado
+([Proceso de reporte](proceso-reporte-evm.md#43-pasos-detallados)).
+
 ![Hoja Indicadores EDT](img/excel/indicadores-edt.png)
 
 ### Análisis de desviaciones
@@ -207,7 +225,12 @@ Métodos de medición del desplegable de la columna C y su regla de cálculo.
 
 ## 6. Libros de versiones anteriores
 
-Los libros generados con versiones anteriores del programa, que calculaban el PV y el EV con los costos
+Los libros generados con las versiones 2.0 a 2.2 se siguen actualizando: `actualizar` agrega las columnas
+de plazo de `Indicadores EDT`, las secciones de tendencia y de plazo del `Resumen` y las columnas nuevas
+del `Análisis de desviaciones`. Las secciones de tendencia y de plazo del `Cuadro de Mando` requieren
+regenerar el libro con `--migrar-desde`.
+
+Los libros generados con versiones 1.x del programa, que calculaban el PV y el EV con los costos
 de MS Project, no se pueden usar: `actualizar`, `analizar` y `--migrar-desde` se detienen sin
 modificarlos. Se debe generar un libro nuevo, ingresar el BAC y cargar a mano el historial que se
 necesite: el % ganado de cada mes en la hoja `% EV` y el AC en la hoja `AC`

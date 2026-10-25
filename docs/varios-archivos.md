@@ -89,6 +89,7 @@ Cada archivo se prepara como un proyecto individual
 | **Línea base** guardada en cada archivo. | El % planificado de las filas de cada archivo sale de las fechas de su línea base. El BAC de cada fila se ingresa en el libro. |
 | Cada mes, la **misma fecha de estado** en todos los archivos. | El informe tiene una sola fecha de corte. |
 | La **misma moneda** en todos los archivos. | El libro muestra una sola moneda. |
+| Con `lista_edt`, **una sola lista** con los códigos de todos los archivos. | La lista decide las filas de todos los archivos ([Lista EDT](calculo-pv-ev.md#34-lista-edt-filas-definidas-en-un-archivo)); un código se advierte como inexistente solo si no está en ningún archivo. |
 
 Para que los códigos no se repitan, conviene asignar a cada archivo un rango de elementos de nivel 1
 (por ejemplo, `1` a `8` al proyecto principal y `9` al proyecto asociado). Con el campo **EDT** de MS
@@ -158,6 +159,7 @@ python evm_export.py generar --config config.toml --salida EVM_Programa.xlsx
 Ejemplo de salida con los dos archivos de ejemplo:
 
 ```text
+Exportador EVM 2.3.0
 Leyendo P1: ...\ejemplos\programa_ejemplo.xml ...
 Leyendo P2: ...\ejemplos\proyecto2_ejemplo.xml ...
 Informe: Programa de ejemplo con dos proyectos

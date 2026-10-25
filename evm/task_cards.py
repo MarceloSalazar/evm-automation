@@ -166,7 +166,8 @@ def render(cards: Cards, cfg: Config, today: date) -> str:
         lines.append(f"- Fechas planificadas: {rep.project.baseline_label}")
     lines += [
         "- Duración: en días laborables",
-        f"- Nivel de desglose EDT: {cfg.max_level}",
+        (f"- Elementos EDT: los de la lista EDT ({len(cfg.wbs_list)} códigos)" if cfg.wbs_list is not None
+         else f"- Nivel de desglose EDT: {cfg.max_level}"),
         f"- Fichas: {len(cards.cards)}",
         f"- Fecha de emisión: {today:%d/%m/%Y}",
         "",

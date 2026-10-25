@@ -72,11 +72,20 @@ Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05): 13 (hoja 'Análisis d
 | Código EDT, Actividad | Paquete de trabajo. |
 | BAC, PV, EV y AC acumulados, SV, CV, SPI, CPI | **Fórmulas** sobre las hojas `PV`, `EV` y `AC`, acumuladas hasta el mes de la fila. Si se corrige un valor en esas hojas, el análisis se recalcula. |
 | Semáforo | `Rojo`, `Amarillo` o `Verde`, según el índice más alejado del rango verde: `Rojo` si alguno de los dos está por debajo de `rojo_inferior` o por encima de `rojo_superior`. Una fila puede quedar en `Verde` si se corrigieron los datos después de agregarla. |
+| SPI mes ant., CPI mes ant. | **Fórmulas**: SPI y CPI acumulados del paquete en el último mes con EV cargado antes del mes de la fila (con informes bimestrales, el del informe anterior). Vacíos si no hay un mes anterior con datos. |
+| Tendencia | `Empeora` si el SPI o el CPI se alejan de 1 más de 0,01 respecto del mes anterior; `Mejora` si alguno se acerca y ninguno se aleja; `Estable` en otro caso. Un índice por encima del rango verde que baja hacia 1 también mejora. |
+| Desvío fin (días lab.), Holgura (días lab.), Crítica | Plazo del paquete según el cronograma de MS Project en el mes del análisis ([Indicadores EDT](libro-excel.md#indicadores-edt)): días laborables entre el fin de la línea base y el fin previsto (> 0 = atraso), menor holgura total de sus tareas sin terminar y si alguna de ellas es crítica. Son valores (no fórmulas): las filas de meses anteriores conservan los de su mes. El desvío se marca en rojo si el paquete es crítico o tiene holgura negativa (el atraso afecta la fecha de fin), y en amarillo si no lo es. |
 | Antecedente | `Nuevo` (primer mes fuera de umbral), `También en MM/AAAA` (estaba fuera de umbral el mes anterior, sin texto) o `Texto copiado de MM/AAAA: se debe revisar` (ver la [sección 4](#4-qué-se-conserva-de-un-mes-a-otro)). |
 | **Causa**, **Impacto en plazo y costo**, **Acción correctiva**, **Responsable**, **Fecha compromiso** | Celdas amarillas: se completan a mano. |
 
 La columna oculta `clave` asocia cada fila con su paquete (el *Id. único* de la tarea en MS Project). No
 se debe modificar.
+
+Las columnas de plazo ayudan a completar el **impacto en plazo**: un paquete con SPI 0,85 y 40 días de
+holgura no tiene la misma urgencia que otro con el mismo SPI en el camino crítico.
+
+Los libros generados con versiones anteriores a la 2.3.0 reciben las columnas nuevas en el siguiente
+`actualizar` o `analizar`, con el texto ya escrito en su lugar.
 
 ---
 

@@ -148,6 +148,12 @@ ceros finales no cuentan.
 | `2.1.0` | 2 | Subtotal o fila de ingreso si no tiene hijos. |
 | `2.1.1` | 3 | Fila de ingreso: paquete de trabajo. |
 | `2.1.1.1` | 4 | Sin fila propia: forma parte de `2.1.1`. |
+| `2.1.0.1` | 3 | Fila de ingreso: hijo directo de `2.1.0`, como `2.1.1` (0 intermedio). |
+
+Un **0 intermedio** permite insertar un elemento sin renumerar a sus hermanos: debajo de `1.2.0.0`,
+`1.2.0.1` se inserta antes de `1.2.1.0` y es su hermano. Los ceros intermedios no cuentan para el nivel,
+igual que los finales. `1.2.0.1` debajo de `1.2.1.0` sigue siendo un error: su código no depende del de
+su tarea superior.
 
 - Tienen fila propia las tareas con código EDT hasta el nivel máximo (`nivel_maximo`, 3 por defecto).
 - El % planificado y el % ganado de una fila de nivel 3 se calculan con todas las tareas de detalle que
@@ -157,7 +163,8 @@ ceros finales no cuentan.
   `1.2` → `1.2.0`.
 - El código EDT se lee del campo indicado en `[campos] edt`: el campo *EDT* de MS Project, el *número
   de esquema* o un campo personalizado de texto ([Preparación en MS Project](preparacion-ms-project.md#2-estructura-y-código-edt)).
-- El campo `Visible` permite cambiar esta regla tarea por tarea ([3.3](#33-campo-visible-más-o-menos-detalle-en-cada-rama)).
+- El campo `Visible` permite cambiar esta regla tarea por tarea ([3.3](#33-campo-visible-más-o-menos-detalle-en-cada-rama)),
+  y una lista de códigos en un archivo la reemplaza ([3.4](#34-lista-edt-filas-definidas-en-un-archivo)).
 
 ```mermaid
 flowchart TD
@@ -218,7 +225,52 @@ Si se omite `[campos] visible`, se lee el campo con alias `Visible` cuando el pr
 `visible = ""` no se lee; así se puede generar, del mismo cronograma, un libro con todo el detalle hasta
 `nivel_maximo` y otro con el detalle que indica `Visible`.
 
-### 3.4 Tareas sin código EDT
+### 3.4 Lista EDT: filas definidas en un archivo
+
+Cuando las filas del libro deben seguir una EDT acordada (por ejemplo, la del contrato o la del plan de
+costes), se pueden indicar en un archivo de texto, sin marcar el campo `Visible` en el cronograma:
+
+```toml
+[exportacion]
+lista_edt = 'C:\Programa\edt.txt'
+```
+
+El archivo tiene un código EDT por línea:
+
+```text
+# EDT del contrato
+1.0.0
+1.1.0   Ingeniería
+1.1.1   Estudios de terreno
+2.0
+2.1.0
+2.1.1
+```
+
+- Se ignoran las líneas vacías, las que empiezan con `#` y el texto que sigue al código (por ejemplo, el
+  nombre del elemento copiado desde Excel). Se admiten archivos en UTF-8, ANSI o texto Unicode de Excel.
+- Los códigos se completan con ceros como en el libro (`2.0` → `2.0.0`) y se escriben sin el prefijo de
+  la planificación (`1.1.0`, no `INTERNO.1.1.0`).
+- **La lista decide las filas** y reemplaza a `nivel_maximo` y al campo `Visible`:
+  - cada código de la lista tiene su fila, aunque sea más detallado que `nivel_maximo`;
+  - una tarea cuyo código no está en la lista se suma en su elemento listado más cercano: en su fila, si
+    es un paquete de trabajo, o en la fila `-D Otras tareas` si ese elemento tiene otros elementos
+    listados por debajo ([3.5](#35-tareas-sin-código-edt));
+  - una rama sin ningún elemento listado por encima queda fuera del libro, con una advertencia en
+    `Validación`;
+  - si el campo `Visible` tiene valores, una observación indica que no se usan.
+- Un código de la lista que no existe en MS Project (o cuya tarea está inactiva o en otra planificación)
+  no tiene fila y se advierte en `Validación` y en `validar`. Si no existe ningún código de la lista,
+  `generar` termina con un error.
+- Si un código de la lista depende de una tarea con código que no está en la lista, su fila queda debajo
+  del elemento listado más cercano, y se informa.
+- Con varios archivos (`[[proyectos]]`), una sola lista sirve para todos.
+
+El libro guarda la lista con la que se generó (hoja oculta `_lista_edt`): `actualizar` usa esa lista, y
+si el archivo cambió, lo advierte. Para aplicar el cambio se debe regenerar el libro con `--migrar-desde`.
+`validar` y `generar-fichas` también usan la lista.
+
+### 3.5 Tareas sin código EDT
 
 Las tareas sin código EDT no tienen fila propia. Si dependen de un elemento EDT, forman parte de ese
 elemento:

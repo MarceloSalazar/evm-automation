@@ -99,6 +99,7 @@ python evm_export.py generar --origen ejemplos\programa_ejemplo.xml --config con
 ```
 
 ```text
+Exportador EVM 2.3.0
 Leyendo ejemplos\programa_ejemplo.xml ...
 Proyecto: Programa de ejemplo EVM
   Planificación: INTERNO
@@ -188,7 +189,17 @@ CV = EV - AC             -3.300.820   CPI = 0,76
 EAC = BAC/CPI            58.530.071   VAC = -14.320.071
 TCPI                           1,11
 ES (meses)                    22,56   AT = 24  SV(t) = -1,44  SPI(t) = 0,94
+Últimos 3 meses                CPI = 0,58  SPI = 0,84
+Mes anterior                   CPI = 0,78  SPI = 0,85  EAC = 56.398.662  (variación del EAC: +2.131.409)
+
+Plazo según MS Project: fin de línea base 18/10/2030  |  fin previsto 09/12/2030 (desvío +36 días laborables)
+  Paquetes críticos sin terminar: 5 (5 con fin atrasado)
 ```
+
+El CPI de los últimos 3 meses (0,58) es mucho menor que el acumulado (0,76): el sobrecosto se acelera, y
+el EAC subió 2,1 millones respecto de noviembre. El cronograma vigente del ejemplo termina 36 días
+laborables después de la línea base, con 5 paquetes críticos atrasados: el atraso afecta la fecha de
+fin.
 
 > `--sin-respaldo` evita crear 24 copias de respaldo durante la prueba. En el uso real conviene
 > conservar el respaldo.

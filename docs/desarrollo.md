@@ -34,6 +34,9 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 | `test_analisis_desviaciones.py` | Hoja `Análisis de desviaciones`: lista calculada aparte, texto conservado y copiado al mes siguiente, `analizar` con AC cargado a mano, libros antiguos, `--migrar-desde` y recálculo de sus fórmulas con LibreOffice. |
 | `test_validar.py` | Comando `validar` y controles del archivo: códigos EDT (dependencia de la tarea superior, formato, orden, duplicados), fechas y duración, pesos, método frente a la duración, empresas, avance a la fecha de estado, lógica del cronograma (DCMA), lectura de duración, vínculos y delimitaciones (XML y COM) y columna `Tema` de la hoja `Validación`. |
 | `test_fichas_tareas.py` | Comando `generar-fichas`: fichas de los elementos del libro, vínculos trasladados al elemento con ficha (internos, repetidos y con tareas sin ficha), fechas y duración de la línea base, documento Markdown, varios archivos y lectura de la duración de la línea base, las horas por día y la descripción (XML y COM). |
+| `test_plazo_tendencia.py` | Plazo según el cronograma (días laborables, fin previsto, holgura y crítica de cada fila, filas resumen y total), columnas de `Indicadores EDT`, secciones del `Resumen` y del `Cuadro de Mando`, libros de versiones anteriores, tendencia (mes anterior con datos y últimos 3 meses) y recálculo de sus fórmulas con LibreOffice. |
+| `test_lista_edt.py` | Lista EDT (`lista_edt`): lectura del archivo, filas definidas por la lista, códigos faltantes, ramas sin elemento listado, lista guardada en el libro y usada por `actualizar`. |
+| `test_progreso.py` | Versión en pantalla y barra de progreso (etapas, % de la etapa y del total, ETA, consola no interactiva). |
 | `test_varios_archivos.py` | Varios archivos de MS Project (`[[proyectos]]`): el libro combinado coincide, fila por fila, con el libro de cada archivo (también en multi-empresa, con UniqueID repetidos entre archivos); errores de configuración y de la línea de comandos, fechas de estado y `--migrar-desde`. |
 | Resto | Casos del programa de ejemplo, Cuadro de Mando, semáforo, multi-empresa, planificación, campo `Visible`, depuración de costes, calendario y lector COM simulado. |
 
@@ -54,8 +57,9 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 El lector `.mpp` se prueba con objetos que simulan MS Project. En un PC con MS Project, las pruebas
 opcionales de `test_msproject_real.py` (marca `msproject`) leen un proyecto real por automatización COM
 y comparan el resultado con el XML que MS Project guarda del mismo proyecto: estructura EDT, métodos,
-horizonte, % planificado de cada mes y % ganado acumulado a la fecha de corte (de cada empresa, en
-multi-empresa), y que MS Project quede como estaba (abierto o cerrado). Los dos libros reciben el mismo
+horizonte, % planificado de cada mes, % ganado acumulado a la fecha de corte (de cada empresa, en
+multi-empresa), plazo según el cronograma (fin previsto, holgura total y tareas críticas) y que MS
+Project quede como estaba (abierto o cerrado). Los dos libros reciben el mismo
 BAC en cada fila.
 
 1. En MS Project se abre el proyecto, se define *Proyecto > Fecha de estado* y se guarda el `.mpp`.
@@ -89,10 +93,10 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/cli.py` | Comandos y opciones. |
 | `evm/config.py` | Configuración TOML. |
 | `evm/model.py` | Datos comunes: tareas (fechas y duración de la línea base, fechas actuales, avance, duración, vínculos, delimitaciones, campos personalizados y descripción) y proyecto leídos de MS Project. |
-| `evm/reader_com.py` | Lectura de `.mpp` con MS Project (COM): fechas, avance y campos personalizados. Los costos no se leen. |
+| `evm/reader_com.py` | Lectura de `.mpp` con MS Project (COM): fechas, avance, holgura, tareas críticas y campos personalizados. Los costos no se leen. |
 | `evm/reader_xml.py`, `evm/workcalendar.py` | Lectura del XML de MS Project (los costos no se leen) y calendario laboral con el que se reparte la duración de las tareas entre los meses. |
 | `evm/fields.py` | Identificación de campos personalizados (Texto1..30, Número1..20 y alias). |
-| `evm/wbs.py` | Estructura EDT hasta el nivel máximo o el detalle que indique el campo `Visible`, % planificado de cada fila, combinación de varios archivos y horizonte. |
+| `evm/wbs.py` | Estructura EDT hasta el nivel máximo o el detalle que indique el campo `Visible` (o la lista EDT), % planificado de cada fila, combinación de varios archivos y horizonte. |
 | `evm/validation.py` | Controles del archivo de MS Project: códigos EDT, fechas y duración, pesos, método y empresas (hoja `Validación` y `validar`), avance a la fecha de estado y lógica del cronograma (solo `validar`). |
 | `evm/percent.py` | Peso de cada tarea (duración de la línea base y `Peso hito`), % planificado y % ganado de cada fila y de cada empresa. |
 | `evm/cost_review.py` | Depuración de costes: hojas `PV-depuración`, `Depuración costes` y `_depuracion` (asignación con fórmulas de la previsión pegada) e indicador de alineamiento. |
@@ -104,7 +108,9 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/analysis.py` | Hoja `Análisis de desviaciones`: paquetes fuera de umbral y texto conservado. |
 | `evm/update.py` | Comandos `actualizar` (% ganado del mes) y `analizar`, y lectura y verificación del libro. |
 | `evm/migrate.py` | Traslado del BAC, el % ganado, el AC y los métodos al regenerar el libro (`--migrar-desde`). |
-| `evm/indicators.py` | Indicadores que se muestran en pantalla (mismos cálculos que la hoja `Resumen`). |
+| `evm/indicators.py` | Indicadores que se muestran en pantalla (mismos cálculos que la hoja `Resumen`), incluida la tendencia. |
+| `evm/schedule.py` | Plazo según el cronograma de MS Project: fin previsto, desvío de fin, holgura y camino crítico de cada fila y del proyecto. |
+| `evm/progress.py` | Barra de progreso de la consola (etapas de cada comando, % y ETA). |
 | `evm/task_cards.py` | Comando `generar-fichas`: ficha de cada elemento EDT del libro (fechas y duración de la línea base, predecesoras y sucesoras) y documento Markdown. |
 | `instalador/` | Instalador de Windows: `construir.py`, especificación de PyInstaller, script de Inno Setup y consola ([3.2](#32-instalador-de-windows)). |
 

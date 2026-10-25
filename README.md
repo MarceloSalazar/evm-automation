@@ -15,7 +15,7 @@ simulado.*
 
 - **PV mensual** de cada elemento de la EDT hasta el nivel 3 del código EDT (`2.0.0`, `2.1.0`,
   `2.1.1`), durante 120 meses. Con el campo `Visible` de MS Project se muestra más o menos detalle en
-  cada rama.
+  cada rama, o las filas se indican en una **lista de códigos EDT** en un archivo de texto.
 - El cronograma de MS Project **no necesita importes**: el programa calcula el % planificado y el %
   ganado de cada paquete con la duración de la línea base de sus tareas y el peso de sus hitos, y el PV y
   el EV son el **BAC que se ingresa en el libro** multiplicado por ese %. Así, el cronograma se puede
@@ -29,7 +29,10 @@ simulado.*
   50/50, hitos ponderados, % completado, % físico completado, unidades y LOE), y carga del valor del mes
   en el libro. El **AC** se carga a mano.
 - **Cuadro de Mando** con el mes de reporte seleccionable: BAC, PV, EV, AC, desviaciones, índices con
-  semáforo, pronósticos (ETC, EAC, VAC, TCPI) y tres gráficos nativos de Excel.
+  semáforo, pronósticos (ETC, EAC, VAC, TCPI), **tendencia** (CPI y SPI de los últimos 3 meses y
+  variación respecto del mes anterior) y tres gráficos nativos de Excel.
+- **Plazo según el cronograma de MS Project**: fin previsto, desvío de fin, holgura total y camino
+  crítico del proyecto y de cada elemento de la EDT, para saber si un atraso afecta la fecha de fin.
 - **Indicadores** del proyecto y de cada elemento de la EDT, incluido el **Cronograma Ganado**.
 - **Semáforo** de CPI y SPI con umbrales inferiores y superiores configurables, indicados en el Cuadro
   de Mando.
