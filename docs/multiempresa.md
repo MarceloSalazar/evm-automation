@@ -196,13 +196,15 @@ está en [Cálculo del PV y el EV](calculo-pv-ev.md#10-multi-empresa).
 
 ## 7. Validaciones y controles
 
-`generar` informa en `Validación`:
+`generar` (hoja `Validación`) y `validar` (en pantalla) informan:
 
 - Las filas en las que una empresa **no participa** en ninguna tarea: si se le asigna BAC, su PV se
   reparte con el % planificado de la fila completa.
 - Tareas **sin empresa** (ni propia ni heredada): se reparten con el reparto por defecto.
 - Valores de empresa **no reconocidos** (por ejemplo, un error de escritura).
 - `% Reparto` **fuera de rango** (negativo o mayor que 100).
+- `% Reparto` en una tarea que no es `Ambas` (informativo: se ignora).
+- Campo de empresa que existe, pero está vacío en todas las tareas (revisar `campo_empresa`).
 
 `actualizar` indica en las observaciones de la fila cuándo una empresa con BAC no participa en sus
 tareas y se usó el avance de la fila completa.
@@ -276,7 +278,7 @@ revise su EV antes de emitir el informe. El BAC de cada empresa se ingresa una v
 **¿Se admiten más de dos empresas?** No. Con más socios, se puede agrupar a los socios menores en una
 de las dos empresas.
 
-**¿Qué pasa si cambio la empresa de una tarea después de generar el libro?** El % planificado de cada
+**¿Qué pasa si se cambia la empresa de una tarea después de generar el libro?** El % planificado de cada
 empresa no cambia hasta regenerar el libro, pero `actualizar` calcula el % ganado con la empresa actual
 de cada tarea. Si el cambio es definitivo, se recomienda regenerar el libro con `--migrar-desde` y revisar
 el BAC de cada empresa.

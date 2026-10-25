@@ -13,6 +13,7 @@ python evm_export.py --help
 python evm_export.py validar --help
 python evm_export.py generar --help
 python evm_export.py actualizar --help
+python evm_export.py analizar --help
 python evm_export.py generar-fichas --help
 ```
 
@@ -38,9 +39,9 @@ observaciones agrupadas por tema. **No crea ni modifica ningún archivo.** Revis
   `1.2.1`, `1.2.2`...; `1.14.2` es un error), su formato, los niveles salteados, el orden y los
   duplicados;
 - las fechas y la duración: tareas sin línea base, fechas invertidas, hitos con duración, tareas con
-  duración 0 que no son hitos, duraciones estimadas y tareas manuales;
-- los pesos de los hitos, el método de medición (también frente a la duración del paquete) y las
-  empresas.
+  duración 0 que no son hitos, duraciones estimadas y tareas programadas manualmente;
+- los pesos de los hitos, el campo `Visible`, el método de medición (también frente a la duración del
+  paquete) y las empresas.
 
 Además, revisa dos aspectos del cronograma que no afectan al libro:
 
@@ -57,13 +58,14 @@ recomienda ejecutar `validar` antes de `generar` y antes de cada `actualizar`.
 | Opción | Descripción |
 |---|---|
 | `--origen`, `--config`, `--motor`, `--planificacion`, `--linea-base`, `--nivel-max`, `--visible` | Igual que en `generar`. Con varios archivos (`[[proyectos]]`) se revisan todos. |
-| `--fecha-corte AAAA-MM-DD` | Fecha de estado con la que se revisa el avance. Por defecto, la fecha de estado de cada archivo. Sin fecha de estado, solo se revisa la coherencia de las fechas reales. |
+| `--fecha-corte AAAA-MM-DD` | Fecha de corte (fecha de estado) con la que se revisa el avance. Por defecto, la fecha de estado de cada archivo. Sin fecha de estado, solo se revisa la coherencia de las fechas reales. |
 | `--todas` | Muestra todas las observaciones. Por defecto, hasta 20 por tema. |
 
 Si la planificación indicada no existe, o si dos archivos de `[[proyectos]]` tienen el mismo código
 EDT (casos en los que `generar` se detiene), `validar` lo informa como error y revisa lo que puede. El
 programa termina con código 1 si encuentra errores y con 0 si no los hay (aunque haya advertencias),
-para usarlo en procesos automáticos.
+para usarlo en procesos automáticos. Si no puede leer la configuración o el archivo de MS Project,
+termina con código 2 ([Códigos de salida](#códigos-de-salida)).
 
 Ejemplo de salida con el avance simulado del proyecto de ejemplo a junio de 2027 (`config.toml` del
 [tutorial](ejemplo-paso-a-paso.md#2-configuración); se omiten algunas líneas):
@@ -112,20 +114,20 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 
 | Opción | Descripción |
 |---|---|
-| `--origen` | Archivo `.mpp` (requiere MS Project), `.xml` de MS Project, o `activo` para usar el proyecto abierto en MS Project. **Obligatoria**, salvo con varios archivos (`[[proyectos]]` en la configuración): en ese caso se omite, o se indica `NOMBRE=RUTA` para reemplazar la ruta de un archivo ([Varios archivos](varios-archivos.md)). |
-| `--salida` | Libro `.xlsx` a crear. Por defecto `<origen>_EVM.xlsx`; obligatoria con varios archivos. |
+| `--origen` | Archivo `.mpp` (requiere MS Project), `.xml` de MS Project, o `activo` para usar el proyecto abierto en MS Project. **Obligatoria**, salvo con varios archivos (`[[proyectos]]` en la configuración): en ese caso se omite, o se indica `NOMBRE=RUTA` para reemplazar la ruta de un archivo ([Varios archivos](varios-archivos.md)). `NOMBRE=RUTA` se puede repetir; una ruta relativa se toma desde la carpeta actual (no desde la del archivo de configuración). |
+| `--salida` | Libro `.xlsx` a crear. Por defecto `<origen>_EVM.xlsx` (con `--origen activo`, `EVM.xlsx` en la carpeta actual); obligatoria con varios archivos. |
 | `--config` | Archivo de configuración TOML ([Configuración](configuracion.md)). |
-| `--mes-inicio AAAA-MM` | Primer mes del horizonte (mes 1). Por defecto, el mes en que comienza la línea base. |
-| `--meses N` | Cantidad de meses (columnas). Por defecto 120. |
+| `--mes-inicio AAAA-MM` | Primer mes del horizonte (mes 1). Por defecto, `mes_inicio` de la configuración o, si no se indica, el mes en que comienza la línea base. |
+| `--meses N` | Cantidad de meses (columnas). Por defecto, `meses` de la configuración (120). |
 | `--planificacion CODIGO` | Código EDT de la planificación a exportar (`INTERNO`, `CLIENTE`...). Reemplaza el valor del archivo de configuración; `""` exporta todas. Con varios archivos no se admite: la planificación se indica en cada `[[proyectos]]`. |
 | `--linea-base N` | 0 = Línea base, 1..10 = Línea base N. Por defecto, la que el proyecto usa para el valor acumulado. Con varios archivos no se admite: se indica en cada `[[proyectos]]`. |
-| `--nivel-max N` | Nivel máximo del código EDT. Por defecto 3. |
+| `--nivel-max N` | Nivel máximo del código EDT. Por defecto, `nivel_maximo` de la configuración (3). |
 | `--motor auto\|com\|xml` | Forma de lectura. `auto` decide por la extensión. |
 | `--migrar-desde libro.xlsx` | Copia al libro nuevo el BAC ingresado, el % ganado y el AC ya cargados, los métodos editados en la columna C, el análisis de desviaciones y la fecha de corte de un libro anterior ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). Con depuración de costes, también la previsión pegada en `PV-depuración` ([Depuración de costes](depuracion-costes.md#8-ciclo-de-ajuste)). |
 | `--sobrescribir` | Reemplaza el libro de salida si ya existe. |
-| `--visible` | Muestra MS Project mientras se lee (solo COM). |
+| `--visible` | Muestra la ventana de MS Project mientras se lee (solo COM). No tiene relación con el campo `Visible`. |
 
-Ejemplo de salida con el proyecto de ejemplo:
+Ejemplo de salida con el proyecto de ejemplo (se omiten algunas líneas):
 
 ```text
 Leyendo ejemplos/programa_ejemplo.xml ...
@@ -140,6 +142,8 @@ Proyecto: Programa de ejemplo EVM
   [i] Se omitió 1 tarea sin código EDT que no depende de ningún elemento EDT: no forma parte de ninguna fila del libro.
   [i] 14 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.
   [i] 1 fila sin método de medición definido (columna C).
+  [!] 1.2.1 Licitación de ingeniería: Método 0/100 en un paquete de 3,6 meses (línea base), más de 1: el EV queda en 0 hasta que termina. Se recomienda dividir el paquete o usar un método de avance (% completado, hitos ponderados). Umbral: [validacion] meses_0_100.
+  ...
 Libro generado: ...\EVM_Ejemplo.xlsx
 ```
 
@@ -162,8 +166,9 @@ python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config con
 | `--simular` | Muestra el EV calculado para cada fila y los indicadores resultantes, sin modificar el libro. |
 | `--forzar` | Permite actualizar aunque haya valores en meses posteriores. Esos meses no se recalculan: se avisa cuáles quedaron con un acumulado que ya no coincide con MS Project, para revisarlos o volver a cargarlos en orden. |
 | `--sin-respaldo` | No crea la copia `<libro>.respaldo-AAAAMMDD-HHMMSS.xlsx` (si ya existe una con ese nombre, se agrega `-2`, `-3`...). |
-| `--config`, `--motor`, `--linea-base`, `--nivel-max`, `--visible` | Igual que en `generar`. |
-| `--planificacion` | No se aplica: `actualizar` usa siempre la planificación con la que se generó el libro (y lo advierte si la configuración indica otra). |
+| `--config`, `--motor`, `--visible` | Igual que en `generar`. |
+| `--linea-base N` | Igual que en `generar`. Debe ser la misma línea base con la que se generó el libro: sus duraciones definen el peso de cada tarea en el % ganado. |
+| `--planificacion`, `--nivel-max` | No se aplican: `actualizar` usa siempre la planificación y el nivel máximo con los que se generó el libro (si la configuración indica otra planificación, lo advierte). |
 
 - Escribe el % ganado del mes en la hoja `% EV` (el EV es el BAC × ese %). No modifica el AC, que se
   carga a mano en la hoja `AC` (en multi-empresa, en `AC-EmpresaA` y `AC-EmpresaB`), antes o después de
@@ -191,29 +196,29 @@ Observaciones por fila:
   4.2.2 Cierre administrativo: método no definido: se usó % completado
   [i] El AC se carga a mano en la hoja 'AC'; los indicadores de costo usan los valores cargados.
 Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05): 13 (hoja 'Análisis de desviaciones')
-  1.1.1      Oficina de gestión del programa (PMO)     SPI  1.00  CPI  1.11
-  1.1.2      Control de proyectos y EVM                SPI  1.00  CPI  1.11
-  1.1.3      Gestión de riesgos                        SPI  1.00  CPI  1.09
-  1.2.1      Licitación de ingeniería                  SPI  0.00  CPI  0.00
-  1.2.2      Licitación de obras                       SPI  0.50  CPI  0.54
-  1.2.3      Administración de contratos               SPI  1.00  CPI  1.12
-  2.1.1      Estudios de terreno                       SPI  0.50  CPI  0.54
-  2.1.2      Diseño conceptual                         SPI  1.00  CPI  1.09
-  2.1.3      Ingeniería básica civil                   SPI  0.85  CPI  0.93
-  2.1.4      Ingeniería básica eléctrica               SPI  0.85  CPI  0.93
-  2.2.1      Detalle civil                             SPI  0.84  CPI  0.93
-  2.2.2      Detalle mecánico                          SPI  0.86  CPI  0.93
-  2.2.3      Detalle eléctrico y control               SPI  0.84  CPI  0.93
+  1.1.1      Oficina de gestión del programa (PMO)     SPI  1,00  CPI  1,11
+  1.1.2      Control de proyectos y EVM                SPI  1,00  CPI  1,11
+  1.1.3      Gestión de riesgos                        SPI  1,00  CPI  1,09
+  1.2.1      Licitación de ingeniería                  SPI  0,00  CPI  0,00
+  1.2.2      Licitación de obras                       SPI  0,50  CPI  0,54
+  1.2.3      Administración de contratos               SPI  1,00  CPI  1,12
+  2.1.1      Estudios de terreno                       SPI  0,50  CPI  0,54
+  2.1.2      Diseño conceptual                         SPI  1,00  CPI  1,09
+  2.1.3      Ingeniería básica civil                   SPI  0,85  CPI  0,93
+  2.1.4      Ingeniería básica eléctrica               SPI  0,85  CPI  0,93
+  2.2.1      Detalle civil                             SPI  0,84  CPI  0,93
+  2.2.2      Detalle mecánico                          SPI  0,86  CPI  0,93
+  2.2.3      Detalle eléctrico y control               SPI  0,84  CPI  0,93
 
-BAC (EUR)              44,210,000
-PV acumulado              5,895,918   % planificado 13.3 %
-EV acumulado              4,946,380   % completado  11.2 %
-AC acumulado              5,393,844   % gastado     12.2 %
-SV = EV - PV               -949,538   SPI = 0.84
-CV = EV - AC               -447,464   CPI = 0.92
-EAC = BAC/CPI            48,209,366   VAC = -3,999,366
-TCPI                           1.01
-ES (meses)                    15.98   AT = 18  SV(t) = -2.02  SPI(t) = 0.89
+BAC (EUR)              44.210.000
+PV acumulado              5.895.918   % planificado 13,3 %
+EV acumulado              4.946.380   % completado  11,2 %
+AC acumulado              5.393.844   % gastado     12,2 %
+SV = EV - PV               -949.538   SPI = 0,84
+CV = EV - AC               -447.464   CPI = 0,92
+EAC = BAC/CPI            48.209.366   VAC = -3.999.366
+TCPI                           1,01
+ES (meses)                    15,98   AT = 18  SV(t) = -2,02  SPI(t) = 0,89
 Libro actualizado: ...\EVM_Ejemplo.xlsx
 Los indicadores y los gráficos se calculan en el libro (hojas 'Cuadro de Mando', 'Resumen' e 'Indicadores EDT').
 ```
@@ -275,7 +280,7 @@ como predecesora y la de `1.2.1` muestra `1.2.3` como sucesora.
 
 | Opción | Descripción |
 |---|---|
-| `--salida` | Archivo `.md` a crear. Por defecto `<origen>_fichas.md`; obligatoria con varios archivos. |
+| `--salida` | Archivo `.md` a crear. Por defecto `<origen>_fichas.md` (con `--origen activo`, `Fichas.md` en la carpeta actual); obligatoria con varios archivos. |
 | `--sobrescribir` | Reemplaza el archivo de salida si ya existe. |
 | `--origen`, `--config`, `--motor`, `--planificacion`, `--linea-base`, `--nivel-max`, `--visible` | Igual que en `generar`. Con varios archivos (`[[proyectos]]`) se crea un solo documento con las fichas de todos, en el orden del libro. |
 
@@ -363,3 +368,26 @@ python evm_export.py actualizar --config config.toml --libro EVM_Programa.xlsx
 ```
 
 Si no se activó el entorno virtual, se usa `.venv\Scripts\python.exe` en lugar de `python`.
+
+---
+
+## Códigos de salida
+
+Todos los comandos terminan con un código que permite usarlos en procesos automáticos:
+
+| Código | Significado |
+|---|---|
+| 0 | El comando terminó correctamente. En `validar`: no hay errores, aunque puede haber advertencias. |
+| 1 | `validar` encontró errores (`[X]`) en el archivo de MS Project: se deben corregir antes de generar o actualizar el libro. Ningún otro comando termina con 1. |
+| 2 | El comando no se pudo ejecutar por un problema previsto, explicado en el mensaje `ERROR: ...`: configuración no válida, archivo inexistente o sin permiso, libro abierto en Excel o con un formato que no se reconoce, MS Project que no responde, error de lectura o escritura (disco lleno, unidad de red no disponible) u opción mal escrita. |
+| 3 | Error inesperado del programa (`ERROR inesperado: ...`). Se debe ejecutar de nuevo con `-v` y, si se repite, informarlo en un [ticket](https://github.com/MarceloSalazar/evm-automation/issues/new/choose) con ese detalle. |
+| 130 | Ejecución cancelada con Ctrl+C. |
+
+Por ejemplo, en PowerShell, para actualizar el libro solo si `validar` no encuentra errores:
+
+```powershell
+python evm_export.py validar --origen Programa.mpp --config config.toml
+if ($LASTEXITCODE -eq 0) {
+    python evm_export.py actualizar --origen Programa.mpp --config config.toml --libro EVM_Programa.xlsx
+}
+```

@@ -22,6 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime, time
 
+from evm.fields import fmt_number
 from evm.methods import FIXED, LOE, MILESTONES, PCT, PHYSICAL, UNDEFINED, UNITS, Method, is_complete, is_started
 from evm.model import MonthKey, Task
 from evm.timeline import add_into
@@ -109,10 +110,6 @@ def leaf_times(leaves: list[Task], calendar: WorkCalendar, mode: str = "habiles"
     return [task_time(t, calendar, mode) for t in leaves]
 
 
-def _fmt(v: float) -> str:
-    return f"{v:.2f}".rstrip("0").rstrip(".").replace(".", ",")
-
-
 def row_weights(times: list[TaskTime], share: Share | None = None, company: str = "") -> RowWeights | None:
     """Pesos de las tareas de una fila para una empresa.
 
@@ -139,11 +136,11 @@ def row_weights(times: list[TaskTime], share: Share | None = None, company: str 
     weights: dict[int, float] = {}
     if m_total > TOL and (m_total >= 100 - TOL or d_total <= TOL):
         if m_total > 100 + TOL:
-            notes.append(f"Los pesos de los hitos{who} suman {_fmt(m_total)} %: se escalaron a 100 % y las tareas "
-                         "sin hito no reciben % planificado.")
+            notes.append(f"Los pesos de los hitos{who} suman {fmt_number(m_total, trim=True)} %: se escalaron a "
+                         "100 % y las tareas sin hito no reciben % planificado.")
         elif m_total < 100 - TOL:
-            notes.append(f"Los pesos de los hitos{who} suman {_fmt(m_total)} % y la fila no tiene tareas con "
-                         "duración: se escalaron a 100 %.")
+            notes.append(f"Los pesos de los hitos{who} suman {fmt_number(m_total, trim=True)} % y la fila no tiene "
+                         "tareas con duración: se escalaron a 100 %.")
         weights = {uid: p / m_total for uid, p in m_weight.items() if p > 0}
     elif m_total > TOL or d_total > TOL:
         weights = {uid: p / 100.0 for uid, p in m_weight.items() if p > 0}

@@ -13,8 +13,8 @@ from datetime import datetime
 from pathlib import Path
 
 from evm.config import Config
-from evm.fields import (builtin_kind, field_id, is_notes_name, is_spanish_wbs_name, parse_custom_name, parse_number,
-                        same_name)
+from evm.fields import (builtin_kind, field_id, fmt_number, is_notes_name, is_spanish_wbs_name, parse_custom_name,
+                        parse_number, same_name)
 from evm.model import Link, ProjectData, Task, use_current_schedule
 from evm.workcalendar import WorkCalendar, calendar_from_xml
 
@@ -175,7 +175,7 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
         split_ref = _resolve(cfg.split_field, defs)
         if split_ref is None:
             warnings.append(f"No se encontró el campo de reparto '{cfg.split_field}' en el XML: las tareas "
-                            f"'{cfg.company_both}' se reparten al {cfg.split_default:g} %.")
+                            f"'{cfg.company_both}' se reparten al {fmt_number(cfg.split_default, trim=True)} %.")
 
     # Calendario del proyecto: reparte la duración de las tareas entre los meses
     try:

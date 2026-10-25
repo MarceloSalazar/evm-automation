@@ -50,10 +50,10 @@ MS Project **no necesita costos ni recursos**: el BAC de cada fila se ingresa en
 
 **Cada mes, antes de `actualizar`:**
 
+- [ ] **Fecha de estado** = último día del mes.
 - [ ] Avance registrado (*% completado*, *% físico completado*, fechas reales, hitos cumplidos).
 - [ ] Trabajo pendiente reprogramado después de la fecha de estado.
-- [ ] **Fecha de estado** = último día del mes.
-- [ ] Si se usa XML: archivo guardado **después** de fijar la fecha de estado.
+- [ ] Si se usa XML: archivo guardado **después** de fijar la fecha de estado y registrar el avance.
 - [ ] `validar` sin errores ni trabajo pendiente antes de la fecha de estado.
 
 ---
@@ -99,10 +99,11 @@ encabezado de una columna > **Campos personalizados** (o *Proyecto > Campos pers
 | *Texto3* | Texto | `Empresa` | Lista: `EmpresaA`, `EmpresaB`, `Ambas` | `[multiempresa] campo_empresa` |
 | *Número2* | Número | `% Reparto` | % de la empresa A en tareas `Ambas` | `[multiempresa] campo_reparto` |
 | *Texto5* | Texto | `Visible` | Lista: `Sí`, `No` (vacío = según el nivel máximo) | `[campos] visible` |
+| *Texto20* | Texto | `Descripción` | Texto de la ficha de cada tarea de `generar-fichas` (opcional; también se pueden usar las *Notas*) | `[campos] descripcion` |
 
 Pasos para cada campo:
 
-1. **Campo: Tarea** y el **Tipo** (*Texto* o *Número*).
+1. Se elige **Campo: Tarea** y el **Tipo** (*Texto* o *Número*).
 2. Se selecciona un campo libre y con **Cambiar nombre...** se le asigna el nombre.
 3. Para listas cerradas (método, empresa, visible): **Atributos personalizados > Búsqueda...**, se
    escriben los valores y se desmarca *Permitir introducir elementos adicionales en los campos*.
@@ -182,7 +183,7 @@ base guardada se usan las fechas actuales de las tareas y se advierte
 |---|---|---|
 | *% completado* | Botones *0%* a *100%* de la pestaña *Tarea*, tabla *Seguimiento* o *Proyecto > Actualizar proyecto* | `% Completado`, `0/100`, `X/Y`, hitos (100 % al cumplirse) |
 | *% físico completado* | Columna *% físico completado* o tabla *Seguimiento* | `% Físico completado`, `Unidades completadas` |
-| *Comienzo real* y *Fin real* | Tabla *Seguimiento* o cuadro *Actualizar tareas* | `X/Y` (comienzo), `0/100` (fin) |
+| *Comienzo real* y *Fin real* | Tabla *Seguimiento* o cuadro *Actualizar tareas* | `X/Y` (comienzo); fin de `0/100` y `X/Y` (al registrar el *Fin real*, MS Project pone la tarea al 100 %; una tarea con menos del 100 % no se considera terminada) |
 
 Buenas prácticas del registro:
 
@@ -203,8 +204,10 @@ Si la PC que ejecuta el programa no tiene MS Project, se guarda el proyecto en f
 *Archivo > Guardar como*, tipo **XML**. El XML se debe guardar **después** de registrar el avance y fijar
 la fecha de estado: el programa toma la fecha de estado del archivo como fecha de corte.
 
-Limitación del XML: la duración de las tareas se reparte entre los meses con el calendario del proyecto
-(no con los de recursos o tareas) ([Limitaciones](validaciones-y-problemas.md#2-limitaciones-conocidas)).
+Calendario: con XML, la duración de las tareas se reparte entre los meses con el calendario del proyecto;
+con `.mpp`, con un calendario de lunes a viernes más los `feriados` de la configuración. En ambos casos
+no se usan los calendarios de recursos ni de tareas
+([Limitaciones](validaciones-y-problemas.md#2-limitaciones-conocidas)).
 
 ---
 
@@ -224,4 +227,6 @@ Limitación del XML: la duración de las tareas se reparte entre los meses con e
 - **Calidad del cronograma:** un cronograma con lógica completa (predecesoras y sucesoras), sin
   restricciones innecesarias y con duraciones acotadas es la base de un PV confiable. Las guías de
   evaluación de cronogramas listadas en [Recursos externos](recursos-externos.md) (por ejemplo, la del
-  GAO) describen los controles habituales.
+  GAO) describen los controles habituales. `validar` revisa la lógica, los adelantos y las posiciones, las
+  delimitaciones y el índice de ejecución de la línea base (BEI) con los criterios de la evaluación DCMA
+  de 14 puntos ([Validaciones](validaciones-y-problemas.md#13-lógica-del-cronograma-validar)).

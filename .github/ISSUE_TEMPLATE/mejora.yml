@@ -25,6 +25,7 @@ body:
         - validar (revisión del archivo de MS Project)
         - generar (libro y PV)
         - actualizar o analizar (cierre mensual)
+        - generar-fichas (fichas de tareas para el cliente)
         - Cuadro de Mando e indicadores
         - Análisis de desviaciones
         - Configuración

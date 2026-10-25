@@ -24,6 +24,7 @@ from openpyxl.worksheet.properties import Outline
 
 from evm import __version__
 from evm.config import MODE_PERCENT, Config
+from evm.fields import fmt_number
 from evm.wbs import KIND_LEAF, KIND_RESIDUAL, KIND_SUMMARY, Report, ReportRow
 
 # ----------------------------------------------------------------------------
@@ -994,7 +995,7 @@ class Thresholds:
 
 def fmt_decimal(v: float) -> str:
     """Número con dos decimales y coma decimal: 0.9 -> '0,90'."""
-    return f"{v:.2f}".replace(".", ",")
+    return fmt_number(v)
 
 
 def _traffic_light(ws, rng: str, th: Thresholds) -> None:

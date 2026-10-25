@@ -54,12 +54,13 @@ BAC que se ingresa en el libro × el % planificado y el % ganado, y el AC se car
 | Método de valor acumulado | Earned Value Method | Cómo calcula MS Project su valor acumulado (CPTR). El programa no lo usa. |
 | Comienzo real, Fin real | Actual Start, Actual Finish | Comienzo y fin de los paquetes. |
 | EDT, Número de esquema | WBS, Outline Number | Código EDT de cada tarea. |
-| Texto1..30, Número1..20 | Text1..30, Number1..20 | Campos personalizados (método, peso de los hitos, empresa, visible). |
+| Texto1..30, Número1..20 | Text1..30, Number1..20 | Campos personalizados (método, peso de los hitos, empresa, % de reparto, visible y descripción de las fichas). |
 | Hito | Milestone | Su `Peso hito` es un % del BAC del paquete; método `Hitos ponderados`. |
 | Activo / Desactivar | Active / Inactivate | Tareas inactivas excluidas. |
 | Duración (estimada, con `?`) | Duration (Estimated) | `validar`: hitos con duración, tareas con duración 0 y duraciones estimadas. |
 | Programada manualmente | Manually Scheduled | `validar`: MS Project no recalcula sus fechas. |
-| Predecesoras, sucesoras, vínculos FC, CC, FF y CF | Predecessors, successors, FS, SS, FF and SF links | `validar`: lógica del cronograma. |
+| Notas | Notes | `generar-fichas`: descripción de cada ficha (`[campos] descripcion = "Notas"`). |
+| Predecesoras, sucesoras, vínculos FC, CC, FF y CF | Predecessors, successors, FS, SS, FF and SF links | `validar`: lógica del cronograma. `generar-fichas`: predecesoras y sucesoras de cada ficha. |
 | Posiciones (positivas o negativas, adelantos) | Lag (lead) | `validar`: esperas y adelantos en los vínculos. |
 | Delimitación (*Debe comenzar el*, *No finalizar después del*...) | Constraint (Must Start On, Finish No Later Than...) | `validar`: delimitaciones que fijan las fechas. |
 
@@ -74,10 +75,10 @@ BAC que se ingresa en el libro × el % planificado y el % ganado, y el AC se car
 | % ganado | Parte del BAC de una fila ganada en cada mes (hoja `% EV`), según su método de medición. La escribe `actualizar` ([Cálculo del PV y el EV](calculo-pv-ev.md#6--ganado-métodos-de-medición)). |
 | Peso de una tarea | Fracción del BAC de la fila que le corresponde, por su duración de línea base o, en un hito, por su `Peso hito`. |
 | Fecha de corte | Último día del mes informado. Por defecto, la fecha de estado de MS Project. |
-| Fila de ingreso | Fila de nivel 3 (o sin hijos) donde se ingresan el BAC y el AC, y cuyo % ganado escribe `actualizar`. Las de nivel 1 y 2 son subtotales. |
-| Fila `-D Otras tareas` | Fila `<código>-D Otras tareas de «tarea»` que reúne las tareas sin código EDT que dependen directamente de un elemento de nivel 1 o 2, con su propio BAC. |
+| Fila de ingreso | Fila sin filas inferiores (por defecto, de nivel 3) donde se ingresan el BAC y el AC, y cuyo % ganado escribe `actualizar`: paquetes de trabajo y filas `-D`. Las filas con filas inferiores son subtotales. |
+| Fila `-D Otras tareas` | Fila `<código>-D Otras tareas de «tarea»` que reúne las tareas sin fila propia (sin código EDT o con código más detallado que `nivel_maximo`) que dependen directamente de una fila resumen, con su propio BAC. |
 | Planificación | Rama del proyecto bajo una tarea de primer nivel con código EDT (`INTERNO`, `CLIENTE`) que se exporta a un libro. |
-| Horizonte | Meses del libro (120 por defecto). Mes 1 = mes de inicio de la línea base. |
+| Horizonte | Meses del libro (120 por defecto). Por defecto, mes 1 = primer mes con % planificado (en general, el de inicio de la línea base); se cambia con `mes_inicio` o `--mes-inicio`. |
 | Mes de reporte | Mes que muestra el `Cuadro de Mando` (celda `E5`). |
 | DCMA de 14 puntos | Evaluación de calidad de cronogramas de la *Defense Contract Management Agency* de EE. UU.: `validar` usa sus criterios de lógica, delimitaciones e índice de ejecución de la línea base (BEI) ([Validaciones](validaciones-y-problemas.md#13-lógica-del-cronograma-validar)). |
 | Valor del mes | Valor de un mes, no acumulado: el % ganado que `actualizar` escribe en la hoja `% EV` (el EV del mes es el BAC × ese %) o el AC que se ingresa en la hoja `AC`. |

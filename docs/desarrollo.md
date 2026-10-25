@@ -35,7 +35,7 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 | `test_validar.py` | Comando `validar` y controles del archivo: códigos EDT (dependencia de la tarea superior, formato, orden, duplicados), fechas y duración, pesos, método frente a la duración, empresas, avance a la fecha de estado, lógica del cronograma (DCMA), lectura de duración, vínculos y delimitaciones (XML y COM) y columna `Tema` de la hoja `Validación`. |
 | `test_fichas_tareas.py` | Comando `generar-fichas`: fichas de los elementos del libro, vínculos trasladados al elemento con ficha (internos, repetidos y con tareas sin ficha), fechas y duración de la línea base, documento Markdown, varios archivos y lectura de la duración de la línea base, las horas por día y la descripción (XML y COM). |
 | `test_varios_archivos.py` | Varios archivos de MS Project (`[[proyectos]]`): el libro combinado coincide, fila por fila, con el libro de cada archivo (también en multi-empresa, con UniqueID repetidos entre archivos); errores de configuración y de la línea de comandos, fechas de estado y `--migrar-desde`. |
-| Resto | Casos del programa de ejemplo, Cuadro de Mando, multi-empresa y planificación. |
+| Resto | Casos del programa de ejemplo, Cuadro de Mando, semáforo, multi-empresa, planificación, campo `Visible`, depuración de costes, calendario y lector COM simulado. |
 
 - **LibreOffice:** si está instalado, las pruebas marcadas `libreoffice` recalculan las fórmulas del
   libro y las comparan con el cálculo en Python. Se usa un perfil propio de LibreOffice, por lo que
@@ -174,6 +174,10 @@ git push origin vX.Y.Z
 python docs\herramientas\notas_version.py X.Y.Z > notas.md
 gh release create vX.Y.Z --title "$(python docs\herramientas\notas_version.py X.Y.Z --titulo)" --notes-file notas.md
 ```
+
+Mientras no se resuelva el ticket #18, en `notas.md` los enlaces relativos (`docs/...`) se reemplazan
+por enlaces completos a la etiqueta (`https://github.com/MarceloSalazar/evm-automation/blob/vX.Y.Z/docs/...`)
+antes de `gh release create`. `notas.md` no se sube al repositorio.
 
 Por último, desde ese mismo commit etiquetado, se genera el instalador de Windows y se adjunta a la
 publicación ([3.2](#32-instalador-de-windows)):

@@ -24,6 +24,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.worksheet.datavalidation import DataValidation
 
 from evm.config import Config
+from evm.fields import fmt_number
 from evm.wbs import KIND_RESIDUAL, SEV_INFO, SEV_WARN, Issue, Report, plural
 from evm.workbook import (BORDER, COLOR_COST, FILL_COST, FILL_HEADER, FILL_INPUT, FILL_RED, FILL_TOTAL, FMT_MONTH,
                           FMT_PCT, FONT_BOLD, FONT_HEADER, FONT_NOTE, FONT_TITLE, HEADER_ROW, SHEET_PV, _header,
@@ -181,7 +182,7 @@ def alignment_format(ws, report: Report, cfg: Config, lay: _Layout) -> None:
     acumuladas que lo superan."""
     th = cfg.cost_review_threshold
     _header(ws, HEADER_ROW, [(lay.total_col + 1, "Dif. BAC (% del BAC)"),
-                             (lay.total_col + 2, f"Dif. máx. acumulada (umbral {th:g} %)")])
+                             (lay.total_col + 2, f"Dif. máx. acumulada (umbral {fmt_number(th, trim=True)} %)")])
     ws.row_dimensions[HEADER_ROW].height = 30
     for c_ in (lay.total_col + 1, lay.total_col + 2):
         ws.column_dimensions[col(c_)].width = 14

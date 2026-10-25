@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from itertools import accumulate
 
+from evm.fields import fmt_number
+
 EPS = 0.005
 
 
@@ -107,13 +109,13 @@ def compute(pv_month: list[float], ev_month: list[float], ac_month: list[float],
 
 def format_table(ind: Indicators, currency: str = "") -> str:
     def m(v):
-        return "-" if v is None else f"{v:,.0f}"
+        return "-" if v is None else fmt_number(v, 0)
 
     def r(v):
-        return "-" if v is None else f"{v:.2f}"
+        return "-" if v is None else fmt_number(v)
 
     def p(v):
-        return "-" if v is None else f"{v * 100:.1f} %"
+        return "-" if v is None else f"{fmt_number(v * 100, 1)} %"
 
     cur = f" ({currency})" if currency else ""
     lines = [

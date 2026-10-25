@@ -227,7 +227,7 @@ def test_migration_shifts_months_and_checks_the_company(tmp_path):
     rep = make_book(later, config(start_month=date(2027, 2, 1)), prior_from_book(old, "Programa"))
     ws = load_workbook(later)[cr.SHEET_PASTE]
     assert [ws.cell(row=cr.P_FIRST, column=c).value for c in range(4, 7)] == [100, 100, None]
-    assert issues_with(rep, "se desplazaron 1 columnas", SEV_WARN) and issues_with(rep, "quedaron fuera 100.00")
+    assert issues_with(rep, "se desplazaron 1 columnas", SEV_WARN) and issues_with(rep, "quedaron fuera 100,00")
     other = tmp_path / "other.xlsx"
     rep = make_book(other, config(cost_review_company="EmpresaB"), prior_from_book(old, "Programa"))
     assert issues_with(rep, "tiene la previsión de EmpresaA y el libro nuevo depura EmpresaB", SEV_WARN)

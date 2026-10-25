@@ -603,7 +603,7 @@ def test_migration_values_before_new_horizon_start_warn(tmp_path):
     b = read_book(new)
     assert sum(book_totals(b)[1]) == pytest.approx(35)        # el total se conserva
     assert b.ev[book_row(b, "1.1.0")][:2] == pytest.approx([30, 5])    # enero y febrero, en el mes 1 (abril)
-    assert any("EV/AC por 30.00" in i.message and "antes del primer mes" in i.message for i in rep.issues)
+    assert any("EV/AC por 30,00" in i.message and "antes del primer mes" in i.message for i in rep.issues)
 
 
 def test_migration_keeps_explicit_zero_months(tmp_path):
@@ -642,6 +642,13 @@ def test_cli_help_of_every_command(capsys, command):
     assert exc.value.code == 0 and "usage" in capsys.readouterr().out.lower()
 
 
+def test_cli_unknown_option_exits_with_code_2(capsys):
+    """Una opción mal escrita termina con código 2, como los demás errores previstos (docs/comandos.md)."""
+    with pytest.raises(SystemExit) as exc:
+        main(["validar", "--origenn", "p.xml"])
+    assert exc.value.code == 2 and "--origenn" in capsys.readouterr().err
+
+
 @pytest.mark.parametrize("args, message", [
     (["generar", "--origen", "{tmp}/no_existe.xml", "--salida", "{tmp}/x.xlsx"], "No existe el archivo de origen"),
     (["generar", "--origen", "{tmp}/p.txt", "--salida", "{tmp}/x.xlsx"], "No se reconoce la extensión"),
@@ -660,17 +667,19 @@ def test_cli_errors_exit_with_code_2(tmp_path, capsys, args, message):
 
 
 @pytest.mark.parametrize("error, code, message", [
-    (KeyError("x"), 1, "ERROR inesperado: KeyError"),
+    (KeyError("x"), 3, "ERROR inesperado: KeyError"),
     (KeyboardInterrupt(), 130, "Cancelado."),
     (RuntimeError("falla de COM"), 2, "ERROR: falla de COM"),
-], ids=["inesperado", "cancelado", "runtime"])
+    (OSError(28, "No queda espacio en el disco"), 2, "ERROR: no se pudo leer o escribir un archivo: "),
+], ids=["inesperado", "cancelado", "runtime", "disco"])
 def test_cli_unexpected_errors(tmp_path, capsys, monkeypatch, error, code, message):
+    # 1 queda solo para 'validar' con errores: los errores inesperados terminan con 3
     def boom(args):
         raise error
     monkeypatch.setattr("evm.cli.cmd_generar", boom)
     rc, _out, err = run_cli(capsys, "generar", "--origen", tmp_path / "p.xml")
     assert rc == code and message in err
-    if code == 1:
+    if code == 3:
         assert "-v" in err                                   # indica cómo ver el detalle técnico
 
 
