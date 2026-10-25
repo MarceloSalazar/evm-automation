@@ -34,9 +34,9 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - **Plazo según el cronograma de MS Project** (#22): `generar` y `actualizar` leen la holgura total y la
   marca de tarea crítica de cada tarea, y el libro muestra si un atraso afecta la fecha de fin:
-  - `Indicadores EDT`, columnas Q a U: fin de línea base, fin previsto, desvío de fin (días laborables;
-    > 0 = atraso), holgura total y crítica de cada elemento EDT, con sus tareas de detalle; en rojo el
-    desvío de los paquetes críticos o con holgura negativa
+  - `Indicadores EDT`, columnas Q a U: fin de línea base, fin previsto, desvío de fin (días
+    laborables; > 0 = atraso), holgura total y crítica de cada elemento EDT, con sus tareas de detalle;
+    en rojo el desvío de los paquetes críticos o con holgura negativa
     ([El libro Excel](docs/libro-excel.md#indicadores-edt)).
   - `Resumen` y `Cuadro de Mando`: fin de línea base y fin previsto del proyecto, desvío de fin, paquetes
     críticos sin terminar (y cuántos con el fin atrasado) y término estimado con el SPI(t).
