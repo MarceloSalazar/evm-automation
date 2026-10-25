@@ -37,7 +37,7 @@ cronograma de las secciones [1.2](#12-avance-a-la-fecha-de-estado-validar) y
 | Observación | Qué revisar |
 |---|---|
 | Código EDT que no depende del de su tarea superior (`Error`): bajo `1.2.0` solo van `1.2.1`, `1.2.2`...; `1.14.2` o `1.0.0` son errores | Corregir el código en MS Project. La tarea superior es la tarea resumen con código EDT más cercana. |
-| Código EDT con formato no válido (`Error`: segmentos vacíos como `1..2`, o un 0 seguido de otro número como `1.0.2`) o no numérico (`Advertencia`: `1.2.A`) | Los códigos son números separados por un punto; el 0 solo se usa al final, como relleno (`1.2.0`). Los códigos sin puntos como `INTERNO` se admiten como planificaciones. |
+| Código EDT con formato no válido (`Error`: segmentos vacíos como `1..2`) o no numérico (`Advertencia`: `1.2.A`) | Los códigos son números separados por un punto. Los ceros finales son relleno (`1.2.0`); un 0 intermedio indica un hijo directo del elemento anterior (`1.2.0.1` debajo de `1.2.0.0`, antes de `1.2.1.0`). Los códigos sin puntos como `INTERNO` se admiten como planificaciones. |
 | Código EDT que salta un nivel (`1.2.3.1` directamente bajo `1.2.0`) o de nivel 2 o más sin tarea superior con código | Asignar código a la tarea intermedia o corregir el código. |
 | Códigos EDT fuera de orden (`1.2.3` antes que `1.2.2`) y saltos en la numeración (`Info`: después de `1.2.2` sigue `1.2.14`) | Revisar si el código tiene un error de escritura. Un salto puede ser intencional (por ejemplo, un paquete eliminado). |
 | Códigos EDT duplicados (`Error`) | Por ejemplo, si no se eligió una planificación y ambas usan los mismos códigos. Se revisan todas las tareas exportadas, también las de nivel mayor al máximo. |
@@ -57,6 +57,7 @@ cronograma de las secciones [1.2](#12-avance-a-la-fecha-de-estado-validar) y
 | Planificación exportada y cantidad de tareas que dependen de ella | Que sea la planificación correcta. |
 | Tareas sin código EDT omitidas | Tareas que no dependen de ningún elemento EDT: no forman parte de ninguna fila. Si tienen duración o son hitos con peso (`Advertencia`), asignarles código EDT o moverlas bajo un elemento. |
 | Tareas sin código EDT o de nivel mayor al máximo sumadas en su elemento superior | Informativo: es el comportamiento esperado para subtareas y hitos de un paquete. |
+| Lista EDT (`lista_edt`): códigos de la lista sin tarea en MS Project (`Advertencia`); tareas que no están en la lista ni dependen de un elemento listado, que quedan fuera del libro (`Advertencia` si tienen duración o son hitos con peso); código listado cuya tarea superior no está en la lista (`Info`); campo `Visible` con valores, que no se usa (`Info`) | Revisar la lista, el campo EDT y la planificación ([Lista EDT](calculo-pv-ev.md#34-lista-edt-filas-definidas-en-un-archivo)). Si ningún código de la lista existe, `generar` termina con un error. |
 | Proyecto sin línea base: se usaron las fechas actuales | Guardar la línea base antes de informar ([Preparación en MS Project](preparacion-ms-project.md#6-línea-base)). |
 | Tareas sin código EDT que forman una fila `-D Otras tareas` | Tareas con duración (o hitos con peso) directamente bajo un elemento de nivel 1 o 2: la fila tiene su propio BAC. |
 | Excepciones de calendario que no se interpretan (por ejemplo, "primer lunes de mayo") | Se omiten; solo afectan el reparto del % planificado entre meses (motor XML). |
@@ -120,6 +121,10 @@ cuando cambia el avance.
   informe se recomiendan las secciones `[[proyectos]]` ([Varios archivos](varios-archivos.md)).
 - **Varios archivos:** los códigos EDT no se pueden repetir entre archivos, todos se actualizan con la
   misma fecha de corte y no se admite `--origen activo`.
+- **Plazo según MS Project:** la holgura total y la marca de tarea crítica son las que calcula MS
+  Project; el desvío de fin se cuenta en días laborables con el mismo calendario que el % planificado.
+  Si el cronograma no se actualizó a la fecha de estado (trabajo pendiente reprogramado), el fin previsto
+  no es una previsión realista.
 - **Calendario:** el % planificado de cada tarea se reparte entre los meses con el calendario del
   proyecto (XML) o con un calendario de lunes a viernes más los `feriados` de la configuración (`.mpp`).
   No se usan los calendarios de recursos ni de tareas. Con XML se ignoran las excepciones recurrentes

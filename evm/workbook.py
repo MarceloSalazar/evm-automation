@@ -5,6 +5,7 @@ import io
 import os
 import shutil
 import tempfile
+from copy import copy
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
@@ -22,7 +23,7 @@ from openpyxl.workbook.properties import CalcProperties
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import Outline
 
-from evm import __version__
+from evm import __version__, progress
 from evm.config import MODE_PERCENT, Config
 from evm.fields import fmt_number
 from evm.wbs import KIND_LEAF, KIND_RESIDUAL, KIND_SUMMARY, Report, ReportRow
@@ -41,6 +42,7 @@ SHEET_VALID = "Validación"
 SHEET_LISTS = "Listas"
 SHEET_STRUCT = "_estructura"
 SHEET_META = "_meta"
+SHEET_WBS_LIST = "_lista_edt"       # lista EDT con la que se generó el libro (solo con lista_edt)
 META_SOURCES = "proyectos"          # _meta: nombres de los archivos de un libro con varios archivos ("P1;P2")
 PCT_PREFIX = "% "                   # hojas '% PV' y '% EV' (o '% PV-EmpresaA'...)
 KIND_COST = "coste"                 # _estructura: fila «(coste)» de la depuración de costes (sin clave)
@@ -64,6 +66,16 @@ NAME_METHODS = "ListaMetodos"
 START_CELL = "B7"
 NAME_STATUS = "FechaCorte"
 NAME_START = "InicioHorizonte"
+ROW_ES_FINISH = 40                  # término estimado con el SPI(t)
+# Tendencia a la fecha de corte (fórmulas) y plazo según el cronograma de MS Project (valores de la última lectura)
+ROW_TREND, ROW_CPI3, ROW_SPI3, ROW_CPI1, ROW_SPI1, ROW_EAC1, ROW_PREV_N, ROW_BASE_N = 48, 49, 50, 51, 52, 53, 54, 55
+ROW_PLAN, ROW_PLAN_STATUS, ROW_BL_FINISH, ROW_FINISH, ROW_VARIANCE, ROW_CRITICAL, ROW_LATE = 57, 58, 59, 60, 61, 62, 63
+
+# Indicadores EDT: plazo según el cronograma de MS Project (columnas Q a U)
+I_BL_FINISH, I_FINISH, I_VARIANCE, I_SLACK, I_CRITICAL = 17, 18, 19, 20, 21
+LAST_IND_COL = 16                   # última columna de indicadores (% Gastado)
+FMT_DAYS = '+0;-0;0'
+FMT_SLACK = '0.0'
 
 # ----------------------------------------------------------------------------
 # Estilos
@@ -930,14 +942,169 @@ def _write_summary(ws, report: Report, cfg: Config, lay: _Layout, generated: dat
     for r in (41, 42, 43, 44):
         ws.cell(row=r, column=1).font = FONT_NOTE
 
+    th = Thresholds.from_config(cfg)
     for ref in ("B22", "B23", "B38"):
-        _traffic_light(ws, ref, Thresholds.from_config(cfg))
+        _traffic_light(ws, ref, th)
     ws.column_dimensions["A"].width = 42
     ws.column_dimensions["B"].width = 20
     ws.column_dimensions["C"].width = 70
     ws.cell(row=46, column=1, value="Valores mensuales: hojas PV, EV y AC (celdas amarillas = ingreso). "
             "Gráficos: hoja 'Cuadro de Mando'. Tabla mensual: hoja 'Evolución mensual'. Indicadores por elemento "
             "EDT: hoja 'Indicadores EDT'.").font = FONT_NOTE
+    write_summary_trend(ws, lay.total_row, lay.months, th)
+
+
+def loaded_month(month_n: str, back: int, months: int) -> str:
+    """Fórmula del último mes con EV cargado (N° de mes) hasta `back` meses antes del mes month_n ("" si no hay):
+    el mes anterior con datos (back = 1; con informes bimestrales, el del informe anterior) o el inicio de los
+    últimos 3 meses (back = 3). Usa el conteo acumulado de celdas EV cargadas de la hoja Evolución mensual."""
+    evn = f"'{SHEET_CURVE}'!${col(C_EVN)}${CURVE_FIRST_ROW}:${col(C_EVN)}${CURVE_FIRST_ROW + months - 1}"
+    return (f'IFERROR(IF(OR({month_n}="",{month_n}<{back + 1}),"",IF(INDEX({evn},{month_n}-{back})=0,"",'
+            f'MATCH(INDEX({evn},{month_n}-{back}),{evn},0))),"")')
+
+
+def month_sum(sheet: str, row: int, months: int, month_n: str) -> str:
+    """Acumulado de una fila de una hoja mensual hasta el mes N° month_n."""
+    first, last = col(FIRST_MONTH_COL), col(FIRST_MONTH_COL + months - 1)
+    nums = f"'{SHEET_PV}'!${first}${MONTHNUM_ROW}:${last}${MONTHNUM_ROW}"
+    return f"SUMIFS('{sheet}'!${first}${row}:${last}${row},{nums},\"<=\"&{month_n})"
+
+
+def write_summary_trend(ws, total_row: int, months: int, th: "Thresholds") -> None:
+    """Resumen: tendencia a la fecha de corte (CPI y SPI de los últimos 3 meses e indicadores del mes anterior con
+    datos), con fórmulas. 'actualizar' la agrega también a los libros de versiones anteriores."""
+    if ws.cell(row=ROW_CPI3, column=2).value:
+        return                          # ya la tiene (los umbrales del semáforo son los del libro)
+    prev, base = f"B{ROW_PREV_N}", f"B{ROW_BASE_N}"
+
+    def at(sheet: str, month_n: str) -> str:
+        return month_sum(sheet, total_row, months, month_n)
+
+    rows = [
+        (ROW_CPI3, "CPI de los últimos 3 meses",
+         f'=IFERROR(IF({base}="","",IF(B19-{at(SHEET_AC, base)}=0,"",(B18-{at(SHEET_EV, base)})/'
+         f'(B19-{at(SHEET_AC, base)}))),"")', FMT_RATIO,
+         "EV / AC desde el mes con datos 3 meses antes del corte (B55) hasta el mes de corte: el desempeño reciente, "
+         "que el acumulado diluye."),
+        (ROW_SPI3, "SPI de los últimos 3 meses",
+         f'=IFERROR(IF({base}="","",(B18-{at(SHEET_EV, base)})/(B17-{at(SHEET_PV, base)})),"")', FMT_RATIO,
+         "EV / PV del mismo período."),
+        (ROW_CPI1, "CPI del mes anterior (acumulado)",
+         f'=IFERROR(IF({prev}="","",{at(SHEET_EV, prev)}/{at(SHEET_AC, prev)}),"")', FMT_RATIO,
+         "Último mes con EV cargado antes del corte (B54); con informes bimestrales, el del informe anterior."),
+        (ROW_SPI1, "SPI del mes anterior (acumulado)",
+         f'=IFERROR(IF({prev}="","",{at(SHEET_EV, prev)}/{at(SHEET_PV, prev)}),"")', FMT_RATIO, ""),
+        (ROW_EAC1, "EAC del mes anterior = BAC / CPI", f'=IFERROR(B16/B{ROW_CPI1},"")', money_format(0),
+         "Variación del EAC respecto del mes anterior: B24 - B53."),
+        (ROW_PREV_N, "Auxiliar: mes anterior con datos (N°)", "=" + loaded_month("B6", 1, months), "0", ""),
+        (ROW_BASE_N, "Auxiliar: inicio de los últimos 3 meses (N°)", "=" + loaded_month("B6", 3, months), "0", ""),
+    ]
+    _summary_section(ws, ROW_TREND, "Tendencia a la fecha de corte")
+    for r, label, formula, fmt, note in rows:
+        ws.cell(row=r, column=1, value=label)
+        c = ws.cell(row=r, column=2, value=formula)
+        c.number_format = fmt
+        c.border = BORDER
+        if note:
+            ws.cell(row=r, column=3, value=note).font = FONT_NOTE
+    for r in (ROW_PREV_N, ROW_BASE_N):
+        ws.cell(row=r, column=1).font = FONT_NOTE
+    for r in (ROW_CPI3, ROW_SPI3, ROW_CPI1, ROW_SPI1):
+        _traffic_light(ws, f"B{r}", th)
+    ws.cell(row=ROW_EAC1, column=2).number_format = ws.cell(row=24, column=2).number_format or money_format(0)
+
+
+def _summary_section(ws, r: int, text: str) -> None:
+    for c_ in (1, 2, 3):
+        ws.cell(row=r, column=c_).fill = FILL_SECTION
+    ws.cell(row=r, column=1, value=text).font = FONT_BOLD
+
+
+def write_schedule(wb, summary, rows: list[int], total_row: int, command: str) -> None:
+    """Plazo según el cronograma de MS Project (schedule.ScheduleSummary): columnas Q a U de Indicadores EDT y
+    sección del Resumen. 'generar' y 'actualizar' los escriben con los datos de su lectura de MS Project; los libros
+    de versiones anteriores los reciben con 'actualizar'."""
+    from evm.schedule import RowSchedule
+    if SHEET_IND in wb.sheetnames:
+        ws = wb[SHEET_IND]
+        when = f" (fecha de estado {summary.status_date:%d/%m/%Y})" if summary.status_date else ""
+        ws.cell(row=MONTHNUM_ROW, column=I_BL_FINISH,
+                value=f"Plazo según MS Project ('{command}'{when}): días laborables; desvío > 0 = atraso."
+                ).font = FONT_NOTE
+        _header(ws, HEADER_ROW, [(I_BL_FINISH, "Fin línea base"), (I_FINISH, "Fin previsto"),
+                                 (I_VARIANCE, "Desvío fin (días lab.)"), (I_SLACK, "Holgura (días lab.)"),
+                                 (I_CRITICAL, "Crítica")])
+        for r in rows + [total_row]:
+            s = summary.total if r == total_row else summary.rows.get(r, RowSchedule())
+            values = {I_BL_FINISH: _naive(s.baseline_finish), I_FINISH: _naive(s.finish), I_VARIANCE: s.variance,
+                      I_SLACK: s.slack, I_CRITICAL: s.status or None}
+            model = ws.cell(row=r, column=LAST_IND_COL)
+            for c_, v in values.items():
+                cell = ws.cell(row=r, column=c_, value=v)
+                cell._style = copy(model._style)
+                cell.number_format = {I_BL_FINISH: FMT_DATE, I_FINISH: FMT_DATE, I_VARIANCE: FMT_DAYS,
+                                      I_SLACK: FMT_SLACK}.get(c_, "General")
+                cell.alignment = Alignment(horizontal="center")
+        _replace_schedule_rules(ws, total_row)
+        for c_, w in {I_BL_FINISH: 12, I_FINISH: 12, I_VARIANCE: 11, I_SLACK: 11, I_CRITICAL: 10}.items():
+            ws.column_dimensions[col(c_)].width = w
+
+    if SHEET_SUMMARY in wb.sheetnames:
+        ws = wb[SHEET_SUMMARY]
+        t = summary.total
+        _summary_section(ws, ROW_PLAN, "Plazo según el cronograma de MS Project")
+        rows_ = [
+            (ROW_PLAN_STATUS, "Fecha de estado de la lectura", summary.status_date, FMT_DATE,
+             f"Lectura de MS Project de '{command}'. Los valores no cambian con la fecha de corte de esta hoja."),
+            (ROW_BL_FINISH, "Fin de línea base", _naive(t.baseline_finish), FMT_DATE, "Última tarea del proyecto."),
+            (ROW_FINISH, "Fin previsto (o real)", _naive(t.finish), FMT_DATE,
+             "Según el cronograma vigente de MS Project (trabajo pendiente reprogramado)."),
+            (ROW_VARIANCE, "Desvío de fin (días laborables)", t.variance, FMT_DAYS,
+             "> 0: el proyecto termina después que en la línea base. Comparar con el término estimado (B40)."),
+            (ROW_CRITICAL, "Paquetes críticos sin terminar", summary.critical, "0",
+             "Paquetes con alguna tarea crítica sin terminar (camino crítico de MS Project)."),
+            (ROW_LATE, "Paquetes críticos con fin atrasado", summary.late_critical, "0",
+             "Paquetes críticos cuyo fin previsto es posterior al de la línea base: afectan la fecha de fin."),
+        ]
+        for r, label, value, fmt, note in rows_:
+            ws.cell(row=r, column=1, value=label)
+            c = ws.cell(row=r, column=2, value=value)
+            c.number_format = fmt
+            c.border = BORDER
+            ws.cell(row=r, column=3, value=note).font = FONT_NOTE
+
+
+def _replace_schedule_rules(ws, total_row: int) -> None:
+    """Formato condicional de las columnas de plazo (se reemplaza en cada lectura): desvío > 0 en rojo si la fila es
+    crítica o tiene holgura negativa y en amarillo si no lo es; 'Sí' de la columna Crítica en rojo."""
+    variance = f"{col(I_VARIANCE)}{FIRST_ROW}:{col(I_VARIANCE)}{total_row}"
+    critical = f"{col(I_CRITICAL)}{FIRST_ROW}:{col(I_CRITICAL)}{total_row}"
+    kept = type(ws.conditional_formatting)()
+    for cf in ws.conditional_formatting:
+        if str(cf.sqref) not in (variance, critical):
+            for rule in cf.rules:
+                kept.add(str(cf.sqref), rule)
+    ws.conditional_formatting = kept
+    v, s, k = (f"${col(c_)}{FIRST_ROW}" for c_ in (I_VARIANCE, I_SLACK, I_CRITICAL))
+    ws.conditional_formatting.add(variance, FormulaRule(
+        formula=[f'AND(ISNUMBER({v}),{v}>0,OR({k}="Sí",AND(ISNUMBER({s}),{s}<0)))'], fill=FILL_RED, stopIfTrue=True))
+    ws.conditional_formatting.add(variance, FormulaRule(formula=[f"AND(ISNUMBER({v}),{v}>0)"], fill=FILL_YELLOW,
+                                                        stopIfTrue=True))
+    ws.conditional_formatting.add(critical, FormulaRule(formula=[f'{k}="Sí"'], font=Font(bold=True, color="C00000")))
+
+
+def read_schedule(wb, rows: dict[int, str]) -> dict[str, tuple]:
+    """Plazo escrito en Indicadores EDT por la última lectura de MS Project: {clave de la fila: (desvío, holgura,
+    crítica)} ({} en libros de versiones anteriores que aún no lo tienen). rows: fila -> clave."""
+    if SHEET_IND not in wb.sheetnames:
+        return {}
+    ws = wb[SHEET_IND]
+    if ws.cell(row=HEADER_ROW, column=I_BL_FINISH).value != "Fin línea base":
+        return {}
+    out = {}
+    for r, key in rows.items():
+        out[key] = tuple(ws.cell(row=r, column=c_).value for c_ in (I_VARIANCE, I_SLACK, I_CRITICAL))
+    return out
 
 
 @dataclass(frozen=True)
@@ -1102,6 +1269,21 @@ def _write_structure(ws, report: Report, lay: _Layout) -> None:
             ws.cell(row=lay.struct_row(r + 1), column=5, value=KIND_COST)
 
 
+def write_wbs_list(ws, codes: list[str]) -> None:
+    """Hoja oculta _lista_edt: los códigos de la lista EDT con que se generó el libro ('actualizar' la usa)."""
+    ws.append(["codigo"])
+    for code in codes:
+        _append_texts(ws, [code])
+
+
+def read_wbs_list(wb) -> list[str] | None:
+    """Lista EDT con la que se generó el libro (None si se generó sin lista_edt)."""
+    if SHEET_WBS_LIST not in wb.sheetnames:
+        return None
+    return [str(v).strip() for (v,) in wb[SHEET_WBS_LIST].iter_rows(min_row=2, max_col=1, values_only=True)
+            if v is not None and str(v).strip()]
+
+
 def write_meta(ws, meta: dict) -> None:
     ws.delete_rows(1, ws.max_row)
     ws.append(["clave", "valor"])
@@ -1156,18 +1338,30 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
             methods.append(m)
 
     _write_lists(ws_lists, methods)
-    for ws, kind, role in data_sheets:
+    progress.stage("escribir", "Escritura del libro")
+    steps = len(data_sheets) + len(pct_sheets) + 4
+    for k, (ws, kind, role) in enumerate(data_sheets, start=1):
         _write_data_sheet(ws, kind, report, cfg, lay, generated, prior, role)
-    for ws, kind, role in pct_sheets:
+        progress.step(k, steps, "hojas")
+    for k, (ws, kind, role) in enumerate(pct_sheets, start=len(data_sheets) + 1):
         _write_pct_sheet(ws, kind, report, cfg, lay, generated, prior, role)
+        progress.step(k, steps, "hojas")
     _write_curve(ws_curve, report, cfg, lay)
     _write_summary(ws_sum, report, cfg, lay, generated, status)
     _write_indicators(ws_ind, report, cfg, lay)
+    progress.step(steps - 2, steps, "hojas")
+    from evm.schedule import from_report
+    write_schedule(wb, from_report(report, cfg, lay.r), [lay.r(r) for r in report.rows], lay.total_row, "generar")
+    if cfg.wbs_list is not None:
+        ws_list = wb.create_sheet(SHEET_WBS_LIST)
+        ws_list.sheet_state = "hidden"
+        write_wbs_list(ws_list, cfg.wbs_list)
     _write_validation(ws_val, report)
     _write_structure(ws_struct, report, lay)
     packages = dashboard.chart_packages((lay.r(r), r.code, r.level, r.kind) for r in report.rows)
     dashboard.write_chart_data(ws_charts, cfg, lay, packages)
     dashboard.write_dashboard(ws_dash, report, cfg, lay, packages, status)
+    progress.step(steps - 1, steps, "hojas")
     analysis.write_sheet(wb, prior.analysis if prior is not None else [],
                          {row_key(r): lay.r(r) for r in report.rows if r.is_input}, lay.months,
                          Thresholds.from_config(cfg), cfg.decimals)
@@ -1217,7 +1411,10 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
         "campo_visible": cfg.visible_field,
         "multiempresa": bool(report.multi),
         "depuracion_costes": review is not None,
+        "disposicion_cuadro_mando": dashboard.LAYOUT,
     }
+    if cfg.wbs_list is not None:
+        meta["lista_edt"] = cfg.wbs_list_file
     if review is not None:
         meta.update({
             "depuracion_empresa": cost_review.review_company(report),
@@ -1246,6 +1443,7 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     wb.calculation = CalcProperties(fullCalcOnLoad=True)
     wb.properties.creator = "evm_export"
     wb.properties.title = clean_text(f"EVM - {report.title}")
+    progress.stage("guardar", "Guardado del libro")
     save_workbook(wb, path)
     return meta
 

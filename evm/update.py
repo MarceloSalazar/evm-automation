@@ -11,7 +11,7 @@ from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.workbook.properties import CalcProperties
 
-from evm import analysis
+from evm import analysis, progress
 from evm.config import MODE_PERCENT, Config, ConfigError
 from evm.methods import parse_method
 from evm.model import ProjectData, Task
@@ -19,9 +19,10 @@ from evm.timeline import Horizon
 from evm.wbs import (KIND_RESIDUAL, KIND_SUMMARY, Scope, Visibility, build_tree, iter_subtree, pad_code, plural,
                      prune_inactive, row_visibility, select_scope)
 from evm.workbook import (COL_BAC, COL_CODE, COL_METHOD, FIRST_MONTH_COL, LEGACY_SHEET_CURVE, SHEET_AC,
-                          SHEET_EV, SHEET_META, SHEET_PV, SHEET_SUMMARY, STATUS_CELL, StructRow, WorkbookFormatError,
-                          add_s_curve_chart, book_sources, clean_text, col, company_sheet, pct_sheet, read_meta,
-                          read_structure, save_workbook, source_meta, split_key, write_meta)
+                          SHEET_EV, SHEET_META, SHEET_PV, SHEET_SUMMARY, STATUS_CELL, StructRow,
+                          WorkbookFormatError, add_s_curve_chart, book_sources, clean_text, col, company_sheet,
+                          pct_sheet, read_meta, read_schedule, read_structure, read_wbs_list, save_workbook,
+                          source_meta, split_key, write_meta, write_schedule, write_summary_trend)
 
 
 # ----------------------------------------------------------------------------
@@ -56,6 +57,7 @@ class BookData:
     bac_role: dict[str, dict[int, float]] = field(default_factory=dict)
     pct_pv: dict[str, dict[int, list[float]]] = field(default_factory=dict)
     pct_ev: dict[str, dict[int, list[float | None]]] = field(default_factory=dict)
+    wbs_list: list[str] | None = None    # lista EDT con que se generó el libro (None = sin lista_edt)
 
     @property
     def input_rows(self) -> list[StructRow]:
@@ -278,7 +280,8 @@ def read_book(path: str | Path, wb=None, allow_fix: bool = False) -> BookData:
         pv_r[role] = {r: [bacs[r] * v for v in vals] for r, vals in pct_pv[role].items()}
         ev_r[role] = {r: [None if v is None else bacs[r] * v for v in vals] for r, vals in pct_ev[role].items()}
         ac_r[role] = sheet_values(company_sheet(SHEET_AC, company) if company else SHEET_AC, allow_fix)
-    extra = dict(bac_role=bac_role, pct_pv=pct_pv, pct_ev=pct_ev, formula_gaps=gaps, fixable=fixable)
+    extra = dict(bac_role=bac_role, pct_pv=pct_pv, pct_ev=pct_ev, formula_gaps=gaps, fixable=fixable,
+                 wbs_list=read_wbs_list(wb))
     if multi:
         pv = {r: [x + y for x, y in zip(pv_r["A"][r], pv_r["B"][r])] for r in pv_r["A"]}
         bac = {r: bac_role["A"][r] + bac_role["B"][r] for r in bac_role["A"]}
@@ -371,6 +374,7 @@ class UpdateResult:
     dry_run: bool = False
     deviations: list = field(default_factory=list)   # paquetes fuera de umbral (analysis.Deviation)
     thresholds: object | None = None                 # umbrales del semáforo (workbook.Thresholds)
+    schedule: object | None = None                   # plazo según MS Project (schedule.ScheduleSummary)
 
 
 def book_level(book: BookData, cfg: Config) -> int:
@@ -494,6 +498,8 @@ def _visibility_warnings(book: BookData, matches: dict[int, Task], scope: Scope,
     """Tareas con valor en el campo Visible que no coincide con las filas del libro: el campo cambió después de
     generarlo. El libro conserva sus filas hasta regenerarlo."""
     from evm.fields import parse_visible
+    if visibility.listed:
+        return []                       # con la lista EDT, el campo Visible no se usa
     rows = {matches[s.row].uid for s in book.structure
             if s.row in matches and s.kind != KIND_RESIDUAL and split_key(s.key)[0] == source}
     changed = [t for t in scope.tasks()
@@ -516,13 +522,18 @@ def _new_task_warnings(book: BookData, matches: dict[int, Task], scope: Scope, v
             if s.row in matches and s.kind != KIND_RESIDUAL and split_key(s.key)[0] == source}
     out_ids = visibility.excluded_uids()
     new = [t for t in scope.tasks() if visibility.has_row(t) and t.uid not in rows and t.uid not in out_ids
-           and parse_visible(t.visible)[0] is None]
+           and (visibility.listed or parse_visible(t.visible)[0] is None)]
     uids = {t.uid for t in new}
     new = [t for t in new if t.parent is None or t.parent.uid not in uids]      # solo la tarea superior de la rama
     if not new:
         return []
     tasks = ", ".join(f"{scope.raw_code(t)} '{t.name}'" for t in new[:10])
     more = f" y {len(new) - 10} más" if len(new) > 10 else ""
+    if visibility.listed:
+        return [f"{plural(len(new), 'tarea de la lista EDT no tiene', 'tareas de la lista EDT no tienen')} fila en "
+                f"el libro (se {'agregó' if len(new) == 1 else 'agregaron'} en MS Project después de generarlo): "
+                f"{tasks}{more}. Su avance no se incluye en el % ganado. Para incluirlo, se debe regenerar el libro "
+                "con --migrar-desde."]
     return [f"{plural(len(new), 'tarea con código EDT no tiene', 'tareas con código EDT no tienen')} fila en el "
             f"libro (se {'agregó' if len(new) == 1 else 'agregaron'} después de generarlo): {tasks}{more}. Su avance "
             "no se incluye en el % ganado. Para incluirlo, se debe regenerar el libro con --migrar-desde."]
@@ -590,12 +601,15 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     if isinstance(projects, ProjectData):
         projects = {"": projects}
     book_path = Path(book_path)
+    progress.stage("libro", "Lectura del libro")
     wb = load_workbook(book_path)
     book = read_book(book_path, wb, allow_fix=True)
     check_sheets(wb.sheetnames, book.meta, charts=True)
     check_sources(book.meta, list(projects))
-    cfg = apply_book_settings(cfg, book.meta)
     warnings: list[str] = [_tag(n, w) for n, p in projects.items() for w in p.warnings]
+    warnings += _list_warnings(cfg, book)
+    cfg = apply_book_settings(cfg, book.meta)
+    cfg.wbs_list = book.wbs_list            # las filas del libro se decidieron con su lista (o sin lista)
     multi = book.multi
 
     if status is None:
@@ -637,6 +651,7 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     calendars: dict[str, object] = {}                # calendario de cada archivo
     hidden: dict[str, tuple[set[int], set[int]]] = {}  # Visible = No: tareas y ramas excluidas
     level = book_level(book, cfg)
+    leaves_of: dict[int, list[Task]] = {}         # fila -> tareas de detalle (para el plazo)
     if multi:
         from evm.companies import resolve_shares
     for n, project in projects.items():
@@ -658,7 +673,10 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     later_months: set[int] = set()
     writes: list[tuple[str, int, int, float]] = []   # (hoja, fila, columna, valor)
     no_bac: list[str] = []                           # filas con avance y sin BAC
-    for s in book.input_rows:
+    progress.stage("calcular", "Cálculo del % ganado")
+    inputs = book.input_rows
+    for k, s in enumerate(inputs, start=1):
+        progress.step(k, len(inputs), "filas")
         task = matches.get(s.row)
         if task is None:
             continue
@@ -669,6 +687,7 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
         out_ids, out_roots = hidden.get(src, (set(), set()))
         if any(t.uid in out_roots for t in contributors):
             contributors = [t for t in contributors if t.uid not in out_ids]
+        leaves_of[s.row] = [t for t in contributors if not t.children]
         res, parts = _percent_row(book, s, contributors, shares_of.get(src, {}), calendars[src], cfg, idx)
         for role, company, frac, bac_c in parts:
             sheet = pct_sheet(SHEET_EV, company)
@@ -744,9 +763,11 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     # Paquetes fuera de umbral en el mes de corte (con el EV y el AC que quedan en el libro)
     th = analysis.thresholds(book.meta, cfg)
     found = analysis.deviations(book, idx, th)
+    plan = _schedule(book, projects, calendars, leaves_of, status)
 
     backup_path = None
     if not dry_run:
+        progress.stage("guardar", "Guardado del libro")
         for sheet, r, c, v, _why in book.fixable:
             wb[sheet].cell(row=r, column=c, value=v)
         for sheet, r, c, v in writes:
@@ -756,11 +777,59 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
         meta.pop("meses_grafico", None)
         meta["ultima_actualizacion"] = datetime.now().replace(microsecond=0)
         write_meta(wb[SHEET_META], meta)
-        _write_analysis(wb, book, idx, found, th)
+        write_schedule(wb, plan, [x.row for x in book.structure], book.meta["fila_total"], "actualizar")
+        write_summary_trend(wb[SHEET_SUMMARY], book.meta["fila_total"], book.horizon.months, th)
+        _write_analysis(wb, book, idx, found, th, _schedule_by_key(book, plan))
         _refresh_charts(wb, book, idx, meta)
         backup_path = _save(wb, book_path, backup)
     book.status_date = status
-    return UpdateResult(status, idx, rows, warnings, backup_path, book, dry_run, deviations=found, thresholds=th)
+    return UpdateResult(status, idx, rows, warnings, backup_path, book, dry_run, deviations=found, thresholds=th,
+                        schedule=plan)
+
+
+def _list_warnings(cfg: Config, book: BookData) -> list[str]:
+    """La lista EDT de la configuración frente a la del libro: las filas se decidieron al generarlo."""
+    if cfg.wbs_list is None or book.wbs_list == cfg.wbs_list:
+        return []
+    if book.wbs_list is None:
+        return ["La configuración indica lista_edt, pero el libro se generó sin lista EDT: se mantienen sus filas "
+                "(nivel máximo y campo Visible). Para aplicar la lista, se debe regenerar el libro con --migrar-desde."]
+    level = book_level(book, cfg)
+
+    def norm(codes: list[str]) -> set[str]:
+        return {pad_code(c, level) if cfg.pad_wbs else c for c in codes}
+
+    if norm(book.wbs_list) == norm(cfg.wbs_list):
+        return []
+    return ["La lista EDT de la configuración cambió después de generar el libro: se usa la lista con la que se "
+            "generó. Para aplicar los cambios, se debe regenerar el libro con --migrar-desde."]
+
+
+def _schedule(book: BookData, projects: dict[str, ProjectData], calendars: dict[str, object],
+              leaves_of: dict[int, list[Task]], status: date):
+    """Plazo de cada fila con las tareas de detalle leídas de MS Project (schedule.ScheduleSummary)."""
+    from evm.schedule import ScheduleSummary, row_schedule
+    default = next(iter(calendars.values()))
+    rows, cal_of, children = {}, {}, {}
+    for s in book.structure:
+        src = split_key(s.key)[0]
+        cal_of[s.row] = calendars.get(src, default)
+        if s.parent_row is not None:
+            children.setdefault(s.parent_row, []).append(s.row)
+        if s.is_input and leaves_of.get(s.row):
+            rows[s.row] = row_schedule(leaves_of[s.row], cal_of[s.row], projects[src].minutes_per_day)
+    inputs = [s.row for s in book.input_rows]
+    return ScheduleSummary.build(status, rows, inputs, children, cal_of, default)
+
+
+def _schedule_by_key(book: BookData, plan) -> dict[str, tuple]:
+    """Plazo de cada fila de ingreso para el análisis de desviaciones: {clave: (desvío, holgura, crítica)}."""
+    out = {}
+    for s in book.input_rows:
+        x = plan.rows.get(s.row)
+        if x is not None:
+            out[s.key] = (x.variance, x.slack, x.status or None)
+    return out
 
 
 def _save(wb, book_path: Path, backup: bool) -> Path | None:
@@ -779,12 +848,15 @@ def _save(wb, book_path: Path, backup: bool) -> Path | None:
     return backup_path
 
 
-def _write_analysis(wb, book: BookData, idx: int, found: list, th) -> None:
+def _write_analysis(wb, book: BookData, idx: int, found: list, th, plan: dict[str, tuple] | None = None) -> None:
     """Agrega a la hoja Análisis de desviaciones los paquetes fuera de umbral del mes idx (la crea en los
-    libros de versiones anteriores), conservando el texto ya escrito."""
+    libros de versiones anteriores), conservando el texto ya escrito. plan: plazo de cada fila (clave -> desvío,
+    holgura, crítica); sin él, el de la hoja Indicadores EDT (última lectura de MS Project)."""
     entries = analysis.read_entries(wb[analysis.SHEET_ANALYSIS]) if analysis.SHEET_ANALYSIS in wb.sheetnames else []
     month = book.horizon.month_start(idx)
-    entries = analysis.refresh(entries, found, month)
+    if plan is None:
+        plan = read_schedule(wb, {s.row: s.key for s in book.input_rows})
+    entries = analysis.refresh(entries, found, month, plan)
     analysis.write_sheet(wb, entries, {s.key: s.row for s in book.input_rows}, book.horizon.months, th,
                          int(book.meta.get("decimales") or 0), month, len(found))
 
@@ -793,6 +865,7 @@ def run_analysis(cfg: Config, book_path: str | Path, backup: bool = True) -> Upd
     """Comando 'analizar': actualiza la hoja Análisis de desviaciones con los valores del libro, sin leer MS
     Project (por ejemplo, después de cargar a mano el AC del mes)."""
     book_path = Path(book_path)
+    progress.stage("libro", "Lectura del libro")
     wb = load_workbook(book_path)
     book = read_book(book_path, wb, allow_fix=True)
     check_sheets(wb.sheetnames, book.meta, charts=True)
@@ -809,10 +882,13 @@ def run_analysis(cfg: Config, book_path: str | Path, backup: bool = True) -> Upd
         warnings.append(f"Se reemplazaron por su valor numérico celdas de ingreso con texto o fórmulas: {cells}{more}.")
         for sheet, r, c, v, _why in book.fixable:
             wb[sheet].cell(row=r, column=c, value=v)
+    progress.stage("analizar", "Análisis de desviaciones")
     th = analysis.thresholds(book.meta, cfg)
     found = analysis.deviations(book, idx, th)
+    write_summary_trend(wb[SHEET_SUMMARY], book.meta["fila_total"], book.horizon.months, th)
     _write_analysis(wb, book, idx, found, th)
     _refresh_charts(wb, book, idx, book.meta)
+    progress.stage("guardar", "Guardado del libro")
     backup_path = _save(wb, book_path, backup)
     return UpdateResult(book.status_date, idx, [], warnings, backup_path, book, deviations=found, thresholds=th)
 
@@ -825,14 +901,19 @@ def _refresh_charts(wb, book: BookData, idx: int | None, meta: dict) -> None:
     if dashboard.SHEET_DASHBOARD in wb.sheetnames:
         bac = book_totals(book)[3]
         packages = dashboard.chart_packages((s.row, s.code, s.level, s.kind) for s in book.structure)
+        try:
+            layout = int(meta.get("disposicion_cuadro_mando") or 1)
+        except (TypeError, ValueError):
+            layout = 1
         if idx is None:
-            dashboard.add_dashboard_charts(wb, packages, book.horizon.months, plan_end(book), None, bac, currency)
+            dashboard.add_dashboard_charts(wb, packages, book.horizon.months, plan_end(book), None, bac, currency,
+                                           layout=layout)
         else:
             wb[dashboard.SHEET_DASHBOARD][dashboard.REPORT_CELL].value = book.horizon.month_start(idx)
             loaded = [i for i in range(idx + 1)
                       if any(series[r][i] is not None for series in (book.ev, book.ac) for r in series)]
             dashboard.add_dashboard_charts(wb, packages, book.horizon.months, plan_end(book), idx + 1,
-                                           bac, currency, idx + 1 - loaded[0] if loaded else 0)
+                                           bac, currency, idx + 1 - loaded[0] if loaded else 0, layout)
     elif LEGACY_SHEET_CURVE in wb.sheetnames:
         add_s_curve_chart(wb[LEGACY_SHEET_CURVE], book.horizon.months, str(meta.get("proyecto") or ""), currency)
     from evm import cost_review
@@ -875,4 +956,5 @@ def indicators_for(book: BookData, status: date):
     idx = book.horizon.index(status)
     if not 0 <= idx < book.horizon.months:
         raise ValueError(f"La fecha de corte {status:%d/%m/%Y} está fuera del horizonte del libro.")
-    return compute(pv, ev, ac, bac, idx)
+    loaded = [any(book.ev[s.row][i] is not None for s in book.input_rows) for i in range(book.horizon.months)]
+    return compute(pv, ev, ac, bac, idx, loaded)

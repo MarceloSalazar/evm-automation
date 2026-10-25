@@ -21,6 +21,13 @@ Con --proyecto 2 se genera un segundo proyecto, "Accesos y servicios", con el
 código EDT 9.0.0 y sin planificaciones, para combinarlo con el primero en un
 mismo libro (varios archivos de MS Project, secciones [[proyectos]]).
 
+Con avance, el cronograma vigente (fechas actuales) simula la reprogramación del
+trabajo pendiente: las tareas en curso terminan un 15 % más tarde y el trabajo no
+comenzado se desplaza con el mayor de esos atrasos. La holgura total y la marca de
+tarea crítica son ficticias: la holgura de cada tarea es el tiempo laborable hasta
+el fin de su elemento EDT de nivel 1, y son críticas las tareas sin terminar que
+terminan con él.
+
 Uso:
     python ejemplos/generar_ejemplo.py                       # solo línea base
     python ejemplos/generar_ejemplo.py --fecha-estado 2027-06-30 --salida ejemplos/avance_2027-06.xml
@@ -30,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import calendar
+import math
 import sys
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, time, timedelta
@@ -65,6 +73,10 @@ class T:
     actual_cost: float = 0.0
     actual_start: date | None = None
     actual_finish: date | None = None
+    cur_start: date | None = None       # cronograma vigente (fechas actuales)
+    cur_finish: date | None = None
+    slack: float | None = None          # holgura total en días laborables
+    critical: bool = False
 
 
 def wdays(a: date, b: date) -> list[date]:
@@ -301,6 +313,69 @@ def progress(n: T, status: date) -> None:
     n.actual_cost = round(n.cost * n.pct * 1.08, 2)
 
 
+LOE = "Avance lineal (LOE)"
+
+
+def _shift(d: date, n: int) -> date:
+    """La fecha n días laborables después (o la misma, con n = 0)."""
+    return add_wd(d, n + 1) if n > 0 else d
+
+
+def reschedule(nodes: list[T], status: date | None) -> None:
+    """Cronograma vigente simulado, holgura total y tareas críticas (ver el comentario del módulo)."""
+    tasks = list(_every(nodes))
+    leaves = [t for t in tasks if not t.children]
+    parent = {id(c): t for t in tasks for c in t.children}
+    method = {id(t): t.method or (parent[id(t)].method if id(t) in parent else "") for t in leaves}
+    delay = 0
+    for t in leaves:
+        t.cur_start, t.cur_finish = t.start, t.finish
+        if status is None or method.get(id(t)) == LOE:
+            continue
+        if t.actual_finish:
+            t.cur_start, t.cur_finish = t.actual_start or t.start, t.actual_finish
+        elif t.pct > 0 and not t.milestone:
+            d = max(1, math.ceil(0.15 * len(wdays(t.start, t.finish))))
+            t.cur_finish = max(_shift(t.finish, d), _shift(status, max(1, d // 2)))
+            if t.finish >= status:              # en curso a la fecha de estado: su atraso desplaza lo que sigue
+                delay = max(delay, d)
+        elif t.start <= status:                 # hito vencido sin cumplir: se reprograma después del corte
+            t.cur_start = t.cur_finish = _shift(status, 5)
+    if status is not None:
+        for t in leaves:
+            if method.get(id(t)) == LOE:        # el nivel de esfuerzo dura lo que el trabajo
+                t.cur_finish = _shift(t.finish, delay)
+            elif t.pct == 0 and not t.actual_finish and t.start > status:
+                t.cur_start, t.cur_finish = _shift(t.start, delay), _shift(t.finish, delay)
+
+    def roll(n: T) -> None:
+        if n.children:
+            for c in n.children:
+                roll(c)
+            n.cur_start = min(c.cur_start for c in n.children)
+            n.cur_finish = max(c.cur_finish for c in n.children)
+
+    for r in nodes:
+        roll(r)
+
+    def phase(n: T, end: date | None) -> None:
+        if end is None and n.wbs and n.wbs[:1].isdigit():
+            end = n.cur_finish                  # elemento EDT de nivel 1
+        if not n.children:
+            if end is not None:
+                n.slack = float(len(wdays(n.cur_finish + timedelta(days=1), end)))
+                n.critical = n.slack <= 0 and n.pct < 1.0
+            return
+        for c in n.children:
+            phase(c, end)
+        slacks = [c.slack for c in n.children if c.slack is not None]
+        n.slack = min(slacks) if slacks else None
+        n.critical = any(c.critical for c in n.children)
+
+    for r in nodes:
+        phase(r, None)
+
+
 def dt(d: date, end: bool = False) -> str:
     return datetime.combine(d, time(17, 0) if end else time(8, 0)).isoformat()
 
@@ -321,8 +396,10 @@ def write(nodes: list[T], path: Path, status: date | None, project: int = 1) -> 
     if status:
         for r in nodes:
             progress(r, status)
+    reschedule(nodes, status)
     start = min(t.start for t in tasks)
     finish = max(t.finish for t in tasks)
+    current_finish = max(t.cur_finish for t in tasks)
     total = sum(r.cost for r in nodes)
     total_ac = sum(r.actual_cost for r in nodes)
     total_ev = sum(t.cost * t.pct for t in tasks if not t.children)
@@ -360,6 +437,8 @@ def write(nodes: list[T], path: Path, status: date | None, project: int = 1) -> 
         summary = bool(t and t.children)
         s = t.start if t else start
         f = t.finish if t else finish
+        cs = t.cur_start if t else start
+        cf = t.cur_finish if t else current_finish
         cost = t.cost if t else total
         ac = t.actual_cost if t else total_ac
         pct = (t.pct if t else (total_ev / total if total else 0))
@@ -369,13 +448,16 @@ def write(nodes: list[T], path: Path, status: date | None, project: int = 1) -> 
                  f"\t\t\t<WBS>{wbs}</WBS>",
                  f"\t\t\t<OutlineNumber>{t.outline if t else '0'}</OutlineNumber>",
                  f"\t\t\t<OutlineLevel>{level}</OutlineLevel>",
-                 f"\t\t\t<Start>{dt(s)}</Start>", f"\t\t\t<Finish>{dt(f, True)}</Finish>",
+                 f"\t\t\t<Start>{dt(cs)}</Start>", f"\t\t\t<Finish>{dt(cf, True)}</Finish>",
                  f"\t\t\t<Milestone>{1 if t and t.milestone else 0}</Milestone>",
                  f"\t\t\t<Summary>{1 if summary or t is None else 0}</Summary>",
                  "\t\t\t<ExternalTask>0</ExternalTask>",
                  "\t\t\t<FixedCost>0</FixedCost>", "\t\t\t<FixedCostAccrual>3</FixedCostAccrual>",
                  f"\t\t\t<PercentComplete>{int(round(pct * 100))}</PercentComplete>",
                  f"\t\t\t<Cost>{money(cost)}</Cost>"]
+        if t and t.slack is not None:           # holgura en décimas de minuto (jornada de 8 horas), como MS Project
+            lines += [f"\t\t\t<TotalSlack>{int(round(t.slack * 480 * 10))}</TotalSlack>",
+                      f"\t\t\t<Critical>{1 if t.critical else 0}</Critical>"]
         if t and t.actual_start:
             lines.append(f"\t\t\t<ActualStart>{dt(t.actual_start)}</ActualStart>")
         if t and t.actual_finish:

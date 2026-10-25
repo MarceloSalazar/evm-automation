@@ -163,9 +163,12 @@ gantt
 6. Ejecutar **`actualizar`**, cargar en la hoja `AC` (o en las de cada empresa) el costo real devengado
    del mes que entrega Finanzas (ERP o contabilidad) y ejecutar **`analizar`** para completar la lista de
    paquetes fuera de umbral ([Análisis de desviaciones](analisis-desviaciones.md#3-cierre-mensual)).
-7. **Abrir el libro** y revisar el `Cuadro de Mando` (mes de reporte = mes de corte) e `Indicadores EDT`.
-8. **Analizar las desviaciones** de los paquetes fuera de umbral: causa, impacto en plazo y costo, y
-   acción correctiva con responsable y fecha, en la hoja
+7. **Abrir el libro** y revisar el `Cuadro de Mando` (mes de reporte = mes de corte) e `Indicadores EDT`:
+   la tendencia de los últimos 3 meses y la variación respecto del mes anterior, y el plazo según el
+   cronograma de MS Project (desvío de fin y paquetes críticos atrasados).
+8. **Analizar las desviaciones** de los paquetes fuera de umbral: causa, impacto en plazo y costo (las
+   columnas de tendencia, desvío de fin, holgura y crítica ayudan a priorizar), y acción correctiva con
+   responsable y fecha, en la hoja
    [Análisis de desviaciones](analisis-desviaciones.md), que los lista y conserva el texto de cada mes.
 9. **Revisar el EAC**: comparar los pronósticos del libro con la estimación de los responsables de
    paquete ([Cuadro de Mando](cuadro-de-mando.md#2-mes-de-reporte-y-método-eac)).
@@ -251,7 +254,9 @@ flowchart TD
 
 - Umbrales de variación acordados (por ejemplo, los del `[semaforo]`) y explicación de causas para los
   paquetes fuera de umbral.
-- Analizar tendencias (últimos 3 meses), no solo el valor acumulado.
+- Analizar tendencias (últimos 3 meses), no solo el valor acumulado: el `Cuadro de Mando` y el `Resumen`
+  muestran el CPI y el SPI de los últimos 3 meses, y el análisis de desviaciones, la tendencia de cada
+  paquete.
 - Revisar el EAC al menos trimestralmente con una estimación detallada del trabajo restante.
 - Conservar el libro de cada informe emitido: el historial de EV y AC no se debe reescribir.
 
@@ -268,6 +273,7 @@ flowchart TD
 - [ ] `actualizar --simular` revisado: sin métodos `Por definir`, sin valores del mes negativos sin
       explicar, sin tareas con código EDT sin fila en el libro ni filas sin BAC.
 - [ ] `actualizar` ejecutado; AC del mes cargado en la hoja `AC` y `analizar` ejecutado.
-- [ ] Cuadro de Mando revisado; paquetes fuera de umbral explicados en `Análisis de desviaciones`.
+- [ ] Cuadro de Mando revisado (tendencia y plazo incluidos); paquetes fuera de umbral explicados en
+      `Análisis de desviaciones`.
 - [ ] EAC revisado y acciones correctivas definidas.
 - [ ] Informe emitido y copia del libro archivada.

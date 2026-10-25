@@ -28,6 +28,54 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - Ninguna.
 
+## [2.3.0] - 2026-10-26 · Plazo según MS Project, tendencia de los índices y lista EDT
+
+### Nuevas funciones
+
+- **Plazo según el cronograma de MS Project** (#22): `generar` y `actualizar` leen la holgura total y la
+  marca de tarea crítica de cada tarea, y el libro muestra si un atraso afecta la fecha de fin:
+  - `Indicadores EDT`, columnas Q a U: fin de línea base, fin previsto, desvío de fin (días laborables;
+    > 0 = atraso), holgura total y crítica de cada elemento EDT, con sus tareas de detalle; en rojo el
+    desvío de los paquetes críticos o con holgura negativa
+    ([El libro Excel](docs/libro-excel.md#indicadores-edt)).
+  - `Resumen` y `Cuadro de Mando`: fin de línea base y fin previsto del proyecto, desvío de fin, paquetes
+    críticos sin terminar (y cuántos con el fin atrasado) y término estimado con el SPI(t).
+  - `Análisis de desviaciones`: desvío de fin, holgura y crítica de cada paquete, con los valores del mes
+    del análisis.
+  - `actualizar` muestra en pantalla el fin previsto, el desvío y los paquetes críticos atrasados.
+- **Tendencia de los índices** (#23):
+  - `Cuadro de Mando`: CPI y SPI de los últimos 3 meses y variación del CPI, el SPI y el EAC respecto del
+    mes anterior con datos (con informes bimestrales, el del informe anterior)
+    ([Cuadro de Mando](docs/cuadro-de-mando.md#4-tendencia-y-plazo)).
+  - `Resumen` y salida de `actualizar`: los mismos indicadores a la fecha de corte.
+  - `Análisis de desviaciones`: SPI y CPI del mes anterior de cada paquete y columna `Tendencia`
+    (`Mejora`, `Estable` o `Empeora`).
+- **Lista EDT** (#27): nueva clave opcional `[exportacion] lista_edt` con un archivo de texto de códigos
+  EDT, uno por línea, que decide las filas del libro en lugar de `nivel_maximo` y del campo `Visible`. Las
+  tareas que no están en la lista se suman en su elemento listado más cercano; los códigos de la lista
+  que no existen en MS Project se advierten. El libro guarda la lista y `actualizar` la usa
+  ([Cálculo del PV y el EV](docs/calculo-pv-ev.md#34-lista-edt-filas-definidas-en-un-archivo)).
+- **Versión y barra de progreso:** todos los comandos muestran la versión del programa en la primera
+  línea y, en una consola, una barra de progreso con la tarea en curso, el % de esa tarea y del total y
+  el tiempo restante estimado ([Comandos](docs/comandos.md)).
+
+### Correcciones
+
+- Los códigos EDT con un 0 intermedio, como `1.2.0.1` debajo de `1.2.0.0` (un elemento insertado antes de
+  `1.2.1.0` sin renumerar a sus hermanos), son válidos y de nivel 3. Antes se informaban como error
+  (#28) ([Validaciones](docs/validaciones-y-problemas.md#11-datos-del-libro-generar-y-validar)).
+
+### Otros
+
+- El `Cuadro de Mando` tiene dos filas de tarjetas nuevas sobre los gráficos. Los libros de versiones
+  anteriores conservan su disposición; `actualizar` les agrega las columnas de plazo, las secciones del
+  `Resumen` y las columnas nuevas del `Análisis de desviaciones`, y las tarjetas nuevas se agregan al
+  regenerarlos con `--migrar-desde`.
+- El proyecto de ejemplo simula el cronograma vigente (reprogramación del trabajo pendiente), la holgura
+  total y las tareas críticas.
+- Instalador de Windows de esta versión.
+- Portada de la presentación con la versión 2.3.0.
+
 ## [2.2.1] - 2026-10-25 · Formato de números, códigos de salida y revisión de la documentación
 
 ### Nuevas funciones
@@ -419,7 +467,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.2.1...HEAD
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.2.1...v2.3.0
 [2.2.1]: https://github.com/MarceloSalazar/evm-automation/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.0.0...v2.1.0

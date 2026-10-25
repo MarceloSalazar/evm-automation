@@ -19,6 +19,8 @@ rápido están en el [README principal](../README.md).
 | Reunir varios archivos de MS Project en un informe | [Varios archivos de MS Project](varios-archivos.md) |
 | Alinear el cronograma con el plan de costes de una empresa | [Depuración de costes](depuracion-costes.md) |
 | Interpretar los indicadores y los gráficos | [Cuadro de Mando e indicadores](cuadro-de-mando.md) |
+| Saber si un atraso afecta la fecha de fin, o cómo evolucionó el desempeño desde el informe anterior | [Tendencia y plazo](cuadro-de-mando.md#4-tendencia-y-plazo) |
+| Definir las filas del libro con una lista de códigos EDT, sin marcar el cronograma | [Lista EDT](calculo-pv-ev.md#34-lista-edt-filas-definidas-en-un-archivo) |
 | Explicar las desviaciones del mes | [Análisis de desviaciones](analisis-desviaciones.md) |
 | Entender un valor del libro | [Cálculo del PV y el EV](calculo-pv-ev.md) |
 | Resolver un mensaje de error | [Validaciones y solución de problemas](validaciones-y-problemas.md) |

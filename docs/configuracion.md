@@ -28,7 +28,8 @@ copy config.ejemplo.toml config.toml
 | `[horizonte] mes_inicio` | vacío | Primer mes (`"AAAA-MM"`). Vacío = inicio de la línea base. El archivo de ejemplo indica `"2026-01"`. |
 | `[horizonte] meses` | `120` | Cantidad de meses (1 a 600). |
 | `[exportacion] planificacion` | sin filtro | Código EDT de alto nivel de la planificación a exportar, por ejemplo `"INTERNO"` o `"CLIENTE"`; el archivo de ejemplo indica `"INTERNO"`. Si se omite, se exportan todas las tareas. |
-| `[exportacion] nivel_maximo` | `3` | Nivel máximo del código EDT exportado (1 a 10); los niveles inferiores se suman en su elemento de este nivel. |
+| `[exportacion] nivel_maximo` | `3` | Nivel máximo del código EDT exportado (1 a 10); los niveles inferiores se suman en su elemento de este nivel. El nivel cuenta los segmentos sin los ceros finales ni los intermedios: `1.2.0.1` es de nivel 3, como `1.2.1.0`. |
+| `[exportacion] lista_edt` | vacío | Archivo de texto con los códigos EDT que tienen fila en el libro, uno por línea ([Lista EDT](calculo-pv-ev.md#34-lista-edt-filas-definidas-en-un-archivo)). Reemplaza a `nivel_maximo` y al campo `Visible` para decidir las filas: las tareas que no están en la lista se suman en su elemento listado más cercano. Una ruta relativa se toma desde la carpeta del archivo de configuración. Vacío = no se usa. |
 | `[exportacion] linea_base` | la del proyecto | `0` = Línea base, `1`..`10` = Línea base N: sus fechas definen el % planificado ([Cálculo del PV y el EV](calculo-pv-ev.md#5-horizonte-de-meses-y-proyecto-sin-línea-base)). |
 | `[exportacion] rellenar_edt` | `true` | `1` → `1.0.0`, `1.2` → `1.2.0`. |
 | `[exportacion] incluir_inactivas` | `false` | Incluir tareas inactivas. |
@@ -65,8 +66,8 @@ Las opciones de la línea de comandos (`--planificacion`, `--linea-base`, `--niv
 `--meses`) reemplazan el valor del archivo de configuración. Con varios archivos (`[[proyectos]]`),
 `--planificacion` y `--linea-base` no se admiten: se indican en la sección de cada archivo.
 
-`actualizar` toma del libro la planificación, el nivel máximo, el campo `Visible`, la configuración
-multi-empresa y los umbrales del semáforo con los que se generó. Las demás claves que intervienen en el
+`actualizar` toma del libro la planificación, el nivel máximo, el campo `Visible`, la lista EDT, la
+configuración multi-empresa y los umbrales del semáforo con los que se generó. Las demás claves que intervienen en el
 cálculo del % ganado (`linea_base`, `distribucion`, `feriados`, `incluir_inactivas`, `rellenar_edt` y los
 campos `edt` y `peso_hito`) se deben mantener iguales a las usadas en `generar`. Para cambiarlas,
 se genera un libro nuevo con `--migrar-desde` ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)).

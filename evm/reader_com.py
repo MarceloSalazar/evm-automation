@@ -18,6 +18,7 @@ import time
 from datetime import date, datetime, timezone
 from pathlib import Path
 
+from evm import progress
 from evm.config import Config
 from evm.fields import (TASK_NUMBER_IDS, TASK_TEXT_IDS, builtin_kind, fmt_number, is_notes_name,
                         is_spanish_wbs_name, parse_custom_name, parse_number, same_name)
@@ -412,7 +413,9 @@ class ComSession:
         tasks: list[Task] = []
         any_baseline = False
         skipped_external = 0
-        for t in p.Tasks:
+        count = int(_number(_get(p.Tasks, "Count", 0)) or 0)
+        for i, t in enumerate(p.Tasks, start=1):
+            progress.step(i, count, "tareas")
             if t is None:                 # fila en blanco
                 continue
             if bool(_get(t, "ExternalTask", False)):
@@ -439,6 +442,7 @@ class ComSession:
                 baseline_start=bl_start, baseline_finish=bl_finish, has_baseline=has_bl,
                 baseline_duration=_number(_get(t, f"Baseline{sfx}Duration")) if has_bl else None,
                 start=_dt(_get(t, "Start")), finish=_dt(_get(t, "Finish")),
+                total_slack=_number(_get(t, "TotalSlack")), critical=bool(_get(t, "Critical", False)),
                 percent_complete=_f(_get(t, "PercentComplete")),
                 physical_percent_complete=_f(_get(t, "PhysicalPercentComplete")),
                 actual_start=_dt(_get(t, "ActualStart")), actual_finish=_dt(_get(t, "ActualFinish")),

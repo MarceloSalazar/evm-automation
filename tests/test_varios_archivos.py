@@ -213,9 +213,9 @@ def test_each_file_is_read_with_its_own_settings(xml, tmp_path, monkeypatch):
     seen = []
     original = cli.open_project
 
-    def spy(origen, cfg, motor, visible=False, status=None):
+    def spy(origen, cfg, motor, visible=False, status=None, name=""):
         seen.append((origen, cfg.plan, cfg.baseline))
-        return original(origen, cfg, motor, visible, status)
+        return original(origen, cfg, motor, visible, status, name)
 
     monkeypatch.setattr(cli, "open_project", spy)
     generate(cfg, tmp_path / "propia.xlsx")

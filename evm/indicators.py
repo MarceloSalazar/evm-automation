@@ -75,11 +75,21 @@ class Indicators:
     sv_t: float | None
     spi_t: float | None
     estimated_duration: float | None
+    # Tendencia: CPI y SPI de los últimos 3 meses e indicadores acumulados del mes anterior
+    cpi_3m: float | None = None
+    spi_3m: float | None = None
+    cpi_prev: float | None = None
+    spi_prev: float | None = None
+    eac_prev: float | None = None
 
 
 def compute(pv_month: list[float], ev_month: list[float], ac_month: list[float], bac: float,
-            status_index: int) -> Indicators:
-    """Calcula los indicadores acumulados hasta el mes `status_index` (base 0) inclusive."""
+            status_index: int, loaded: list[bool] | None = None) -> Indicators:
+    """Calcula los indicadores acumulados hasta el mes `status_index` (base 0) inclusive.
+
+    loaded: meses con EV cargado (None = todos). El mes anterior es el último mes con datos antes del de corte, y
+    los últimos 3 meses empiezan en el último mes con datos hasta 3 meses antes (como en la hoja Resumen).
+    """
     cum_pv = list(accumulate(pv_month))
     k = status_index
     pv = cum_pv[k] if 0 <= k < len(cum_pv) else (cum_pv[-1] if k >= len(cum_pv) else 0.0)
@@ -95,6 +105,21 @@ def compute(pv_month: list[float], ev_month: list[float], ac_month: list[float],
     es = earned_schedule(cum_pv, ev, bac, at)
     spi_t = _div(es, at)
     pd = planned_duration(cum_pv, bac)
+
+    def last_loaded(back: int) -> int | None:
+        """Último mes con datos (índice) hasta `back` meses antes del mes de corte."""
+        for i in range(k - back, -1, -1):
+            if loaded is None or (i < len(loaded) and loaded[i]):
+                return i
+        return None
+
+    def until(series: list[float], i: int | None) -> float | None:
+        return None if i is None else sum(series[: i + 1])
+
+    p, b = last_loaded(1), last_loaded(3)
+    pv1, ev1, ac1 = until(pv_month, p), until(ev_month, p), until(ac_month, p)
+    pv3, ev3, ac3 = until(pv_month, b), until(ev_month, b), until(ac_month, b)
+    cpi_prev = _div(ev1, ac1)
     return Indicators(
         status_index=k, bac=bac, pv=pv, ev=ev, ac=ac, sv=ev - pv, cv=ev - ac, spi=spi, cpi=cpi,
         eac_cpi=eac_cpi, eac_remaining_budget=ac + bac - ev, eac_cpi_spi=eac_cpi_spi,
@@ -104,6 +129,9 @@ def compute(pv_month: list[float], ev_month: list[float], ac_month: list[float],
         pct_spent=_div(ac, bac), planned_duration=pd, es=es, at=at, sv_t=(es - at) if es is not None else None,
         spi_t=spi_t,
         estimated_duration=_div(pd, spi_t),
+        cpi_3m=None if b is None else _div(ev - ev3, ac - ac3),
+        spi_3m=None if b is None else _div(ev - ev3, pv - pv3), cpi_prev=cpi_prev,
+        spi_prev=_div(ev1, pv1), eac_prev=_div(bac, cpi_prev),
     )
 
 
@@ -128,5 +156,13 @@ def format_table(ind: Indicators, currency: str = "") -> str:
         f"EAC = BAC/CPI{'':<2}{m(ind.eac_cpi):>20}   VAC = {m(ind.vac)}",
         f"TCPI{'':<11}{r(ind.tcpi):>20}",
         f"ES (meses){'':<5}{r(ind.es):>20}   AT = {ind.at}  SV(t) = {r(ind.sv_t)}  SPI(t) = {r(ind.spi_t)}",
+        f"Últimos 3 meses{'':<16}CPI = {r(ind.cpi_3m)}  SPI = {r(ind.spi_3m)}",
+        f"Mes anterior{'':<19}CPI = {r(ind.cpi_prev)}  SPI = {r(ind.spi_prev)}  EAC = {m(ind.eac_prev)}"
+        + (f"  (variación del EAC: {_signed(ind.eac_cpi - ind.eac_prev)})"
+           if ind.eac_cpi is not None and ind.eac_prev is not None else ""),
     ]
     return "\n".join(lines)
+
+
+def _signed(v: float) -> str:
+    return ("+" if v > 0 else "") + fmt_number(v, 0)

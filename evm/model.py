@@ -50,6 +50,8 @@ class Task:
     # Programa actual
     start: datetime | None = None
     finish: datetime | None = None
+    total_slack: float | None = None    # holgura total en minutos (None = no se leyó)
+    critical: bool = False              # tarea crítica según MS Project
 
     # Avance (para el comando actualizar)
     percent_complete: float = 0.0       # 0..100

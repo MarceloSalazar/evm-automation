@@ -17,7 +17,7 @@ from evm.workbook import FIRST_ROW
 DASH = "Cuadro de Mando"
 CARDS = {"bac": "B10", "pv": "G10", "ev": "L10", "ac": "Q10", "cv": "B15", "sv": "G15", "cpi": "L15", "spi": "Q15",
          "etc": "B20", "eac": "F20", "vac": "J20", "tcpi_bac": "N20", "tcpi_eac": "R20"}
-TABLE_FIRST = dashboard.ROW_SCATTER + 1
+TABLE_FIRST = dashboard.chart_rows()[2] + 1
 
 
 @pytest.fixture()

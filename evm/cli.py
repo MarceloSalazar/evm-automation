@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 
-from evm import __version__
+from evm import __version__, progress
 from evm.config import Config, ConfigError, load_config, parse_date, parse_month
 from evm.fields import fmt_number
 from evm.wbs import SEV_ERROR, SEV_INFO, SEV_WARN, assemble_report, build_part, fmt_money, plural
@@ -40,18 +40,47 @@ def _engine_for(origen: str, motor: str) -> str:
 
 
 @contextmanager
-def open_project(origen: str, cfg: Config, motor: str, visible: bool = False, status: date | None = None):
-    """Devuelve el proyecto leído (ProjectData). Con COM, MS Project queda abierto mientras dure el bloque."""
+def open_project(origen: str, cfg: Config, motor: str, visible: bool = False, status: date | None = None,
+                 name: str = ""):
+    """Devuelve el proyecto leído (ProjectData). Con COM, MS Project queda abierto mientras dure el bloque.
+
+    name: nombre del archivo en [[proyectos]] (etapas de la barra de progreso).
+    """
     engine = _engine_for(origen, motor)
     if origen.lower() != "activo" and not Path(origen).is_file():
         raise FileNotFoundError(f"No existe el archivo de origen: {origen}")
+    which = f" ({name})" if name else ""
     if engine == "xml":
         from evm.reader_xml import read_xml
+        progress.stage(f"leer:{name}", f"Lectura del XML{which}")
         yield read_xml(origen, cfg)
         return
     from evm.reader_com import ComSession
+    progress.stage(f"abrir:{name}", f"Apertura en MS Project{which}")
     with ComSession(origen, visible=visible) as session:
+        progress.stage(f"leer:{name}", f"Lectura de MS Project{which}")
         yield session.read_project(cfg, status_date=status)
+
+
+def _stages(files: list[tuple[str, str, Config]], motor: str, before: dict[str, float] | None = None,
+            compute: float = 0.0, after: dict[str, float] | None = None) -> dict[str, float]:
+    """Etapas de la barra de progreso y su peso relativo (tiempo habitual de cada una): por archivo, apertura en
+    MS Project (COM), lectura y cálculo; antes y después, las del comando."""
+    stages = dict(before or {})
+    for name, origin, _cfg in files:
+        if _engine_for(origin, motor) == "com":
+            stages[f"abrir:{name}"] = 15.0
+            stages[f"leer:{name}"] = 40.0
+        else:
+            stages[f"leer:{name}"] = 10.0
+        if compute:
+            stages[f"calcular:{name}"] = compute
+    stages.update(after or {})
+    return stages
+
+
+def _computing(name: str, text: str) -> None:
+    progress.stage(f"calcular:{name}", f"{text} ({name})" if name else text)
 
 
 def _apply_overrides(cfg: Config, args) -> Config:
@@ -149,17 +178,22 @@ def cmd_generar(args) -> int:
     if salida.exists():
         check_writable(salida)                  # libro abierto en Excel: se informa antes de leer MS Project
     parts = []
-    for name, origin, pcfg in files:
-        print(_reading(name, origin))
-        with open_project(origin, pcfg, args.motor, args.visible) as project:
-            parts.append(build_part(project, pcfg, name))
-    report = assemble_report(parts, cfg)
-    prior = None
-    if args.migrar_desde:
-        from evm.migrate import plan_migration, prior_from_book
-        prior = prior_from_book(args.migrar_desde, report.project.name)
-        report.issues.extend(plan_migration(report, prior, cfg.max_level))
-    write_workbook(report, cfg, salida, prior)
+    after = {"migrar": 10.0} if args.migrar_desde else {}
+    with progress.tracking(_stages(files, args.motor, compute=10.0,
+                                   after={**after, "escribir": 20.0, "guardar": 15.0})):
+        for name, origin, pcfg in files:
+            progress.say(_reading(name, origin))
+            with open_project(origin, pcfg, args.motor, args.visible, name=name) as project:
+                _computing(name, "Cálculo del % planificado")
+                parts.append(build_part(project, pcfg, name))
+        report = assemble_report(parts, cfg)
+        prior = None
+        if args.migrar_desde:
+            from evm.migrate import plan_migration, prior_from_book
+            progress.stage("migrar", "Lectura del libro anterior")
+            prior = prior_from_book(args.migrar_desde, report.project.name)
+            report.issues.extend(plan_migration(report, prior, cfg.max_level))
+        write_workbook(report, cfg, salida, prior)
 
     leaves = sum(1 for r in report.rows if r.is_input)
     if report.multi_file:
@@ -173,7 +207,7 @@ def cmd_generar(args) -> int:
         if report.plan:
             print(f"  Planificación: {report.plan}")
         print(f"  {project.baseline_label}  |  PV: {report.pv_source}")
-    print(f"  Filas EDT: {len(report.rows)} ({leaves} de ingreso)  |  Nivel máximo: {cfg.max_level}")
+    print(f"  Filas EDT: {len(report.rows)} ({leaves} de ingreso)  |  {_rows_rule(cfg)}")
     print(f"  Horizonte: {report.horizon.start:%m/%Y} a {report.horizon.end:%m/%Y} ({report.horizon.months} meses)")
     sheets = (f"PV-{report.company_a} y PV-{report.company_b}" if report.multi else "PV")
     print(f"  BAC: se debe ingresar el BAC de cada fila en la columna D de {sheets} (celdas amarillas).")
@@ -187,6 +221,31 @@ def cmd_generar(args) -> int:
                   f"{fmt_money(lost_ac)}). Ver hoja 'Validación'.")
     print(f"Libro generado: {salida.resolve()}")
     return 0
+
+
+def _rows_rule(cfg) -> str:
+    """Cómo se deciden las filas del libro: el nivel máximo o la lista EDT."""
+    if cfg.wbs_list is not None:
+        return f"Lista EDT: {plural(len(cfg.wbs_list), 'código', 'códigos')} ({Path(cfg.wbs_list_file).name})"
+    return f"Nivel máximo: {cfg.max_level}"
+
+
+def _print_schedule(plan) -> None:
+    """Plazo según el cronograma de MS Project (hojas Resumen e Indicadores EDT)."""
+    t = plan.total
+    if t.finish is None:
+        return
+
+    def day(d) -> str:
+        return f"{d:%d/%m/%Y}" if d else "-"
+
+    variance = ""
+    if t.variance is not None:
+        sign = "+" if t.variance > 0 else ""
+        variance = f" (desvío {sign}{t.variance} {'día laborable' if abs(t.variance) == 1 else 'días laborables'})"
+    print(f"Plazo según MS Project: fin de línea base {day(t.baseline_finish)}  |  fin previsto {day(t.finish)}"
+          f"{variance}")
+    print(f"  Paquetes críticos sin terminar: {plan.critical} ({plan.late_critical} con fin atrasado)")
 
 
 def _print_update(res, currency: str) -> None:
@@ -222,6 +281,9 @@ def _print_update(res, currency: str) -> None:
     if res.book is not None:
         print()
         print(format_table(indicators_for(res.book, res.status_date), currency))
+    if res.schedule is not None:
+        print()
+        _print_schedule(res.schedule)
 
 
 def _print_deviations(res, limit: int = 25) -> None:
@@ -252,7 +314,8 @@ def cmd_analizar(args) -> int:
     from evm.update import run_analysis
     from evm.workbook import check_writable
     check_writable(args.libro)
-    res = run_analysis(cfg, args.libro, backup=not args.sin_respaldo)
+    with progress.tracking({"libro": 40.0, "analizar": 10.0, "guardar": 40.0}):
+        res = run_analysis(cfg, args.libro, backup=not args.sin_respaldo)
     print(f"Fecha de corte: {res.status_date:%d/%m/%Y} (mes {res.month_index + 1} del horizonte)")
     for w in res.warnings:
         print(f"  [!] {w}")
@@ -276,12 +339,14 @@ def cmd_actualizar(args) -> int:
         from evm.workbook import check_writable
         check_writable(args.libro)              # libro abierto en Excel: se informa antes de leer MS Project
     projects = {}
-    for name, origin, pcfg in files:
-        print(_reading(name, origin))
-        with open_project(origin, pcfg, args.motor, args.visible, status) as project:
-            projects[name] = project
-    res = run_update(projects if cfg.projects else projects[""], cfg, args.libro, status,
-                     backup=not args.sin_respaldo, force=args.forzar, dry_run=args.simular)
+    after = {"libro": 20.0, "calcular": 10.0} | ({} if args.simular else {"guardar": 20.0})
+    with progress.tracking(_stages(files, args.motor, after=after)):
+        for name, origin, pcfg in files:
+            progress.say(_reading(name, origin))
+            with open_project(origin, pcfg, args.motor, args.visible, status, name=name) as project:
+                projects[name] = project
+        res = run_update(projects if cfg.projects else projects[""], cfg, args.libro, status,
+                         backup=not args.sin_respaldo, force=args.forzar, dry_run=args.simular)
     _print_update(res, str(res.book.meta.get("moneda") or "") if res.book else "")
     if args.simular:
         print("Simulación: no se modificó el libro.")
@@ -325,11 +390,14 @@ def cmd_validar(args) -> int:
     status = parse_date(args.fecha_corte) if args.fecha_corte else None
     from evm.validation import combine, validate_part
     parts = []
-    for name, origin, pcfg in files:
-        print(_reading(name, origin))
-        with open_project(origin, pcfg, args.motor, args.visible) as project:
-            parts.append(validate_part(project, pcfg, name, status))
-    report, issues = combine(parts, cfg)
+    with progress.tracking(_stages(files, args.motor, compute=10.0, after={"revisar": 5.0})):
+        for name, origin, pcfg in files:
+            progress.say(_reading(name, origin))
+            with open_project(origin, pcfg, args.motor, args.visible, name=name) as project:
+                _computing(name, "Revisión del cronograma")
+                parts.append(validate_part(project, pcfg, name, status))
+        progress.stage("revisar", "Revisión de los códigos EDT de todos los archivos")
+        report, issues = combine(parts, cfg)
 
     def when(project) -> str:
         if status is not None:
@@ -352,8 +420,8 @@ def cmd_validar(args) -> int:
         print(f"  {plan}{project.baseline_label}  |  {when(project)}")
     rows = report.rows if report else [r for p in parts for r in p.rows]
     leaves = sum(1 for r in rows if r.is_input)
-    print(f"  Tareas revisadas: {reviewed}  |  Filas EDT: {len(rows)} ({leaves} de ingreso)  |  Nivel máximo: "
-          f"{cfg.max_level}")
+    print(f"  Tareas revisadas: {reviewed}  |  Filas EDT: {len(rows)} ({leaves} de ingreso)  |  "
+          f"{_rows_rule(cfg)}")
     _print_validation(issues, None if args.todas else 20)
     errors = sum(1 for i in issues if i.severity == SEV_ERROR)
     print()
@@ -382,14 +450,17 @@ def cmd_generar_fichas(args) -> int:
         raise ConfigError(f"'{salida}' ya existe. Para reemplazarlo se debe usar --sobrescribir.")
 
     parts = []
-    for name, origin, pcfg in files:
-        print(_reading(name, origin))
-        with open_project(origin, pcfg, args.motor, args.visible) as project:
-            parts.append(build_part(project, pcfg, name))
-    report = assemble_report(parts, cfg)
-    from evm.task_cards import build_cards, write_cards
-    cards = build_cards(report, parts, cfg)
-    write_cards(cards, cfg, salida)
+    with progress.tracking(_stages(files, args.motor, compute=10.0, after={"fichas": 5.0})):
+        for name, origin, pcfg in files:
+            progress.say(_reading(name, origin))
+            with open_project(origin, pcfg, args.motor, args.visible, name=name) as project:
+                _computing(name, "Cálculo de las filas EDT")
+                parts.append(build_part(project, pcfg, name))
+        report = assemble_report(parts, cfg)
+        from evm.task_cards import build_cards, write_cards
+        progress.stage("fichas", "Escritura de las fichas")
+        cards = build_cards(report, parts, cfg)
+        write_cards(cards, cfg, salida)
 
     if report.multi_file:
         print(f"Fichas: {report.title}")
@@ -401,7 +472,7 @@ def cmd_generar_fichas(args) -> int:
         if report.plan:
             print(f"  Planificación: {report.plan}")
         print(f"  {report.project.baseline_label}")
-    print(f"  Fichas: {len(cards.cards)}  |  Nivel máximo: {cfg.max_level}  |  Vínculos entre fichas: {cards.links}")
+    print(f"  Fichas: {len(cards.cards)}  |  {_rows_rule(cfg)}  |  Vínculos entre fichas: {cards.links}")
     for s in report.sources:
         for w in s.project.warnings:
             print(f"  [!] {f'[{s.name}] ' if s.name else ''}{w}")
@@ -410,7 +481,7 @@ def cmd_generar_fichas(args) -> int:
               "([campos] edt) y la planificación elegida.")
     if cards.hidden:
         print(f"  [i] {plural(cards.hidden, 'vínculo', 'vínculos')} con tareas sin ficha (de otra planificación, "
-              "inactivas, con Visible = No o de otro proyecto): no se muestran.")
+              "inactivas, con Visible = No, fuera de la lista EDT o de otro proyecto): no se muestran.")
     if cards.current:
         print(f"  [!] {plural(cards.current, 'ficha', 'fichas')} sin línea base: se usaron las fechas y la duración "
               "del programa actual (se indica en la ficha).")
@@ -508,6 +579,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING,
                         format="%(levelname)s %(name)s: %(message)s")
+    print(f"Exportador EVM {__version__}", flush=True)
     try:
         return args.func(args)
     except (ConfigError, FileNotFoundError, PermissionError, ValueError, RuntimeError) as exc:

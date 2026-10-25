@@ -3,6 +3,7 @@ from datetime import date, datetime
 
 import pytest
 from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter
 
 from evm import analysis
 from evm.analysis import (A_ACTION, A_BAC, A_CAUSE, A_CODE, A_CPI, A_KEY, A_LIGHT, A_MONTH, A_ORIGIN, A_OWNER,
@@ -79,8 +80,9 @@ def test_generate_creates_empty_sheet(book):
     ws = wb[SHEET_ANALYSIS]
     assert [ws.cell(HEAD_ROW, c).value for c in (A_MONTH, A_CODE, A_SPI, A_CPI, A_CAUSE)] == [
         "Mes", "Código EDT", "SPI", "CPI", "Causa"]
-    assert ws.column_dimensions["S"].hidden
-    assert ws.auto_filter.ref.startswith("A4:S")          # al ordenar, la clave acompaña a su fila
+    key = get_column_letter(A_KEY)
+    assert ws.column_dimensions[key].hidden
+    assert ws.auto_filter.ref.startswith(f"A4:{key}")     # al ordenar, la clave acompaña a su fila
     assert entries(book) == []
     meta = read_book(book).meta
     assert [meta[k] for k in ("semaforo_rojo_inferior", "semaforo_amarillo_inferior", "semaforo_amarillo_superior",

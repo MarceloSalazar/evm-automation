@@ -17,10 +17,11 @@ Las imágenes de este documento corresponden al [proyecto de ejemplo](ejemplo-pa
 1. [Vista general](#1-vista-general)
 2. [Mes de reporte y método EAC](#2-mes-de-reporte-y-método-eac)
 3. [Valores, desviaciones, índices y pronósticos](#3-valores-desviaciones-índices-y-pronósticos)
-4. [Gráficos](#4-gráficos)
-5. [Hoja Resumen: fórmulas de los indicadores](#5-hoja-resumen-fórmulas-de-los-indicadores)
-6. [Cronograma Ganado (Earned Schedule)](#6-cronograma-ganado-earned-schedule)
-7. [Cómo leer los indicadores](#7-cómo-leer-los-indicadores)
+4. [Tendencia y plazo](#4-tendencia-y-plazo)
+5. [Gráficos](#5-gráficos)
+6. [Hoja Resumen: fórmulas de los indicadores](#6-hoja-resumen-fórmulas-de-los-indicadores)
+7. [Cronograma Ganado (Earned Schedule)](#7-cronograma-ganado-earned-schedule)
+8. [Cómo leer los indicadores](#8-cómo-leer-los-indicadores)
 
 ---
 
@@ -35,10 +36,12 @@ Las imágenes de este documento corresponden al [proyecto de ejemplo](ejemplo-pa
 | 3 | **Valores acumulados** | BAC, PV, EV y AC acumulados hasta el final del mes de reporte, con su % del BAC. |
 | 4 | **Desviaciones e índices** | CV y SV (con su %), CPI y SPI con semáforo, y la escala del semáforo con los umbrales del libro. |
 | 5 | **Pronósticos** | ETC, EAC, VAC, TCPI (BAC) y TCPI (EAC). |
-| 6 | **Evolución EVM** | Curva S: PV, EV y AC acumulados y BAC. |
-| 7 | **Evolución de CPI y SPI** | Índices acumulados mes a mes sobre zonas de alarma. |
-| 8 | **CPI vs SPI por elemento EDT** | Un punto por cada elemento de nivel 1 y 2. |
-| 9 | **Tabla por elemento EDT** | CPI, SPI y % completado de los elementos de nivel 1 y 2. |
+| 6 | **Tendencia** | CPI y SPI de los últimos 3 meses y variación del CPI, el SPI y el EAC respecto del mes anterior ([sección 4](#4-tendencia-y-plazo)). |
+| 7 | **Plazo** | Fin de línea base y fin previsto según MS Project, desvío de fin, paquetes críticos y término estimado con el SPI(t). |
+| 8 | **Evolución EVM** | Curva S: PV, EV y AC acumulados y BAC. |
+| 9 | **Evolución de CPI y SPI** | Índices acumulados mes a mes sobre zonas de alarma. |
+| 10 | **CPI vs SPI por elemento EDT** | Un punto por cada elemento de nivel 1 y 2. |
+| 11 | **Tabla por elemento EDT** | CPI, SPI y % completado de los elementos de nivel 1 y 2. |
 
 La hoja se imprime en vertical, en una página de ancho, lista para adjuntar al informe mensual.
 
@@ -114,7 +117,56 @@ Mientras no hay AC cargado (el AC se ingresa a mano en la hoja `AC`), los indica
 
 ---
 
-## 4. Gráficos
+## 4. Tendencia y plazo
+
+Debajo de los pronósticos, dos filas de tarjetas responden a dos preguntas del informe mensual: si el
+desempeño reciente es mejor o peor que el acumulado, y si el atraso afecta la fecha de fin.
+
+**Tendencia** (sigue el mes de reporte elegido):
+
+| Tarjeta | Contenido |
+|---|---|
+| CPI · últimos 3 meses | EV / AC de los 3 meses que terminan en el mes de reporte. El CPI acumulado se mueve poco cuando el proyecto avanza: un acumulado de 0,95 puede ocultar que los últimos meses rondan 0,80. |
+| SPI · últimos 3 meses | EV / PV del mismo período. |
+| Δ CPI, Δ SPI · mes anterior | Variación del índice acumulado respecto del mes anterior con datos, que se muestra debajo. En verde si mejora y en rojo si empeora. |
+| Δ EAC · mes anterior | Variación del EAC (con el método elegido) respecto del mes anterior: en rojo si aumenta. Es el dato de "el EAC subió X desde el informe anterior". |
+
+- El **mes anterior** es el último mes con EV cargado antes del mes de reporte: con informes bimestrales,
+  el del informe anterior. Los **últimos 3 meses** empiezan en el último mes con datos hasta 3 meses
+  antes; con informes bimestrales abarcan 4 meses.
+- Las tarjetas quedan vacías mientras no hay un mes anterior con datos (por ejemplo, en el primer
+  `actualizar`), y las de costo, mientras no hay AC cargado.
+- La hoja `Resumen` tiene los mismos indicadores a la fecha de corte, y `actualizar` los muestra en
+  pantalla.
+
+**Plazo según el cronograma de MS Project** (valores de la última lectura de `generar` o `actualizar`;
+no cambian con el mes de reporte):
+
+| Tarjeta | Contenido |
+|---|---|
+| Fin de línea base | Fin de la última tarea del proyecto según la línea base. |
+| Fin previsto · MS Project | Fin de la última tarea según el cronograma vigente, con la fecha de estado de la lectura. |
+| Desvío de fin | Días laborables entre los dos: > 0 = atraso. |
+| Paquetes críticos | Paquetes con alguna tarea crítica sin terminar y, debajo, cuántos tienen el fin atrasado. |
+| Término estimado · SPI(t) | Estimación estadística del [Cronograma Ganado](#7-cronograma-ganado-earned-schedule) a la fecha de corte, para compararla con la previsión del cronograma. |
+
+![Tendencia y plazo en el Cuadro de Mando](img/excel/cdm-tendencia-plazo.png)
+
+*Diciembre de 2027 en el ejemplo: el CPI de los últimos 3 meses (0,58) es mucho menor que el acumulado
+(0,76), y el EAC subió 2,1 millones respecto de noviembre. Según el cronograma vigente, el proyecto
+termina 36 días laborables después que en la línea base, con 5 paquetes críticos atrasados; el término
+estimado con el SPI(t) es posterior.*
+
+El detalle por elemento EDT está en las columnas Q a U de la hoja
+[Indicadores EDT](libro-excel.md#indicadores-edt) y en el
+[Análisis de desviaciones](analisis-desviaciones.md#2-columnas).
+
+> Los libros de versiones anteriores a la 2.3.0 conservan su Cuadro de Mando, sin estas tarjetas: se
+> agregan al regenerar el libro con `--migrar-desde`.
+
+---
+
+## 5. Gráficos
 
 Los tres gráficos son nativos de Excel y se calculan con fórmulas (datos en la hoja oculta
 `_graficos`). No requieren ninguna acción: se actualizan al cargar valores, al cambiar la fecha de corte
@@ -145,7 +197,7 @@ compararlos. Los valores fuera de escala se dibujan en el límite y su valor exa
 
 ---
 
-## 5. Hoja Resumen: fórmulas de los indicadores
+## 6. Hoja Resumen: fórmulas de los indicadores
 
 La hoja `Resumen` contiene la **fecha de corte** (celda amarilla `B5`, con nombre `FechaCorte`), los
 parámetros de la exportación y los indicadores del proyecto, todos acumulados a la fecha de corte:
@@ -161,14 +213,19 @@ parámetros de la exportación y los indicadores del proyecto, todos acumulados 
 | ES | Meses del plan en que el PV acumulado alcanza el EV actual (interpolación lineal). Si el EV coincide con meses sin PV planificado, se toma el momento de ese tramo más cercano a AT. |
 | SV(t), SPI(t) | ES − AT, ES / AT (AT = meses transcurridos hasta la fecha de corte) |
 | Duración y término estimados | Duración planificada / SPI(t), y el mes correspondiente |
+| CPI y SPI de los últimos 3 meses | (EV − EV₃) / (AC − AC₃) y (EV − EV₃) / (PV − PV₃), con los acumulados al inicio de los 3 meses (filas 49 y 50) |
+| CPI, SPI y EAC del mes anterior | Acumulados del último mes con EV cargado antes del corte; EAC = BAC / CPI (filas 51 a 53) |
+| Plazo según MS Project | Fecha de estado de la lectura, fin de línea base, fin previsto, desvío de fin y paquetes críticos (filas 58 a 63; valores de la última lectura) |
 
 ![Hoja Resumen](img/excel/resumen.png)
+
+![Tendencia y plazo en la hoja Resumen](img/excel/resumen-tendencia-plazo.png)
 
 `actualizar` muestra en pantalla los mismos indicadores al terminar.
 
 ---
 
-## 6. Cronograma Ganado (Earned Schedule)
+## 7. Cronograma Ganado (Earned Schedule)
 
 El SPI compara valores, no tiempos, y al final de un proyecto atrasado tiende a 1 (al terminar, EV =
 PV = BAC). El **Cronograma Ganado** mide el atraso en meses:
@@ -188,12 +245,14 @@ aumentar `meses`.
 
 ---
 
-## 7. Cómo leer los indicadores
+## 8. Cómo leer los indicadores
 
 | Situación | Lectura habitual | Acción sugerida |
 |---|---|---|
 | CPI < 0,90 sostenido | El sobrecosto no es puntual. Los estudios sobre grandes contratos muestran que, superado el 20 % de avance, el CPI acumulado rara vez mejora de forma significativa. | Revisar el EAC y las causas por paquete (hojas `Indicadores EDT` y [`Análisis de desviaciones`](analisis-desviaciones.md)); plan de acción de costo. |
-| SPI < 0,90 y SV(t) creciente | Atraso que se acumula. | Revisar el camino crítico en MS Project; el SPI no indica si el atraso afecta la fecha de fin. |
+| SPI < 0,90 y SV(t) creciente | Atraso que se acumula. | El SPI no indica si el atraso afecta la fecha de fin: revisar el desvío de fin y los paquetes críticos (tarjetas de plazo y columnas Q a U de `Indicadores EDT`). |
+| CPI de los últimos 3 meses menor que el acumulado | El desempeño de costo empeora: el acumulado todavía no lo refleja. | Revisar las causas recientes por paquete (`Tendencia` en `Análisis de desviaciones`) y el EAC. |
+| Paquete con SPI bajo y crítico con fin atrasado | El atraso afecta la fecha de fin del proyecto. | Acción correctiva prioritaria; informar el desvío de fin. |
 | SPI ≈ 1 al final con SV(t) < 0 | El SPI convergió a 1, pero el proyecto sigue atrasado. | Informar SV(t) y SPI(t). |
 | TCPI (BAC) mucho mayor que el CPI | Terminar dentro del BAC exige una eficiencia muy superior a la histórica. Una regla práctica habitual: si la diferencia supera 0,05–0,10, el BAC es poco realista. | Informar el EAC y evaluar un cambio de línea base o de alcance. |
 | CPI y SPI > 1 | Adelanto y ahorro. | Verificar que no se deba a métodos subjetivos o a un AC incompleto (costos no registrados). |

@@ -104,6 +104,10 @@ class Config:
     max_level: int = 3
     baseline: int | None = None           # 0 = Línea base; 1..10 = Línea base N; None = la del proyecto
     pad_wbs: bool = True                  # "1" -> "1.0.0", "1.2" -> "1.2.0"
+    # lista_edt: archivo con los códigos EDT que tienen fila en el libro (reemplaza a max_level y al campo Visible
+    # para decidir las filas); wbs_list: sus códigos, tal como están en el archivo (None = sin lista)
+    wbs_list_file: str = ""
+    wbs_list: list[str] | None = None
     include_inactive: bool = False
     distribution: str = "habiles"         # tareas sin datos mensuales: "habiles" | "calendario"
     holidays: set[date] = field(default_factory=set)
@@ -292,6 +296,40 @@ def _projects(data: dict, base: Path) -> list[ProjectSpec]:
     return out
 
 
+def read_wbs_list(path: str | Path) -> list[str]:
+    """Códigos EDT del archivo de lista_edt, en su orden y sin repetir: uno por línea. Se ignoran las líneas vacías,
+    las que empiezan con '#' y el texto que sigue al código (por ejemplo, el nombre del elemento). Admite UTF-8 (con
+    o sin BOM), UTF-16 (texto Unicode de Excel) y ANSI."""
+    path = Path(path)
+    if not path.is_file():
+        raise ConfigError(f"No se encontró el archivo de la lista EDT (lista_edt): {path}")
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        raise ConfigError(f"No se pudo leer el archivo de la lista EDT (lista_edt) {path}: {exc}") from exc
+    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
+        text = data.decode("utf-16", errors="replace")
+    else:
+        try:
+            text = data.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            text = data.decode("cp1252", errors="replace")
+    codes: list[str] = []
+    seen: set[str] = set()
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        code = re.split(r"[\s;,]+", line, maxsplit=1)[0]
+        if code and code not in seen:
+            seen.add(code)
+            codes.append(code)
+    if not codes:
+        raise ConfigError(f"El archivo de la lista EDT (lista_edt) no tiene códigos: {path}. Se debe escribir un "
+                          "código EDT por línea (por ejemplo 1.0.0, 1.1.0, 1.1.1).")
+    return codes
+
+
 def load_config(path: str | Path | None) -> Config:
     """Lee el archivo TOML (si se indica) y devuelve la configuración."""
     cfg = Config()
@@ -330,6 +368,11 @@ def load_config(path: str | Path | None) -> Config:
     if exp.get("linea_base") not in (None, ""):
         cfg.baseline = _get(exp, "linea_base", 0, int)
     cfg.pad_wbs = _get(exp, "rellenar_edt", cfg.pad_wbs, bool)
+    wbs_list = _get(exp, "lista_edt", "", str).strip()
+    if wbs_list:
+        list_path = Path(wbs_list) if Path(wbs_list).is_absolute() else path.parent / wbs_list
+        cfg.wbs_list_file = str(list_path)
+        cfg.wbs_list = read_wbs_list(list_path)
     cfg.include_inactive = _get(exp, "incluir_inactivas", cfg.include_inactive, bool)
     cfg.distribution = _get(exp, "distribucion", cfg.distribution, str).strip().lower()
     feriados = exp.get("feriados", [])

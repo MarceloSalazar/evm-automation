@@ -251,6 +251,8 @@
 			<FixedCostAccrual>3</FixedCostAccrual>
 			<PercentComplete>0</PercentComplete>
 			<Cost>480000000</Cost>
+			<TotalSlack>0</TotalSlack>
+			<Critical>1</Critical>
 			<ActualCost>0</ActualCost>
 			<ACWP>0.00</ACWP>
 			<BCWP>0.00</BCWP>
@@ -466,6 +468,8 @@
 			<FixedCostAccrual>3</FixedCostAccrual>
 			<PercentComplete>0</PercentComplete>
 			<Cost>262000000</Cost>
+			<TotalSlack>1128000</TotalSlack>
+			<Critical>0</Critical>
 			<ActualCost>0</ActualCost>
 			<ACWP>0.00</ACWP>
 			<BCWP>0.00</BCWP>
@@ -602,6 +606,8 @@
 			<FixedCostAccrual>3</FixedCostAccrual>
 			<PercentComplete>0</PercentComplete>
 			<Cost>22000000</Cost>
+			<TotalSlack>2112000</TotalSlack>
+			<Critical>0</Critical>
 			<ActualCost>0</ActualCost>
 			<ACWP>0.00</ACWP>
 			<BCWP>0.00</BCWP>
@@ -658,6 +664,8 @@
 			<FixedCostAccrual>3</FixedCostAccrual>
 			<PercentComplete>0</PercentComplete>
 			<Cost>240000000</Cost>
+			<TotalSlack>1128000</TotalSlack>
+			<Critical>0</Critical>
 			<ActualCost>0</ActualCost>
 			<ACWP>0.00</ACWP>
 			<BCWP>0.00</BCWP>
@@ -770,6 +778,8 @@
 			<FixedCostAccrual>3</FixedCostAccrual>
 			<PercentComplete>0</PercentComplete>
 			<Cost>218000000</Cost>
+			<TotalSlack>0</TotalSlack>
+			<Critical>1</Critical>
 			<ActualCost>0</ActualCost>
 			<ACWP>0.00</ACWP>
 			<BCWP>0.00</BCWP>
@@ -987,6 +997,8 @@
 			<FixedCostAccrual>3</FixedCostAccrual>
 			<PercentComplete>0</PercentComplete>
 			<Cost>90000000</Cost>
+			<TotalSlack>1612800</TotalSlack>
+			<Critical>0</Critical>
 			<ActualCost>0</ActualCost>
 			<ACWP>0.00</ACWP>
 			<BCWP>0.00</BCWP>
@@ -1067,6 +1079,8 @@
 			<FixedCostAccrual>3</FixedCostAccrual>
 			<PercentComplete>0</PercentComplete>
 			<Cost>90000000</Cost>
+			<TotalSlack>1809600</TotalSlack>
+			<Critical>0</Critical>
 			<ActualCost>0</ActualCost>
 			<ACWP>0.00</ACWP>
 			<BCWP>0.00</BCWP>
@@ -1139,6 +1153,8 @@
 			<FixedCostAccrual>3</FixedCostAccrual>
 			<PercentComplete>0</PercentComplete>
 			<Cost>65000000</Cost>
+			<TotalSlack>2006400</TotalSlack>
+			<Critical>0</Critical>
 			<ActualCost>0</ActualCost>
 			<ACWP>0.00</ACWP>
 			<BCWP>0.00</BCWP>
@@ -1194,6 +1210,8 @@
 			<FixedCostAccrual>3</FixedCostAccrual>
 			<PercentComplete>0</PercentComplete>
 			<Cost>0</Cost>
+			<TotalSlack>2001600</TotalSlack>
+			<Critical>0</Critical>
 			<ActualCost>0</ActualCost>
 			<ACWP>0.00</ACWP>
 			<BCWP>0.00</BCWP>
@@ -1225,6 +1243,8 @@
 			<FixedCostAccrual>3</FixedCostAccrual>
 			<PercentComplete>0</PercentComplete>
 			<Cost>25000000</Cost>
+			<TotalSlack>1814400</TotalSlack>
+			<Critical>0</Critical>
 			<ActualCost>0</ActualCost>
 			<ACWP>0.00</ACWP>
 			<BCWP>0.00</BCWP>
@@ -1280,6 +1300,8 @@
 			<FixedCostAccrual>3</FixedCostAccrual>
 			<PercentComplete>0</PercentComplete>
 			<Cost>0</Cost>
+			<TotalSlack>1809600</TotalSlack>
+			<Critical>0</Critical>
 			<ActualCost>0</ActualCost>
 			<ACWP>0.00</ACWP>
 			<BCWP>0.00</BCWP>
@@ -1311,6 +1333,8 @@
 			<FixedCostAccrual>3</FixedCostAccrual>
 			<PercentComplete>0</PercentComplete>
 			<Cost>38000000</Cost>
+			<TotalSlack>0</TotalSlack>
+			<Critical>1</Critical>
 			<ActualCost>0</ActualCost>
 			<ACWP>0.00</ACWP>
 			<BCWP>0.00</BCWP>
