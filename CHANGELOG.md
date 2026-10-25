@@ -22,10 +22,29 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Correcciones
 
+- Ninguna.
+
+### Otros
+
+- Ninguna.
+
+## [2.2.1] - 2026-10-25 · Formato de números, códigos de salida y revisión de la documentación
+
+### Nuevas funciones
+
+- Ninguna.
+
+### Correcciones
+
 - La consola muestra todos los números con punto de miles y coma decimal, como Excel en español:
   indicadores de `actualizar` (`44.210.000`, `SPI = 0,84`, `27,4 %`), paquetes fuera de umbral, tabla de
   `--simular` e importes de `--migrar-desde`. Antes se mezclaban `0,95 a 1,05` con `1.00` y
   `44,210,000`. Los mensajes de la hoja `Validación` con importes o porcentajes usan el mismo formato.
+- Códigos de salida: los errores inesperados del programa terminan con código 3 (antes, 1), de modo que
+  el código 1 queda solo para `validar` con errores. Los errores de lectura o escritura de archivos (disco
+  lleno, unidad de red no disponible) terminan con código 2 y un mensaje claro, en lugar de informarse
+  como error inesperado. Tabla de códigos de todos los comandos en
+  [docs/comandos.md](docs/comandos.md#códigos-de-salida).
 
 ### Otros
 
@@ -44,6 +63,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   - Plantillas de tickets sin la opción `--solo ev`, que se eliminó en la versión 2.0.0, y con
     `generar-fichas` (parte del ticket #18); paso manual de los enlaces de las notas de versión en
     [Desarrollo](docs/desarrollo.md#31-versiones-y-publicaciones).
+- Instalador de Windows de esta versión.
+- Portada de la presentación con la versión 2.2.1.
 
 ## [2.2.0] - 2026-10-24 · Comando generar-fichas: fichas de tareas para el cliente
 
@@ -398,7 +419,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.2.0...HEAD
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.2.1...HEAD
+[2.2.1]: https://github.com/MarceloSalazar/evm-automation/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/MarceloSalazar/evm-automation/compare/v1.5.1...v2.0.0

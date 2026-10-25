@@ -65,7 +65,7 @@ Si la planificación indicada no existe, o si dos archivos de `[[proyectos]]` ti
 EDT (casos en los que `generar` se detiene), `validar` lo informa como error y revisa lo que puede. El
 programa termina con código 1 si encuentra errores y con 0 si no los hay (aunque haya advertencias),
 para usarlo en procesos automáticos. Si no puede leer la configuración o el archivo de MS Project,
-termina con código 2.
+termina con código 2 ([Códigos de salida](#códigos-de-salida)).
 
 Ejemplo de salida con el avance simulado del proyecto de ejemplo a junio de 2027 (`config.toml` del
 [tutorial](ejemplo-paso-a-paso.md#2-configuración); se omiten algunas líneas):
@@ -368,3 +368,26 @@ python evm_export.py actualizar --config config.toml --libro EVM_Programa.xlsx
 ```
 
 Si no se activó el entorno virtual, se usa `.venv\Scripts\python.exe` en lugar de `python`.
+
+---
+
+## Códigos de salida
+
+Todos los comandos terminan con un código que permite usarlos en procesos automáticos:
+
+| Código | Significado |
+|---|---|
+| 0 | El comando terminó correctamente. En `validar`: no hay errores, aunque puede haber advertencias. |
+| 1 | `validar` encontró errores (`[X]`) en el archivo de MS Project: se deben corregir antes de generar o actualizar el libro. Ningún otro comando termina con 1. |
+| 2 | El comando no se pudo ejecutar por un problema previsto, explicado en el mensaje `ERROR: ...`: configuración no válida, archivo inexistente o sin permiso, libro abierto en Excel o con un formato que no se reconoce, MS Project que no responde, error de lectura o escritura (disco lleno, unidad de red no disponible) u opción mal escrita. |
+| 3 | Error inesperado del programa (`ERROR inesperado: ...`). Se debe ejecutar de nuevo con `-v` y, si se repite, informarlo en un [ticket](https://github.com/MarceloSalazar/evm-automation/issues/new/choose) con ese detalle. |
+| 130 | Ejecución cancelada con Ctrl+C. |
+
+Por ejemplo, en PowerShell, para actualizar el libro solo si `validar` no encuentra errores:
+
+```powershell
+python evm_export.py validar --origen Programa.mpp --config config.toml
+if ($LASTEXITCODE -eq 0) {
+    python evm_export.py actualizar --origen Programa.mpp --config config.toml --libro EVM_Programa.xlsx
+}
+```

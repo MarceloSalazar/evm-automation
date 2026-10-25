@@ -497,6 +497,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Códigos de salida: 0 correcto; 1 'validar' encontró errores; 2 error previsto (configuración, archivos,
+    opciones); 3 error inesperado del programa; 130 cancelado."""
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(errors="replace")
@@ -513,6 +515,11 @@ def main(argv: list[str] | None = None) -> int:
             log.exception("Error")
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
+    except OSError as exc:  # disco lleno, unidad de red no disponible, ruta no válida...
+        if args.verbose:
+            log.exception("Error")
+        print(f"ERROR: no se pudo leer o escribir un archivo: {exc}", file=sys.stderr)
+        return 2
     except KeyboardInterrupt:
         print("Cancelado.", file=sys.stderr)
         return 130
@@ -522,4 +529,4 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print("Para ver el detalle técnico se debe ejecutar de nuevo con -v.", file=sys.stderr)
         print(f"ERROR inesperado: {type(exc).__name__}: {exc}", file=sys.stderr)
-        return 1
+        return 3

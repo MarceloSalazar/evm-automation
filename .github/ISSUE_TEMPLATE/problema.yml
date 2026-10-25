@@ -45,7 +45,7 @@ body:
     attributes:
       label: Versión del programa
       description: Resultado de `python evm_export.py --version` (con el instalador de Windows, `evm_export --version`).
-      placeholder: evm_export 2.2.0
+      placeholder: evm_export 2.2.1
     validations:
       required: true
   - type: input
