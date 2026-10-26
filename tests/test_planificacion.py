@@ -133,10 +133,10 @@ def test_generate_and_update_with_plan(tmp_path, example_files, generator):
     cfg = load_config(example_files["config"])
     jun = read_xml(example_files["jun"], cfg)
     res = run_update(jun, cfg, book, backup=False)
-    assert sum(r.ev_cum or 0 for r in res.rows) > 0 and not any("planificación" in w for w in res.warnings)
+    assert sum(r.ev_cum or 0 for r in res.rows) > 0 and not any("planificación" in w.message for w in res.warnings)
     # La planificación del libro manda aunque la configuración indique otra
     res2 = run_update(jun, Config(plan="CLIENTE", method_field="Método EVM"), book, backup=False, dry_run=True)
-    assert any("se usa esa planificación" in w for w in res2.warnings)
+    assert any("se usa esa planificación" in w.message for w in res2.warnings)
 
 
 def test_cli_plan_option_overrides_config(tmp_path, example_files, generator):

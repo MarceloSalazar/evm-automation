@@ -13,6 +13,8 @@ Información para quien modifica el programa o la documentación.
 3. [Flujo de trabajo del repositorio](#3-flujo-de-trabajo-del-repositorio) (incluye versiones,
    publicaciones e [instalador de Windows](#32-instalador-de-windows))
 4. [Documentación e imágenes](#4-documentación-e-imágenes)
+5. [Códigos de errores y advertencias](#5-códigos-de-errores-y-advertencias) (metodología para agregar un
+   mensaje)
 
 ---
 
@@ -37,6 +39,7 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 | `test_plazo_tendencia.py` | Plazo según el cronograma (días laborables, fin previsto, holgura y crítica de cada fila, filas resumen y total), columnas de `Indicadores EDT`, secciones del `Resumen` y del `Cuadro de Mando`, libros de versiones anteriores, tendencia (mes anterior con datos y últimos 3 meses) y recálculo de sus fórmulas con LibreOffice. |
 | `test_lista_edt.py` | Lista EDT (`lista_edt`): lectura del archivo, filas definidas por la lista, códigos faltantes, ramas sin elemento listado, lista guardada en el libro y usada por `actualizar`. |
 | `test_progreso.py` | Versión en pantalla y barra de progreso (etapas, % de la etapa y del total, ETA, consola no interactiva). |
+| `test_codigos.py` | Códigos de errores y advertencias: formato y numeración del catálogo, todo mensaje con un código del catálogo, todo código usado, `docs/codigos.md` al día y silenciar (configuración, `--silenciar`, hoja `Validación` y código de salida de `validar`). |
 | `test_varios_archivos.py` | Varios archivos de MS Project (`[[proyectos]]`): el libro combinado coincide, fila por fila, con el libro de cada archivo (también en multi-empresa, con UniqueID repetidos entre archivos); errores de configuración y de la línea de comandos, fechas de estado y `--migrar-desde`. |
 | Resto | Casos del programa de ejemplo, Cuadro de Mando, semáforo, multi-empresa, planificación, campo `Visible`, depuración de costes, calendario y lector COM simulado. |
 
@@ -92,6 +95,7 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm_export.py` | Punto de entrada. |
 | `evm/cli.py` | Comandos y opciones. |
 | `evm/config.py` | Configuración TOML. |
+| `evm/messages.py` | Catálogo de los códigos de errores y advertencias (severidad, explicación y qué hacer), observaciones con código (`Issue`), errores con código que detienen el programa y silenciar ([5](#5-códigos-de-errores-y-advertencias)). |
 | `evm/model.py` | Datos comunes: tareas (fechas y duración de la línea base, fechas actuales, avance, duración, vínculos, delimitaciones, campos personalizados y descripción) y proyecto leídos de MS Project. |
 | `evm/reader_com.py` | Lectura de `.mpp` con MS Project (COM): fechas, avance, holgura, tareas críticas y campos personalizados. Los costos no se leen. |
 | `evm/reader_xml.py`, `evm/workcalendar.py` | Lectura del XML de MS Project (los costos no se leen) y calendario laboral con el que se reparte la duración de las tareas entre los meses. |
@@ -262,3 +266,46 @@ con Python; sin MS Project se usa el XML.
   archivo, actualizando el enlace en el documento).
 - Las imágenes PNG de `docs/img/` están permitidas en `.gitignore` (el resto de los PNG del repositorio
   se ignora).
+
+---
+
+## 5. Códigos de errores y advertencias
+
+Cada mensaje del programa (error que detiene el programa, error, advertencia o informativa) tiene un
+código `ÁREA-NNN` del catálogo `CATALOG` de `evm/messages.py`, con su severidad, su explicación y qué
+hacer. El documento [`docs/codigos.md`](codigos.md) se genera a partir del catálogo; los usuarios lo
+consultan para entender un mensaje y para silenciar los códigos que ya revisaron
+([Códigos de errores y advertencias](codigos.md#2-silenciar-observaciones)).
+
+### 5.1 Metodología para agregar un mensaje
+
+1. **Elegir el área** del mensaje (las de `AREAS` en `evm/messages.py`: `CFG`, `LEC`, `EDT`, `FEC`...).
+   El área define el tema de la hoja `Validación` y del comando `validar`.
+2. **Agregar el código al catálogo**, al final de su área, con el **número siguiente** al último de esa
+   área: `_code("FEC-013", W, "Título", "Causa.", "Qué hacer.")`. Se indican la severidad (`F` detiene el
+   programa, `E` error, `W` advertencia, `I` informativa; una tupla si depende del caso) y, si no son los
+   del área, los comandos en que aparece.
+3. **Usar el código en el programa**:
+   - observación (consola y hoja `Validación`): `Issue("FEC-013", codigo_edt, nombre, mensaje)`; la
+     severidad y el tema se toman del catálogo (los códigos de severidad variable la indican);
+   - error que detiene el programa: `raise ConfigError("CFG-050", mensaje)`, o la clase de
+     `evm/messages.py` que corresponda (`InputError`, `MissingFileError`, `SaveError`...). No se
+     lanzan `ValueError` ni `RuntimeError` con un mensaje para el usuario.
+4. **Regenerar el documento**: `python docs\herramientas\codigos.py` (con `--comprobar` solo se
+   verifica que esté al día).
+5. **Probar**: `python -m pytest tests/test_codigos.py` comprueba el formato y la numeración del catálogo,
+   que todo mensaje y todo error tenga un código del catálogo, que todo código del catálogo se use y que
+   `docs/codigos.md` esté al día.
+6. **Anotar en el CHANGELOG** los códigos nuevos, cambiados o retirados.
+
+### 5.2 Reglas
+
+- **Un código no se renumera ni se reutiliza.** Si un mensaje deja de existir, su código queda en el
+  catálogo con `retired="X.Y.Z"` (la versión en que se retiró): el documento lo muestra como retirado y
+  las configuraciones que lo silencian siguen siendo válidas. La prueba de numeración correlativa
+  detecta un código borrado.
+- Si cambia el texto o la severidad de un mensaje, el código se mantiene y se actualiza su explicación.
+- Un mensaje con otro significado lleva un código nuevo, aunque se parezca a uno existente.
+- Los textos del catálogo se escriben en español y sin Markdown: el generador pone en formato de código
+  las opciones y las claves, y convierte en enlaces los códigos que se mencionan.
+

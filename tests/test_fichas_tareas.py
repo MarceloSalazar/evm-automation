@@ -210,7 +210,7 @@ def test_xml_reads_baseline_duration_minutes_per_day_and_description(tmp_path):
     assert read_xml(path, Config(description_field="Notas")).tasks[0].description == "Alcance de A"
     assert read_xml(path, Config(description_field="Descripción")).tasks[0].description == "Texto propio"
     p = read_xml(path, Config(description_field="Resumen"))
-    assert p.tasks[0].description == "" and "campo de descripción 'Resumen'" in p.warnings[0]
+    assert p.tasks[0].description == "" and "campo de descripción 'Resumen'" in p.warnings[0].message
 
 
 def test_com_reads_baseline_duration_hours_per_day_and_notes():

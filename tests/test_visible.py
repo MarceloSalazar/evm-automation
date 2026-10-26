@@ -92,7 +92,7 @@ def test_xml_reader_reads_the_field_by_its_alias(tmp_path):
     plain = write_xml(tmp_path / "sin_campo.xml", project_xml([task_xml(1, 1, "Gestión", wbs="1")]))
     assert not read_xml(plain, Config()).warnings                    # campo por defecto: no se avisa si no existe
     explicit = Config(visible_field="Mostrar", visible_field_explicit=True)
-    assert any("campo Visible 'Mostrar'" in w for w in read_xml(plain, explicit).warnings)
+    assert any("campo Visible 'Mostrar'" in w.message for w in read_xml(plain, explicit).warnings)
     assert [t.visible for t in read_xml(path, Config(visible_field="")).tasks] == ["", ""]
 
 
@@ -198,11 +198,11 @@ def test_update_leaves_hidden_tasks_out_and_warns_when_the_field_changes(tmp_pat
     res = run_update(P(progress), Config(), path, date(2026, 3, 31), backup=False)
     book = read_book(path)
     assert sum(v or 0 for v in book.ev[rows["1.2.1"]]) == pytest.approx(500)
-    assert not [w for w in res.warnings if "campo Visible" in w]
+    assert not [w for w in res.warnings if "campo Visible" in w.message]
 
     changed = tasks(Pliegos="Sí")
     res = run_update(P(changed), Config(), path, date(2026, 3, 31), backup=False, dry_run=True)
-    assert [w for w in res.warnings if "campo Visible de 1 tarea (1.2.1.1)" in w and "--migrar-desde" in w]
+    assert [w for w in res.warnings if "campo Visible de 1 tarea (1.2.1.1)" in w.message and "--migrar-desde" in w.message]
 
 
 def test_migration_sums_the_history_of_rows_that_are_now_hidden(tmp_path):

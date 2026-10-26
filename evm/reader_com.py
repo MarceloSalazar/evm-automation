@@ -22,6 +22,7 @@ from evm import progress
 from evm.config import Config
 from evm.fields import (TASK_NUMBER_IDS, TASK_TEXT_IDS, builtin_kind, fmt_number, is_notes_name,
                         is_spanish_wbs_name, parse_custom_name, parse_number, same_name)
+from evm.messages import Issue, ProjectAppError
 from evm.model import CONSTRAINT_ASAP, LINK_FS, Link, ProjectData, Task, use_current_schedule
 
 log = logging.getLogger(__name__)
@@ -129,8 +130,8 @@ class ComSession:
         try:
             import pythoncom
         except ImportError as exc:
-            raise RuntimeError(
-                "Para leer archivos .mpp se necesita pywin32 (pip install pywin32) y MS Project instalado. "
+            raise ProjectAppError(
+                "LEC-005", "Para leer archivos .mpp se necesita pywin32 (pip install pywin32) y MS Project instalado. "
                 "Alternativa: guardar el proyecto como XML desde MS Project (Archivo > Guardar como > XML) y "
                 "procesar ese archivo.") from exc
         pythoncom.CoInitialize()
@@ -160,8 +161,8 @@ class ComSession:
                     try:
                         raw = win32com.client.DispatchEx(PROGID)
                     except pywintypes.com_error as exc:
-                        raise RuntimeError(
-                            "No se pudo iniciar MS Project por automatización COM. Se debe verificar que MS "
+                        raise ProjectAppError(
+                            "LEC-006", "No se pudo iniciar MS Project por automatización COM. Se debe verificar que MS "
                             "Project de escritorio esté instalado, o bien exportar el proyecto a XML y usar ese "
                             "archivo.") from exc
                     started = True
@@ -175,7 +176,8 @@ class ComSession:
                 if not started:
                     raw = None
                 if time.monotonic() >= deadline:
-                    raise RuntimeError(
+                    raise ProjectAppError(
+                        "LEC-007",
                         f"MS Project no responde por automatización COM (código {_hresult(exc):#010x}): puede estar "
                         "cerrándose o mostrando un diálogo (inicio de sesión, recuperación de archivos...). Se debe "
                         "abrir MS Project, cerrar el diálogo o esperar a que termine de cerrarse (o cerrarlo desde "
@@ -200,7 +202,7 @@ class ComSession:
         app = self.app
         if self.origen.lower() == "activo":
             if int(app.Projects.Count) == 0:
-                raise RuntimeError("No hay proyectos abiertos en MS Project.")
+                raise ProjectAppError("LEC-008", "No hay proyectos abiertos en MS Project.")
             self.project = app.ActiveProject
             return
         full = str(Path(self.origen).resolve())
@@ -229,7 +231,7 @@ class ComSession:
         except (pywintypes.com_error, TypeError):
             ok = app.FileOpenEx(full, True)
         if not ok:
-            raise RuntimeError(f"MS Project no pudo abrir {full}.")
+            raise ProjectAppError("LEC-009", f"MS Project no pudo abrir {full}.")
         self.project = app.ActiveProject
         self.opened_by_us = True
         self._opened_names = (self._open_project_names() or set()) - before
@@ -267,7 +269,8 @@ class ComSession:
                     try:
                         self.app.FileClose(PJ_DO_NOT_SAVE)
                     except Exception:
-                        log.warning("No se pudo cerrar el proyecto en MS Project")
+                        log.warning("%s No se pudo cerrar el proyecto en MS Project: queda abierto, sin guardar "
+                                    "cambios.", "LEC-022")
             if self.app is not None and not self.started_by_us:
                 for prop, value in self._saved_app_props.items():
                     if value is not None:
@@ -368,7 +371,7 @@ class ComSession:
         self._activate()
         if status_date is not None:
             self.set_status_date(status_date)
-        warnings: list[str] = []
+        warnings: list[Issue] = []
         # Línea base: la indicada en la configuración o la que el proyecto usa para el valor acumulado
         ev_baseline = int(_f(_get(p, "EarnedValueBaseline", 0)))
         n = cfg.baseline if cfg.baseline is not None else (ev_baseline if 0 <= ev_baseline <= 10 else 0)
@@ -376,39 +379,45 @@ class ComSession:
 
         wbs_ref = self._resolve_field(cfg.wbs_field)
         if wbs_ref is None:
-            warnings.append(f"No se encontró el campo EDT '{cfg.wbs_field}' en MS Project; se usa el campo EDT (WBS).")
+            warnings.append(Issue("LEC-010", message=f"No se encontró el campo EDT '{cfg.wbs_field}' en MS Project; se "
+                                                     "usa el campo EDT (WBS)."))
             wbs_ref = ("attr", "WBS")
         found: dict[str, str] = {}
         method_ref = self._resolve_field(cfg.method_field) if cfg.method_field else None
         if cfg.method_field and method_ref is None:
-            warnings.append(f"No se encontró el campo de método '{cfg.method_field}' en MS Project.")
+            warnings.append(Issue("LEC-011", message=f"No se encontró el campo de método '{cfg.method_field}' en MS "
+                                                     "Project."))
         elif method_ref is not None:
             found["metodo"] = cfg.method_field
         weight_ref = self._resolve_field(cfg.milestone_weight_field) if cfg.milestone_weight_field else None
         if cfg.milestone_weight_field and weight_ref is None:
-            warnings.append(f"No se encontró el campo de peso de hitos '{cfg.milestone_weight_field}'.")
+            warnings.append(Issue("LEC-012", message=f"No se encontró el campo de peso de hitos "
+                                                     f"'{cfg.milestone_weight_field}'."))
         elif weight_ref is not None:
             found["peso_hito"] = cfg.milestone_weight_field
         visible_ref = self._resolve_field(cfg.visible_field) if cfg.visible_field else None
         if cfg.visible_field_explicit and visible_ref is None:
-            warnings.append(f"No se encontró el campo Visible '{cfg.visible_field}' en MS Project: las filas del "
-                            "libro siguen el nivel máximo.")
+            warnings.append(Issue("LEC-013", message=f"No se encontró el campo Visible '{cfg.visible_field}' en MS "
+                                                     "Project: las filas del libro siguen el nivel máximo."))
         description_ref = self._resolve_field(cfg.description_field) if cfg.description_field else None
         if cfg.description_field and description_ref is None:
-            warnings.append(f"No se encontró el campo de descripción '{cfg.description_field}' en MS Project: las "
-                            "fichas de tareas no tienen descripción.")
+            warnings.append(Issue("LEC-014", message=f"No se encontró el campo de descripción "
+                                                     f"'{cfg.description_field}' en MS Project: las fichas de tareas "
+                                                     "no tienen descripción."))
         company_ref = split_ref = None
         if cfg.multi_enabled:
             company_ref = self._resolve_field(cfg.company_field)
             if company_ref is None:
-                warnings.append(f"No se encontró el campo de empresa '{cfg.company_field}' en MS Project: todas las "
-                                f"tareas se tratan como '{cfg.company_both}'.")
+                warnings.append(Issue("LEC-015", message=f"No se encontró el campo de empresa '{cfg.company_field}' en "
+                                                         f"MS Project: todas las tareas se tratan como "
+                                                         f"'{cfg.company_both}'."))
             else:
                 found["campo_empresa"] = cfg.company_field
             split_ref = self._resolve_field(cfg.split_field)
             if split_ref is None:
-                warnings.append(f"No se encontró el campo de reparto '{cfg.split_field}' en MS Project: las tareas "
-                                f"'{cfg.company_both}' se reparten al {fmt_number(cfg.split_default, trim=True)} %.")
+                warnings.append(Issue("LEC-016", message=f"No se encontró el campo de reparto '{cfg.split_field}' en "
+                                                         f"MS Project: las tareas '{cfg.company_both}' se reparten al "
+                                                         f"{fmt_number(cfg.split_default, trim=True)} %."))
 
         tasks: list[Task] = []
         any_baseline = False
@@ -459,7 +468,8 @@ class ComSession:
             )
             tasks.append(task)
         if skipped_external:
-            warnings.append(f"Se omitieron {skipped_external} tareas externas (vínculos entre proyectos).")
+            warnings.append(Issue("LEC-017", message=f"Se omitieron {skipped_external} tareas externas (vínculos "
+                                                     "entre proyectos)."))
 
         saved = None
         for getter in (lambda: p.BaselineSavedDate(n), lambda: p.GetBaselineSavedDate(n)):

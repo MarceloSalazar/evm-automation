@@ -29,6 +29,17 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - `--migrar-desde` pasa al formato nuevo la previsión pegada en un libro de depuración anterior: los
   códigos numéricos quedan como EDT cliente y los demás (`XRF01`), como EDT interna. `actualizar` y
   `analizar` siguen funcionando con los libros de depuración anteriores.
+- **Códigos de errores y advertencias**: cada mensaje del programa tiene un código `ÁREA-NNN` (por
+  ejemplo `FEC-003`), en la consola (`[!] FEC-007 1.2.3 Montaje: ...`, `ERROR CFG-001: ...`) y en la
+  nueva columna `Código` de la hoja `Validación`. El documento nuevo
+  [Códigos de errores y advertencias](docs/codigos.md) explica cada código (severidad, causa, qué hacer y
+  comandos en que aparece).
+- **Silenciar observaciones**: las observaciones ya revisadas se ocultan en la consola y en la hoja
+  `Validación` con `[validacion] silenciar = ["LOG-004", "MET-004:1.2.1"]` o con la opción
+  `--silenciar` de cualquier comando (un código, o un código para una sola fila o tarea). Siempre se
+  informa cuántas se silenciaron (`CFG-049`); los errores silenciados no cuentan para el código de salida
+  de `validar` y los errores que detienen el programa no se pueden silenciar
+  ([Silenciar observaciones](docs/codigos.md#2-silenciar-observaciones)).
 
 ### Correcciones
 
@@ -38,6 +49,14 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - El ayudante del ejemplo (`generar_ejemplo.py --libro`) escribe la previsión ficticia con líneas de EDT
   interna, y la captura de la hoja `PV-depuración` muestra el formato nuevo.
+- Hoja `Validación`: la columna `Código` es la B; el código EDT, la tarea, el detalle y el tema pasan a
+  las columnas C a F. En la consola, las observaciones informativas de `generar` y las de `actualizar`,
+  `analizar` y `generar-fichas` se muestran con el mismo formato que las de `validar` (código, fila o
+  tarea y mensaje).
+- Metodología para agregar un mensaje con su código en
+  [Desarrollo](docs/desarrollo.md#5-códigos-de-errores-y-advertencias): catálogo en `evm/messages.py`,
+  `docs/codigos.md` generado con `docs/herramientas/codigos.py` y pruebas que comprueban que todo mensaje
+  tenga un código del catálogo y que el documento esté al día.
 
 ## [2.3.0] - 2026-10-26 · Plazo según MS Project, tendencia de los índices y lista EDT
 

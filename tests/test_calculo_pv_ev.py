@@ -138,7 +138,7 @@ def test_milestone_weight_limits(fat, site, expected, note):
     if expected is not None:
         assert rw.weights == pytest.approx(expected)
     if note:
-        assert any(note in n for n in rw.notes)
+        assert any(note in n.message for n in rw.notes)
     else:
         assert not rw.notes
     assert sum(rw.weights.values()) == pytest.approx(1.0)
@@ -148,11 +148,11 @@ def test_milestones_only_and_no_weights():
     ms = [T(1, 1, "", "H1", bs=FAB[1], bf=FAB[1], milestone=True, milestone_weight=30),
           T(2, 1, "", "H2", bs=TRA[1], bf=TRA[1], milestone=True, milestone_weight=30)]
     rw = full_weights(leaf_times(ms, CAL))
-    assert rw.weights == pytest.approx({1: 0.5, 2: 0.5}) and "duración" in rw.notes[0]
+    assert rw.weights == pytest.approx({1: 0.5, 2: 0.5}) and "duración" in rw.notes[0].message
     for m in ms:
         m.milestone_weight = None
     rw = full_weights(leaf_times(ms, CAL))
-    assert rw.weights == pytest.approx({1: 0.5, 2: 0.5}) and "pesan igual" in rw.notes[0]
+    assert rw.weights == pytest.approx({1: 0.5, 2: 0.5}) and "pesan igual" in rw.notes[0].message
 
 
 def test_planned_curve_per_company_and_horizon():
@@ -305,7 +305,7 @@ def test_update_writes_the_month_difference_and_warns_without_bac(tmp_path):
     make_book(path, tasks, config())
     tasks[3].percent_complete = 50
     res = run_update(P(tasks), config(), path, date(2027, 2, 28), backup=False)
-    assert any("Ninguna fila tiene BAC" in w for w in res.warnings)
+    assert any("Ninguna fila tiene BAC" in w.message for w in res.warnings)
     tasks[3].percent_complete = 100
     run_update(P(tasks), config(), path, date(2027, 3, 31), backup=False)
     book = read_book(path)
@@ -322,7 +322,7 @@ def test_old_bcwp_method_is_measured_as_percent_complete():
     tasks[3].percent_complete = 100
     text = "CPTR de MS Project"
     frac, note = earned_fraction(parse_method(text), full_weights(leaf_times(tasks[3:], CAL)), 0.0)
-    assert frac == pytest.approx(0.4) and "no reconocido" in note and "% completado" in note
+    assert frac == pytest.approx(0.4) and "no reconocido" in note.message and "% completado" in note.message
 
 
 def test_migration_keeps_bac_and_earned_percent(tmp_path):

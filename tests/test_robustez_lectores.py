@@ -79,7 +79,7 @@ def test_custom_field_resolution_uses_task_fields(read, definitions, cfg, attr, 
 def test_alias_only_in_resource_field_is_reported_as_missing(read):
     tasks = simple_tasks(ext={TEXT3: "EmpresaA"})
     p = read(project_xml(tasks, definitions=[(RESOURCE_FIELD_IDS[0], "Text1", "Empresa")]), Config(multi_enabled=True))
-    assert any("No se encontró el campo de empresa" in w for w in p.warnings)
+    assert any("No se encontró el campo de empresa" in w.message for w in p.warnings)
 
 
 def test_alias_matching_ignores_case_accents_and_spaces(read):
@@ -101,7 +101,7 @@ def test_missing_fields_produce_warnings(read):
     assert p.tasks[0].wbs == "1.1"                          # se usa el campo EDT (WBS) de MS Project
     for text in ("campo EDT 'Código cliente'", "campo de método 'Método EVM'", "peso de hitos 'Peso'",
                  "campo de empresa 'Empresa'", "campo de reparto '% Reparto'"):
-        assert any(text in w for w in p.warnings), text
+        assert any(text in w.message for w in p.warnings), text
 
 
 # ----------------------------------------------------------------------------
@@ -175,7 +175,7 @@ def test_external_tasks_title_fallback_order_and_flags(read):
     p = read(project_xml(tasks, title=None, header="<Name>archivo.xml</Name>"))
     assert [t.name for t in p.tasks] == ["A", "C", "D"]          # orden por ID; sin externas ni filas en blanco
     assert p.name == "archivo"
-    assert any("extern" in w for w in p.warnings)
+    assert any("extern" in w.message for w in p.warnings)
     assert [(t.milestone, t.active) for t in p.tasks] == [(True, False), (False, True), (False, True)]
 
 
@@ -256,7 +256,7 @@ def test_calendar_fallbacks_use_standard_week(read, calendars, uid):
 def test_relative_exceptions_are_applied_or_reported(read, kind, fields):
     exc = exception_xml(date(2026, 5, 25), date(2026, 5, 25), kind=kind, Occurrences=1, **fields)
     p = read(project_xml(simple_tasks(), calendars=[calendar_xml(1, exceptions=[exc])], calendar_uid=1))
-    assert not p.calendar.is_working_day(date(2026, 5, 25)) or any("excepci" in w.lower() for w in p.warnings)
+    assert not p.calendar.is_working_day(date(2026, 5, 25)) or any("excepci" in w.message.lower() for w in p.warnings)
 
 
 def test_unreadable_exception_warning_names_calendar_and_exception(read):
@@ -264,7 +264,7 @@ def test_unreadable_exception_warning_names_calendar_and_exception(read):
                   exception_xml(date(2026, 1, 1), date(2027, 12, 31), kind=2, name="Sin mes", MonthDay=1),
                   exception_xml(date(2026, 2, 2), date(2026, 2, 2), name="Feriado fijo")]
     p = read(project_xml(simple_tasks(), calendars=[calendar_xml(1, "Turno", exceptions=exceptions)], calendar_uid=1))
-    omitted = [w for w in p.warnings if "se omite la excepción" in w]
+    omitted = [w.message for w in p.warnings if "se omite la excepción" in w.message]
     assert len(omitted) == 2
     assert omitted[0].startswith("Calendario 'Turno': se omite la excepción 'Feriado móvil' (tipo 99)")
     assert "'Sin mes' (tipo 2)" in omitted[1] and "reparto de la duración de las tareas" in omitted[1]
@@ -578,7 +578,7 @@ def test_com_field_resolution_and_external_tasks():
     p = s.read_project(cfg)
     t3 = next(t for t in p.tasks if t.uid == 3)
     assert (t3.wbs, t3.company) == ("1.1.1", "EmpresaB")      # 'EDT' sin alias: campo EDT (WBS)
-    assert 9 not in [t.uid for t in p.tasks] and any("extern" in w for w in p.warnings)
+    assert 9 not in [t.uid for t in p.tasks] and any("extern" in w.message for w in p.warnings)
     assert [r.code for r in build_report(p, cfg).rows if r.is_input] == ["1.1.1", "1.1.2"]
 
 

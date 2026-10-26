@@ -189,7 +189,7 @@ def test_new_coded_package_without_row_warns(tmp_path, with_residual):
     now = [T(t.uid, t.outline_level, t.wbs, t.name) for t in tasks]
     now.append(T(9, 2, "1.3", "Paquete nuevo", percent_complete=50))
     res = run_update(P(now), Config(), book, date(2026, 1, 31), dry_run=True)
-    [warning] = [w for w in res.warnings if "1.3 'Paquete nuevo'" in w]
+    [warning] = [w.message for w in res.warnings if "1.3 'Paquete nuevo'" in w.message]
     assert "no tiene fila en el libro" in warning and "--migrar-desde" in warning
     assert all(not r.ev_cum for r in res.rows)               # el avance del paquete nuevo no va a la fila -D
 
@@ -198,7 +198,7 @@ def test_overwritten_total_formula_is_reported(small_book):
     total = row_of(load_workbook(small_book)["AC"], "TOTAL")
     tamper(small_book, lambda wb: wb["AC"].cell(total, FIRST_MONTH_COL, 0))
     res = run_update(P(progress_tasks()), Config(), small_book, date(2026, 1, 31), backup=False)
-    gaps = [w for w in res.warnings if "sin la fórmula del libro" in w]
+    gaps = [w.message for w in res.warnings if "sin la fórmula del libro" in w.message]
     assert len(gaps) == 1 and f"AC!G{total}" in gaps[0]
     assert load_workbook(small_book)["AC"].cell(total, FIRST_MONTH_COL).value == 0   # no se modifica
 
@@ -210,7 +210,7 @@ def test_overwritten_company_sum_formula_is_reported(tmp_path):
     row = row_of(load_workbook(book)["EV"], "1.1.0")
     tamper(book, lambda wb: wb["EV"].cell(row, FIRST_MONTH_COL + 1, 5))      # suma de empresas pisada
     res = run_update(P(progress_tasks()), cfg, book, date(2026, 1, 31), dry_run=True)
-    assert any(f"EV!H{row}" in w for w in res.warnings if "sin la fórmula del libro" in w)
+    assert any(f"EV!H{row}" in w.message for w in res.warnings if "sin la fórmula del libro" in w.message)
 
 
 def test_untouched_book_reports_no_formula_gaps(small_book):
@@ -222,7 +222,7 @@ def test_task_made_inactive_after_generation_is_reported(small_book):
     tasks[2].active = False                                  # C se desactiva en MS Project
     res = run_update(P(tasks), Config(), small_book, date(2026, 1, 31), dry_run=True)
     assert {r.code for r in res.rows} == {"1.1.0"}
-    assert any("1.2.0" in w and "inactiva" in w for w in res.warnings)
+    assert any(w.id == "ACT-012" and w.code == "1.2.0" and "inactiva" in w.message for w in res.warnings)
 
 
 def renamed_tasks(shift=0):
@@ -248,7 +248,7 @@ def test_renamed_project_update_matches_by_code(tmp_path, cfg):
 
     assert values(renamed) == values(same) == {"1.1.0": 50, "1.2.0": 50, "1.0.0-D": 100}
     assert set(values(same)) == {"1.1.0", "1.2.0", "1.0.0-D"}
-    assert any("se asocian por código EDT" in w for w in renamed.warnings)
+    assert any("se asocian por código EDT" in w.message for w in renamed.warnings)
 
 
 # ----------------------------------------------------------------------------
@@ -268,7 +268,7 @@ def test_cutoff_warnings_and_negative_corrections(tmp_path):
     book = tmp_path / "b.xlsx"
     make_book(book, P(base_tasks()), Config(months=12), bac=BAC)
     res = run_update(P(progress_tasks()), Config(), book, date(2026, 1, 15), dry_run=True)
-    assert any("último día del mes" in w for w in res.warnings)
+    assert any("último día del mes" in w.message for w in res.warnings)
 
     # Menos avance que en el mes anterior: valor del mes negativo, informado como corrección
     run_update(P(progress_tasks()), Config(), book, date(2026, 2, 28), backup=False)
@@ -284,7 +284,7 @@ def test_cutoff_warnings_and_negative_corrections(tmp_path):
     make_book(other, P(base_tasks()), Config(months=12))
     tamper(other, lambda wb: wb["Resumen"].__setitem__("B5", date(2026, 2, 28)))
     res = run_update(P(progress_tasks()), Config(), other, date(2026, 1, 31), backup=False)
-    assert any("anterior a la última cargada" in w for w in res.warnings)
+    assert any("anterior a la última cargada" in w.message for w in res.warnings)
 
 
 def test_force_allows_loading_an_earlier_month(small_book):
@@ -294,8 +294,8 @@ def test_force_allows_loading_an_earlier_month(small_book):
         run_update(P(progress_tasks()), Config(), small_book, date(2026, 1, 31), backup=False)
     assert small_book.read_bytes() == before                 # sin --forzar no se modifica
     res = run_update(P(progress_tasks()), Config(), small_book, date(2026, 1, 31), backup=False, force=True)
-    assert any("anterior a la última cargada" in w for w in res.warnings)
-    forced = [w for w in res.warnings if "--forzar" in w]
+    assert any("anterior a la última cargada" in w.message for w in res.warnings)
+    forced = [w.message for w in res.warnings if "--forzar" in w.message]
     assert len(forced) == 1
     assert "02/2026" in forced[0] and "% EV 1.1.0" in forced[0] and "% EV 1.2.0" in forced[0]
     assert "ya no coinciden con MS Project" in forced[0] and "'actualizar'" in forced[0]
@@ -316,7 +316,7 @@ def test_dry_run_is_side_effect_free(tmp_path, small_template):
     assert book.read_bytes() == data and book.stat().st_mtime_ns == mtime
     assert [p.name for p in folder.iterdir()] == ["b.xlsx"]
     assert res.book.ac[book_row(res.book, "1.1.0")][0] == 60                # valor convertido solo en memoria
-    assert any("AC!G" in w for w in res.warnings)
+    assert any("AC!G" in w.message for w in res.warnings)
 
 
 # ----------------------------------------------------------------------------
@@ -465,7 +465,7 @@ def test_tampered_book_fails_with_format_error(example_book, example_files, caps
     rc, out, err = run_cli(capsys, "actualizar", "--origen", example_files["jun"], "--config",
                             example_files["config"], "--libro", example_book, "--sin-respaldo")
     assert example_book.read_bytes() == before
-    assert "inesperado" not in err and "ERROR:" in err
+    assert "inesperado" not in err and re.match(r"ERROR LIB-0\d\d: ", err)
     assert rc == 2
     assert "Leyendo" not in out                             # se informa antes de leer MS Project
 
@@ -546,7 +546,7 @@ def test_control_characters_in_names(tmp_path, where):
     meta = read_book(book).meta
     assert meta["proyecto"] == ("Programa" if where == "tarea" else "ProgVT")
     res = run_update(P(progress_tasks(), name=name), Config(), book, date(2026, 1, 31), dry_run=True)
-    assert not any("fue generado para el proyecto" in w for w in res.warnings)
+    assert not any("fue generado para el proyecto" in w.message for w in res.warnings)
     assert {r.code for r in res.rows} == {"1.1.0", "1.2.0"}
 
 
@@ -663,14 +663,14 @@ def test_cli_unknown_option_exits_with_code_2(capsys):
 def test_cli_errors_exit_with_code_2(tmp_path, capsys, args, message):
     rc, _out, err = run_cli(capsys, *[a.replace("{tmp}", str(tmp_path)) for a in args])
     assert rc == 2
-    assert err.startswith("ERROR: ") and message in err
+    assert re.match(r"ERROR [A-Z]{3}-\d{3}: ", err) and message in err
 
 
 @pytest.mark.parametrize("error, code, message", [
-    (KeyError("x"), 3, "ERROR inesperado: KeyError"),
+    (KeyError("x"), 3, "ERROR SIS-001: error inesperado: KeyError"),
     (KeyboardInterrupt(), 130, "Cancelado."),
-    (RuntimeError("falla de COM"), 2, "ERROR: falla de COM"),
-    (OSError(28, "No queda espacio en el disco"), 2, "ERROR: no se pudo leer o escribir un archivo: "),
+    (RuntimeError("falla de COM"), 2, "ERROR SIS-003: falla de COM"),
+    (OSError(28, "No queda espacio en el disco"), 2, "ERROR SIS-002: no se pudo leer o escribir un archivo: "),
 ], ids=["inesperado", "cancelado", "runtime", "disco"])
 def test_cli_unexpected_errors(tmp_path, capsys, monkeypatch, error, code, message):
     # 1 queda solo para 'validar' con errores: los errores inesperados terminan con 3

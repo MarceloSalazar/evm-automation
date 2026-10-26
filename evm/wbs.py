@@ -3,45 +3,21 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 
 from evm import progress
 from evm.config import Config, ConfigError
 from evm.fields import fmt_number
+from evm.messages import (SEV_ERROR, SEV_INFO, SEV_WARN, TOPIC_BOOK, TOPIC_COMPANY, TOPIC_DATES,  # noqa: F401
+                          TOPIC_LOGIC, TOPIC_METHOD, TOPIC_PROGRESS, TOPIC_READ, TOPIC_VISIBLE, TOPIC_WBS,
+                          TOPIC_WEIGHTS, TOPICS, Issue)
 from evm.model import MonthKey, ProjectData, Task
 from evm.timeline import Horizon, first_of_month
-
-SEV_ERROR = "Error"
-SEV_WARN = "Advertencia"
-SEV_INFO = "Info"
 
 KIND_LEAF = "hoja"          # fila de ingreso de datos (paquete de trabajo / cuenta de control)
 KIND_SUMMARY = "resumen"    # fila subtotal (fórmulas)
 KIND_RESIDUAL = "residual"  # tareas sin fila propia que cuelgan de una tarea resumen ("Otras tareas")
-
-# Temas de las observaciones: agrupan la salida del comando validar y la columna Tema de la hoja Validación
-TOPIC_READ = "Lectura y configuración"
-TOPIC_WBS = "Estructura y códigos EDT"
-TOPIC_VISIBLE = "Campo Visible"
-TOPIC_DATES = "Fechas y duración"
-TOPIC_WEIGHTS = "Hitos y pesos"
-TOPIC_METHOD = "Método de medición"
-TOPIC_COMPANY = "Empresas"
-TOPIC_PROGRESS = "Avance a la fecha de estado"
-TOPIC_LOGIC = "Lógica del cronograma"
-TOPIC_BOOK = "Libro"
-TOPICS = [TOPIC_READ, TOPIC_WBS, TOPIC_VISIBLE, TOPIC_DATES, TOPIC_WEIGHTS, TOPIC_METHOD, TOPIC_COMPANY,
-          TOPIC_PROGRESS, TOPIC_LOGIC, TOPIC_BOOK]
-
-
-@dataclass
-class Issue:
-    severity: str
-    code: str
-    name: str
-    message: str
-    topic: str = TOPIC_BOOK
 
 
 @dataclass
@@ -264,8 +240,8 @@ def select_scope(roots: list[Task], plan_code: str) -> Scope:
     if not found:
         tops = [f"{(t.wbs or '').strip()} ({t.name})" if (t.wbs or "").strip() else t.name for t in roots]
         raise PlanNotFound(
-            f"No se encontró la planificación '{plan_code}': ninguna tarea tiene ese código EDT. Tareas de nivel "
-            f"superior del proyecto: {', '.join(tops[:15]) or 'ninguna'}.")
+            "EDT-010", f"No se encontró la planificación '{plan_code}': ninguna tarea tiene ese código EDT. Tareas "
+            f"de nivel superior del proyecto: {', '.join(tops[:15]) or 'ninguna'}.")
     plan = found[0]
     return Scope(list(plan.children), plan, (plan.wbs or "").strip() or plan_code)
 
@@ -312,9 +288,9 @@ def row_visibility(scope: Scope, cfg: Config, code_of=None) -> Visibility:
             value, valid = parse_visible(t.visible)
             values[t.uid] = value
             if not valid:
-                out.issues.append(Issue(SEV_WARN, code_of(t), t.name,
+                out.issues.append(Issue("VIS-001", code_of(t), t.name,
                                         f"Visible = '{t.visible}' no se reconoce (se admite Sí o No): se usa el "
-                                        "nivel máximo.", TOPIC_VISIBLE))
+                                        "nivel máximo."))
 
     def hidden(t: Task) -> bool:
         return values.get(t.uid) is False
@@ -328,9 +304,9 @@ def row_visibility(scope: Scope, cfg: Config, code_of=None) -> Visibility:
         for n in iter_subtree(t):
             out.rows[n.uid] = False
             if n is not t and values.get(n.uid) is True:
-                out.issues.append(Issue(SEV_WARN, code_of(n), n.name,
+                out.issues.append(Issue("VIS-002", code_of(n), n.name,
                                         f"Visible = Sí, pero depende de {label(t)}, con Visible = No: queda fuera "
-                                        "del cálculo con esa rama.", TOPIC_VISIBLE))
+                                        "del cálculo con esa rama."))
 
     def walk(group: list[Task], parent: Task | None, hidden_by: Task | None) -> None:
         every = bool(group) and all(hidden(t) for t in group)
@@ -344,13 +320,13 @@ def row_visibility(scope: Scope, cfg: Config, code_of=None) -> Visibility:
                 continue
             inner = hidden_by or (t if value is False else None)
             if value is True and hidden_by is not None:
-                out.issues.append(Issue(SEV_WARN, code_of(t), t.name,
+                out.issues.append(Issue("VIS-003", code_of(t), t.name,
                                         f"Visible = Sí, pero depende de {label(hidden_by)}, con Visible = No: se "
-                                        "suma con su rama.", TOPIC_VISIBLE))
+                                        "suma con su rama."))
             elif value is True and not raw:
-                out.issues.append(Issue(SEV_WARN, code_of(t), t.name,
+                out.issues.append(Issue("VIS-004", code_of(t), t.name,
                                         "Visible = Sí en una tarea sin código EDT: no puede tener fila propia; se "
-                                        "suma en su fila superior.", TOPIC_VISIBLE))
+                                        "suma en su fila superior."))
             has_row = bool(raw) and inner is None and (value is True or code_level(raw) <= cfg.max_level)
             if has_row and code_level(raw) > cfg.max_level:
                 out.shown += 1
@@ -359,9 +335,9 @@ def row_visibility(scope: Scope, cfg: Config, code_of=None) -> Visibility:
 
     roots = scope.roots
     if roots and all(hidden(t) for t in roots):
-        out.issues.append(Issue(SEV_WARN, "", "",
+        out.issues.append(Issue("VIS-005", "", "",
                                 "Todos los elementos de nivel superior tienen Visible = No: se ignora en ellos (el "
-                                "libro no tendría filas).", TOPIC_VISIBLE))
+                                "libro no tendría filas)."))
         for t in roots:
             values[t.uid] = None
     walk(roots, None, None)
@@ -394,10 +370,10 @@ def list_visibility(scope: Scope, cfg: Config) -> Visibility:
             out.matched.update(wanted[code])
     with_value = sum(1 for t in tasks if (t.visible or "").strip()) if cfg.visible_field else 0
     if with_value:
-        out.issues.append(Issue(SEV_INFO, "", "",
+        out.issues.append(Issue("VIS-006", "", "",
                                 f"{plural(with_value, 'tarea tiene', 'tareas tienen')} valor en el campo Visible: con "
                                 "lista_edt, las filas del libro las decide la lista EDT y el campo Visible no se "
-                                "usa.", TOPIC_VISIBLE))
+                                "usa."))
     # Elementos listados cuya tarea superior tiene código EDT y no está en la lista
     in_scope = {t.uid for t in tasks}
     for t in tasks:
@@ -411,9 +387,9 @@ def list_visibility(scope: Scope, cfg: Config) -> Visibility:
             above = above.parent
         where = (f"queda debajo de {book_code(above)} «{above.name}»" if above is not None and above.uid in in_scope
                  else "queda en el primer nivel del libro")
-        out.issues.append(Issue(SEV_INFO, book_code(t), t.name,
+        out.issues.append(Issue("EDT-015", book_code(t), t.name,
                                 f"Está en la lista EDT y su tarea superior {book_code(parent)} «{parent.name}» no: la "
-                                f"fila {where}.", TOPIC_WBS))
+                                f"fila {where}."))
     return out
 
 
@@ -472,33 +448,33 @@ def _percent_curves(project: ProjectData, cfg: Config, rows: list[ReportRow], co
             if rw.fallback:
                 alone.setdefault(company, []).append(row.code)
             row.pct[role] = pct.curve(times, rw)
-            issues += [Issue(SEV_WARN, row.code, row.name, note, TOPIC_WEIGHTS) for note in rw.notes]
+            issues += [replace(note, code=row.code, name=row.name) for note in rw.notes]
         if not any(row.pct.values()):
-            issues.append(Issue(SEV_WARN, row.code, row.name,
+            issues.append(Issue("HIT-005", row.code, row.name,
                                 "Ninguna tarea de la fila tiene fechas ni es un hito con peso: no tiene % "
-                                "planificado y su BAC no se puede repartir en el tiempo.", TOPIC_WEIGHTS))
+                                "planificado y su BAC no se puede repartir en el tiempo."))
 
     leaves = list(cache.values())
     undated = [x for x in leaves if not x.dist]
     current = [x for x in leaves if x.dist and not x.from_baseline] if project.baseline_found else []
     if current:
-        issues.append(Issue(SEV_WARN, "", "",
+        issues.append(Issue("FEC-010", "", "",
                             f"{plural(len(current), 'tarea no tiene', 'tareas no tienen')} fechas de línea base "
                             f"(p. ej. se {'agregó' if len(current) == 1 else 'agregaron'} después de guardarla): "
                             "su % planificado se calculó con sus fechas actuales. Si corresponde, se debe "
-                            "actualizar la línea base de esas tareas.", TOPIC_DATES))
+                            "actualizar la línea base de esas tareas."))
         for x in current[:200]:
-            issues.append(Issue(SEV_WARN, code_of(x.task), task_name(x.task, code_of),
-                                "Sin fechas de línea base: se usaron sus fechas actuales.", TOPIC_DATES))
+            issues.append(Issue("FEC-011", code_of(x.task), task_name(x.task, code_of),
+                                "Sin fechas de línea base: se usaron sus fechas actuales."))
     for x in undated[:200]:
-        issues.append(Issue(SEV_WARN, code_of(x.task), task_name(x.task, code_of),
-                            "Sin fechas de línea base ni fechas actuales: no aporta % planificado.", TOPIC_DATES))
+        issues.append(Issue("FEC-012", code_of(x.task), task_name(x.task, code_of),
+                            "Sin fechas de línea base ni fechas actuales: no aporta % planificado."))
     for company, codes in alone.items():
         shown = ", ".join(codes[:10]) + (f" y {len(codes) - 10} más" if len(codes) > 10 else "")
-        issues.append(Issue(SEV_INFO, "", "",
+        issues.append(Issue("EMP-002", "", "",
                             f"{company} no participa en las tareas de {plural(len(codes), 'fila', 'filas')} "
                             f"({shown}): si se le asigna BAC, su PV se reparte con el % planificado de la fila "
-                            "completa.", TOPIC_COMPANY))
+                            "completa."))
     return issues
 
 
@@ -516,7 +492,7 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
     name: nombre del archivo en [[proyectos]] ("" = informe de un solo archivo).
     """
     from evm.validation import data_checks, wbs_checks
-    issues: list[Issue] = [Issue(SEV_WARN, "", "", w, TOPIC_READ) for w in project.warnings]
+    issues: list[Issue] = list(project.warnings)
     tasks = [t for t in project.tasks if t.outline_level >= 1]
     roots = build_tree(tasks)
 
@@ -524,24 +500,24 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
     if not cfg.include_inactive:
         roots, _, removed = prune_inactive(roots)
         if removed:
-            issues.append(Issue(SEV_INFO, "", "",
+            issues.append(Issue("EDT-016", "", "",
                                 f"Se {'excluyó' if removed == 1 else 'excluyeron'} "
                                 f"{plural(removed, 'tarea inactiva', 'tareas inactivas')}: no "
-                                f"{'forma' if removed == 1 else 'forman'} parte del % planificado.", TOPIC_WBS))
+                                f"{'forma' if removed == 1 else 'forman'} parte del % planificado."))
 
     # Planificación (p. ej. INTERNO o CLIENTE): solo las tareas que dependen de ella
     scope = select_scope(roots, cfg.plan)
     if scope.plan is not None:
-        issues.append(Issue(SEV_INFO, scope.prefix, scope.plan.name,
+        issues.append(Issue("EDT-017", scope.prefix, scope.plan.name,
                             f"Planificación '{scope.prefix}': se exportan las {sum(1 for _ in scope.tasks())} "
-                            f"tareas que dependen de '{scope.plan.name}'.", TOPIC_WBS))
+                            f"tareas que dependen de '{scope.plan.name}'."))
 
     if not project.baseline_found:
         issues.append(Issue(
-            SEV_WARN, "", "",
+            "FEC-009", "", "",
             "El proyecto no tiene guardada la línea base seleccionada: el % planificado se calculó con las "
             "fechas ACTUALES de las tareas. Se debe guardar la línea base en MS Project (Proyecto > Establecer "
-            "línea base) y volver a exportar.", TOPIC_DATES))
+            "línea base) y volver a exportar."))
 
     def code_of(t: Task) -> str:
         raw = scope.raw_code(t)
@@ -653,9 +629,8 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
             res.leaves = loose
             rows.append(res)
             row.children.append(res)
-            issues.append(Issue(SEV_INFO, row.code, t.name,
-                                f"Tareas sin código EDT o {beyond}: forman la fila {row.code}-D, con su propio BAC.",
-                                TOPIC_WBS))
+            issues.append(Issue("EDT-018", row.code, t.name,
+                                f"Tareas sin código EDT o {beyond}: forman la fila {row.code}-D, con su propio BAC."))
 
     omitted: list[Task] = []
 
@@ -682,81 +657,78 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
         top_missing = [t for t in missing if t.parent is None or t.parent.uid not in missing_ids]
         if top_missing:
             one = len(missing) == 1
-            issues.append(Issue(SEV_WARN, "", "",
+            issues.append(Issue("EMP-003", "", "",
                                 f"{plural(len(missing), 'tarea', 'tareas')} sin empresa en la columna "
                                 f"'{cfg.company_field}' (ni en sus tareas superiores): se "
                                 f"{'trata' if one else 'tratan'} como '{cfg.company_both}' "
-                                f"({fmt_number(cfg.split_default, trim=True)} % para {cfg.company_a}).", TOPIC_COMPANY))
+                                f"({fmt_number(cfg.split_default, trim=True)} % para {cfg.company_a})."))
             for t in top_missing[:50]:
-                issues.append(Issue(SEV_WARN, code_of(t), task_name(t, code_of),
+                issues.append(Issue("EMP-004", code_of(t), task_name(t, code_of),
                                     f"Sin empresa: se trata como '{cfg.company_both}'"
-                                    + (" (incluye sus subtareas sin empresa)." if t.children else "."),
-                                    TOPIC_COMPANY))
+                                    + (" (incluye sus subtareas sin empresa)." if t.children else ".")))
         for t in notes["desconocida"][:50]:
-            issues.append(Issue(SEV_WARN, code_of(t), task_name(t, code_of),
+            issues.append(Issue("EMP-005", code_of(t), task_name(t, code_of),
                                 f"Empresa '{t.company}' no reconocida (se esperaba '{cfg.company_a}', "
-                                f"'{cfg.company_b}' o '{cfg.company_both}'): se trata como '{cfg.company_both}'.",
-                                TOPIC_COMPANY))
+                                f"'{cfg.company_b}' o '{cfg.company_both}'): se trata como '{cfg.company_both}'."))
         for t in notes["reparto"][:50]:
-            issues.append(Issue(SEV_WARN, code_of(t), task_name(t, code_of),
+            issues.append(Issue("EMP-006", code_of(t), task_name(t, code_of),
                                 f"'{cfg.split_field}' = {fmt_number(t.split_a, trim=True)} fuera de rango (debe ser "
-                                f"mayor que 0 y como máximo 100): se usa {fmt_number(cfg.split_default, trim=True)} %.",
-                                TOPIC_COMPANY))
+                                "mayor que 0 y como máximo 100): se usa "
+                                f"{fmt_number(cfg.split_default, trim=True)} %."))
 
     # --- Controles del archivo ------------------------------------------------
     checks: list[Issue] = []
+    # Es una advertencia si las tareas omitidas aportarían % planificado
+    omitted_sev = SEV_WARN if any(_has_weight(n) for n in omitted if not n.children) else SEV_INFO
     if omitted and visibility.listed:
         one = len(omitted) == 1
         out_ids = {n.uid for n in omitted}
         coded = [n for n in omitted if scope.raw_code(n) and (n.parent is None or n.parent.uid not in out_ids)]
         shown = ", ".join(code_of(n) for n in coded[:10]) + (f" y {len(coded) - 10} más" if len(coded) > 10 else "")
-        checks.append(Issue(SEV_WARN if any(_has_weight(n) for n in omitted if not n.children) else SEV_INFO,
-                            "", "",
+        checks.append(Issue("EDT-019", "", "",
                             f"Se {'omitió' if one else 'omitieron'} {plural(len(omitted), 'tarea', 'tareas')} que no "
                             f"{'está' if one else 'están'} en la lista EDT ni {'depende' if one else 'dependen'} de "
                             f"un elemento de la lista: no {'forma' if one else 'forman'} parte de ninguna fila del "
-                            f"libro ni del PV y el EV" + (f" ({shown})." if shown else "."), TOPIC_WBS))
+                            f"libro ni del PV y el EV" + (f" ({shown})." if shown else "."), omitted_sev))
     elif omitted:
         one = len(omitted) == 1
-        checks.append(Issue(SEV_WARN if any(_has_weight(n) for n in omitted if not n.children) else SEV_INFO,
-                            "", "",
+        checks.append(Issue("EDT-020", "", "",
                             f"Se {'omitió' if one else 'omitieron'} {plural(len(omitted), 'tarea', 'tareas')} sin "
                             f"código EDT que no depende{'' if one else 'n'} de ningún elemento EDT: no "
-                            f"forma{'' if one else 'n'} parte de ninguna fila del libro.", TOPIC_WBS))
+                            f"forma{'' if one else 'n'} parte de ninguna fila del libro.", omitted_sev))
     if not rows:
-        checks.append(Issue(SEV_WARN, "", "",
+        checks.append(Issue("EDT-021", "", "",
                             "Ninguna tarea tiene código EDT: el libro no tiene filas. Se debe revisar el campo EDT "
-                            "configurado ([campos] edt) y la planificación elegida.", TOPIC_WBS))
+                            "configurado ([campos] edt) y la planificación elegida."))
     checks += wbs_issues
     checks += data_checks(project, scope, rows, cfg, code_of)
 
     if aggregated:
         beyond_edt = "que no están en la lista EDT" if visibility.listed else f"de nivel EDT mayor a {cfg.max_level}"
-        checks.append(Issue(SEV_INFO, "", "",
+        checks.append(Issue("EDT-022", "", "",
                             f"{plural(aggregated, 'tarea', 'tareas')} sin código EDT o {beyond_edt} se "
-                            f"{'agregó' if aggregated == 1 else 'agregaron'} en su elemento EDT superior.", TOPIC_WBS))
+                            f"{'agregó' if aggregated == 1 else 'agregaron'} en su elemento EDT superior."))
     if visibility.excluded:
         n = len(visibility.excluded)
         names = ", ".join(code_of(t) or t.name for t in visibility.excluded[:10])
         more = f" y {n - 10} más" if n > 10 else ""
         detail = (f"no {'forma' if n == 1 else 'forman'} parte del % planificado ni del % ganado; el BAC y el AC "
                   f"que se ingresan en el libro no {'la' if n == 1 else 'las'} deben incluir")
-        checks.append(Issue(SEV_INFO, "", "",
+        checks.append(Issue("VIS-007", "", "",
                             f"{plural(n, 'tarea', 'tareas')} con Visible = No (con sus subtareas) "
                             f"{'queda' if n == 1 else 'quedan'} fuera del PV, el EV y el AC ({names}{more}): "
-                            f"{detail}.", TOPIC_VISIBLE))
+                            f"{detail}."))
         for t in visibility.excluded[:200]:
-            checks.append(Issue(SEV_INFO, code_of(t), t.name, "Visible = No: fuera del PV, el EV y el AC.",
-                                TOPIC_VISIBLE))
+            checks.append(Issue("VIS-008", code_of(t), t.name, "Visible = No: fuera del PV, el EV y el AC."))
     for t in visibility.represented:
-        checks.append(Issue(SEV_INFO, code_of(t), t.name,
+        checks.append(Issue("VIS-009", code_of(t), t.name,
                             "Todas sus subtareas tienen Visible = No: "
                             + ("la fila es el paquete de trabajo, con toda su rama." if included(t)
-                               else "se suman con la tarea en su fila superior."), TOPIC_VISIBLE))
+                               else "se suman con la tarea en su fila superior.")))
     if visibility.shown:
-        checks.append(Issue(SEV_INFO, "", "",
+        checks.append(Issue("VIS-010", "", "",
                             f"{plural(visibility.shown, 'tarea tiene', 'tareas tienen')} Visible = Sí y fila propia "
-                            f"por debajo del nivel máximo ({cfg.max_level}).", TOPIC_VISIBLE))
+                            f"por debajo del nivel máximo ({cfg.max_level})."))
     for row in rows:
         row.source = name
     dates = [t.baseline_start or t.start for t in scope.tasks() if (t.baseline_start or t.start)]
@@ -776,17 +748,17 @@ def list_issues(parts: list[ReportPart], cfg: Config) -> list[Issue]:
     if not missing:
         return []
     if len(missing) == len(cfg.wbs_list):
-        raise ConfigError(f"Ningún código de la lista EDT ({cfg.wbs_list_file}) existe en MS Project: se deben revisar "
-                          "la lista, el campo EDT ([campos] edt) y la planificación elegida.")
+        raise ConfigError("EDT-012", f"Ningún código de la lista EDT ({cfg.wbs_list_file}) existe en MS Project: "
+                                     "se deben revisar la lista, el campo EDT ([campos] edt) y la planificación "
+                                     "elegida.")
     one = len(missing) == 1
     shown = ", ".join(missing[:15]) + (f" y {len(missing) - 15} más" if len(missing) > 15 else "")
-    out = [Issue(SEV_WARN, "", "",
+    out = [Issue("EDT-013", "", "",
                  f"{plural(len(missing), 'código', 'códigos')} de la lista EDT no {'existe' if one else 'existen'} en "
                  f"MS Project, o {'su tarea está' if one else 'sus tareas están'} inactiva{'' if one else 's'} o fuera "
-                 f"de la planificación elegida: no {'tiene' if one else 'tienen'} fila en el libro ({shown}).",
-                 TOPIC_WBS)]
-    out += [Issue(SEV_WARN, code, "", "Código de la lista EDT sin tarea en MS Project: no tiene fila en el libro.",
-                  TOPIC_WBS) for code in missing[:200]]
+                 f"de la planificación elegida: no {'tiene' if one else 'tienen'} fila en el libro ({shown}).")]
+    out += [Issue("EDT-014", code, "", "Código de la lista EDT sin tarea en MS Project: no tiene fila en el libro.")
+            for code in missing[:200]]
     return out
 
 
@@ -811,7 +783,7 @@ def tagged_issues(part: ReportPart, issues: list[Issue]) -> list[Issue]:
     name = part.source.name
     if not name:
         return list(issues)
-    return [Issue(i.severity, i.code, i.name, f"[{name}] {i.message}", i.topic) for i in issues]
+    return [replace(i, message=f"[{name}] {i.message}") for i in issues]
 
 
 def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:
@@ -825,6 +797,7 @@ def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:
                 other = owner.setdefault(row.code, part.source.name)
                 if other != part.source.name:
                     raise ConfigError(
+                        "EDT-011",
                         f"El código EDT '{row.code}' está en los archivos '{other}' y '{part.source.name}'. Con "
                         "varios archivos de MS Project, cada código EDT debe estar en un solo archivo (p. ej. 1.0.0 a "
                         "8.0.0 en uno y 9.0.0 en otro): se deben revisar los códigos EDT o la planificación de cada "
@@ -876,39 +849,39 @@ def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:
     total_vector = [sum(r.vector[i] for r in roots) for i in range(horizon.months)]
 
     if pct_before:
-        issues.append(Issue(SEV_WARN, "", "",
+        issues.append(Issue("CFG-044", "", "",
                             f"{plural(len(pct_before), 'fila tiene', 'filas tienen')} % planificado anterior al mes "
-                            f"1 ({horizon.start:%m/%Y}): se acumuló en la columna del mes 1.", TOPIC_READ))
+                            f"1 ({horizon.start:%m/%Y}): se acumuló en la columna del mes 1."))
     if pct_after:
-        issues.append(Issue(SEV_WARN, "", "",
+        issues.append(Issue("CFG-045", "", "",
                             f"{plural(len(pct_after), 'fila tiene', 'filas tienen')} % planificado posterior al "
                             f"último mes del horizonte ({horizon.end:%m/%Y}): no aparece en las columnas mensuales "
-                            "y su PV no llega al BAC. Se debe aumentar 'meses'.", TOPIC_READ))
+                            "y su PV no llega al BAC. Se debe aumentar 'meses'."))
 
     # --- Controles -------------------------------------------------------------
     for part in parts:
         issues += tagged_issues(part, part.checks)
     issues += list_issues(parts, cfg)
     sheets = (f"PV-{cfg.company_a} y PV-{cfg.company_b}" if cfg.multi_enabled else "PV")
-    issues.insert(0, Issue(SEV_INFO, "", "",
+    issues.insert(0, Issue("LIB-001", "", "",
                            "El PV y el EV de cada fila son el BAC × el % planificado y el % ganado (hojas % PV y "
                            "% EV), que se calculan con la duración de la línea base de las tareas y el peso de los "
                            "hitos. Se debe ingresar el BAC de cada fila en las celdas amarillas de la columna D de "
                            f"{'las hojas' if cfg.multi_enabled else 'la hoja'} {sheets}."))
     undefined = [r for r in rows if r.is_input and r.method.strip().lower() in ("", "por definir", "a definir")]
     if undefined:
-        issues.append(Issue(SEV_INFO, "", "",
+        issues.append(Issue("MET-005", "", "",
                             f"{plural(len(undefined), 'fila', 'filas')} sin método de medición definido "
-                            "(columna C).", TOPIC_METHOD))
+                            "(columna C)."))
 
     sources = [p.source for p in parts]
     symbols = {s.name: s.project.currency_symbol for s in sources if s.project.currency_symbol}
     currency = next(iter(symbols.values()), "")
     if not cfg.currency and len(set(symbols.values())) > 1:
-        issues.append(Issue(SEV_WARN, "", "",
+        issues.append(Issue("CFG-046", "", "",
                             "Los archivos tienen monedas distintas en MS Project ("
                             + ", ".join(f"{k}: {v}" for k, v in symbols.items()) + f"): el libro muestra {currency}. "
-                            "Se debe indicar la moneda en [exportacion] moneda.", TOPIC_READ))
+                            "Se debe indicar la moneda en [exportacion] moneda."))
     if len(sources) > 1 or sources[0].name:
         pv_source = "  |  ".join(f"{s.name}: {s.pv_source}" for s in sources)
         title = cfg.title or " + ".join(dict.fromkeys(s.project.name for s in sources))

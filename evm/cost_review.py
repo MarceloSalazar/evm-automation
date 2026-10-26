@@ -28,7 +28,8 @@ from openpyxl.worksheet.datavalidation import DataValidation
 
 from evm.config import Config
 from evm.fields import fmt_number
-from evm.wbs import KIND_RESIDUAL, SEV_INFO, SEV_WARN, Issue, Report, plural
+from evm.messages import Issue
+from evm.wbs import KIND_RESIDUAL, Report, plural
 from evm.workbook import (BORDER, COLOR_COST, FILL_COST, FILL_HEADER, FILL_INPUT, FILL_RED, FILL_TOTAL, FMT_MONTH,
                           FMT_PCT, FONT_BOLD, FONT_HEADER, FONT_NOTE, FONT_TITLE, HEADER_ROW, SHEET_PV, _header,
                           _Layout, col, company_sheet, money_format, put_text)
@@ -134,7 +135,7 @@ def review_issues(report: Report) -> list[Issue]:
         return []
     company = review_company(report)
     sheet = review_sheet(report)
-    issues = [Issue(SEV_INFO, "", "",
+    issues = [Issue("DEP-001", "", "",
                     f"Depuración de costes{' de ' + company if company else ''}: se debe pegar la previsión mensual "
                     f"en la hoja {SHEET_PASTE} (desde la celda A{P_FIRST}); las filas «(coste)» de la hoja {sheet} y "
                     f"la hoja {SHEET_CHART} la comparan con el PV planificado. El libro de entrega se debe generar sin "
@@ -143,11 +144,11 @@ def review_issues(report: Report) -> list[Issue]:
     if nonnumeric:
         codes = ", ".join(r.code or "(sin código)" for r in nonnumeric[:10])
         more = f" y {len(nonnumeric) - 10} más" if len(nonnumeric) > 10 else ""
-        issues.append(Issue(SEV_WARN, "", "",
+        issues.append(Issue("DEP-002", "", "",
                             f"Depuración de costes: {plural(len(nonnumeric), 'fila tiene', 'filas tienen')} código EDT "
                             f"no numérico ({codes}{more}) y no pueden recibir la previsión de la hoja {SHEET_PASTE}."))
     if repeated:
-        issues.append(Issue(SEV_WARN, "", "",
+        issues.append(Issue("DEP-003", "", "",
                             "Depuración de costes: códigos EDT repetidos en el libro (" + ", ".join(repeated[:10]) +
                             f"); la previsión de la hoja {SHEET_PASTE} se asigna a la primera fila de cada código."))
     return issues
@@ -341,9 +342,9 @@ def write_paste(ws, report: Report, cfg: Config, lay: _Layout, rows: list[list] 
             (f"  -  {company}" if company else "")).font = FONT_TITLE
     ws.cell(row=2, column=1, value=(
         f"Pegar desde la celda A{P_FIRST} (pegado especial > valores): EDT cliente, actividad, EDT interna, actividad "
-        f"interna, BAC y un importe por mes, con el mes 1 en la columna {col(P_FIRST_MONTH)}. Las líneas de EDT interna "
-        "(p. ej. ABC01) se suman en la última EDT cliente de arriba; las líneas de EDT cliente con EDT interna o "
-        "códigos más detallados debajo son subtotales y no se suman.")).font = FONT_NOTE
+        f"interna, BAC y un importe por mes, con el mes 1 en la columna {col(P_FIRST_MONTH)}. Las líneas de EDT "
+        "interna (p. ej. ABC01) se suman en la última EDT cliente de arriba; las líneas de EDT cliente con EDT interna "
+        "o códigos más detallados debajo son subtotales y no se suman.")).font = FONT_NOTE
 
     labels = [(P_TOTAL_ROW, "Total pegado (sin subtotales)",
                f"=SUMIFS({helper}!${col(H_TOTAL)}${P_FIRST}:${col(H_TOTAL)}${P_LAST},"

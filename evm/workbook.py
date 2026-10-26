@@ -26,6 +26,7 @@ from openpyxl.worksheet.properties import Outline
 from evm import __version__, progress
 from evm.config import MODE_PERCENT, Config
 from evm.fields import fmt_number
+from evm.messages import SEV_INFO, SEV_WARN, EvmError, SaveError
 from evm.wbs import KIND_LEAF, KIND_RESIDUAL, KIND_SUMMARY, Report, ReportRow
 
 # ----------------------------------------------------------------------------
@@ -1230,22 +1231,25 @@ def _write_indicators(ws, report: Report, cfg: Config, lay: _Layout) -> None:
 
 
 def _write_validation(ws, report: Report) -> None:
+    """Hoja Validación: una fila por observación, con su código (docs/codigos.md explica cada uno)."""
     ws.cell(row=1, column=1, value="Validación de la exportación").font = FONT_TITLE
-    _header(ws, 3, [(1, "Severidad"), (2, "Código EDT"), (3, "Tarea"), (4, "Detalle"), (5, "Tema")])
+    ws.cell(row=2, column=1, value="Cada código se explica en docs/codigos.md; con [validacion] silenciar (o "
+                                   "--silenciar) se ocultan las observaciones de un código.").font = FONT_NOTE
+    _header(ws, 3, [(1, "Severidad"), (2, "Código"), (3, "Código EDT"), (4, "Tarea"), (5, "Detalle"), (6, "Tema")])
     if not report.issues:
         ws.cell(row=4, column=1, value="OK")
-        ws.cell(row=4, column=4, value="No se encontraron observaciones.")
+        ws.cell(row=4, column=5, value="No se encontraron observaciones.")
+    top = Alignment(vertical="top")
     for i, issue in enumerate(report.issues, start=4):
-        ws.cell(row=i, column=1, value=issue.severity)
-        put_text(ws, i, 2, issue.code)
-        put_text(ws, i, 3, issue.name)
-        put_text(ws, i, 4, issue.message).alignment = Alignment(wrap_text=True, vertical="top")
-        put_text(ws, i, 5, issue.topic)
-        if issue.severity != "Info":
-            ws.cell(row=i, column=1).fill = FILL_YELLOW if issue.severity == "Advertencia" else FILL_RED
-    for c_, w in {1: 13, 2: 14, 3: 40, 4: 110, 5: 26}.items():
+        ws.cell(row=i, column=1, value=issue.severity).alignment = top
+        for c_, v in ((2, issue.id), (3, issue.code), (4, issue.name), (6, issue.topic)):
+            put_text(ws, i, c_, v).alignment = top
+        put_text(ws, i, 5, issue.message).alignment = Alignment(wrap_text=True, vertical="top")
+        if issue.severity != SEV_INFO:
+            ws.cell(row=i, column=1).fill = FILL_YELLOW if issue.severity == SEV_WARN else FILL_RED
+    for c_, w in {1: 13, 2: 10, 3: 14, 4: 40, 5: 110, 6: 26}.items():
         ws.column_dimensions[col(c_)].width = w
-    ws.auto_filter.ref = f"A3:E{max(4, 3 + len(report.issues))}"
+    ws.auto_filter.ref = f"A3:F{max(4, 3 + len(report.issues))}"
 
 
 def _append_texts(ws, values: list) -> None:
@@ -1473,7 +1477,7 @@ def save_workbook(wb, path: str | Path) -> None:
         os.replace(tmp, path)
         tmp = None
     except PermissionError as exc:
-        raise PermissionError(_save_error(path)) from exc
+        raise SaveError("LIB-015", _save_error(path)) from exc
     finally:
         if tmp is not None:
             try:
@@ -1490,13 +1494,13 @@ def check_writable(path: str | Path) -> None:
         with open(path, "r+b"):
             pass
     except PermissionError as exc:
-        raise PermissionError(_save_error(path)) from exc
+        raise SaveError("LIB-015", _save_error(path)) from exc
 
 
 # ----------------------------------------------------------------------------
 # Lectura (para los comandos actualizar / curva / migración)
 # ----------------------------------------------------------------------------
-class WorkbookFormatError(ValueError):
+class WorkbookFormatError(EvmError, ValueError):
     pass
 
 
@@ -1528,18 +1532,19 @@ def _as_bool(value) -> bool:
 def read_meta(wb) -> dict:
     if SHEET_META not in wb.sheetnames or SHEET_STRUCT not in wb.sheetnames:
         raise WorkbookFormatError(
-            "El libro no fue generado por este programa (faltan las hojas ocultas _meta/_estructura).")
+            "LIB-005", "El libro no fue generado por este programa (faltan las hojas ocultas _meta/_estructura).")
     meta = {}
     for k, v in wb[SHEET_META].iter_rows(min_row=2, values_only=True):
         if k:
             meta[str(k)] = v
     for k in ("horizonte_inicio", "meses", "primera_fila", "fila_total"):
         if k not in meta:
-            raise WorkbookFormatError(f"Falta el dato '{k}' en la hoja _meta.")
+            raise WorkbookFormatError("LIB-006", f"Falta el dato '{k}' en la hoja _meta.")
 
     def invalid(k: str) -> WorkbookFormatError:
-        return WorkbookFormatError(f"El dato '{k}' de la hoja oculta _meta no es válido ({meta[k]!r}). Esa hoja no "
-                                   "se debe modificar: se debe recuperar el libro desde un respaldo.")
+        return WorkbookFormatError("LIB-007", f"El dato '{k}' de la hoja oculta _meta no es válido ({meta[k]!r}). "
+                                              "Esa hoja no se debe modificar: se debe recuperar el libro desde un "
+                                              "respaldo.")
 
     hs = meta["horizonte_inicio"]
     if isinstance(hs, (int, float)) and not isinstance(hs, bool):
@@ -1586,6 +1591,7 @@ def read_structure(wb) -> list[StructRow]:
                                  int(parent) if parent else None, str(name or ""),
                                  None if len(vals) < 8 else str(origin or "")))
         except (TypeError, ValueError):
-            raise WorkbookFormatError(f"La hoja oculta _estructura no es válida (fila {fila!r}). Esa hoja no se "
+            raise WorkbookFormatError("LIB-008",
+                                      f"La hoja oculta _estructura no es válida (fila {fila!r}). Esa hoja no se "
                                       "debe modificar: se debe recuperar el libro desde un respaldo.") from None
     return out

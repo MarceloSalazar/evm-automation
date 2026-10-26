@@ -163,7 +163,7 @@ def test_generate_combines_files(xml, tmp_path, capsys):
     assert wb["Resumen"]["A2"].value == "Programa de ejemplo EVM + Accesos y servicios (proyecto 2 de ejemplo)"
     assert wb["Resumen"]["B14"].value == "P1: INTERNO  |  P2: todas"
     assert wb["Cuadro de Mando"]["B2"].value == wb["Resumen"]["A2"].value
-    details = [r[3] for r in wb["Validación"].iter_rows(min_row=4, values_only=True) if r[3]]
+    details = [r[4] for r in wb["Validación"].iter_rows(min_row=4, values_only=True) if r[4]]
     assert any(d.startswith("[P1] Planificación 'INTERNO'") for d in details)
     assert any(d.startswith("[P2] ") for d in details)
 
@@ -325,7 +325,8 @@ def test_migrate_combined_book_keeps_history(xml, tmp_path):
     assert by_code(new) == by_code(book)
     # Solo advierte del método de los paquetes largos del ejemplo (0/100 y fórmulas fijas)
     serious = [r for r in validation(new) if r[0] in ("Error", "Advertencia")]
-    assert serious and all(r[4] == TOPIC_METHOD and "meses (línea base)" in r[3] for r in serious)
+    assert serious and all(r[1] == "MET-004" and r[5] == TOPIC_METHOD and "meses (línea base)" in r[4]
+                           for r in serious)
     assert read_book(new).status_date == date(2027, 7, 31)
 
 
@@ -340,8 +341,8 @@ def test_migrate_without_one_file(xml, tmp_path):
     assert set(after) == {c for c in before if not c.startswith("9.")}
     assert all(after[c] == before[c] for c in after)
     rows = validation(new)
-    assert any("El archivo 'P2' del libro anterior no forma parte del libro nuevo" in r[3] for r in rows)
-    assert {r[1] for r in rows if r[0] == "Error"} == {c for c, v in before.items()
+    assert any("El archivo 'P2' del libro anterior no forma parte del libro nuevo" in r[4] for r in rows)
+    assert {r[2] for r in rows if r[0] == "Error"} == {c for c, v in before.items()
                                                       if c.startswith("9.") and any(v[2] + v[3])}
 
 
@@ -356,4 +357,4 @@ def test_migrate_single_file_book_by_code(xml, tmp_path):
     before, after = by_code(old), by_code(new)
     assert all(after[c] == before[c] for c in before)
     assert all(not any(v[2] + v[3]) for c, v in after.items() if c.startswith("9."))
-    assert any("es de un solo archivo de MS Project" in r[3] for r in validation(new))
+    assert any("es de un solo archivo de MS Project" in r[4] for r in validation(new))

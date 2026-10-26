@@ -13,6 +13,7 @@ from openpyxl.workbook.properties import CalcProperties
 
 from evm import analysis, progress
 from evm.config import MODE_PERCENT, Config, ConfigError
+from evm.messages import InputError, Issue, MissingFileError
 from evm.methods import parse_method
 from evm.model import ProjectData, Task
 from evm.timeline import Horizon
@@ -79,6 +80,7 @@ def _num(value, cached, where: str, fixable: list | None = None, key=None) -> fl
     if isinstance(value, str) and value.startswith("="):
         if cached is None or isinstance(cached, str):
             raise WorkbookFormatError(
+                "LIB-012",
                 f"La celda {where} tiene una fórmula sin valor numérico calculado. Se debe abrir y guardar el "
                 "libro en Excel, o reemplazar la fórmula por un número.")
         if fixable is not None and key is not None and not isinstance(cached, bool):
@@ -87,7 +89,7 @@ def _num(value, cached, where: str, fixable: list | None = None, key=None) -> fl
     if value is None or value == "":
         return None
     if isinstance(value, bool):
-        raise WorkbookFormatError(f"Valor no numérico en {where}: {value!r}")
+        raise WorkbookFormatError("LIB-013", f"Valor no numérico en {where}: {value!r}")
     if isinstance(value, (int, float)):
         return float(value)
     text = str(value).strip()
@@ -96,10 +98,10 @@ def _num(value, cached, where: str, fixable: list | None = None, key=None) -> fl
     try:
         number = float(text.replace(" ", "").replace(",", "."))
     except ValueError as exc:
-        raise WorkbookFormatError(f"Valor no numérico en {where}: {value!r}") from exc
+        raise WorkbookFormatError("LIB-013", f"Valor no numérico en {where}: {value!r}") from exc
     if fixable is None or key is None:
         raise WorkbookFormatError(
-            f"La celda {where} contiene el número {value!r} guardado como texto: Excel no lo suma. "
+            "LIB-014", f"La celda {where} contiene el número {value!r} guardado como texto: Excel no lo suma. "
             "Se debe ingresar como número.")
     fixable.append((*key, number, "número guardado como texto convertido a número"))
     return number
@@ -121,6 +123,7 @@ def check_version(meta: dict) -> None:
     """Los libros de versiones anteriores calculaban el PV y el EV con los costos de MS Project: no se admiten."""
     if str(meta.get("modo") or "").strip().lower() != MODE_PERCENT:
         raise WorkbookFormatError(
+            "LIB-009",
             "El libro se generó con una versión anterior del programa, que calculaba el PV y el EV con los costos "
             "de MS Project: no se puede usar con esta versión (para ese libro se debe usar la versión 1.x). Se debe "
             "generar un libro nuevo.")
@@ -158,8 +161,9 @@ def check_sheets(sheetnames: list[str], meta: dict, charts: bool = False) -> Non
         if name in sheetnames:
             continue
         if name in companies:
-            raise WorkbookFormatError(f"Falta la hoja '{name}' del libro multi-empresa.")
+            raise WorkbookFormatError("LIB-010", f"Falta la hoja '{name}' del libro multi-empresa.")
         raise WorkbookFormatError(
+            "LIB-010",
             f"Falta la hoja '{name}' del libro. Las hojas del libro no se deben eliminar ni cambiar de nombre: se "
             "debe restaurar su nombre original o recuperar el libro desde un respaldo.")
 
@@ -175,6 +179,7 @@ def _check_layout(wb, structure: list[StructRow], meta: dict) -> None:
             text = "" if value is None else str(value).strip()
             if text != code.strip():
                 raise WorkbookFormatError(
+                    "LIB-011",
                     f"La hoja '{name}' no tiene las filas con las que se generó el libro: la fila {r} debe tener el "
                     f"código EDT '{code}' y tiene '{text}'. Como 'actualizar' ubica cada fila por su posición, se "
                     "deben deshacer las filas insertadas, eliminadas u ordenadas en esa hoja (o recuperar el libro "
@@ -220,14 +225,14 @@ def read_book(path: str | Path, wb=None, allow_fix: bool = False) -> BookData:
     """
     path = Path(path)
     if not path.is_file():
-        raise FileNotFoundError(f"No existe el libro: {path}")
+        raise MissingFileError("LIB-002", f"No existe el libro: {path}")
     if path.suffix.lower() != ".xlsx":
-        raise WorkbookFormatError(f"'{path.name}' no es un libro .xlsx generado por este programa.")
+        raise WorkbookFormatError("LIB-003", f"'{path.name}' no es un libro .xlsx generado por este programa.")
     try:
         wb = wb or load_workbook(path)
         wb_vals = load_workbook(path, data_only=True)
     except (zipfile.BadZipFile, InvalidFileException, OSError) as exc:
-        raise WorkbookFormatError(f"No se pudo abrir '{path.name}' como libro de Excel: {exc}") from exc
+        raise WorkbookFormatError("LIB-004", f"No se pudo abrir '{path.name}' como libro de Excel: {exc}") from exc
     meta = read_meta(wb)
     check_version(meta)
     structure = read_structure(wb)
@@ -296,11 +301,11 @@ def book_meta(path: str | Path) -> dict:
     """Metadatos de un libro generado por este programa (sin leer sus valores)."""
     path = Path(path)
     if not path.is_file():
-        raise FileNotFoundError(f"No existe el libro: {path}")
+        raise MissingFileError("LIB-002", f"No existe el libro: {path}")
     try:
         wb = load_workbook(path, read_only=True)
     except (zipfile.BadZipFile, InvalidFileException, OSError) as exc:
-        raise WorkbookFormatError(f"No se pudo abrir '{path.name}' como libro de Excel: {exc}") from exc
+        raise WorkbookFormatError("LIB-004", f"No se pudo abrir '{path.name}' como libro de Excel: {exc}") from exc
     try:
         meta = read_meta(wb)
         check_version(meta)
@@ -338,12 +343,14 @@ def check_sources(meta: dict, names: list[str]) -> None:
     if book == names or sorted(book) == sorted(names):
         return
     if book == [""]:
-        raise ConfigError("El libro se generó con un solo archivo de MS Project: se debe indicar ese archivo con "
+        raise ConfigError("ACT-001",
+                          "El libro se generó con un solo archivo de MS Project: se debe indicar ese archivo con "
                           "--origen, con un archivo de configuración sin secciones [[proyectos]].")
     if names == [""]:
-        raise ConfigError(f"El libro se generó con varios archivos de MS Project ({', '.join(book)}): se deben "
+        raise ConfigError("ACT-002",
+                          f"El libro se generó con varios archivos de MS Project ({', '.join(book)}): se deben "
                           "indicar en secciones [[proyectos]] del archivo de configuración, con los mismos nombres.")
-    raise ConfigError(f"Los archivos de [[proyectos]] ({', '.join(names)}) no coinciden con los del libro "
+    raise ConfigError("ACT-003", f"Los archivos de [[proyectos]] ({', '.join(names)}) no coinciden con los del libro "
                       f"({', '.join(book)}). Se deben indicar todos los archivos del libro, con los mismos nombres; "
                       "para agregar o quitar un archivo se debe generar un libro nuevo con --migrar-desde.")
 
@@ -359,8 +366,12 @@ class RowResult:
     bac: float
     ev_cum: float | None
     ev_month: float | None
-    note: str = ""
+    notes: list[Issue] = field(default_factory=list)            # observaciones de la fila
     by_company: dict[str, float] = field(default_factory=dict)   # EV del mes por hoja de empresa
+
+    @property
+    def note(self) -> str:
+        return "; ".join(n.message for n in self.notes)
 
 
 @dataclass
@@ -368,7 +379,7 @@ class UpdateResult:
     status_date: date
     month_index: int
     rows: list[RowResult]
-    warnings: list[str]
+    warnings: list[Issue]
     backup: Path | None
     book: BookData | None = None
     dry_run: bool = False
@@ -383,7 +394,7 @@ def book_level(book: BookData, cfg: Config) -> int:
 
 
 def _match_tasks(project: ProjectData, book: BookData, cfg: Config,
-                 source: str = "") -> tuple[dict[int, Task], list[str], Scope]:
+                 source: str = "") -> tuple[dict[int, Task], list[Issue], Scope]:
     """Asocia cada fila del libro con la tarea de MS Project.
 
     Mismo proyecto: por UniqueID (si la tarea ya no existe, la fila se omite).
@@ -391,7 +402,7 @@ def _match_tasks(project: ProjectData, book: BookData, cfg: Config,
     Se usa la planificación con la que se generó el libro.
     source: con varios archivos, nombre del archivo; solo se asocian las filas de ese archivo.
     """
-    warnings: list[str] = []
+    warnings: list[Issue] = []
     tasks = [t for t in project.tasks if t.outline_level >= 1]
     roots = build_tree(tasks)
     active: set[int] | None = None
@@ -400,8 +411,8 @@ def _match_tasks(project: ProjectData, book: BookData, cfg: Config,
         active = {t.uid for r in roots for t in iter_subtree(r)}
     plan_code = str(source_meta(book.meta, "planificacion", source) or "")
     if cfg.plan and cfg.plan.strip().upper() != plan_code.upper():
-        warnings.append(f"El libro se generó para la planificación '{plan_code or 'todas'}': se usa esa "
-                        f"planificación y no '{cfg.plan}'.")
+        warnings.append(Issue("ACT-009", message=f"El libro se generó para la planificación '{plan_code or 'todas'}': "
+                                                 f"se usa esa planificación y no '{cfg.plan}'."))
     scope = select_scope(roots, plan_code)
     by_uid = {t.uid: t for t in tasks}
     by_code: dict[str, Task] = {}
@@ -413,9 +424,9 @@ def _match_tasks(project: ProjectData, book: BookData, cfg: Config,
     book_name = source_meta(book.meta, "proyecto", source)
     same = str(book_name or "") == clean_text(project.name)
     if not same:
-        warnings.append(f"El libro fue generado para el proyecto '{book_name}' y el origen es "
-                        f"'{project.name}': las filas se asocian por código EDT. Se recomienda verificar los "
-                        "resultados.")
+        warnings.append(Issue("ACT-010", message=f"El libro fue generado para el proyecto '{book_name}' y el origen "
+                                                 f"es '{project.name}': las filas se asocian por código EDT. Se "
+                                                 "recomienda verificar los resultados."))
     out: dict[int, Task] = {}
     used: set[tuple[int, bool]] = set()
     for s in book.structure:
@@ -426,23 +437,24 @@ def _match_tasks(project: ProjectData, book: BookData, cfg: Config,
             task = by_uid.get(int(uid_text))
             if task is None:
                 if s.is_input:
-                    warnings.append(f"Fila {s.code} '{s.name}': la tarea (UID {uid_text}) ya no existe en MS "
-                                    "Project; se omite. Si cambió la EDT, se debe regenerar el libro con "
-                                    "--migrar-desde.")
+                    warnings.append(Issue("ACT-011", s.code, s.name,
+                                          f"La tarea (UID {uid_text}) ya no existe en MS Project; se omite. Si cambió "
+                                          "la EDT, se debe regenerar el libro con --migrar-desde."))
                 continue
             if active is not None and task.uid not in active:
                 if s.is_input:
-                    warnings.append(f"Fila {s.code} '{s.name}': la tarea (UID {uid_text}) está inactiva en MS "
-                                    "Project; se omite y se conservan los valores ya cargados. Si quedó fuera del "
-                                    "alcance, se recomienda regenerar el libro con --migrar-desde.")
+                    warnings.append(Issue("ACT-012", s.code, s.name,
+                                          f"La tarea (UID {uid_text}) está inactiva en MS Project; se omite y se "
+                                          "conservan los valores ya cargados. Si quedó fuera del alcance, se "
+                                          "recomienda regenerar el libro con --migrar-desde."))
                 continue
         else:
             code = s.code[:-2] if residual else s.code
             task = by_code.get(code)
             if task is None or (task.uid, residual) in used:
                 if s.is_input:
-                    warnings.append(f"Fila {s.code} '{s.name}': no se encontró una tarea con ese código EDT; "
-                                    "se omite.")
+                    warnings.append(Issue("ACT-013", s.code, s.name,
+                                          "No se encontró una tarea con ese código EDT; se omite."))
                 continue
         used.add((task.uid, residual))
         out[s.row] = task
@@ -494,7 +506,7 @@ def _unlisted_packages(book: BookData, matches: dict[int, Task], visibility: Vis
 
 
 def _visibility_warnings(book: BookData, matches: dict[int, Task], scope: Scope, visibility: Visibility,
-                         source: str = "") -> list[str]:
+                         source: str = "") -> list[Issue]:
     """Tareas con valor en el campo Visible que no coincide con las filas del libro: el campo cambió después de
     generarlo. El libro conserva sus filas hasta regenerarlo."""
     from evm.fields import parse_visible
@@ -508,13 +520,14 @@ def _visibility_warnings(book: BookData, matches: dict[int, Task], scope: Scope,
         return []
     codes = ", ".join(scope.raw_code(t) or t.name for t in changed[:10])
     more = f" y {len(changed) - 10} más" if len(changed) > 10 else ""
-    return [f"El campo Visible de {plural(len(changed), 'tarea', 'tareas')} ({codes}{more}) no coincide con las "
-            "filas del libro (cambió después de generarlo): el libro conserva sus filas. Para aplicar el cambio se "
-            "debe regenerar el libro con --migrar-desde."]
+    return [Issue("ACT-014", message=f"El campo Visible de {plural(len(changed), 'tarea', 'tareas')} ({codes}{more}) "
+                                     "no coincide con las filas del libro (cambió después de generarlo): el libro "
+                                     "conserva sus filas. Para aplicar el cambio se debe regenerar el libro con "
+                                     "--migrar-desde.")]
 
 
 def _new_task_warnings(book: BookData, matches: dict[int, Task], scope: Scope, visibility: Visibility,
-                       source: str = "") -> list[str]:
+                       source: str = "") -> list[Issue]:
     """Tareas que tendrían fila propia y no la tienen en el libro: se agregaron en MS Project después de generarlo
     (las de Visible con valor las informa _visibility_warnings). Su avance no se incluye en el % ganado."""
     from evm.fields import parse_visible
@@ -530,13 +543,15 @@ def _new_task_warnings(book: BookData, matches: dict[int, Task], scope: Scope, v
     tasks = ", ".join(f"{scope.raw_code(t)} '{t.name}'" for t in new[:10])
     more = f" y {len(new) - 10} más" if len(new) > 10 else ""
     if visibility.listed:
-        return [f"{plural(len(new), 'tarea de la lista EDT no tiene', 'tareas de la lista EDT no tienen')} fila en "
+        text = (f"{plural(len(new), 'tarea de la lista EDT no tiene', 'tareas de la lista EDT no tienen')} fila en "
                 f"el libro (se {'agregó' if len(new) == 1 else 'agregaron'} en MS Project después de generarlo): "
                 f"{tasks}{more}. Su avance no se incluye en el % ganado. Para incluirlo, se debe regenerar el libro "
-                "con --migrar-desde."]
-    return [f"{plural(len(new), 'tarea con código EDT no tiene', 'tareas con código EDT no tienen')} fila en el "
-            f"libro (se {'agregó' if len(new) == 1 else 'agregaron'} después de generarlo): {tasks}{more}. Su avance "
-            "no se incluye en el % ganado. Para incluirlo, se debe regenerar el libro con --migrar-desde."]
+                "con --migrar-desde.")
+    else:
+        text = (f"{plural(len(new), 'tarea con código EDT no tiene', 'tareas con código EDT no tienen')} fila en el "
+                f"libro (se {'agregó' if len(new) == 1 else 'agregaron'} después de generarlo): {tasks}{more}. Su "
+                "avance no se incluye en el % ganado. Para incluirlo, se debe regenerar el libro con --migrar-desde.")
+    return [Issue("ACT-015", message=text)]
 
 
 def _month_end(d: date) -> date:
@@ -553,9 +568,9 @@ def _backup_path(book_path: Path) -> Path:
     return path
 
 
-def _tag(source: str, text: str) -> str:
+def _tag(source: str, issue: Issue) -> Issue:
     """Con varios archivos, el mensaje indica el archivo: '[P2] ...'."""
-    return f"[{source}] {text}" if source else text
+    return replace(issue, message=f"[{source}] {issue.message}") if source else issue
 
 
 def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares: dict[int, float], calendar,
@@ -569,7 +584,7 @@ def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares:
     times = pct.leaf_times([t for t in contributors if not t.children], calendar, cfg.distribution)
     full = pct.full_weights(times)
     out = []
-    notes: list[str] = []
+    notes: list[Issue] = []
     for role, company in book.roles():
         share = None
         if role == "A":
@@ -580,12 +595,14 @@ def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares:
         pv_cum = sum(book.pct_pv[role][s.row][: idx + 1])
         frac, note = pct.earned_fraction(method, rw, pv_cum)
         bac = book.bac_role[role][s.row]
-        if note and note not in notes:
-            notes.append(note)
+        if note is not None and all(n.message != note.message for n in notes):
+            notes.append(replace(note, code=s.code, name=s.name))
         if rw.fallback and bac > 0:
-            notes.append(f"{company} no participa en las tareas de la fila: se usó el avance de la fila completa")
+            notes.append(Issue("ACT-028", s.code, s.name,
+                               f"{company} no participa en las tareas de la fila: se usó el avance de la fila "
+                               "completa"))
         out.append((role, company, frac, bac))
-    res = RowResult(s.code, s.name, book.method[s.row], book.bac[s.row], None, None, "; ".join(notes))
+    res = RowResult(s.code, s.name, book.method[s.row], book.bac[s.row], None, None, notes)
     return res, out
 
 
@@ -606,7 +623,7 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     book = read_book(book_path, wb, allow_fix=True)
     check_sheets(wb.sheetnames, book.meta, charts=True)
     check_sources(book.meta, list(projects))
-    warnings: list[str] = [_tag(n, w) for n, p in projects.items() for w in p.warnings]
+    warnings: list[Issue] = [_tag(n, w) for n, p in projects.items() for w in p.warnings]
     warnings += _list_warnings(cfg, book)
     cfg = apply_book_settings(cfg, book.meta)
     cfg.wbs_list = book.wbs_list            # las filas del libro se decidieron con su lista (o sin lista)
@@ -615,34 +632,37 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     if status is None:
         missing = [n for n, p in projects.items() if p.status_date is None]
         if missing == [""]:
-            raise ValueError("El proyecto no tiene fecha de estado: se debe indicar la fecha de corte con "
+            raise InputError("ACT-004", "El proyecto no tiene fecha de estado: se debe indicar la fecha de corte con "
                              "--fecha-corte AAAA-MM-DD o definir Proyecto > Fecha de estado en MS Project.")
         if missing:
-            raise ValueError(f"{'El archivo' if len(missing) == 1 else 'Los archivos'} {', '.join(missing)} no "
+            raise InputError("ACT-004",
+                             f"{'El archivo' if len(missing) == 1 else 'Los archivos'} {', '.join(missing)} no "
                              f"{'tiene' if len(missing) == 1 else 'tienen'} fecha de estado: se debe indicar la fecha "
                              "de corte con --fecha-corte AAAA-MM-DD o definir Proyecto > Fecha de estado en MS "
                              "Project.")
         dates = {n: p.status_date.date() for n, p in projects.items()}
         if len(set(dates.values())) > 1:
-            raise ValueError("Los archivos tienen fechas de estado distintas ("
+            raise InputError("ACT-005", "Los archivos tienen fechas de estado distintas ("
                              + ", ".join(f"{n}: {d:%d/%m/%Y}" for n, d in dates.items()) + "): se debe indicar la "
                              "fecha de corte con --fecha-corte AAAA-MM-DD o definir la misma fecha de estado en MS "
                              "Project.")
         status = next(iter(dates.values()))
     idx = book.horizon.index(status)
     if not 0 <= idx < book.horizon.months:
-        raise ValueError(f"La fecha de corte {status:%d/%m/%Y} está fuera del horizonte del libro "
+        raise InputError("ACT-006", f"La fecha de corte {status:%d/%m/%Y} está fuera del horizonte del libro "
                          f"({book.horizon.start:%m/%Y} a {book.horizon.end:%m/%Y}).")
     if status != _month_end(status):
-        warnings.append("La fecha de corte no es el último día del mes: el PV acumulado incluye el mes completo.")
+        warnings.append(Issue("ACT-018", message="La fecha de corte no es el último día del mes: el PV acumulado "
+                                                 "incluye el mes completo."))
     for n, project in projects.items():
         if project.status_date and project.status_date.date() != status:
-            warnings.append(_tag(n, f"La fecha de estado de MS Project ({project.status_date:%d/%m/%Y}) difiere de "
-                                    f"la fecha de corte ({status:%d/%m/%Y}): el avance registrado en MS Project "
-                                    "debe corresponder a la fecha de corte."))
+            warnings.append(_tag(n, Issue("ACT-019", message=f"La fecha de estado de MS Project "
+                                                             f"({project.status_date:%d/%m/%Y}) difiere de la fecha de "
+                                                             f"corte ({status:%d/%m/%Y}): el avance registrado en MS "
+                                                             "Project debe corresponder a la fecha de corte.")))
     if book.status_date and status < book.status_date:
-        warnings.append(f"La fecha de corte ({status:%d/%m/%Y}) es anterior a la última cargada en el libro "
-                        f"({book.status_date:%d/%m/%Y}).")
+        warnings.append(Issue("ACT-020", message=f"La fecha de corte ({status:%d/%m/%Y}) es anterior a la última "
+                                                 f"cargada en el libro ({book.status_date:%d/%m/%Y})."))
 
     # Cada archivo asocia sus filas (el UniqueID se repite entre archivos)
     matches: dict[int, Task] = {}
@@ -703,48 +723,52 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
             if multi:
                 res.by_company[company_sheet(SHEET_EV, company)] = round(bac_c * month_value, 2)
             if month_value < -1e-9:
-                res.note = (res.note + "; " if res.note else "") + f"{sheet} del mes negativo (corrección)"
+                res.notes.append(Issue("ACT-027", s.code, s.name, f"{sheet} del mes negativo (corrección)"))
             if frac > 1e-9 and bac_c <= 0:
                 no_bac.append(f"{s.code} ({company})" if company else s.code)
             writes.append((sheet, s.row, FIRST_MONTH_COL + idx, month_value))
         rows.append(res)
 
     if later_filled and not force:
-        raise ValueError(
+        raise InputError(
+            "ACT-007",
             "Hay valores cargados en meses posteriores a la fecha de corte (" + ", ".join(later_filled[:10]) +
             ("..." if len(later_filled) > 10 else "") + "). Se deben borrar esos valores o usar --forzar.")
     if later_filled:
         months = [f"{book.horizon.month_start(i):%m/%Y}" for i in sorted(later_months)]
-        warnings.append(
+        warnings.append(Issue("ACT-021", message=(
             f"Se cargó la fecha de corte {status:%d/%m/%Y} con --forzar, pero hay valores en meses posteriores ("
             + ", ".join(months[:6]) + ("..." if len(months) > 6 else "") + "; filas " + ", ".join(later_filled[:10])
             + ("..." if len(later_filled) > 10 else "") + "). Esos valores se calcularon con el acumulado anterior: "
             "los acumulados de esos meses ya no coinciden con MS Project. Se deben revisar esos meses o volver a "
-            "cargarlos con 'actualizar' (fecha de corte de cada mes, en orden).")
+            "cargarlos con 'actualizar' (fecha de corte de cada mes, en orden).")))
 
     where = (f"las hojas {company_sheet(SHEET_PV, book.company_a)} y {company_sheet(SHEET_PV, book.company_b)}"
              if multi else f"la hoja {SHEET_PV}")
     if not any(book.bac[s.row] for s in book.input_rows):
-        warnings.append(f"Ninguna fila tiene BAC: el PV, el EV y los indicadores quedan en 0 hasta ingresar el "
-                        f"BAC de cada fila en la columna D de {where}.")
+        warnings.append(Issue("ACT-022", message=f"Ninguna fila tiene BAC: el PV, el EV y los indicadores quedan en 0 "
+                                                 f"hasta ingresar el BAC de cada fila en la columna D de {where}."))
     elif no_bac:
-        warnings.append(f"{plural(len(no_bac), 'fila tiene', 'filas tienen')} % ganado pero no "
-                        f"{'tiene' if len(no_bac) == 1 else 'tienen'} BAC: el EV no se puede valorar hasta "
-                        f"ingresar el BAC en la columna D de {where} (" + ", ".join(no_bac[:15]) +
-                        (f" y {len(no_bac) - 15} más" if len(no_bac) > 15 else "") + ").")
+        warnings.append(Issue("ACT-023", message=(
+            f"{plural(len(no_bac), 'fila tiene', 'filas tienen')} % ganado pero no "
+            f"{'tiene' if len(no_bac) == 1 else 'tienen'} BAC: el EV no se puede valorar hasta "
+            f"ingresar el BAC en la columna D de {where} (" + ", ".join(no_bac[:15]) +
+            (f" y {len(no_bac) - 15} más" if len(no_bac) > 15 else "") + ").")))
 
     if book.formula_gaps:
         cells = ", ".join(book.formula_gaps[:8])
         more = f" y {len(book.formula_gaps) - 8} más" if len(book.formula_gaps) > 8 else ""
-        warnings.append(f"Hay celdas sin la fórmula del libro (subtotales, fila TOTAL o suma de las empresas): "
-                        f"{cells}{more}. Los totales e indicadores del libro no coinciden con los que se muestran "
-                        "aquí: se deben restaurar esas fórmulas (por ejemplo, copiándolas de una celda vecina de la "
-                        "misma fila) o recuperar el libro desde un respaldo.")
+        warnings.append(Issue("ACT-024", message=(
+            f"Hay celdas sin la fórmula del libro (subtotales, fila TOTAL o suma de las empresas): "
+            f"{cells}{more}. Los totales e indicadores del libro no coinciden con los que se muestran "
+            "aquí: se deben restaurar esas fórmulas (por ejemplo, copiándolas de una celda vecina de la "
+            "misma fila) o recuperar el libro desde un respaldo.")))
 
     if book.fixable:
         cells = ", ".join(f"{sh}!{col(c)}{r}" for sh, r, c, _v, _why in book.fixable[:8])
         more = f" y {len(book.fixable) - 8} más" if len(book.fixable) > 8 else ""
-        warnings.append(f"Se reemplazaron por su valor numérico celdas de ingreso con texto o fórmulas: {cells}{more}.")
+        warnings.append(Issue("ACT-025", message=f"Se reemplazaron por su valor numérico celdas de ingreso con texto "
+                                                 f"o fórmulas: {cells}{more}."))
 
     # Valores en memoria (también en simulación, para mostrar los indicadores resultantes)
     pct_roles = {pct_sheet(SHEET_EV, company): role for role, company in book.roles()}
@@ -787,13 +811,14 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
                         schedule=plan)
 
 
-def _list_warnings(cfg: Config, book: BookData) -> list[str]:
+def _list_warnings(cfg: Config, book: BookData) -> list[Issue]:
     """La lista EDT de la configuración frente a la del libro: las filas se decidieron al generarlo."""
     if cfg.wbs_list is None or book.wbs_list == cfg.wbs_list:
         return []
     if book.wbs_list is None:
-        return ["La configuración indica lista_edt, pero el libro se generó sin lista EDT: se mantienen sus filas "
-                "(nivel máximo y campo Visible). Para aplicar la lista, se debe regenerar el libro con --migrar-desde."]
+        return [Issue("ACT-016", message="La configuración indica lista_edt, pero el libro se generó sin lista EDT: "
+                                         "se mantienen sus filas (nivel máximo y campo Visible). Para aplicar la "
+                                         "lista, se debe regenerar el libro con --migrar-desde.")]
     level = book_level(book, cfg)
 
     def norm(codes: list[str]) -> set[str]:
@@ -801,8 +826,9 @@ def _list_warnings(cfg: Config, book: BookData) -> list[str]:
 
     if norm(book.wbs_list) == norm(cfg.wbs_list):
         return []
-    return ["La lista EDT de la configuración cambió después de generar el libro: se usa la lista con la que se "
-            "generó. Para aplicar los cambios, se debe regenerar el libro con --migrar-desde."]
+    return [Issue("ACT-017", message="La lista EDT de la configuración cambió después de generar el libro: se usa la "
+                                     "lista con la que se generó. Para aplicar los cambios, se debe regenerar el libro "
+                                     "con --migrar-desde.")]
 
 
 def _schedule(book: BookData, projects: dict[str, ProjectData], calendars: dict[str, object],
@@ -870,16 +896,19 @@ def run_analysis(cfg: Config, book_path: str | Path, backup: bool = True) -> Upd
     book = read_book(book_path, wb, allow_fix=True)
     check_sheets(wb.sheetnames, book.meta, charts=True)
     if book.status_date is None:
-        raise ValueError("El libro no tiene fecha de corte (hoja Resumen, celda B5): se debe ejecutar 'actualizar' "
+        raise InputError("ACT-008",
+                         "El libro no tiene fecha de corte (hoja Resumen, celda B5): se debe ejecutar 'actualizar' "
                          "antes de 'analizar'.")
     idx = book.horizon.index(book.status_date)
     if not 0 <= idx < book.horizon.months:
-        raise ValueError(f"La fecha de corte {book.status_date:%d/%m/%Y} está fuera del horizonte del libro.")
-    warnings = []
+        raise InputError("ACT-006",
+                         f"La fecha de corte {book.status_date:%d/%m/%Y} está fuera del horizonte del libro.")
+    warnings: list[Issue] = []
     if book.fixable:
         cells = ", ".join(f"{sh}!{col(c)}{r}" for sh, r, c, _v, _why in book.fixable[:8])
         more = f" y {len(book.fixable) - 8} más" if len(book.fixable) > 8 else ""
-        warnings.append(f"Se reemplazaron por su valor numérico celdas de ingreso con texto o fórmulas: {cells}{more}.")
+        warnings.append(Issue("ACT-025", message=f"Se reemplazaron por su valor numérico celdas de ingreso con texto "
+                                                 f"o fórmulas: {cells}{more}."))
         for sheet, r, c, v, _why in book.fixable:
             wb[sheet].cell(row=r, column=c, value=v)
     progress.stage("analizar", "Análisis de desviaciones")
@@ -955,6 +984,6 @@ def indicators_for(book: BookData, status: date):
     pv, ev, ac, bac = book_totals(book)
     idx = book.horizon.index(status)
     if not 0 <= idx < book.horizon.months:
-        raise ValueError(f"La fecha de corte {status:%d/%m/%Y} está fuera del horizonte del libro.")
+        raise InputError("ACT-006", f"La fecha de corte {status:%d/%m/%Y} está fuera del horizonte del libro.")
     loaded = [any(book.ev[s.row][i] is not None for s in book.input_rows) for i in range(book.horizon.months)]
     return compute(pv, ev, ac, bac, idx, loaded)

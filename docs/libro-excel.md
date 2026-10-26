@@ -208,9 +208,9 @@ al actualizar y con `--migrar-desde`. Ver [Análisis de desviaciones](analisis-d
 
 ### Validación
 
-Advertencias y observaciones de la exportación, con su severidad (`Info`, `Advertencia`, `Error`), el
-código EDT, la tarea afectada y el tema (columna E, para filtrar). Ver
-[Validaciones](validaciones-y-problemas.md#1-validaciones). El comando `validar` muestra en pantalla las
+Advertencias y observaciones de la exportación, con su severidad (`Info`, `Advertencia`, `Error`), su
+código (columna B, explicado en [Códigos de errores y advertencias](codigos.md)), el código EDT, la tarea
+afectada y el tema (columna F, para filtrar). Ver [Validaciones](validaciones-y-problemas.md#1-validaciones). El comando `validar` muestra en pantalla las
 mismas observaciones, y además las del avance y la lógica del cronograma, sin crear el libro.
 
 ![Hoja Validación](img/excel/validacion.png)

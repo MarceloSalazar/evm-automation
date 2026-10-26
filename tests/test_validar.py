@@ -509,7 +509,7 @@ def test_cli_validar_reports_errors_and_creates_no_file(tmp_path, capsys):
     assert main(["validar", "--origen", str(path)]) == 1
     out = capsys.readouterr().out
     assert "Estructura y códigos EDT: 1 error" in out
-    assert "[X] 1.14.2 Mal: El código EDT no depende" in out
+    assert "[X] EDT-005 1.14.2 Mal: El código EDT no depende" in out
     assert "Fecha de estado: 27/02/2026" in out
     assert "Lógica del cronograma: 1 advertencia" in out
     assert "No se creó ni se modificó ningún archivo." in out
@@ -568,8 +568,8 @@ def test_generar_writes_topic_and_new_checks(tmp_path):
     out = tmp_path / "libro.xlsx"
     assert main(["generar", "--origen", str(path), "--salida", str(out)]) == 0
     ws = load_workbook(out)["Validación"]
-    assert ws.cell(row=3, column=5).value == "Tema"
+    assert [ws.cell(row=3, column=c).value for c in (2, 6)] == ["Código", "Tema"]
     rows = [r for r in ws.iter_rows(min_row=4, values_only=True) if r[0]]
-    assert ("Error", "1.14.2", "Mal") == rows[[r[1] for r in rows].index("1.14.2")][:3]
-    assert {r[4] for r in rows} >= {TOPIC_WBS}
-    assert not [r for r in rows if r[4] in (TOPIC_PROGRESS, TOPIC_LOGIC)]     # solo en validar
+    assert ("Error", "EDT-005", "1.14.2", "Mal") == rows[[r[2] for r in rows].index("1.14.2")][:4]
+    assert {r[5] for r in rows} >= {TOPIC_WBS}
+    assert not [r for r in rows if r[5] in (TOPIC_PROGRESS, TOPIC_LOGIC)]     # solo en validar

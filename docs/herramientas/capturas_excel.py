@@ -57,7 +57,7 @@ SINGLE = [
     ("ac", "AC", "$A$1:$AD$41", {"landscape": True, "headings": True, "hide": "G:R"}),
     ("evolucion-mensual", "Evolución mensual", "$A$1:$O$28", {"landscape": True}),
     ("indicadores-edt", "Indicadores EDT", "$A$1:$U$41", {"landscape": True}),
-    ("validacion", "Validación", "$A$1:$D$9", {"landscape": True}),
+    ("validacion", "Validación", "$A$1:$E$9", {"landscape": True}),
     ("listas", "Listas", "$A$1:$B$11", {"width": ("B", 150)}),
     ("cdm-mes-anterior", "Cuadro de Mando", "$B$1:$U$54", {"date": ("E5", dt.datetime(2027, 6, 1))}),
     ("cdm-eac-alternativo", "Cuadro de Mando", "$B$1:$U$22",
@@ -83,12 +83,12 @@ MULTI = [
     ("multi-pv-empresa-a", "PV-EmpresaA", "$A$1:$P$41", {"landscape": True, "headings": True}),
     ("multi-pct-pv-empresa-a", "% PV-EmpresaA", "$A$1:$P$41", {"landscape": True, "headings": True}),
     ("multi-ev-empresa-b", "EV-EmpresaB", "$A$1:$AD$41", {"landscape": True, "headings": True, "hide": "G:R"}),
-    ("multi-validacion", "Validación", "$A$1:$D$11", {"landscape": True}),
+    ("multi-validacion", "Validación", "$A$1:$E$11", {"landscape": True}),
 ]
 SEVERAL = [
     ("varios-cdm", "Cuadro de Mando", "$B$1:$U$22", {}),
     ("varios-pv", "PV", "$A$1:$P$49", {"landscape": True, "headings": True, "hide_rows": "5:33"}),
-    ("varios-validacion", "Validación", "$A$1:$D$10", {"landscape": True}),
+    ("varios-validacion", "Validación", "$A$1:$E$10", {"landscape": True}),
 ]
 # Depuración de costes (horizonte de 120 meses): meses 1 a 9, total e indicador de alineamiento
 REVIEW = [

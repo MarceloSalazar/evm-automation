@@ -603,8 +603,8 @@ Código           EV del mes     EV acumulado
 3.1.1               416.000        2.208.000
 ...
 Observaciones por fila:
-  4.2.2 Cierre administrativo: método no definido: se usó % completado
-  [i] El AC se carga a mano en la hoja 'AC'; los indicadores de costo usan los valores cargados.
+  [i] ACT-034 4.2.2 Cierre administrativo: método no definido: se usó % completado
+  [i] ACT-026 El AC se carga a mano en la hoja 'AC'; los indicadores de costo usan los valores cargados.
 ...
 BAC (EUR)              44.210.000
 PV acumulado             12.092.032   % planificado 27,4 %

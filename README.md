@@ -176,6 +176,7 @@ El [tutorial](docs/ejemplo-paso-a-paso.md) recorre el ciclo completo con 24 mese
 | `validar`, `generar`, `actualizar`, `analizar`, `generar-fichas` (fichas de tareas para el cliente) y sus opciones | [Comandos y opciones](docs/comandos.md) |
 | `config.toml` | [Configuración](docs/configuracion.md) |
 | Comando `validar`, hoja `Validación`, limitaciones y mensajes de error | [Validaciones y solución de problemas](docs/validaciones-y-problemas.md) |
+| Código de cada error y advertencia (`FEC-003`...), qué hacer y cómo silenciarlo | [Códigos de errores y advertencias](docs/codigos.md) |
 | Siglas EVM y campos de MS Project en español | [Glosario](docs/glosario.md) |
 | Microsoft, PMI, GAO y otras referencias | [Recursos externos](docs/recursos-externos.md) |
 | Pruebas, estructura del código, flujo del repositorio, versiones e instalador de Windows | [Desarrollo](docs/desarrollo.md) |

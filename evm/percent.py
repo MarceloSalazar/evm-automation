@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time
 
 from evm.fields import fmt_number
+from evm.messages import Issue
 from evm.methods import FIXED, LOE, MILESTONES, PCT, PHYSICAL, UNDEFINED, UNITS, Method, is_complete, is_started
 from evm.model import MonthKey, Task
 from evm.timeline import add_into
@@ -52,7 +53,7 @@ class RowWeights:
 
     weights: dict[int, float]                       # UniqueID -> peso
     members: list[TaskTime]                         # tareas en las que participa la empresa
-    notes: list[str] = field(default_factory=list)  # observaciones para la hoja Validación
+    notes: list[Issue] = field(default_factory=list)    # observaciones para la hoja Validación (sin la fila)
     fallback: bool = False                          # la empresa no participa: pesos de la fila completa
 
 
@@ -122,13 +123,13 @@ def row_weights(times: list[TaskTime], share: Share | None = None, company: str 
     if not members:
         return None
     who = f" de {company}" if company else ""
-    notes: list[str] = []
+    notes: list[Issue] = []
     milestones = [tt for tt in members if tt.task.milestone]
     tasks = [tt for tt in members if not tt.task.milestone]
     negative = [tt for tt in milestones if (tt.task.milestone_weight or 0.0) < 0]
     if negative:
-        notes.append(f"{len(negative)} {'hito' if len(negative) == 1 else 'hitos'}{who} con 'Peso hito' negativo: "
-                     "se toma como 0.")
+        notes.append(Issue("HIT-006", message=f"{len(negative)} {'hito' if len(negative) == 1 else 'hitos'}{who} "
+                                              "con 'Peso hito' negativo: se toma como 0."))
     m_weight = {tt.task.uid: max(0.0, float(tt.task.milestone_weight or 0.0)) for tt in milestones if tt.dist}
     m_total = sum(m_weight.values())
     d_weight = {tt.task.uid: tt.minutes * part[tt.task.uid] for tt in tasks if tt.minutes > 0 and tt.dist}
@@ -136,11 +137,12 @@ def row_weights(times: list[TaskTime], share: Share | None = None, company: str 
     weights: dict[int, float] = {}
     if m_total > TOL and (m_total >= 100 - TOL or d_total <= TOL):
         if m_total > 100 + TOL:
-            notes.append(f"Los pesos de los hitos{who} suman {fmt_number(m_total, trim=True)} %: se escalaron a "
-                         "100 % y las tareas sin hito no reciben % planificado.")
+            notes.append(Issue("HIT-007", message=f"Los pesos de los hitos{who} suman {fmt_number(m_total, trim=True)} "
+                                                  "%: se escalaron a 100 % y las tareas sin hito no reciben % "
+                                                  "planificado."))
         elif m_total < 100 - TOL:
-            notes.append(f"Los pesos de los hitos{who} suman {fmt_number(m_total, trim=True)} % y la fila no tiene "
-                         "tareas con duración: se escalaron a 100 %.")
+            notes.append(Issue("HIT-008", message=f"Los pesos de los hitos{who} suman {fmt_number(m_total, trim=True)} "
+                                                  "% y la fila no tiene tareas con duración: se escalaron a 100 %."))
         weights = {uid: p / m_total for uid, p in m_weight.items() if p > 0}
     elif m_total > TOL or d_total > TOL:
         weights = {uid: p / 100.0 for uid, p in m_weight.items() if p > 0}
@@ -151,7 +153,8 @@ def row_weights(times: list[TaskTime], share: Share | None = None, company: str 
     else:
         dated = [tt for tt in members if tt.dist]
         if dated:
-            notes.append(f"Las tareas{who} no tienen duración ni hitos con peso: todas pesan igual.")
+            notes.append(Issue("HIT-009", message=f"Las tareas{who} no tienen duración ni hitos con peso: todas "
+                                                  "pesan igual."))
             weights = {tt.task.uid: 1.0 / len(dated) for tt in dated}
     return RowWeights(weights, members, notes)
 
@@ -202,8 +205,8 @@ def _weighted_progress(rw: RowWeights, physical: bool) -> float:
     return 0.0
 
 
-def earned_fraction(method: Method, rw: RowWeights, pv_fraction: float) -> tuple[float, str]:
-    """% ganado (0 a 1) de una empresa en una fila a la fecha de corte y una nota explicativa.
+def earned_fraction(method: Method, rw: RowWeights, pv_fraction: float) -> tuple[float, Issue | None]:
+    """% ganado (0 a 1) de una empresa en una fila a la fecha de corte y una nota explicativa (sin la fila).
 
     rw: pesos de la empresa (o de la fila completa); pv_fraction: % planificado acumulado de la empresa a la
     fecha de corte (para el avance lineal).
@@ -212,31 +215,35 @@ def earned_fraction(method: Method, rw: RowWeights, pv_fraction: float) -> tuple
     kind = method.kind
     if kind == FIXED:
         if members and all(is_complete(t) for t in members):
-            return 1.0, ""
+            return 1.0, None
         if any(is_started(t) for t in members):
-            return method.start_fraction, ""
-        return 0.0, ""
+            return method.start_fraction, None
+        return 0.0, None
     if kind == PCT:
-        return _weighted_progress(rw, False), ""
+        return _weighted_progress(rw, False), None
     if kind in (PHYSICAL, UNITS):
-        return _weighted_progress(rw, True), ""
+        return _weighted_progress(rw, True), None
     if kind == LOE:
-        return max(0.0, min(1.0, pv_fraction)), ""
+        return max(0.0, min(1.0, pv_fraction)), None
     if kind == MILESTONES:
         milestones = [t for t in members if t.milestone]
         if milestones:
             negative = any((t.milestone_weight or 0.0) < 0 for t in milestones)
             weights = [(t, max(0.0, float(t.milestone_weight or 0.0))) for t in milestones]
+            note = None
             if not any(w > 0 for _, w in weights):
                 weights = [(t, 1.0) for t in milestones]
-                note = ("hitos sin peso válido (pesos negativos): se ponderaron por igual" if negative
-                        else "hitos sin peso definido: se ponderaron por igual")
-            else:
-                note = "hitos con peso negativo: se tomaron con peso 0" if negative else ""
+                note = (Issue("ACT-029", message="hitos sin peso válido (pesos negativos): se ponderaron por igual")
+                        if negative else Issue("ACT-030", message="hitos sin peso definido: se ponderaron por igual"))
+            elif negative:
+                note = Issue("ACT-031", message="hitos con peso negativo: se tomaron con peso 0")
             total = sum(w for _, w in weights)
             return sum(w for t, w in weights if is_complete(t)) / total, note
         if any(t.physical_percent_complete > 0 for t in members):
-            return _weighted_progress(rw, True), "sin hitos: se usó % físico completado"
-        return _weighted_progress(rw, False), "sin hitos ni % físico completado: se usó % completado"
-    note = "método no definido" if kind == UNDEFINED else f"método no reconocido '{method.text}'"
-    return _weighted_progress(rw, False), note + ": se usó % completado"
+            return _weighted_progress(rw, True), Issue("ACT-032", message="sin hitos: se usó % físico completado")
+        return _weighted_progress(rw, False), Issue("ACT-033", message="sin hitos ni % físico completado: se usó % "
+                                                                       "completado")
+    if kind == UNDEFINED:
+        return _weighted_progress(rw, False), Issue("ACT-034", message="método no definido: se usó % completado")
+    return _weighted_progress(rw, False), Issue("ACT-035", message=f"método no reconocido '{method.text}': se usó % "
+                                                                   "completado")

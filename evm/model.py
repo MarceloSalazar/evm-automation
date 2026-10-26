@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from evm.messages import Issue
+
 # Clave de mes: (año, mes)
 MonthKey = tuple[int, int]
 
@@ -97,7 +99,7 @@ class ProjectData:
     project_start: datetime | None = None
     baseline_label: str = "Línea base"
     baseline_found: bool = True          # False => se usaron las fechas actuales
-    warnings: list[str] = field(default_factory=list)
+    warnings: list[Issue] = field(default_factory=list)   # avisos de la lectura (LEC-...)
     calendar: object | None = None                # WorkCalendar del proyecto (motor XML)
     minutes_per_day: float = 480.0                # minutos de un día de duración (Opciones > Programación)
     # Campos configurados que existen en el archivo ([campos] y [multiempresa]): clave de la configuración ->

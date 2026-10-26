@@ -6,6 +6,8 @@ from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from pathlib import Path
 
+from evm.messages import EvmError
+
 try:  # Python 3.11+
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover
@@ -32,7 +34,7 @@ DEFAULT_METHODS = [
 ]
 
 
-class ConfigError(ValueError):
+class ConfigError(EvmError, ValueError):
     """Error en el archivo de configuración o en los parámetros."""
 
 
@@ -43,10 +45,10 @@ def parse_month(text: str) -> date:
     """Convierte 'AAAA-MM' (o 'AAAA-MM-DD') al primer día de ese mes."""
     m = re.fullmatch(r"\s*(\d{4})-(\d{1,2})(?:-(\d{1,2}))?\s*", text or "")
     if not m:
-        raise ConfigError(f"Mes inválido '{text}'. El formato debe ser AAAA-MM, por ejemplo 2026-01.")
+        raise ConfigError("CFG-007", f"Mes inválido '{text}'. El formato debe ser AAAA-MM, por ejemplo 2026-01.")
     year, month = int(m.group(1)), int(m.group(2))
     if not 1 <= month <= 12:
-        raise ConfigError(f"Mes inválido '{text}'.")
+        raise ConfigError("CFG-007", f"Mes inválido '{text}'.")
     return date(year, month, 1)
 
 
@@ -65,7 +67,7 @@ def parse_date(text: str) -> date:
             return date(*parts)
         except ValueError:
             pass
-    raise ConfigError(f"Fecha inválida '{text}'. El formato debe ser AAAA-MM-DD, por ejemplo 2026-10-31.")
+    raise ConfigError("CFG-008", f"Fecha inválida '{text}'. El formato debe ser AAAA-MM-DD, por ejemplo 2026-10-31.")
 
 
 @dataclass
@@ -144,6 +146,8 @@ class Config:
     # cuales se avisa que un paquete con 0/100 (o con 50/50, 25/75, 20/80...) es largo para ese método; 0 = no se avisa
     max_months_0_100: float = 1.0         # meses_0_100
     max_months_fixed: float = 2.0         # meses_formula_fija
+    # silenciar (y --silenciar): códigos de las observaciones que no se muestran ('FEC-003' o 'FEC-003:1.2.3')
+    silence: list[str] = field(default_factory=list)
 
     # [[proyectos]] -- varios archivos de MS Project en un mismo libro (vacío = un solo archivo)
     projects: list[ProjectSpec] = field(default_factory=list)
@@ -180,18 +184,19 @@ class Config:
 
     def validate(self) -> None:
         if not 1 <= self.max_level <= 10:
-            raise ConfigError("nivel_maximo debe estar entre 1 y 10.")
+            raise ConfigError("CFG-009", "nivel_maximo debe estar entre 1 y 10.")
         if not 1 <= self.months <= 600:
-            raise ConfigError("meses debe estar entre 1 y 600.")
+            raise ConfigError("CFG-010", "meses debe estar entre 1 y 600.")
         if self.baseline is not None and not 0 <= self.baseline <= 10:
-            raise ConfigError("linea_base debe estar entre 0 y 10.")
+            raise ConfigError("CFG-011", "linea_base debe estar entre 0 y 10.")
         if self.distribution not in ("habiles", "calendario"):
-            raise ConfigError("distribucion debe ser 'habiles' o 'calendario'.")
+            raise ConfigError("CFG-012", "distribucion debe ser 'habiles' o 'calendario'.")
         if not 0 <= self.decimals <= 4:
-            raise ConfigError("decimales debe estar entre 0 y 4.")
+            raise ConfigError("CFG-013", "decimales debe estar entre 0 y 4.")
         if not (0 < self.threshold_red <= self.threshold_yellow < self.threshold_yellow_upper
                 <= self.threshold_red_upper):
-            raise ConfigError("Los umbrales del semáforo deben cumplir 0 < rojo_inferior <= amarillo_inferior < "
+            raise ConfigError("CFG-014",
+                              "Los umbrales del semáforo deben cumplir 0 < rojo_inferior <= amarillo_inferior < "
                               "amarillo_superior <= rojo_superior (por defecto 0,90 / 0,95 / 1,05 / 1,10).")
         if self.default_method and self.default_method not in self.methods:
             self.methods_list = [self.default_method] + self.methods
@@ -199,20 +204,22 @@ class Config:
             from evm.fields import same_name
             for key, name in (("empresa_a", self.company_a), ("empresa_b", self.company_b)):
                 if not name:
-                    raise ConfigError(f"[multiempresa] {key} no puede estar vacío.")
+                    raise ConfigError("CFG-019", f"[multiempresa] {key} no puede estar vacío.")
                 if len(name) > 15:
-                    raise ConfigError(f"[multiempresa] {key} = '{name}' supera los 15 caracteres permitidos.")
+                    raise ConfigError("CFG-020",
+                                      f"[multiempresa] {key} = '{name}' supera los 15 caracteres permitidos.")
                 bad = [ch for ch in name if ch in INVALID_SHEET_CHARS or ch == "'"]
                 if bad:
-                    raise ConfigError(f"[multiempresa] {key} = '{name}' contiene caracteres no admitidos en "
+                    raise ConfigError("CFG-021", f"[multiempresa] {key} = '{name}' contiene caracteres no admitidos en "
                                       f"nombres de hoja: {' '.join(sorted(set(bad)))}")
             if same_name(self.company_a, self.company_b):
-                raise ConfigError("[multiempresa] empresa_a y empresa_b deben ser distintas.")
+                raise ConfigError("CFG-022", "[multiempresa] empresa_a y empresa_b deben ser distintas.")
             if not self.company_both or any(same_name(self.company_both, n)
                                             for n in (self.company_a, self.company_b)):
-                raise ConfigError("[multiempresa] ambas debe tener un valor distinto de los nombres de las empresas.")
+                raise ConfigError("CFG-023",
+                                  "[multiempresa] ambas debe tener un valor distinto de los nombres de las empresas.")
             if not 0 <= self.split_default <= 100:
-                raise ConfigError("[multiempresa] reparto_por_defecto debe estar entre 0 y 100.")
+                raise ConfigError("CFG-024", "[multiempresa] reparto_por_defecto debe estar entre 0 y 100.")
             if self.cost_review:
                 company = self.cost_review_company.strip()
                 if not company:
@@ -222,32 +229,36 @@ class Config:
                 elif same_name(company, self.company_b):
                     self.cost_review_company = self.company_b
                 else:
-                    raise ConfigError(f"depuracion_empresa = '{company}' no es una de las empresas de [multiempresa]: "
+                    raise ConfigError("CFG-025",
+                                      f"depuracion_empresa = '{company}' no es una de las empresas de [multiempresa]: "
                                       f"debe ser '{self.company_a}' o '{self.company_b}'.")
         for key, value in (("meses_0_100", self.max_months_0_100), ("meses_formula_fija", self.max_months_fixed)):
             if not 0 <= value <= 120:
-                raise ConfigError(f"[validacion] {key} debe estar entre 0 y 120 meses (0 = no se controla).")
+                raise ConfigError("CFG-016", f"[validacion] {key} debe estar entre 0 y 120 meses (0 = no se controla).")
         if not 0 < self.cost_review_threshold <= 100:
-            raise ConfigError("depuracion_umbral debe ser un % mayor que 0 y como máximo 100 (por defecto 10).")
+            raise ConfigError("CFG-026",
+                              "depuracion_umbral debe ser un % mayor que 0 y como máximo 100 (por defecto 10).")
         if self.projects:
             from evm.fields import same_name
             seen: list[str] = []
             for p in self.projects:
                 if not p.name:
-                    raise ConfigError("[[proyectos]]: cada archivo debe tener un 'nombre' (p. ej. \"P1\").")
+                    raise ConfigError("CFG-027", "[[proyectos]]: cada archivo debe tener un 'nombre' (p. ej. \"P1\").")
                 if len(p.name) > MAX_PROJECT_NAME or any(ch in p.name for ch in ":;"):
-                    raise ConfigError(f"[[proyectos]] nombre = '{p.name}': debe tener como máximo {MAX_PROJECT_NAME} "
+                    raise ConfigError("CFG-028",
+                                      f"[[proyectos]] nombre = '{p.name}': debe tener como máximo {MAX_PROJECT_NAME} "
                                       "caracteres, sin ':' ni ';'.")
                 if any(same_name(p.name, n) for n in seen):
-                    raise ConfigError(f"[[proyectos]]: el nombre '{p.name}' está repetido.")
+                    raise ConfigError("CFG-029", f"[[proyectos]]: el nombre '{p.name}' está repetido.")
                 seen.append(p.name)
                 if not p.origin:
-                    raise ConfigError(f"[[proyectos]] '{p.name}': falta 'origen' (archivo .mpp o .xml).")
+                    raise ConfigError("CFG-030", f"[[proyectos]] '{p.name}': falta 'origen' (archivo .mpp o .xml).")
                 if p.origin.strip().lower() == "activo":
-                    raise ConfigError(f"[[proyectos]] '{p.name}': con varios archivos no se admite 'activo'; se debe "
+                    raise ConfigError("CFG-031",
+                                      f"[[proyectos]] '{p.name}': con varios archivos no se admite 'activo'; se debe "
                                       "indicar la ruta del archivo .mpp o .xml.")
                 if p.baseline is not None and not 0 <= p.baseline <= 10:
-                    raise ConfigError(f"[[proyectos]] '{p.name}': linea_base debe estar entre 0 y 10.")
+                    raise ConfigError("CFG-011", f"[[proyectos]] '{p.name}': linea_base debe estar entre 0 y 10.")
 
 
 def _get(section: dict, key: str, default, kind):
@@ -255,20 +266,29 @@ def _get(section: dict, key: str, default, kind):
     if value is None:
         return default
     if kind is bool and not isinstance(value, bool):
-        raise ConfigError(f"'{key}' debe ser true o false.")
+        raise ConfigError("CFG-004", f"'{key}' debe ser true o false.")
     if kind in (int, float) and (isinstance(value, bool) or not isinstance(value, (int, float))):
-        raise ConfigError(f"'{key}' debe ser numérico.")
+        raise ConfigError("CFG-004", f"'{key}' debe ser numérico.")
     if kind is int and isinstance(value, float) and not value.is_integer():
-        raise ConfigError(f"'{key}' debe ser un número entero (sin decimales).")
+        raise ConfigError("CFG-004", f"'{key}' debe ser un número entero (sin decimales).")
     if kind is str and not isinstance(value, str):
-        raise ConfigError(f"'{key}' debe ser texto.")
+        raise ConfigError("CFG-004", f"'{key}' debe ser texto.")
     return kind(value)
+
+
+def silence_list(value, key: str) -> list[str]:
+    """Códigos a silenciar: una lista de textos o un texto con los códigos separados por comas."""
+    if isinstance(value, str):
+        value = value.split(",")
+    if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
+        raise ConfigError("CFG-004", f"'{key}' debe ser una lista de códigos, p. ej. [\"FEC-003\", \"LOG-004\"].")
+    return [x.strip() for x in value if x.strip()]
 
 
 def _section(data: dict, name: str) -> dict:
     value = data.get(name, {})
     if not isinstance(value, dict):
-        raise ConfigError(f"[{name}] debe ser una sección: una línea [{name}] seguida de sus claves "
+        raise ConfigError("CFG-005", f"[{name}] debe ser una sección: una línea [{name}] seguida de sus claves "
                           f"(se encontró '{name} = ...').")
     return value
 
@@ -280,7 +300,8 @@ def _projects(data: dict, base: Path) -> list[ProjectSpec]:
     if items is None:
         return []
     if not isinstance(items, list) or not all(isinstance(x, dict) for x in items):
-        raise ConfigError("Los archivos de MS Project se indican con una sección [[proyectos]] (con dos corchetes) "
+        raise ConfigError("CFG-006",
+                          "Los archivos de MS Project se indican con una sección [[proyectos]] (con dos corchetes) "
                           "por archivo, cada una con 'nombre' y 'origen'.")
     out = []
     for item in items:
@@ -302,11 +323,11 @@ def read_wbs_list(path: str | Path) -> list[str]:
     o sin BOM), UTF-16 (texto Unicode de Excel) y ANSI."""
     path = Path(path)
     if not path.is_file():
-        raise ConfigError(f"No se encontró el archivo de la lista EDT (lista_edt): {path}")
+        raise ConfigError("CFG-032", f"No se encontró el archivo de la lista EDT (lista_edt): {path}")
     try:
         data = path.read_bytes()
     except OSError as exc:
-        raise ConfigError(f"No se pudo leer el archivo de la lista EDT (lista_edt) {path}: {exc}") from exc
+        raise ConfigError("CFG-033", f"No se pudo leer el archivo de la lista EDT (lista_edt) {path}: {exc}") from exc
     if data.startswith((b"\xff\xfe", b"\xfe\xff")):
         text = data.decode("utf-16", errors="replace")
     else:
@@ -325,7 +346,8 @@ def read_wbs_list(path: str | Path) -> list[str]:
             seen.add(code)
             codes.append(code)
     if not codes:
-        raise ConfigError(f"El archivo de la lista EDT (lista_edt) no tiene códigos: {path}. Se debe escribir un "
+        raise ConfigError("CFG-034",
+                          f"El archivo de la lista EDT (lista_edt) no tiene códigos: {path}. Se debe escribir un "
                           "código EDT por línea (por ejemplo 1.0.0, 1.1.0, 1.1.1).")
     return codes
 
@@ -337,16 +359,17 @@ def load_config(path: str | Path | None) -> Config:
         return cfg
     path = Path(path)
     if not path.is_file():
-        raise ConfigError(f"No se encontró el archivo de configuración: {path}")
+        raise ConfigError("CFG-001", f"No se encontró el archivo de configuración: {path}")
     try:
         text = path.read_text(encoding="utf-8-sig")       # admite UTF-8 con BOM (Bloc de notas)
     except UnicodeDecodeError as exc:
-        raise ConfigError(f"El archivo de configuración {path} no está guardado en UTF-8. Se debe guardar con "
+        raise ConfigError("CFG-002",
+                          f"El archivo de configuración {path} no está guardado en UTF-8. Se debe guardar con "
                           "codificación UTF-8 (en el Bloc de notas: Guardar como > Codificación: UTF-8).") from exc
     try:
         data = tomllib.loads(text)
     except tomllib.TOMLDecodeError as exc:
-        raise ConfigError(f"Error de sintaxis en {path}: {exc}") from exc
+        raise ConfigError("CFG-003", f"Error de sintaxis en {path}: {exc}") from exc
 
     campos = _section(data, "campos")
     cfg.wbs_field = _get(campos, "edt", cfg.wbs_field, str).strip() or "WBS"
@@ -377,7 +400,7 @@ def load_config(path: str | Path | None) -> Config:
     cfg.distribution = _get(exp, "distribucion", cfg.distribution, str).strip().lower()
     feriados = exp.get("feriados", [])
     if not isinstance(feriados, list):
-        raise ConfigError("'feriados' debe ser una lista de fechas.")
+        raise ConfigError("CFG-017", "'feriados' debe ser una lista de fechas.")
     cfg.holidays = {f.date() if isinstance(f, datetime) else f if isinstance(f, date) else parse_date(str(f))
                     for f in feriados}
     cfg.default_method = _get(exp, "metodo_por_defecto", cfg.default_method, str).strip()
@@ -393,13 +416,14 @@ def load_config(path: str | Path | None) -> Config:
     lista = met.get("lista")
     if lista is not None:
         if not isinstance(lista, list) or not all(isinstance(x, str) for x in lista):
-            raise ConfigError("[metodos] lista debe ser una lista de textos.")
+            raise ConfigError("CFG-018", "[metodos] lista debe ser una lista de textos.")
         cfg.methods_list = [x.strip() for x in lista if x.strip()]
 
     sem = _section(data, "semaforo")
     for key, alias in (("rojo_inferior", "rojo"), ("amarillo_inferior", "amarillo")):
         if key in sem and alias in sem:
-            raise ConfigError(f"[semaforo]: se indicó '{key}' y '{alias}', que son la misma clave ('{alias}' es el "
+            raise ConfigError("CFG-015",
+                              f"[semaforo]: se indicó '{key}' y '{alias}', que son la misma clave ('{alias}' es el "
                               f"nombre anterior). Se debe dejar solo '{key}'.")
     cfg.threshold_red = _get(sem, "rojo_inferior" if "rojo_inferior" in sem else "rojo", cfg.threshold_red, float)
     cfg.threshold_yellow = _get(sem, "amarillo_inferior" if "amarillo_inferior" in sem else "amarillo",
@@ -410,6 +434,7 @@ def load_config(path: str | Path | None) -> Config:
     val = _section(data, "validacion")
     cfg.max_months_0_100 = _get(val, "meses_0_100", cfg.max_months_0_100, float)
     cfg.max_months_fixed = _get(val, "meses_formula_fija", cfg.max_months_fixed, float)
+    cfg.silence = silence_list(val.get("silenciar", []), "silenciar")
 
     mul = _section(data, "multiempresa")
     cfg.multi_enabled = _get(mul, "activar", cfg.multi_enabled, bool)

@@ -19,7 +19,11 @@
 
 `generar` informa en la hoja **Validación** (y en la consola) las observaciones de la exportación, con
 su severidad: `Info` (informativo), `Advertencia` (se debe revisar) o `Error` (dato incorrecto en MS
-Project que se debe corregir, o dato que no se pudo trasladar o calcular). La columna `Tema` agrupa las
+Project que se debe corregir, o dato que no se pudo trasladar o calcular). Cada observación tiene un
+**código** (columna `Código`, por ejemplo `EDT-005`): la lista completa de códigos, con la causa y qué
+hacer en cada caso, está en [Códigos de errores y advertencias](codigos.md), y las observaciones ya
+revisadas se pueden silenciar con `[validacion] silenciar` o `--silenciar`
+([Silenciar observaciones](codigos.md#2-silenciar-observaciones)). La columna `Tema` agrupa las
 observaciones (*Estructura y códigos EDT*, *Fechas y duración*, *Hitos y pesos*, *Método de medición*,
 *Empresas*...) y permite filtrarlas. Las tareas sin código EDT se identifican por su Id de MS Project
 (por ejemplo, `Hito: bases aprobadas (Id 17)`).
@@ -170,7 +174,7 @@ cuando cambia el avance.
 | La curva no muestra EV/AC | Se debe completar la fecha de corte en `Resumen!B5`. |
 | `No se encontró la planificación ...` | El mensaje lista las tareas de nivel superior con su código EDT; se debe indicar en `planificacion` uno de esos códigos. `validar` lo informa y revisa el proyecto completo. |
 | `El código EDT no depende del de su tarea superior ...` | El código de la tarea no empieza por el de su tarea resumen con código EDT, o no tiene un nivel más (se esperaba `1.2.x` bajo `1.2.0`). Se debe corregir el código en MS Project. |
-| Un comando termina con código 1, 2 o 3 | Código 1: `validar` encontró errores (`[X]`); con solo advertencias termina con código 0. Código 2: el mensaje `ERROR: ...` indica la causa (configuración, archivo, libro abierto en Excel, opción mal escrita). Código 3: error inesperado (`ERROR inesperado: ...`); se debe ejecutar de nuevo con `-v` e informarlo en un ticket con ese detalle ([Códigos de salida](comandos.md#códigos-de-salida)). |
+| Un comando termina con código 1, 2 o 3 | Código 1: `validar` encontró errores (`[X]`); con solo advertencias termina con código 0. Código 2: el mensaje `ERROR CFG-001: ...` indica la causa (configuración, archivo, libro abierto en Excel, opción mal escrita) y su [código](codigos.md). Código 3: error inesperado (`ERROR SIS-001: error inesperado: ...`); se debe ejecutar de nuevo con `-v` e informarlo en un ticket con ese detalle ([Códigos de salida](comandos.md#códigos-de-salida)). |
 | El libro solo muestra los elementos de primer nivel (`1.0.0`, `2.0.0`...) | Se debe revisar que el campo indicado en `[campos] edt` contenga los códigos EDT de todas las tareas. El nivel se toma del código EDT. |
 | Todas las filas tienen método `Por definir` | Se debe revisar `[campos] metodo` (nombre del campo o su alias) y que el campo esté completo en las tareas de nivel 3. |
 | El EV de una fila con `Hitos ponderados` no avanza | Los hitos deben ser subtareas de la fila con duración 0 y marcarse al 100 % al cumplirse ([Métodos de medición](metodos-de-medicion.md#33-hitos-ponderados)). |
