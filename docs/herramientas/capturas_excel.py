@@ -93,7 +93,7 @@ SEVERAL = [
 # Depuración de costes (horizonte de 120 meses): meses 1 a 9, total e indicador de alineamiento
 REVIEW = [
     ("depuracion-pv-empresa-a", "PV-EmpresaA", "$A$1:$DY$26", {"landscape": True, "headings": True, "hide": "P:DV"}),
-    ("depuracion-pegado", "PV-depuración", "$A$1:$DV$31", {"landscape": True, "headings": True, "hide": "M:DS"}),
+    ("depuracion-pegado", "PV-depuración", "$A$1:$DX$31", {"landscape": True, "headings": True, "hide": "M:DU"}),
     ("depuracion-grafico", "Depuración costes", "$A$1:$U$30", {"landscape": True}),
     ("depuracion-grafico-paquete", "Depuración costes", "$A$1:$U$30", {"landscape": True, "value": ("B4", "1.1.2")}),
 ]

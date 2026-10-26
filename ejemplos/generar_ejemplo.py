@@ -630,8 +630,9 @@ def fill_book(book_path: Path, status: date | None = None, projects: dict[str, i
 def fill_review(wb, meta: dict) -> int:
     """Libro con depuración de costes: escribe en la hoja PV-depuración (si está vacía) una previsión ficticia de
     la empresa, como la pegaría desde su plan de costes: el PV planificado de cada paquete con algunos meses
-    desplazados y algunos totales distintos del BAC, un paquete con hitos de pago (HP-01...) y otro (y los paquetes
-    «Otras tareas») con subtareas sin código numérico (XRF01...). Devuelve la cantidad de líneas escritas."""
+    desplazados y algunos totales distintos del BAC. Cada EDT cliente lleva el total de sus líneas de EDT interna:
+    personal propio y subcontratas (PER01, SUB01...), hitos de pago en un paquete (HP-01...) y subtareas en otro (y en
+    los paquetes «Otras tareas», XRF01...). Devuelve la cantidad de líneas escritas."""
     from evm import cost_review
     from evm.timeline import round_preserving_total
     from evm.workbook import FIRST_MONTH_COL, PCT_PREFIX, read_structure
@@ -658,30 +659,36 @@ def fill_review(wb, meta: dict) -> int:
         for i, v in enumerate(shares):
             moved[min(months - 1, max(0, i + shifts[k % len(shifts)]))] += v * bac * scales[k % len(scales)]
         values = round_preserving_total(moved, 0)
-        code = s.code[:-2] if s.kind == "residual" else s.code
-        if s.kind == "residual" or k == 4:  # subtareas sin código numérico bajo el código padre
+        code, name = s.code, s.name
+        if s.kind == "residual":
+            code, name = s.code[:-2], s.name.replace("Otras tareas de ", "Subtareas de ")
+        items: list[tuple[str, str, list]] = []     # líneas de EDT interna: código, actividad, importes por mes
+        if s.kind == "residual" or k == 4:  # subtareas
             parts = [values[:], [0.0] * months]
             for i, v in enumerate(values):
                 parts[0][i], parts[1][i] = round(v * 0.6), v - round(v * 0.6)
-            lines.append([code, s.name.replace("Otras tareas de ", "Subtareas de "), None])
-            lines += [[f"XRF{j + 1:02d}", f"Subtarea {j + 1}", sum(p)] + p for j, p in enumerate(parts)]
+            items = [(f"XRF{j + 1:02d}", f"Subtarea {j + 1}", p) for j, p in enumerate(parts)]
         elif k == 1:                        # hitos de pago: 30 %, 40 % y 30 % en tres meses del paquete
             active = [i for i, v in enumerate(values) if v]
-            lines.append([code, s.name, None])
             if active:
                 picks = [active[len(active) // 3], active[2 * len(active) // 3], active[-1]]
                 for j, (i, part) in enumerate(zip(picks, (0.3, 0.4, 0.3))):
                     row = [0.0] * months
                     row[i] = round(sum(values) * part)
-                    lines.append([f"HP-{j + 1:02d}", f"Hito de pago {j + 1}", row[i]] + row)
-        else:
-            lines.append([code, s.name, sum(values)] + values)
+                    items.append((f"HP-{j + 1:02d}", f"Hito de pago {j + 1}", row))
+        else:                               # personal propio (70 %) y subcontratas
+            own = [round(v * 0.7) for v in values]
+            items = [(f"PER{k + 1:02d}", "Personal propio", own),
+                     (f"SUB{k + 1:02d}", "Subcontratas", [v - o for v, o in zip(values, own)])]
+        total = [sum(p[i] for _c, _d, p in items) for i in range(months)]
+        lines.append([code, name, None, None, sum(total)] + total)
+        lines += [[None, None, c, d, sum(p)] + p for c, d, p in items]
         k += 1
     for r, line in enumerate(lines, start=first):
         for c, v in enumerate(line, start=1):
-            if v not in (None, 0, 0.0) or c <= 2:
+            if v not in (None, 0, 0.0):
                 cell = paste.cell(row=r, column=c, value=v)
-                if c >= 3:
+                if c >= cost_review.P_BAC:
                     cell.number_format = "#,##0"
     return len(lines)
 

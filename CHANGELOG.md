@@ -18,7 +18,17 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Nuevas funciones
 
-- Ninguna.
+- **Depuración de costes con EDT cliente y EDT interna**: la hoja `PV-depuración` sigue el plan de
+  costes de la empresa en dos niveles: A `EDT cliente`, B `Actividad`, C `EDT interna` (conceptos de
+  coste internos, con códigos no numéricos como `ABC01`), D `Actividad interna`, E `BAC` y los meses
+  desde la columna F. Cada línea de EDT interna se suma en su EDT cliente, la de la línea de arriba o la
+  repetida en la columna A; la línea de la EDT cliente es un subtotal y no se suma. Los controles pasan a
+  la columna E, y `Asignado a` y `Observación` a las columnas DW y DX, con una observación nueva para las
+  líneas de EDT interna sin EDT cliente encima
+  ([Depuración de costes](docs/depuracion-costes.md#4-hoja-pv-depuración-la-previsión-pegada)).
+- `--migrar-desde` pasa al formato nuevo la previsión pegada en un libro de depuración anterior: los
+  códigos numéricos quedan como EDT cliente y los demás (`XRF01`), como EDT interna. `actualizar` y
+  `analizar` siguen funcionando con los libros de depuración anteriores.
 
 ### Correcciones
 
@@ -26,7 +36,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Otros
 
-- Ninguna.
+- El ayudante del ejemplo (`generar_ejemplo.py --libro`) escribe la previsión ficticia con líneas de EDT
+  interna, y la captura de la hoja `PV-depuración` muestra el formato nuevo.
 
 ## [2.3.0] - 2026-10-26 · Plazo según MS Project, tendencia de los índices y lista EDT
 

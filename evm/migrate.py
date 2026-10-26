@@ -78,11 +78,13 @@ class PriorData:
     matched: int = 0
     unmatched: list[PriorRow] = field(default_factory=list)
     bac: dict[str, dict[str, float]] = field(default_factory=dict)    # clave nueva -> BAC
-    # Depuración de costes: líneas de la hoja PV-depuración, empresa que se depuraba ('' = libro de una sola
-    # empresa), mes 1 del horizonte y si se trasladan al libro nuevo (lo decide plan_migration)
+    # Depuración de costes: líneas de la hoja PV-depuración (en el formato actual), empresa que se depuraba ('' =
+    # libro de una sola empresa), mes 1 del horizonte, si la hoja tenía el formato anterior a las columnas de EDT
+    # interna y si se trasladan al libro nuevo (lo decide plan_migration)
     review_rows: list[list] = field(default_factory=list)
     review_company: str = ""
     review_start: date | None = None
+    review_legacy: bool = False
     review_keep: bool = False
 
     def values_for(self, key: str, kind: str) -> dict[MonthKey, float]:
@@ -126,7 +128,8 @@ def prior_from_book(path, project_name: str) -> PriorData:
             if len(value.strip()) <= 60:
                 methods_list.append(value.strip())
     analysis = read_entries(wb[SHEET_ANALYSIS]) if SHEET_ANALYSIS in wb.sheetnames else []
-    review_rows = read_paste(wb[SHEET_PASTE], book.horizon.months) if SHEET_PASTE in wb.sheetnames else []
+    review_rows, review_legacy = (read_paste(wb[SHEET_PASTE], book.horizon.months) if SHEET_PASTE in wb.sheetnames
+                                  else ([], False))
     wb.close()
     level = book.meta.get("nivel_maximo")
     names = {n: str(source_meta(book.meta, "proyecto", n) or "") for n in book_sources(book.meta)}
@@ -134,7 +137,8 @@ def prior_from_book(path, project_name: str) -> PriorData:
                      project_name=str(book.meta.get("proyecto") or ""),
                      max_level=int(level) if level else None, methods_list=methods_list, multi=book.multi,
                      project_names=names, analysis=analysis, review_rows=review_rows,
-                     review_company=str(book.meta.get("depuracion_empresa") or ""), review_start=book.horizon.start)
+                     review_company=str(book.meta.get("depuracion_empresa") or ""), review_start=book.horizon.start,
+                     review_legacy=review_legacy)
 
 
 def _migrate_analysis(prior: PriorData, key_map: dict[str, str]) -> list[Issue]:
@@ -182,6 +186,10 @@ def _migrate_review(report: Report, prior: PriorData) -> list[Issue]:
                                         "Se debe pegar la previsión de nuevo.")]
     prior.review_keep = True
     issues = [Issue(SEV_INFO, "", "", f"Se conservó el contenido de la hoja {SHEET_PASTE} ({lines}).")]
+    if prior.review_legacy:
+        issues.append(Issue(SEV_INFO, "", "", f"La hoja {SHEET_PASTE} del libro anterior tenía el formato sin EDT "
+                                              "interna: los códigos numéricos quedaron como EDT cliente y los demás "
+                                              "(p. ej. XRF01), como EDT interna."))
     offset = month_offset(prior.review_start, report.horizon.start) if prior.review_start else 0
     if offset:
         prior.review_rows, lost = shift_rows(prior.review_rows, offset, paste_months(report.horizon.months))
