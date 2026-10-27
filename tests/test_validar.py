@@ -7,7 +7,7 @@ from openpyxl import load_workbook
 
 from evm.cli import main
 from evm.config import Config, ConfigError, load_config
-from evm.model import CONSTRAINT_MSO, LINK_FS, LINK_SF, LINK_SS, Link
+from evm.model import CONSTRAINT_MSO, LINK_FF, LINK_FS, LINK_SF, LINK_SS, Link
 from evm.reader_xml import duration_minutes, read_xml
 from evm.validation import logic_checks, progress_checks, validate_part
 from evm.wbs import (KIND_LEAF, SEV_ERROR, SEV_INFO, SEV_WARN, TOPIC_DATES, TOPIC_LOGIC, TOPIC_METHOD,
@@ -386,13 +386,102 @@ def test_progress_against_status_date():
     assert "1.3.0" in started.message and "1.5.0" not in started.message
 
 
+def missed_and_cpli_tasks(forecast_finish: datetime) -> list:
+    """Tres tareas que debían terminar el 13/02/2026 (a tiempo, tarde y sin terminar) y una que termina, según la
+    línea base, el 27/03/2026 y, según el programa actual, en `forecast_finish`."""
+    tasks = tree('''
+        1 Fase
+          1.1 A tiempo
+          1.2 Tarde
+          1.3 Sin terminar
+          1.4 Futura
+    ''')
+    t = by_name(tasks)
+    for name, finish in (("A tiempo", datetime(2026, 2, 12, 17)), ("Tarde", datetime(2026, 2, 20, 17)),
+                         ("Sin terminar", datetime(2026, 3, 6, 17))):
+        t[name].baseline_finish, t[name].finish, t[name].actual_start = datetime(2026, 2, 13, 17), finish, S
+        if name != "Sin terminar":
+            t[name].actual_finish, t[name].percent_complete = finish, 100
+    t["Sin terminar"].percent_complete = 50
+    t["Futura"].start, t["Futura"].finish = datetime(2026, 3, 2, 8), forecast_finish
+    return tasks
+
+
+def test_missed_tasks_and_cpli():
+    """DCMA 11 y 13: tareas incumplidas respecto de la línea base y CPLI con el fin previsto 10 días atrasado."""
+    issues = progress(missed_and_cpli_tasks(datetime(2026, 4, 10, 17)), date(2026, 2, 27))
+    missed = next(i for i in issues if i.id == "AVA-014")
+    assert missed.severity == SEV_WARN
+    assert missed.message == ("De 3 tareas que debían terminar a la fecha de estado según la línea base, 2 no "
+                              "terminaron a tiempo (66,7 %; DCMA: hasta 5 %): 1 sin terminar y 1 terminada después "
+                              "de su fin de línea base (1.2.0, 1.3.0).")
+    cpli = next(i for i in issues if i.id == "AVA-015")
+    assert cpli.severity == SEV_WARN
+    assert cpli.message == ("Índice de longitud del camino crítico (CPLI) = 0,67: quedan 30 días laborables hasta el "
+                            "fin previsto (10/04/2026) y el fin de la línea base es el 27/03/2026 (10 días laborables "
+                            "de atraso) (DCMA: al menos 0,95).")
+
+
+def test_cpli_ahead_of_baseline_and_not_computed():
+    issues = progress(missed_and_cpli_tasks(datetime(2026, 3, 20, 17)), date(2026, 2, 27))
+    cpli = next(i for i in issues if i.id == "AVA-015")
+    assert cpli.severity == SEV_INFO and "= 1,33" in cpli.message and "(5 días laborables de adelanto)" in cpli.message
+    # Sin fecha de estado, sin línea base o sin trabajo pendiente después de la fecha de estado: no se calcula
+    assert not [i for i in progress(missed_and_cpli_tasks(F), None) if i.id in ("AVA-014", "AVA-015")]
+    no_baseline = progress(missed_and_cpli_tasks(F), date(2026, 2, 27), baseline_found=False)
+    assert not [i for i in no_baseline if i.id in ("AVA-014", "AVA-015")]
+    assert not [i for i in progress(missed_and_cpli_tasks(F), date(2026, 4, 30)) if i.id == "AVA-015"]
+
+
+def test_missed_tasks_within_threshold_is_info():
+    lines = ["1 Fase"] + [f"  1.{n} T{n}" for n in range(1, 22)]
+    tasks = tree("\n".join(lines), bf=datetime(2026, 2, 13, 17))
+    for task in tasks[1:]:
+        task.actual_start, task.actual_finish, task.percent_complete = S, datetime(2026, 2, 13, 17), 100
+    tasks[1].actual_finish = datetime(2026, 2, 16, 17)                 # 1 de 21 terminó tarde: 4,8 %
+    missed = next(i for i in progress(tasks, date(2026, 2, 27)) if i.id == "AVA-014")
+    assert missed.severity == SEV_INFO and "(4,8 %; DCMA: hasta 5 %)" in missed.message
+
+
+def test_out_of_sequence_progress():
+    tasks = tree('''
+        1 Fase
+          1.1 Comenzada
+          1.2 Sin comenzar
+          1.3 FC
+          1.4 CC bien
+          1.5 CC
+          1.6 FF
+          1.7 Sin avance
+    ''')
+    t = by_name(tasks)
+    uid = {n: t[n].uid for n in t}
+    t["Comenzada"].actual_start, t["Comenzada"].percent_complete = S, 40
+    for name, pred, kind in (("FC", "Comenzada", LINK_FS), ("CC bien", "Comenzada", LINK_SS),
+                             ("CC", "Sin comenzar", LINK_SS), ("FF", "Comenzada", LINK_FF),
+                             ("Sin avance", "Comenzada", LINK_FS)):
+        t[name].predecessors = [Link(uid[pred], kind)]
+        if name != "Sin avance":
+            t[name].actual_start, t[name].percent_complete = S, 10
+    t["FF"].actual_finish, t["FF"].percent_complete = F, 100
+    issues = progress(tasks, None)
+    assert [(i.name, i.message) for i in issues if i.id == "AVA-017"] == [
+        ("FC", "Tiene avance y su predecesora 1.1.0 «Comenzada» no terminó (vínculo FC)."),
+        ("CC", "Tiene avance y su predecesora 1.2.0 «Sin comenzar» no comenzó (vínculo CC)."),
+        ("FF", "Está terminada y su predecesora 1.1.0 «Comenzada» no terminó (vínculo FF)."),
+    ]
+    summary = next(i for i in issues if i.id == "AVA-016")
+    assert summary.severity == SEV_WARN and summary.topic == TOPIC_PROGRESS
+    assert summary.message.startswith("3 vínculos tienen avance fuera de secuencia, en 3 tareas:")
+
+
 # ----------------------------------------------------------------------------
 # Lógica del cronograma (solo validar)
 # ----------------------------------------------------------------------------
-def logic(tasks, cfg=None):
-    project = P(tasks)
+def logic(tasks, cfg=None, **project_kw):
+    project = P(tasks, **project_kw)
     part = build_part(project, cfg or Config())
-    return logic_checks(project, part.scope, part.code_of)
+    return logic_checks(project, part.scope, part.code_of, part.rows)
 
 
 def test_schedule_without_links():
@@ -440,6 +529,76 @@ def test_links_and_constraints():
     assert any("1 vínculo tiene posición positiva" in m for m in general)
     assert any("son fin a comienzo (FC)" in m for m in general)
     assert any("1 tarea tiene delimitaciones" in m for m in general)
+
+
+def test_float_and_duration():
+    """DCMA 6, 7 y 8: holgura alta, holgura negativa y duración alta de las tareas de detalle sin terminar. Las filas
+    LOE no cuentan para la holgura alta ni para la duración alta; los hitos, tampoco para la duración."""
+    tasks = tree('''
+        1 Fase
+          1.1 Holgada
+          1.2 Negativa
+          1.3 Larga
+          1.4 Esfuerzo
+          1.5 Hito
+          1.6 Terminada
+    ''')
+    t = by_name(tasks)
+    day = 480
+    for task in tasks[1:]:
+        task.total_slack, task.baseline_duration = 0.0, 10.0 * day
+    t["Negativa"].predecessors = [Link(t["Holgada"].uid)]
+    t["Holgada"].total_slack = 60.0 * day
+    t["Negativa"].total_slack = -5.5 * day
+    t["Larga"].baseline_duration = 100.0 * day
+    t["Esfuerzo"].method = "LOE"
+    t["Esfuerzo"].total_slack, t["Esfuerzo"].baseline_duration = 90.0 * day, 200.0 * day
+    t["Hito"].milestone, t["Hito"].baseline_duration = True, 0.0
+    t["Terminada"].percent_complete, t["Terminada"].actual_start, t["Terminada"].actual_finish = 100, S, F
+    t["Terminada"].total_slack, t["Terminada"].baseline_duration = 100.0 * day, 100.0 * day
+    issues = logic(tasks)
+    high = next(i for i in issues if i.id == "LOG-013")
+    assert high.severity == SEV_WARN and high.topic == TOPIC_LOGIC
+    assert high.message == ("1 tarea sin terminar tiene más de 44 días laborables de holgura total (25 % de las "
+                            "tareas sin terminar; DCMA: hasta 5 %): 1.1.0 (60 días). Una holgura alta suele indicar "
+                            "que faltan sucesoras.")
+    negative = next(i for i in issues if i.id == "LOG-014")
+    assert "1 tarea sin terminar tiene holgura negativa (20 % de las tareas sin terminar" in negative.message
+    assert [(i.name, i.message) for i in issues if i.id == "LOG-015"] == [
+        ("Negativa", "Holgura total de -5,5 días laborables.")]
+    long = next(i for i in issues if i.id == "LOG-016")
+    assert long.severity == SEV_WARN
+    assert long.message.startswith("1 tarea sin terminar dura más de 44 días laborables en la línea base (33,3 % de "
+                                   "las tareas sin terminar; DCMA: hasta 5 %): 1.3.0 (100 días).")
+    current = next(i for i in logic(tasks, baseline_found=False) if i.id == "LOG-016")
+    assert "en el programa actual" in current.message
+
+
+def test_high_float_threshold_and_schedule_without_links():
+    lines = ["1 Fase"] + [f"  1.{n} T{n}" for n in range(1, 22)]
+    tasks = tree("\n".join(lines))
+    for task in tasks[1:]:
+        task.total_slack = 0.0
+    tasks[1].total_slack = 45.0 * 480                               # 1 de 21: 4,8 %
+    tasks[2].predecessors = [Link(tasks[1].uid)]
+    high = next(i for i in logic(tasks) if i.id == "LOG-013")
+    assert high.severity == SEV_INFO and "(4,8 % de las tareas sin terminar" in high.message
+    tasks[2].predecessors = []                                      # sin vínculos: toda la holgura llega al fin
+    assert not [i for i in logic(tasks) if i.id == "LOG-013"]
+
+
+def test_validate_part_runs_dcma_checks():
+    """validar: el CPLI usa el calendario del proyecto y la holgura alta, las filas del libro (LOE)."""
+    tasks = missed_and_cpli_tasks(datetime(2026, 4, 10, 17))
+    t = by_name(tasks)
+    t["Futura"].predecessors = [Link(t["Sin terminar"].uid)]
+    t["Futura"].total_slack = 50.0 * 480
+    part = validate_part(P(tasks, status_date=datetime(2026, 2, 27, 17)), Config())
+    ids = {i.id for i in part.checks}
+    assert {"AVA-014", "AVA-015", "LOG-013"} <= ids
+    t["Futura"].method = "Avance lineal (LOE)"
+    part = validate_part(P(tasks, status_date=datetime(2026, 2, 27, 17)), Config())
+    assert "LOG-013" not in {i.id for i in part.checks}
 
 
 # ----------------------------------------------------------------------------

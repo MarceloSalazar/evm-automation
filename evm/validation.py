@@ -3,8 +3,9 @@
 - Datos que forman el libro: se informan en la hoja Validación de 'generar' y en el comando 'validar'. Son los
   códigos EDT (dependencia entre tareas superiores y subtareas, formato, orden y duplicados), las fechas y la
   duración, los pesos de los hitos, el método de medición y el reparto entre empresas.
-- Cronograma: solo en 'validar'. Son el avance a la fecha de estado y la lógica del cronograma (vínculos y
-  delimitaciones, según los criterios de la evaluación DCMA de 14 puntos).
+- Cronograma: solo en 'validar'. Son el avance a la fecha de estado y la lógica del cronograma (vínculos,
+  delimitaciones, holgura y duración), con los criterios de la evaluación DCMA de 14 puntos
+  (docs/evaluacion-dcma.md).
 """
 from __future__ import annotations
 
@@ -14,12 +15,15 @@ from datetime import date, datetime
 
 from evm.config import Config, ConfigError
 from evm.fields import fmt_number, same_name
-from evm.methods import FIXED, MILESTONES, UNKNOWN, is_complete, is_started, parse_method
-from evm.model import (CONSTRAINT_FNLT, CONSTRAINT_MFO, CONSTRAINT_MSO, CONSTRAINT_SNLT, LINK_FS, LINK_SF,
-                       ProjectData, Task)
+from evm.methods import FIXED, LOE, MILESTONES, UNKNOWN, is_complete, is_started, parse_method
+from evm.model import (CONSTRAINT_FNLT, CONSTRAINT_MFO, CONSTRAINT_MSO, CONSTRAINT_SNLT, LINK_FF, LINK_FS, LINK_SF,
+                       LINK_SS, ProjectData, Task)
 from evm.messages import SEV_ERROR, SEV_INFO, SEV_WARN, TOPIC_BOOK, Issue
+from evm.percent import calendar_for
+from evm.schedule import row_schedule, working_days
 from evm.wbs import (KIND_RESIDUAL, PlanNotFound, Report, ReportPart, ReportRow, Scope, assemble_report, build_part,
                      iter_subtree, pad_code, plural, tagged_issues, task_name)
+from evm.workcalendar import WorkCalendar
 
 CodeOf = Callable[[Task], str]
 
@@ -31,6 +35,11 @@ DCMA_LOGIC = 5.0                # % máximo de tareas sin predecesoras o sin suc
 DCMA_LAGS = 5.0                 # % máximo de vínculos con posición positiva
 DCMA_FS = 90.0                  # % mínimo de vínculos fin a comienzo
 DCMA_CONSTRAINTS = 5.0          # % máximo de tareas con delimitaciones fijas
+DCMA_DAYS = 44                  # días laborables (unos 2 meses) a partir de los que la holgura o la duración es alta
+DCMA_HIGH_FLOAT = 5.0           # % máximo de tareas con holgura alta
+DCMA_HIGH_DURATION = 5.0        # % máximo de tareas de duración alta
+DCMA_MISSED = 5.0               # % máximo de tareas incumplidas respecto de la línea base
+DCMA_CPLI = 0.95                # índice de longitud del camino crítico mínimo
 DCMA_BEI = 0.95                 # índice de ejecución de la línea base mínimo
 
 HARD_CONSTRAINTS = {
@@ -38,6 +47,15 @@ HARD_CONSTRAINTS = {
     CONSTRAINT_MFO: "Debe finalizar el",
     CONSTRAINT_SNLT: "No comenzar después del",
     CONSTRAINT_FNLT: "No finalizar después del",
+}
+
+# Avance fuera de secuencia: tipo de vínculo -> (sigla, la sucesora debe estar terminada, la predecesora debe estar
+# terminada). Si no, basta que hayan comenzado.
+SEQUENCE = {
+    LINK_FS: ("FC", False, True),
+    LINK_SS: ("CC", False, False),
+    LINK_FF: ("FF", True, True),
+    LINK_SF: ("CF", True, False),
 }
 
 
@@ -65,6 +83,17 @@ def _codes(tasks: list[Task], code_of: CodeOf, limit: int = 10) -> str:
     names = [code_of(t) or f"Id {t.id}" for t in tasks[:limit]]
     more = f" y {len(tasks) - limit} más" if len(tasks) > limit else ""
     return ", ".join(names) + more
+
+
+def _with_days(found: list[tuple[Task, float]], code_of: CodeOf, limit: int = 10) -> str:
+    """Lista breve de tareas con sus días: '1.2.1 (61 días), 1.3.2 (50 días) y 4 más'."""
+    names = [f"{code_of(t) or f'Id {t.id}'} ({_num(d)} {'día' if d == 1 else 'días'})" for t, d in found[:limit]]
+    more = f" y {len(found) - limit} más" if len(found) > limit else ""
+    return ", ".join(names) + more
+
+
+def _days_text(n: int) -> str:
+    return plural(n, "día laborable", "días laborables")
 
 
 def _label(t: Task, code_of: CodeOf) -> str:
@@ -380,10 +409,92 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
 # ----------------------------------------------------------------------------
 # Avance a la fecha de estado (solo 'validar')
 # ----------------------------------------------------------------------------
-def progress_checks(project: ProjectData, scope: Scope, code_of: CodeOf, status: date | None) -> list[Issue]:
-    """Fechas reales coherentes entre sí y con el % completado, y avance actualizado a la fecha de estado."""
+def _out_of_sequence(project: ProjectData, leaves: list[Task], code_of: CodeOf) -> list[Issue]:
+    """Avance que el vínculo con la predecesora todavía no permite: la sucesora comenzó (FC y CC) o terminó (FF y CF)
+    y su predecesora no terminó (FC y FF) o no comenzó (CC y CF). Las predecesoras resumen no se revisan (LOG-010)."""
+    by_uid = {t.uid: t for t in project.tasks}
+    found: list[Issue] = []
+    tasks: set[int] = set()
+    for t in leaves:
+        if not is_started(t):
+            continue
+        for link in t.predecessors:
+            p = by_uid.get(link.uid)
+            rule = SEQUENCE.get(link.kind)
+            if p is None or rule is None or p.children or not p.active:
+                continue
+            kind, own_done, pred_done = rule
+            if own_done and not is_complete(t):
+                continue
+            if is_complete(p) if pred_done else is_started(p):
+                continue
+            tasks.add(t.uid)
+            found.append(_issue("AVA-017", t, code_of,
+                                f"{'Está terminada' if own_done else 'Tiene avance'} y su predecesora "
+                                f"{_label(p, code_of)} no {'terminó' if pred_done else 'comenzó'} (vínculo {kind})."))
+    if not found:
+        return []
+    return [Issue("AVA-016", "", "",
+                  f"{plural(len(found), 'vínculo tiene', 'vínculos tienen')} avance fuera de secuencia, en "
+                  f"{plural(len(tasks), 'tarea', 'tareas')}: la tarea tiene avance que el vínculo con su predecesora "
+                  "todavía no permite. Las fechas y la holgura del trabajo que queda pueden no ser realistas: se "
+                  "debe corregir el avance o el vínculo.")] + found[:LIMIT]
+
+
+def _missed_tasks(due: list[Task], code_of: CodeOf) -> Issue | None:
+    """Tareas que debían terminar a la fecha de estado según la línea base y no terminaron, o terminaron después de su
+    fin de línea base (DCMA: hasta 5 %)."""
+    open_ = [t for t in due if not is_complete(t)]
+    late = [t for t in due if is_complete(t) and t.actual_finish is not None
+            and t.actual_finish.date() > t.baseline_finish.date()]
+    if not open_ and not late:
+        return None
+    ids = {t.uid for t in open_ + late}
+    missed = [t for t in due if t.uid in ids]
+    share = 100.0 * len(missed) / len(due)
+    parts = []
+    if open_:
+        parts.append(f"{len(open_)} sin terminar")
+    if late:
+        parts.append(f"{len(late)} {'terminada' if len(late) == 1 else 'terminadas'} después de su fin de línea base")
+    return Issue("AVA-014", "", "",
+                 f"De {plural(len(due), 'tarea que debía', 'tareas que debían')} terminar a la fecha de estado según "
+                 f"la línea base, {len(missed)} no {'terminó' if len(missed) == 1 else 'terminaron'} a tiempo "
+                 f"({_num(share)} %; DCMA: hasta {_num(DCMA_MISSED)} %): {' y '.join(parts)} "
+                 f"({_codes(missed, code_of)}).", SEV_WARN if share > DCMA_MISSED + 1e-9 else SEV_INFO)
+
+
+def _cpli(leaves: list[Task], status: date, calendar: WorkCalendar, minutes_per_day: float) -> Issue | None:
+    """Índice de longitud del camino crítico: (días que quedan hasta el fin previsto + holgura del proyecto frente al
+    fin de la línea base) / días que quedan. Sin trabajo pendiente después de la fecha de estado no se calcula."""
+    plan = row_schedule(leaves, calendar, minutes_per_day)
+    if not plan.open_tasks or plan.finish is None or plan.baseline_finish is None or plan.variance is None:
+        return None
+    remaining = working_days(calendar, status, plan.finish)
+    if remaining <= 0:
+        return None
+    cpli = (remaining - plan.variance) / remaining
+    if plan.variance > 0:
+        variance = f"{_days_text(plan.variance)} de atraso"
+    elif plan.variance < 0:
+        variance = f"{_days_text(-plan.variance)} de adelanto"
+    else:
+        variance = "sin desvío"
+    return Issue("AVA-015", "", "",
+                 f"Índice de longitud del camino crítico (CPLI) = {_num(cpli, 2)}: quedan {_days_text(remaining)} "
+                 f"hasta el fin previsto ({_day(plan.finish)}) y el fin de la línea base es el "
+                 f"{_day(plan.baseline_finish)} ({variance}) (DCMA: al menos {_num(DCMA_CPLI, 2)}).",
+                 SEV_WARN if cpli < DCMA_CPLI - 1e-9 else SEV_INFO)
+
+
+def progress_checks(project: ProjectData, scope: Scope, code_of: CodeOf, status: date | None,
+                    calendar: WorkCalendar | None = None) -> list[Issue]:
+    """Fechas reales coherentes entre sí, con el % completado y con los vínculos, avance actualizado a la fecha de
+    estado e índices DCMA del avance (BEI, tareas incumplidas y CPLI). calendar: el que reparte la duración (cuenta
+    los días laborables del CPLI)."""
     issues: list[Issue] = []
     leaves = [t for t in scope.tasks() if not t.children]
+    issues += _out_of_sequence(project, leaves, code_of)
     found: list[Issue] = []
     for t in leaves:
         if t.actual_finish and not t.actual_start:
@@ -461,14 +572,22 @@ def progress_checks(project: ProjectData, scope: Scope, code_of: CodeOf, status:
                                 f"Índice de ejecución de la línea base (BEI) = {_num(bei, 2)}: {done} tareas "
                                 f"terminadas y {len(due)} que debían terminar a la fecha de estado (DCMA: al menos "
                                 f"{_num(DCMA_BEI, 2)}).{detail}", SEV_WARN if bei < DCMA_BEI - 1e-9 else SEV_INFO))
+            missed = _missed_tasks(due, code_of)
+            if missed is not None:
+                issues.append(missed)
+        cpli = _cpli(leaves, status, calendar or WorkCalendar(), project.minutes_per_day or 480.0)
+        if cpli is not None:
+            issues.append(cpli)
     return issues
 
 
 # ----------------------------------------------------------------------------
 # Lógica del cronograma (solo 'validar')
 # ----------------------------------------------------------------------------
-def logic_checks(project: ProjectData, scope: Scope, code_of: CodeOf) -> list[Issue]:
-    """Vínculos y delimitaciones de las tareas exportadas, según los criterios de la evaluación DCMA."""
+def logic_checks(project: ProjectData, scope: Scope, code_of: CodeOf,
+                 rows: list[ReportRow] | None = None) -> list[Issue]:
+    """Vínculos, delimitaciones, holgura y duración de las tareas exportadas, según los criterios de la evaluación
+    DCMA. rows: filas del libro (la holgura alta y la duración alta no cuentan las tareas de las filas LOE)."""
     issues: list[Issue] = []
     tasks = list(scope.tasks())
     detail = [t for t in tasks if not t.children]
@@ -569,6 +688,57 @@ def logic_checks(project: ProjectData, scope: Scope, code_of: CodeOf) -> list[Is
             when = f" {_day(t.constraint_date)}" if t.constraint_date else ""
             issues.append(_issue("LOG-012", t, code_of,
                                  f"Delimitación «{HARD_CONSTRAINTS[t.constraint_type]}{when}»."))
+    issues += _float_and_duration(project, open_tasks, code_of, rows, bool(links))
+    return issues
+
+
+def _float_and_duration(project: ProjectData, open_tasks: list[Task], code_of: CodeOf, rows: list[ReportRow] | None,
+                        linked: bool) -> list[Issue]:
+    """Holgura alta, holgura negativa y duración alta de las tareas de detalle sin terminar (DCMA). La holgura total
+    es la que calcula MS Project; la holgura alta no se revisa en un cronograma sin vínculos (LOG-001), en el que
+    toda la holgura llega hasta el fin del proyecto."""
+    issues: list[Issue] = []
+    per_day = project.minutes_per_day or 480.0
+    loe = {t.uid for r in rows or [] if r.is_input and parse_method(r.method).kind == LOE for t in r.leaves}
+    with_slack = [(t, t.total_slack / per_day) for t in open_tasks if t.total_slack is not None]
+
+    counted = [(t, d) for t, d in with_slack if t.uid not in loe]
+    high = sorted(((t, d) for t, d in counted if d > DCMA_DAYS + 1e-9), key=lambda x: -x[1])
+    if linked and high:
+        share = 100.0 * len(high) / len(counted)
+        issues.append(Issue("LOG-013", "", "",
+                            f"{plural(len(high), 'tarea sin terminar tiene', 'tareas sin terminar tienen')} más de "
+                            f"{DCMA_DAYS} días laborables de holgura total ({_num(share)} % de las tareas sin "
+                            f"terminar; DCMA: hasta {_num(DCMA_HIGH_FLOAT)} %): {_with_days(high, code_of)}. Una "
+                            "holgura alta suele indicar que faltan sucesoras.",
+                            SEV_WARN if share > DCMA_HIGH_FLOAT + 1e-9 else SEV_INFO))
+
+    negative = sorted(((t, d) for t, d in with_slack if t.total_slack < -1e-6), key=lambda x: x[1])
+    if negative:
+        share = 100.0 * len(negative) / len(with_slack)
+        issues.append(Issue("LOG-014", "", "",
+                            f"{plural(len(negative), 'tarea sin terminar tiene', 'tareas sin terminar tienen')} "
+                            f"holgura negativa ({_num(share)} % de las tareas sin terminar; DCMA: ninguna): su fin "
+                            "previsto supera una fecha límite o una delimitación. La más negativa es de "
+                            f"{_num(negative[0][1])} días laborables."))
+        issues += [_issue("LOG-015", t, code_of, f"Holgura total de {_num(d)} días laborables.")
+                   for t, d in negative[:LIMIT]]
+
+    durations = []
+    for t in open_tasks:
+        minutes = t.baseline_duration if t.baseline_duration is not None else t.duration
+        if not t.milestone and t.uid not in loe and minutes is not None:
+            durations.append((t, minutes / per_day))
+    long = sorted(((t, d) for t, d in durations if d > DCMA_DAYS + 1e-9), key=lambda x: -x[1])
+    if long:
+        share = 100.0 * len(long) / len(durations)
+        source = "en la línea base" if project.baseline_found else "en el programa actual"
+        issues.append(Issue("LOG-016", "", "",
+                            f"{plural(len(long), 'tarea sin terminar dura', 'tareas sin terminar duran')} más de "
+                            f"{DCMA_DAYS} días laborables {source} ({_num(share)} % de las tareas sin terminar; DCMA: "
+                            f"hasta {_num(DCMA_HIGH_DURATION)} %): {_with_days(long, code_of)}. Se recomienda "
+                            "dividirlas en tareas más cortas, con entregables intermedios.",
+                            SEV_WARN if share > DCMA_HIGH_DURATION + 1e-9 else SEV_INFO))
     return issues
 
 
@@ -588,8 +758,8 @@ def validate_part(project: ProjectData, cfg: Config, name: str = "", status: dat
         part = build_part(project, replace(cfg, plan=""), name)
     when = status or _as_date(project.status_date)
     part.issues[:0] = first
-    part.checks += progress_checks(project, part.scope, part.code_of, when)
-    part.checks += logic_checks(project, part.scope, part.code_of)
+    part.checks += progress_checks(project, part.scope, part.code_of, when, calendar_for(project, cfg))
+    part.checks += logic_checks(project, part.scope, part.code_of, part.rows)
     return part
 
 

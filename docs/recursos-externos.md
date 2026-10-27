@@ -29,6 +29,7 @@ grandes y complejos. Los enlaces son de terceros y pueden cambiar; se indicaron 
 | [NDIA IPMD — Guías de la división](https://www.ndia.org/divisions/ipmd/division-guides-and-resources) | Guía de intención de la norma EIA-748 (sistemas de gestión del valor ganado) y guías de aplicación. |
 | [DoD — Integrated Program Management: políticas y guías](https://www.acq.osd.mil/asda/dpc/api/ipm/policy-guidance.html) | Guía de interpretación de sistemas EVM (EVMSIG) y guía de implementación (EVMIG) del Departamento de Defensa de EE. UU. |
 | [GAO Schedule Assessment Guide (GAO-16-89G)](https://www.gao.gov/products/gao-16-89g) | Buenas prácticas para cronogramas confiables: lógica, camino crítico, línea base, actualización. |
+| [DCMA — Earned Value Management Systems](https://www.dcma.mil/HQ/EVMS) | Revisión de sistemas EVM de la agencia de contratos de defensa de EE. UU. y sus métricas de cumplimiento (DECM). Los criterios de la evaluación de 14 puntos que usa `validar` están en [Evaluación DCMA](evaluacion-dcma.md). |
 | [GAO Cost Estimating and Assessment Guide (GAO-20-195G)](https://www.gao.gov/products/gao-20-195g) | Estimación de costos; incluye capítulos sobre gestión del valor ganado y análisis de EAC. |
 | [NASA — Earned Value Management](https://www.nasa.gov/ocfo/ppc-corner/evm/) | Portal de EVM de la NASA con manuales y material de formación. |
 | [Earned Schedule](https://www.earnedschedule.com/) | Sitio de referencia del Cronograma Ganado (W. Lipke): conceptos, terminología y herramientas. |

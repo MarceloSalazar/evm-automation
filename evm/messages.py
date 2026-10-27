@@ -132,9 +132,11 @@ AREAS = {a.prefix: a for a in [
     Area("EMP", "Empresas", TOPIC_COMPANY, W_GV,
          "Multi-empresa: empresa y % de reparto de cada tarea."),
     Area("AVA", "Avance a la fecha de estado", TOPIC_PROGRESS, W_V,
-         "Fechas reales, % completado y avance actualizado a la fecha de estado (solo validar)."),
+         "Fechas reales, % completado, avance actualizado a la fecha de estado y fuera de secuencia, e índices "
+         "DCMA del avance: BEI, tareas incumplidas y CPLI (solo validar)."),
     Area("LOG", "Lógica del cronograma", TOPIC_LOGIC, W_V,
-         "Vínculos y delimitaciones, según los criterios de la evaluación DCMA de 14 puntos (solo validar)."),
+         "Vínculos, delimitaciones, holgura y duración de las tareas, según los criterios de la evaluación DCMA de "
+         "14 puntos (solo validar)."),
     Area("LIB", "Libro", TOPIC_BOOK, W_BOOK,
          "Libro Excel: recordatorio del BAC y libros dañados, modificados o abiertos en Excel."),
     Area("MIG", "Migración (--migrar-desde)", TOPIC_BOOK, W_MIG,
@@ -701,6 +703,25 @@ _CODES = [
           "Tareas terminadas frente a las que debían terminar a la fecha de estado. Es una advertencia si es menor "
           "que 0,95 (criterio DCMA).",
           "Revisar las tareas sin terminar que lista el mensaje."),
+    _code("AVA-014", (W, I), "Tareas incumplidas respecto de la línea base",
+          "De las tareas que debían terminar a la fecha de estado según la línea base, las que no terminaron o "
+          "terminaron después de su fin de línea base. Es una advertencia si superan el 5 % (criterio DCMA).",
+          "Revisar el atraso de las tareas que lista el mensaje."),
+    _code("AVA-015", (W, I), "Índice de longitud del camino crítico (CPLI)",
+          "Días laborables que quedan hasta el fin previsto del proyecto, más la holgura frente al fin de la línea "
+          "base, divididos por los días que quedan. Menor que 1 indica que el fin previsto es posterior al de la "
+          "línea base; es una advertencia si es menor que 0,95 (criterio DCMA).",
+          "Revisar las tareas críticas: con un CPLI bajo, cumplir el fin de la línea base exige recuperar el "
+          "atraso en el trabajo que queda."),
+    _code("AVA-016", W, "Avance fuera de secuencia",
+          "Resumen de AVA-017: tareas con avance que su vínculo con la predecesora no permite todavía (p. ej. la "
+          "sucesora comenzó y la predecesora fin a comienzo no terminó). Las fechas y la holgura del trabajo que "
+          "queda pueden no ser realistas.",
+          "Corregir el avance registrado o el vínculo, si ya no representa la secuencia real del trabajo."),
+    _code("AVA-017", W, "Tarea con avance fuera de secuencia",
+          "Detalle de AVA-016: la tarea tiene avance y su predecesora no terminó (vínculo fin a comienzo o fin a "
+          "fin) o no comenzó (comienzo a comienzo o comienzo a fin).",
+          "Corregir el avance de la tarea o de su predecesora, o el vínculo."),
 
     # --- LOG: lógica del cronograma (validar) ---------------------------------------------------------------------
     _code("LOG-001", W, "Cronograma sin vínculos",
@@ -741,6 +762,24 @@ _CODES = [
     _code("LOG-012", W, "Tarea con delimitación",
           "Detalle de LOG-011: la delimitación de la tarea.",
           "Usar «Lo antes posible» y, si hace falta, una fecha límite."),
+    _code("LOG-013", (W, I), "Tareas con holgura alta",
+          "Tareas sin terminar con más de 44 días laborables de holgura total: suele indicar vínculos que faltan. "
+          "Es una advertencia si superan el 5 % de las tareas sin terminar (criterio DCMA).",
+          "Revisar las sucesoras de esas tareas: la holgura alta desaparece al vincularlas con el trabajo que "
+          "depende de ellas."),
+    _code("LOG-014", W, "Tareas con holgura negativa",
+          "Resumen de LOG-015: tareas sin terminar cuyo fin previsto supera una fecha límite o una delimitación. La "
+          "evaluación DCMA no admite holgura negativa.",
+          "Recuperar el atraso (cambiar la secuencia o la duración del trabajo que queda) o revisar la fecha "
+          "límite."),
+    _code("LOG-015", W, "Tarea con holgura negativa",
+          "Detalle de LOG-014: la holgura total de la tarea.",
+          "Revisar las predecesoras de la tarea y su fecha límite o delimitación."),
+    _code("LOG-016", (W, I), "Tareas de duración alta",
+          "Tareas sin terminar con más de 44 días laborables de duración en la línea base (sin los hitos ni las "
+          "filas LOE): son difíciles de seguir y de medir. Es una advertencia si superan el 5 % de las tareas sin "
+          "terminar (criterio DCMA).",
+          "Dividir esas tareas en tareas más cortas, con entregables intermedios."),
 
     # --- LIB: libro ---------------------------------------------------------------------------------------------
     _code("LIB-001", I, "Cálculo del PV y el EV",

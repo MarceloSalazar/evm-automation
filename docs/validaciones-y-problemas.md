@@ -95,14 +95,18 @@ No afectan al libro de `generar`, pero sí al % ganado que calcula `actualizar`.
 | Trabajo pendiente antes de la fecha de estado: tareas sin terminar con *Fin* anterior a la fecha de estado, o sin avance con *Comienzo* anterior | El cronograma no está actualizado: registrar el avance o reprogramar el trabajo pendiente después de la fecha de estado (*Proyecto > Actualizar proyecto*). |
 | Tareas que debían comenzar según la línea base y no comenzaron (`Info`) | Atrasos respecto de la línea base. |
 | Índice de ejecución de la línea base (BEI): tareas terminadas / tareas que debían terminar según la línea base (`Advertencia` si es menor que 0,95) | Lista las tareas que debían terminar y no terminaron. |
+| Tareas incumplidas: de las que debían terminar según la línea base, las que no terminaron o terminaron después de su fin de línea base (`Advertencia` si superan el 5 %) | Revisar el atraso de las tareas que lista el mensaje. |
+| Índice de longitud del camino crítico (CPLI): (días laborables que quedan hasta el fin previsto − atraso frente al fin de la línea base) / días que quedan (`Advertencia` si es menor que 0,95) | Con un CPLI bajo, cumplir el fin de la línea base exige recuperar el atraso en el trabajo que queda: revisar las tareas críticas. |
+| Avance fuera de secuencia: la tarea comenzó (o terminó) y su predecesora no terminó (vínculo FC o FF) o no comenzó (CC o CF) | Corregir el avance registrado o el vínculo, si ya no representa la secuencia real del trabajo. Se revisa también sin fecha de estado. |
 | Avance cargado sin fecha de estado | `actualizar` necesita la fecha de estado de MS Project (*Proyecto > Información del proyecto*) o `--fecha-corte`. |
 
 ### 1.3 Lógica del cronograma (validar)
 
-Se revisan los vínculos y las delimitaciones de las tareas exportadas con los criterios de la evaluación
-**DCMA de 14 puntos** (*Defense Contract Management Agency*), una referencia habitual de calidad de
-cronogramas. No afectan al cálculo del libro, pero un cronograma sin lógica no reprograma las fechas
-cuando cambia el avance.
+Se revisan los vínculos, las delimitaciones, la holgura y la duración de las tareas exportadas con los
+criterios de la evaluación **DCMA de 14 puntos** (*Defense Contract Management Agency*), una referencia
+habitual de calidad de cronogramas. No afectan al cálculo del libro, pero un cronograma sin lógica no
+reprograma las fechas cuando cambia el avance. Qué mide cada punto, cómo lo calcula el programa y qué
+puntos no revisa está en [Evaluación DCMA de 14 puntos](evaluacion-dcma.md).
 
 | Observación | Criterio DCMA | Qué revisar |
 |---|---|---|
@@ -113,6 +117,9 @@ cuando cambia el avance.
 | Vínculos comienzo a fin (CF) y proporción de vínculos fin a comienzo (FC) | Al menos 90 % FC | Usar vínculos fin a comienzo. |
 | Tareas resumen con vínculos | — | Vincular las tareas de detalle. |
 | Delimitaciones que fijan fechas: *Debe comenzar el*, *Debe finalizar el*, *No comenzar después del*, *No finalizar después del* | Hasta 5 % | Usar *Lo antes posible* y, si hace falta, una fecha límite. |
+| Tareas sin terminar con más de 44 días laborables de holgura total (sin las filas LOE; no se revisa en un cronograma sin vínculos) | Hasta 5 % | Una holgura alta suele indicar que faltan sucesoras. |
+| Tareas sin terminar con holgura negativa: su fin previsto supera una fecha límite o una delimitación | Ninguna | Recuperar el atraso en el trabajo que queda o revisar la fecha límite. |
+| Tareas sin terminar con más de 44 días laborables de duración en la línea base (sin los hitos ni las filas LOE) | Hasta 5 % | Dividirlas en tareas más cortas, con entregables intermedios. |
 
 ---
 

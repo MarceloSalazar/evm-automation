@@ -58,13 +58,16 @@ Además, revisa dos aspectos del cronograma que no afectan al libro:
 
 - **Avance a la fecha de estado:** *Comienzo real* y *Fin real* coherentes con el *% completado*,
   avance posterior a la fecha de estado, trabajo pendiente programado antes de la fecha de estado
-  (cronograma sin actualizar) e índice de ejecución de la línea base (BEI).
+  (cronograma sin actualizar), avance fuera de secuencia, índice de ejecución de la línea base (BEI),
+  tareas incumplidas respecto de la línea base e índice de longitud del camino crítico (CPLI).
 - **Lógica del cronograma:** tareas sin predecesoras o sin sucesoras, adelantos, posiciones, vínculos
-  comienzo a fin, vínculos en tareas resumen y delimitaciones que fijan fechas, con los criterios de la
-  evaluación DCMA de 14 puntos.
+  comienzo a fin, vínculos en tareas resumen, delimitaciones que fijan fechas, holgura alta, holgura
+  negativa y tareas de duración alta.
 
-El detalle de cada control está en [Validaciones](validaciones-y-problemas.md#1-validaciones). Se
-recomienda ejecutar `validar` antes de `generar` y antes de cada `actualizar`.
+Con estos controles, `validar` revisa 12 de los 14 puntos de la
+[evaluación DCMA de calidad de cronogramas](evaluacion-dcma.md). El detalle de cada control está en
+[Validaciones](validaciones-y-problemas.md#1-validaciones). Se recomienda ejecutar `validar` antes de
+`generar` y antes de cada `actualizar`.
 
 | Opción | Descripción |
 |---|---|
@@ -100,13 +103,15 @@ Método de medición: 6 advertencias, 1 informativa
   [!] MET-004 1.2.1 Licitación de ingeniería: Método 0/100 en un paquete de 3,6 meses (línea base), más de 1: el EV queda en 0 hasta que termina. Se recomienda dividir el paquete o usar un método de avance (% completado, hitos ponderados). Umbral: [validacion] meses_0_100.
   ...
 
-Avance a la fecha de estado: 1 advertencia
+Avance a la fecha de estado: 2 advertencias, 1 informativa
   [!] AVA-013 Índice de ejecución de la línea base (BEI) = 0,33: 4 tareas terminadas y 12 que debían terminar a la fecha de estado (DCMA: al menos 0,95). Sin terminar: 1.2.1, 1.2.2, 2.1.1, 2.1.2.1, 2.1.2.2, 2.1.2.3, 2.1.3, 2.1.4.
+  [!] AVA-014 De 12 tareas que debían terminar a la fecha de estado según la línea base, 12 no terminaron a tiempo (100 %; DCMA: hasta 5 %): 8 sin terminar y 4 terminadas después de su fin de línea base (Id 2, 1.2.1, 1.2.2, 2.1.1, 2.1.2.1, Id 17, 2.1.2.2, Id 19, 2.1.2.3, Id 21 y 2 más).
+  [i] AVA-015 Índice de longitud del camino crítico (CPLI) = 0,96: quedan 898 días laborables hasta el fin previsto (09/12/2030) y el fin de la línea base es el 18/10/2030 (36 días laborables de atraso) (DCMA: al menos 0,95).
 
 Lógica del cronograma: 1 advertencia
   [!] LOG-001 El cronograma no tiene vínculos entre tareas: las fechas no se recalculan cuando cambian las duraciones o el avance. Se recomienda vincular las tareas (cada tarea con al menos una predecesora y una sucesora).
 
-Resultado: 8 advertencias, 4 informativas.
+Resultado: 9 advertencias, 5 informativas.
 No se creó ni se modificó ningún archivo.
 ```
 

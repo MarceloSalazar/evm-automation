@@ -31,6 +31,7 @@ ambos.
 | **SV(t)** | Variación del cronograma en tiempo | Schedule Variance (time) | — | ES − AT |
 | **SPI(t)** | Índice de desempeño del cronograma en tiempo | SPI (time) | — | ES / AT |
 | **BEI** | Índice de ejecución de la línea base | Baseline Execution Index | — | Tareas terminadas / tareas que debían terminar según la línea base (comando `validar`) |
+| **CPLI** | Índice de longitud del camino crítico | Critical Path Length Index | — | (Días laborables hasta el fin previsto + holgura frente al fin de la línea base) / días hasta el fin previsto (comando `validar`) |
 
 > **Atención:** en MS Project en español, **VP** es la variación del cronograma (SV), no el valor
 > planificado. El valor planificado es el **CPTP**.
@@ -84,7 +85,7 @@ BAC que se ingresa en el libro × el % planificado y el % ganado, y el AC se car
 | Planificación | Rama del proyecto bajo una tarea de primer nivel con código EDT (`INTERNO`, `CLIENTE`) que se exporta a un libro. |
 | Horizonte | Meses del libro (120 por defecto). Por defecto, mes 1 = primer mes con % planificado (en general, el de inicio de la línea base); se cambia con `mes_inicio` o `--mes-inicio`. |
 | Mes de reporte | Mes que muestra el `Cuadro de Mando` (celda `E5`). |
-| DCMA de 14 puntos | Evaluación de calidad de cronogramas de la *Defense Contract Management Agency* de EE. UU.: `validar` usa sus criterios de lógica, delimitaciones e índice de ejecución de la línea base (BEI) ([Validaciones](validaciones-y-problemas.md#13-lógica-del-cronograma-validar)). |
+| DCMA de 14 puntos | Evaluación de calidad de cronogramas de la *Defense Contract Management Agency* de EE. UU.: lógica, adelantos, posiciones, tipos de vínculo, delimitaciones, holgura, duración, fechas no válidas, recursos, tareas incumplidas, camino crítico, CPLI y BEI. `validar` revisa 12 de los 14 puntos ([Evaluación DCMA de 14 puntos](evaluacion-dcma.md)). |
 | Valor del mes | Valor de un mes, no acumulado: el % ganado que `actualizar` escribe en la hoja `% EV` (el EV del mes es el BAC × ese %) o el AC que se ingresa en la hoja `AC`. |
 | Desvío de fin | Días laborables entre el fin de la línea base y el fin previsto de una fila o del proyecto, según el cronograma de MS Project (> 0 = atraso) ([Indicadores EDT](libro-excel.md#indicadores-edt)). |
 | Mes anterior con datos | Último mes con EV cargado antes del mes de corte o de reporte: con informes bimestrales, el del informe anterior. Base de las variaciones de la tendencia. |

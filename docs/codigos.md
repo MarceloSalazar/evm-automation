@@ -110,8 +110,8 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [HIT](#46-hit--hitos-y-pesos) | Hitos y pesos | Hitos y pesos | generar (hoja Validación) y validar | 9 |
 | [MET](#47-met--método-de-medición) | Método de medición | Método de medición | generar (hoja Validación) y validar | 5 |
 | [EMP](#48-emp--empresas) | Empresas | Empresas | generar (hoja Validación) y validar | 6 |
-| [AVA](#49-ava--avance-a-la-fecha-de-estado) | Avance a la fecha de estado | Avance a la fecha de estado | validar | 13 |
-| [LOG](#410-log--lógica-del-cronograma) | Lógica del cronograma | Lógica del cronograma | validar | 12 |
+| [AVA](#49-ava--avance-a-la-fecha-de-estado) | Avance a la fecha de estado | Avance a la fecha de estado | validar | 17 |
+| [LOG](#410-log--lógica-del-cronograma) | Lógica del cronograma | Lógica del cronograma | validar | 16 |
 | [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar y generar `--migrar-desde` (lectura del libro) | 15 |
 | [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 17 |
 | [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 8 |
@@ -1412,7 +1412,7 @@ El % de reparto de la tarea no es mayor que 0 y como máximo 100: se usa el repa
 
 ### 4.9 AVA · Avance a la fecha de estado
 
-Fechas reales, % completado y avance actualizado a la fecha de estado (solo validar).
+Fechas reales, % completado, avance actualizado a la fecha de estado y fuera de secuencia, e índices DCMA del avance: BEI, tareas incumplidas y CPLI (solo validar).
 
 | Código | Severidad | Descripción |
 |---|---|---|
@@ -1429,6 +1429,10 @@ Fechas reales, % completado y avance actualizado a la fecha de estado (solo vali
 | [AVA-011](#ava-011) | Advertencia | Trabajo pendiente antes de la fecha de estado |
 | [AVA-012](#ava-012) | Info | Tareas que debían comenzar y no comenzaron |
 | [AVA-013](#ava-013) | Advertencia o Info | Índice de ejecución de la línea base (BEI) |
+| [AVA-014](#ava-014) | Advertencia o Info | Tareas incumplidas respecto de la línea base |
+| [AVA-015](#ava-015) | Advertencia o Info | Índice de longitud del camino crítico (CPLI) |
+| [AVA-016](#ava-016) | Advertencia | Avance fuera de secuencia |
+| [AVA-017](#ava-017) | Advertencia | Tarea con avance fuera de secuencia |
 
 #### AVA-001
 
@@ -1534,11 +1538,43 @@ Tareas terminadas frente a las que debían terminar a la fecha de estado. Es una
 
 **Qué hacer:** Revisar las tareas sin terminar que lista el mensaje.
 
+#### AVA-014
+
+**Tareas incumplidas respecto de la línea base** · Advertencia o Info · validar · se puede silenciar
+
+De las tareas que debían terminar a la fecha de estado según la línea base, las que no terminaron o terminaron después de su fin de línea base. Es una advertencia si superan el 5 % (criterio DCMA).
+
+**Qué hacer:** Revisar el atraso de las tareas que lista el mensaje.
+
+#### AVA-015
+
+**Índice de longitud del camino crítico (CPLI)** · Advertencia o Info · validar · se puede silenciar
+
+Días laborables que quedan hasta el fin previsto del proyecto, más la holgura frente al fin de la línea base, divididos por los días que quedan. Menor que 1 indica que el fin previsto es posterior al de la línea base; es una advertencia si es menor que 0,95 (criterio DCMA).
+
+**Qué hacer:** Revisar las tareas críticas: con un CPLI bajo, cumplir el fin de la línea base exige recuperar el atraso en el trabajo que queda.
+
+#### AVA-016
+
+**Avance fuera de secuencia** · Advertencia · validar · se puede silenciar
+
+Resumen de [AVA-017](#ava-017): tareas con avance que su vínculo con la predecesora no permite todavía (p. ej. la sucesora comenzó y la predecesora fin a comienzo no terminó). Las fechas y la holgura del trabajo que queda pueden no ser realistas.
+
+**Qué hacer:** Corregir el avance registrado o el vínculo, si ya no representa la secuencia real del trabajo.
+
+#### AVA-017
+
+**Tarea con avance fuera de secuencia** · Advertencia · validar · se puede silenciar
+
+Detalle de [AVA-016](#ava-016): la tarea tiene avance y su predecesora no terminó (vínculo fin a comienzo o fin a fin) o no comenzó (comienzo a comienzo o comienzo a fin).
+
+**Qué hacer:** Corregir el avance de la tarea o de su predecesora, o el vínculo.
+
 ---
 
 ### 4.10 LOG · Lógica del cronograma
 
-Vínculos y delimitaciones, según los criterios de la evaluación DCMA de 14 puntos (solo validar).
+Vínculos, delimitaciones, holgura y duración de las tareas, según los criterios de la evaluación DCMA de 14 puntos (solo validar).
 
 | Código | Severidad | Descripción |
 |---|---|---|
@@ -1554,6 +1590,10 @@ Vínculos y delimitaciones, según los criterios de la evaluación DCMA de 14 pu
 | [LOG-010](#log-010) | Advertencia | Tarea resumen con vínculos |
 | [LOG-011](#log-011) | Advertencia | Tareas con delimitaciones |
 | [LOG-012](#log-012) | Advertencia | Tarea con delimitación |
+| [LOG-013](#log-013) | Advertencia o Info | Tareas con holgura alta |
+| [LOG-014](#log-014) | Advertencia | Tareas con holgura negativa |
+| [LOG-015](#log-015) | Advertencia | Tarea con holgura negativa |
+| [LOG-016](#log-016) | Advertencia o Info | Tareas de duración alta |
 
 #### LOG-001
 
@@ -1650,6 +1690,38 @@ Las delimitaciones que fijan fechas (Debe comenzar el, No finalizar después del
 Detalle de [LOG-011](#log-011): la delimitación de la tarea.
 
 **Qué hacer:** Usar «Lo antes posible» y, si hace falta, una fecha límite.
+
+#### LOG-013
+
+**Tareas con holgura alta** · Advertencia o Info · validar · se puede silenciar
+
+Tareas sin terminar con más de 44 días laborables de holgura total: suele indicar vínculos que faltan. Es una advertencia si superan el 5 % de las tareas sin terminar (criterio DCMA).
+
+**Qué hacer:** Revisar las sucesoras de esas tareas: la holgura alta desaparece al vincularlas con el trabajo que depende de ellas.
+
+#### LOG-014
+
+**Tareas con holgura negativa** · Advertencia · validar · se puede silenciar
+
+Resumen de [LOG-015](#log-015): tareas sin terminar cuyo fin previsto supera una fecha límite o una delimitación. La evaluación DCMA no admite holgura negativa.
+
+**Qué hacer:** Recuperar el atraso (cambiar la secuencia o la duración del trabajo que queda) o revisar la fecha límite.
+
+#### LOG-015
+
+**Tarea con holgura negativa** · Advertencia · validar · se puede silenciar
+
+Detalle de [LOG-014](#log-014): la holgura total de la tarea.
+
+**Qué hacer:** Revisar las predecesoras de la tarea y su fecha límite o delimitación.
+
+#### LOG-016
+
+**Tareas de duración alta** · Advertencia o Info · validar · se puede silenciar
+
+Tareas sin terminar con más de 44 días laborables de duración en la línea base (sin los hitos ni las filas LOE): son difíciles de seguir y de medir. Es una advertencia si superan el 5 % de las tareas sin terminar (criterio DCMA).
+
+**Qué hacer:** Dividir esas tareas en tareas más cortas, con entregables intermedios.
 
 ---
 

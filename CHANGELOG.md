@@ -40,6 +40,24 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   informa cuántas se silenciaron (`CFG-049`); los errores silenciados no cuentan para el código de salida
   de `validar` y los errores que detienen el programa no se pueden silenciar
   ([Silenciar observaciones](docs/codigos.md#2-silenciar-observaciones)).
+- **Evaluación DCMA en `validar`**: nuevos controles del cronograma, con los criterios de la evaluación
+  DCMA de 14 puntos. `validar` revisa ahora 12 de los 14 puntos:
+  - holgura alta: tareas sin terminar con más de 44 días laborables de holgura total (`LOG-013`;
+    advertencia si superan el 5 %);
+  - holgura negativa (`LOG-014` y `LOG-015`, con la holgura de cada tarea);
+  - duración alta: tareas sin terminar con más de 44 días laborables de duración en la línea base
+    (`LOG-016`; advertencia si superan el 5 %). La holgura alta y la duración alta no cuentan las filas
+    LOE;
+  - tareas incumplidas: las que debían terminar según la línea base y no terminaron, o terminaron
+    después de su fin de línea base (`AVA-014`; advertencia si superan el 5 %);
+  - índice de longitud del camino crítico (CPLI): días laborables que quedan hasta el fin previsto, más la
+    holgura frente al fin de la línea base, divididos por los días que quedan (`AVA-015`; advertencia si
+    es menor que 0,95).
+- **Avance fuera de secuencia** en `validar` (`AVA-016` y `AVA-017`): tareas que comenzaron (o
+  terminaron) y cuya predecesora no terminó (vínculo FC o FF) o no comenzó (CC o CF).
+- Documento nuevo [Evaluación DCMA de 14 puntos](docs/evaluacion-dcma.md): qué mide cada punto, cómo lo
+  calcula `validar`, qué hacer en MS Project, la prueba manual del camino crítico (punto 12) y lo que el
+  programa no verifica (los recursos, punto 10).
 
 ### Correcciones
 
