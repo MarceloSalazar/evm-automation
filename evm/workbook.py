@@ -1298,7 +1298,7 @@ def write_meta(ws, meta: dict) -> None:
 def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
                    generated: datetime | None = None) -> dict:
     """Crea el libro Excel completo y lo guarda en `path`. Devuelve los metadatos."""
-    from evm import analysis, dashboard
+    from evm import analysis, changes, dashboard
     generated = generated or datetime.now()
     lay = _Layout(report)
     wb = Workbook()
@@ -1369,6 +1369,9 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     analysis.write_sheet(wb, prior.analysis if prior is not None else [],
                          {row_key(r): lay.r(r) for r in report.rows if r.is_input}, lay.months,
                          Thresholds.from_config(cfg), cfg.decimals)
+    changes.write_sheet(wb, prior.change_log if prior is not None else [], cfg.decimals)
+    if prior is not None and prior.reference is not None:
+        changes.write_reference(wb, prior.reference)
 
     wb.defined_names[NAME_STATUS] = DefinedName(NAME_STATUS, attr_text=f"'{SHEET_SUMMARY}'!$B$5")
     wb.defined_names[NAME_START] = DefinedName(NAME_START, attr_text=f"'{SHEET_SUMMARY}'!$B$7")

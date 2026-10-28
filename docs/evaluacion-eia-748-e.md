@@ -86,28 +86,29 @@ La columna **Controles** indica los códigos de los controles automáticos relac
 | 13 | Conciliar con el objetivo de costo | No cubre | — |
 | **Avance y recolección de datos** | | | |
 | 14 | Medir el avance y determinar el EV | Cubre | [AVA](codigos.md#49-ava--avance-a-la-fecha-de-estado), [ACT-004](codigos.md#act-004) a [ACT-006](codigos.md#act-006), [ACT-019](codigos.md#act-019) |
-| 15 | Registrar los costos reales por elementos de costo | Parcial | [ACT-026](codigos.md#act-026) |
+| 15 | Registrar los costos reales por elementos de costo | Parcial | [ACT-026](codigos.md#act-026), [ACT-039](codigos.md#act-039) a [ACT-042](codigos.md#act-042) |
 | 16 | Contabilizar el material comprado | Fuera de alcance | — |
 | **Análisis e informes de gestión** | | | |
-| 17 | Generar las variaciones de cronograma y de costo | Cubre | [ACT-018](codigos.md#act-018) |
-| 18 | Identificar y evaluar las variaciones significativas | Parcial | — |
+| 17 | Generar las variaciones de cronograma y de costo | Cubre | [ACT-018](codigos.md#act-018), [ACT-046](codigos.md#act-046) |
+| 18 | Identificar y evaluar las variaciones significativas | Parcial | [ACT-043](codigos.md#act-043), [ACT-044](codigos.md#act-044) |
 | 19 | Evaluar las variaciones de costos indirectos | Fuera de alcance | — |
 | 20 | Actualizar el EAC de cada cuenta de control | Parcial | — |
 | 21 | Resumir, revisar y evaluar los datos de desempeño | Cubre | — |
-| 22 | Implementar acciones de gestión | Parcial | — |
+| 22 | Implementar acciones de gestión | Parcial | [ACT-045](codigos.md#act-045) |
 | 23 | Revisar el EAC del proyecto | Parcial | — |
 | **Revisiones y mantenimiento de datos** | | | |
-| 24 | Incorporar los cambios del cliente | Parcial | [ACT-011](codigos.md#act-011) a [ACT-017](codigos.md#act-017), [MIG](codigos.md#412-mig--migración---migrar-desde) |
-| 25 | Documentar y conciliar las replanificaciones internas | Parcial | [ACT-015](codigos.md#act-015), [FEC-010](codigos.md#fec-010) |
-| 26 | Controlar los cambios retroactivos | Parcial | [ACT-007](codigos.md#act-007), [ACT-020](codigos.md#act-020), [ACT-021](codigos.md#act-021), [ACT-024](codigos.md#act-024), [ACT-027](codigos.md#act-027) |
+| 24 | Incorporar los cambios del cliente | Parcial | [ACT-011](codigos.md#act-011) a [ACT-017](codigos.md#act-017), [ACT-036](codigos.md#act-036), [MIG](codigos.md#412-mig--migración---migrar-desde) |
+| 25 | Documentar y conciliar las replanificaciones internas | Parcial | [ACT-015](codigos.md#act-015), [ACT-036](codigos.md#act-036), [ACT-037](codigos.md#act-037), [FEC-010](codigos.md#fec-010) |
+| 26 | Controlar los cambios retroactivos | Cubre | [ACT-036](codigos.md#act-036), [ACT-037](codigos.md#act-037), [ACT-007](codigos.md#act-007), [ACT-020](codigos.md#act-020), [ACT-021](codigos.md#act-021), [ACT-024](codigos.md#act-024), [ACT-027](codigos.md#act-027) |
 | 27 | Línea base o cronograma por encima del objetivo (OTB/OTS) | No cubre | — |
 
-**En resumen:** de las 27 guías, el programa **cubre 5**, cubre **en parte 15**, **no cubre 3** que
+**En resumen:** de las 27 guías, el programa **cubre 6**, cubre **en parte 14**, **no cubre 3** que
 podría incorporar, y **4 están fuera de su alcance** (costos por elemento, indirectos y materiales). Lo
 más sólido es lo que se apoya en el cronograma de MS Project: la EDT, la lógica del cronograma, la
-línea base distribuida en el tiempo, la medición del EV con métodos objetivos y las variaciones. Lo más
-débil es el control de los cambios y de los presupuestos que no son el BAC de cada paquete (reserva,
-presupuesto no distribuido, presupuesto del contrato).
+línea base distribuida en el tiempo, la medición del EV con métodos objetivos y las variaciones, junto
+con el registro de los cambios de los datos ya informados. Lo más débil son los presupuestos que no son
+el BAC de cada paquete (reserva, presupuesto no distribuido, presupuesto del contrato) y el EAC de los
+responsables.
 
 ---
 
@@ -266,9 +267,10 @@ presupuesto no distribuido, presupuesto del contrato).
   contabilidad general, **en el mismo período que el EV**. Si el costo real todavía no está registrado,
   se usa una estimación.
 - **Qué hace el programa:** el AC de cada fila y mes se ingresa a mano en la hoja `AC` (`ACT-026`), con
-  la misma fecha de corte que el EV. No se conecta con la contabilidad ni distingue elementos de costo.
-- **Qué falta:** controles de coherencia entre el EV y el AC del mes (EV sin AC, AC sin EV, AC en
-  paquetes terminados).
+  la misma fecha de corte que el EV. `actualizar` y `analizar` revisan que el EV y el AC de cada paquete
+  sean coherentes hasta el último mes con AC cargado: avance sin costo (`ACT-039`), costo sin avance
+  (`ACT-040`, salvo los métodos 0/100 e hitos ponderados) y costo después de terminar (`ACT-041`).
+- **Qué falta:** la conexión con la contabilidad y los elementos de costo.
 - **Qué queda a cargo de la organización:** el AC del ERP con la misma fecha de corte y las estimaciones
   de costos devengados no facturados ([Proceso de reporte](proceso-reporte-evm.md#2-roles)).
 
@@ -288,7 +290,7 @@ presupuesto no distribuido, presupuesto del contrato).
 - **Qué hace el programa:** el libro calcula el PV, el EV y el AC de cada mes, y la SV, la CV, los
   índices, el EAC y el VAC del proyecto ([Cuadro de Mando](cuadro-de-mando.md)) y de cada elemento EDT
   ([Indicadores EDT](libro-excel.md#indicadores-edt)). Avisa si la fecha de corte no es fin de mes
-  (`ACT-018`).
+  (`ACT-018`) y si quedan meses sin % ganado cargado entre dos cierres (`ACT-046`).
 - **Qué queda a cargo de la organización:** el informe mensual. La norma pide la información **cada
   mes**: un informe cada dos meses no la cumple. Si el informe es bimestral, conviene igualmente
   actualizar el libro al cierre de cada mes, con la fecha de estado de ese mes.
@@ -300,8 +302,10 @@ presupuesto no distribuido, presupuesto del contrato).
 - **Qué hace el programa:** la hoja [Análisis de desviaciones](analisis-desviaciones.md) lista cada mes
   los paquetes con el SPI o el CPI fuera del rango verde, con el plazo según MS Project y columnas para la
   causa, el impacto, la acción, el responsable y la fecha.
-- **Qué falta:** no comprueba que las explicaciones estén completas. Los umbrales son sobre los índices,
-  no sobre importes (SV, CV, VAC) ni sobre el desvío de fin.
+  En el cierre siguiente avisa de las filas del mes anterior sin causa o sin acción correctiva
+  (`ACT-043`) y de las que quedaron sin ningún texto (`ACT-044`).
+- **Qué falta:** los umbrales son sobre los índices, no sobre importes (SV, CV, VAC) ni sobre el desvío
+  de fin.
 
 ### Guía 19 · Evaluar las variaciones de costos indirectos
 
@@ -328,8 +332,9 @@ presupuesto no distribuido, presupuesto del contrato).
 - **Qué exige:** implementar las acciones que surgen del análisis, verificar que se cumplan y que sean
   razonables, y considerar los riesgos en el EAC.
 - **Qué hace el programa:** el análisis de desviaciones registra la acción, el responsable y la fecha
-  compromiso, y la columna `Antecedente` indica si el paquete ya estaba fuera de umbral.
-- **Qué falta:** el estado de cada acción (abierta o cerrada) y el aviso de las acciones vencidas.
+  compromiso, y la columna `Antecedente` indica si el paquete ya estaba fuera de umbral. Avisa de las
+  acciones vencidas de los paquetes que siguen fuera de umbral (`ACT-045`).
+- **Qué falta:** el estado explícito de cada acción (abierta o cerrada).
 
 ### Guía 23 · Revisar el EAC del proyecto
 
@@ -351,31 +356,37 @@ presupuesto no distribuido, presupuesto del contrato).
   traslada el BAC, el % ganado y el AC de cada fila (códigos `MIG`). `actualizar` avisa de los cambios del
   cronograma que el libro no tiene: tareas eliminadas, inactivas o nuevas, y cambios del campo `Visible`
   o de la lista EDT (`ACT-011` a `ACT-017`).
-- **Qué falta:** el registro de los cambios de BAC (fecha, importe anterior y nuevo, motivo), propuesto en
-  el ticket [#24](https://github.com/MarceloSalazar/evm-automation/issues/24).
+  Cada cambio del BAC se agrega a la hoja `Registro de cambios`, con el importe anterior y el nuevo y
+  columnas para el motivo y el número de cambio aprobado (`ACT-036`;
+  [Registro de cambios](libro-excel.md#registro-de-cambios)).
 
 ### Guía 25 · Documentar y conciliar las replanificaciones internas
 
 - **Qué exige:** documentar los cambios internos de alcance, plazo y presupuesto, y comparar la línea
   base del período con la del anterior para identificar todas las diferencias.
 - **Qué hace el programa:** avisa de las tareas nuevas sin fila (`ACT-015`) y de las tareas sin línea base
-  (`FEC-010`).
-- **Qué falta:** comparar la línea base entre dos lecturas (cambios de fechas, del % planificado de cada
-  mes o del BAC).
+  (`FEC-010`), y registra los cambios del BAC y de los valores de meses ya informados frente a la
+  ejecución anterior (`ACT-036`, `ACT-037`).
+- **Qué falta:** comparar las fechas de la línea base y el % planificado de cada mes entre dos lecturas
+  de MS Project.
 
 ### Guía 26 · Controlar los cambios retroactivos
 
 - **Qué exige:** no modificar los valores ya informados de AC, EV o presupuesto, salvo correcciones de
   errores, ajustes contables o cambios dirigidos, siempre explicados.
-- **Qué hace el programa:** `actualizar` no carga meses anteriores a la última fecha de corte sin avisar
-  (`ACT-020`), no sobrescribe meses posteriores sin `--forzar` (`ACT-007`, `ACT-021`), avisa de las celdas
-  sin la fórmula del libro (`ACT-024`, `ACT-025`) y del % ganado negativo de un mes (`ACT-027`).
-- **Limitación importante:** el PV y el EV de cada mes son el BAC × el %. **Un cambio del BAC de una fila
-  recalcula el PV y el EV de todos sus meses, también los ya informados**
-  ([Cálculo del PV y el EV](calculo-pv-ev.md#13-cambios-de-bac-y-de-línea-base)). Para la norma es un
-  cambio retroactivo. Hasta que el programa lo registre, cada cambio de BAC se debe documentar fuera del
-  libro, con el valor anterior.
-- **Qué falta:** detectar cambios en los valores de los meses ya informados.
+- **Qué hace el programa:** `actualizar` y `analizar` comparan el libro con los valores de la ejecución
+  anterior y agregan a la hoja `Registro de cambios` cada cambio del BAC (`ACT-036`) y del % ganado o el
+  AC de un mes anterior al mes de corte (`ACT-037`), con columnas para el motivo y el número de cambio
+  aprobado ([Registro de cambios](libro-excel.md#registro-de-cambios)). Además, `actualizar` no carga
+  meses anteriores a la última fecha de corte sin avisar (`ACT-020`), no sobrescribe meses posteriores sin
+  `--forzar` (`ACT-007`, `ACT-021`) y avisa de las celdas sin la fórmula del libro (`ACT-024`, `ACT-025`)
+  y del % ganado negativo de un mes (`ACT-027`).
+- **A tener en cuenta:** el PV y el EV de cada mes son el BAC × el %, así que **un cambio del BAC de una
+  fila recalcula el PV y el EV de todos sus meses, también los ya informados**
+  ([Cálculo del PV y el EV](calculo-pv-ev.md#13-cambios-de-bac-y-de-línea-base)). El registro indica
+  cuántos meses informados cambiaron; el motivo lo completa el responsable.
+- **Qué queda a cargo de la organización:** la política de cambios retroactivos (cuándo se admiten y quién
+  los aprueba).
 
 ### Guía 27 · Línea base o cronograma por encima del objetivo (OTB/OTS)
 

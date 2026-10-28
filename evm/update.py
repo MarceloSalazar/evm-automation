@@ -11,7 +11,7 @@ from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.workbook.properties import CalcProperties
 
-from evm import analysis, progress
+from evm import analysis, changes, consistency, progress
 from evm.config import MODE_PERCENT, Config, ConfigError
 from evm.messages import InputError, Issue, MissingFileError
 from evm.methods import parse_method
@@ -69,6 +69,10 @@ class BookData:
         if self.multi:
             return [("A", self.company_a), ("B", self.company_b)]
         return [("", "")]
+
+    def ac_of(self, role: str) -> dict[int, list[float | None]]:
+        """AC ingresado de cada mes de una empresa ("" en un libro de una sola empresa)."""
+        return self.ac_a if role == "A" else self.ac_b if role == "B" else self.ac
 
 
 def _num(value, cached, where: str, fixable: list | None = None, key=None) -> float | None:
@@ -663,6 +667,13 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     if book.status_date and status < book.status_date:
         warnings.append(Issue("ACT-020", message=f"La fecha de corte ({status:%d/%m/%Y}) es anterior a la última "
                                                  f"cargada en el libro ({book.status_date:%d/%m/%Y})."))
+    # Cambios del BAC y de los meses ya informados desde la ejecución anterior (antes de cargar el mes)
+    decimals = int(book.meta.get("decimales") or 0)
+    reference = changes.read_reference(wb)
+    changed = changes.detect(book, reference, idx)
+    warnings += changes.issues(changed, decimals, registered=not dry_run)
+    if reference is None and not dry_run:
+        warnings.append(changes.first_reference())
 
     # Cada archivo asocia sus filas (el UniqueID se repite entre archivos)
     matches: dict[int, Task] = {}
@@ -784,10 +795,16 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
         x, y = book.ev_a[r][i], book.ev_b[r][i]
         book.ev[r][i] = None if x is None and y is None else (x or 0.0) + (y or 0.0)
 
+    # Coherencia del EV y el AC y meses sin informe (con el % ganado del mes ya calculado)
+    warnings += consistency.ev_ac_checks(book, idx)
+    warnings += consistency.month_gaps(book, idx, latest_only=True)
+
     # Paquetes fuera de umbral en el mes de corte (con el EV y el AC que quedan en el libro)
     th = analysis.thresholds(book.meta, cfg)
     found = analysis.deviations(book, idx, th)
     plan = _schedule(book, projects, calendars, leaves_of, status)
+    entries, notes = _analysis_entries(wb, book, idx, found, status, _schedule_by_key(book, plan))
+    warnings += notes
 
     backup_path = None
     if not dry_run:
@@ -803,7 +820,8 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
         write_meta(wb[SHEET_META], meta)
         write_schedule(wb, plan, [x.row for x in book.structure], book.meta["fila_total"], "actualizar")
         write_summary_trend(wb[SHEET_SUMMARY], book.meta["fila_total"], book.horizon.months, th)
-        _write_analysis(wb, book, idx, found, th, _schedule_by_key(book, plan))
+        _write_analysis(wb, book, idx, entries, found, th)
+        _write_changes(wb, book, idx, status, changed, decimals)
         _refresh_charts(wb, book, idx, meta)
         backup_path = _save(wb, book_path, backup)
     book.status_date = status
@@ -874,17 +892,35 @@ def _save(wb, book_path: Path, backup: bool) -> Path | None:
     return backup_path
 
 
-def _write_analysis(wb, book: BookData, idx: int, found: list, th, plan: dict[str, tuple] | None = None) -> None:
-    """Agrega a la hoja Análisis de desviaciones los paquetes fuera de umbral del mes idx (la crea en los
-    libros de versiones anteriores), conservando el texto ya escrito. plan: plazo de cada fila (clave -> desvío,
-    holgura, crítica); sin él, el de la hoja Indicadores EDT (última lectura de MS Project)."""
+def _analysis_entries(wb, book: BookData, idx: int, found: list, status: date,
+                      plan: dict[str, tuple] | None = None) -> tuple[list, list[Issue]]:
+    """Filas de la hoja Análisis de desviaciones con los paquetes fuera de umbral del mes idx, conservando el texto
+    ya escrito, y las observaciones del análisis: el del mes anterior incompleto y las acciones vencidas. plan: plazo
+    de cada fila (clave -> desvío, holgura, crítica); sin él, el de la hoja Indicadores EDT (última lectura de MS
+    Project)."""
     entries = analysis.read_entries(wb[analysis.SHEET_ANALYSIS]) if analysis.SHEET_ANALYSIS in wb.sheetnames else []
     month = book.horizon.month_start(idx)
+    notes = analysis.incomplete(entries, month)
     if plan is None:
         plan = read_schedule(wb, {s.row: s.key for s in book.input_rows})
     entries = analysis.refresh(entries, found, month, plan)
+    return entries, notes + analysis.overdue(entries, found, month, status)
+
+
+def _write_analysis(wb, book: BookData, idx: int, entries: list, found: list, th) -> None:
+    """Escribe la hoja Análisis de desviaciones (la crea en los libros de versiones anteriores)."""
     analysis.write_sheet(wb, entries, {s.key: s.row for s in book.input_rows}, book.horizon.months, th,
-                         int(book.meta.get("decimales") or 0), month, len(found))
+                         int(book.meta.get("decimales") or 0), book.horizon.month_start(idx), len(found))
+
+
+def _write_changes(wb, book: BookData, idx: int, status: date, changed: list, decimals: int) -> None:
+    """Agrega los cambios a la hoja Registro de cambios (la crea en los libros de versiones anteriores) y guarda la
+    referencia para la ejecución siguiente."""
+    if changed:
+        changes.append(wb, changed, datetime.now().replace(microsecond=0), status, decimals)
+    else:
+        changes.write_sheet(wb, decimals=decimals)
+    changes.write_reference(wb, changes.reference_from_book(book, idx, status))
 
 
 def run_analysis(cfg: Config, book_path: str | Path, backup: bool = True) -> UpdateResult:
@@ -911,11 +947,22 @@ def run_analysis(cfg: Config, book_path: str | Path, backup: bool = True) -> Upd
                                                  f"o fórmulas: {cells}{more}."))
         for sheet, r, c, v, _why in book.fixable:
             wb[sheet].cell(row=r, column=c, value=v)
+    decimals = int(book.meta.get("decimales") or 0)
+    reference = changes.read_reference(wb)
+    changed = changes.detect(book, reference, idx)
+    warnings += changes.issues(changed, decimals)
+    if reference is None:
+        warnings.append(changes.first_reference())
+    warnings += consistency.ev_ac_checks(book, idx)
+    warnings += consistency.month_gaps(book, idx, latest_only=False)
     progress.stage("analizar", "Análisis de desviaciones")
     th = analysis.thresholds(book.meta, cfg)
     found = analysis.deviations(book, idx, th)
+    entries, notes = _analysis_entries(wb, book, idx, found, book.status_date)
+    warnings += notes
     write_summary_trend(wb[SHEET_SUMMARY], book.meta["fila_total"], book.horizon.months, th)
-    _write_analysis(wb, book, idx, found, th)
+    _write_analysis(wb, book, idx, entries, found, th)
+    _write_changes(wb, book, idx, book.status_date, changed, decimals)
     _refresh_charts(wb, book, idx, book.meta)
     progress.stage("guardar", "Guardado del libro")
     backup_path = _save(wb, book_path, backup)

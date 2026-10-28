@@ -76,8 +76,11 @@ cronograma de las secciones [1.2](#12-avance-a-la-fecha-de-estado-validar) y
 | Varios archivos: observaciones precedidas por el nombre del archivo (`[P1]`, `[P2]`) y monedas distintas | Revisar cada archivo; si las monedas difieren, indicar `moneda` en `[exportacion]` ([Varios archivos](varios-archivos.md#8-validaciones-y-controles)). |
 
 `actualizar` informa sus controles en pantalla: filas con % ganado y sin BAC, filas cuya tarea ya no
-existe o está inactiva, tareas con código EDT sin fila en el libro, cambios del campo `Visible` y celdas
-sin la fórmula del libro ([Cálculo del PV y el EV](calculo-pv-ev.md#14-controles-y-validaciones)).
+existe o está inactiva, tareas con código EDT sin fila en el libro, cambios del campo `Visible`, celdas
+sin la fórmula del libro, cambios del BAC y de meses ya informados (que agrega a la hoja `Registro de
+cambios`), EV y AC incoherentes, análisis del mes anterior incompleto, acciones vencidas y meses sin
+informe ([Cálculo del PV y el EV](calculo-pv-ev.md#14-controles-y-validaciones)). `analizar` informa los
+mismos controles del libro.
 
 Las observaciones de `--migrar-desde` y los recordatorios del BAC y de la depuración de costes solo
 aparecen en la hoja `Validación` de `generar`.

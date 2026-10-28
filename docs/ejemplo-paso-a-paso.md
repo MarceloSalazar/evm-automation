@@ -174,8 +174,10 @@ foreach ($m in 1..24) {
 ```
 
 Cada `actualizar` usa como fecha de corte la fecha de estado del XML (último día del mes), calcula el %
-ganado acumulado y escribe la diferencia en el mes correspondiente. Al final de cada ejecución muestra
-los indicadores; el último mes:
+ganado acumulado y escribe la diferencia en el mes correspondiente. Como la simulación no completa la
+hoja `Análisis de desviaciones`, cada mes avisa de los paquetes del mes anterior que quedaron sin
+analizar ([ACT-044](codigos.md#act-044)); en un proyecto real, ese análisis se completa antes del cierre
+siguiente. Al final de cada ejecución muestra los indicadores; el último mes:
 
 ```text
 Fecha de corte: 31/12/2027 (mes 24 del horizonte)

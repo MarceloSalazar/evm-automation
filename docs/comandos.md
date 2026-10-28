@@ -203,6 +203,11 @@ python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config con
   en un archivo temporal, de modo que un error al guardar no daña el libro anterior.
 - Agrega a la hoja `Análisis de desviaciones` los paquetes con SPI o CPI fuera del rango verde del
   semáforo en el mes de corte, y conserva lo ya escrito ([Análisis de desviaciones](analisis-desviaciones.md)).
+  Avisa si el análisis del mes anterior quedó incompleto o si hay acciones vencidas.
+- Registra los cambios del BAC y de los valores de meses ya informados (% ganado y AC) desde la ejecución
+  anterior en la hoja `Registro de cambios` ([El libro Excel](libro-excel.md#registro-de-cambios)), y
+  revisa la coherencia del EV y el AC de cada paquete y los meses sin informe
+  ([Cálculo del PV y el EV](calculo-pv-ev.md#14-controles-y-validaciones)).
 - Escribe el plazo según el cronograma de MS Project: columnas Q a U de `Indicadores EDT` (fin previsto,
   desvío de fin, holgura y crítica de cada elemento) y la sección de plazo del `Resumen`
   ([El libro Excel](libro-excel.md#indicadores-edt)).
@@ -217,6 +222,7 @@ Leyendo ...\avance_2027-06.xml ...
 Fecha de corte: 30/06/2027 (mes 18 del horizonte)
 Observaciones por fila:
   [i] ACT-034 4.2.2 Cierre administrativo: método no definido: se usó % completado
+  [!] ACT-044 13 paquetes fuera de umbral en 05/2027 quedaron sin analizar, sin texto en la hoja Análisis de desviaciones (1.1.1, 1.1.2, 1.1.3, 1.2.1, 1.2.2, 1.2.3, 2.1.1, 2.1.2, 2.1.3, 2.1.4 y 3 más): se quitan de la hoja, y los que siguen fuera de umbral vuelven a listarse en el mes de corte.
   [i] ACT-026 El AC se carga a mano en la hoja 'AC'; los indicadores de costo usan los valores cargados.
 Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05): 13 (hoja 'Análisis de desviaciones')
   1.1.1      Oficina de gestión del programa (PMO)     SPI  1,00  CPI  1,11
@@ -262,7 +268,9 @@ python evm_export.py analizar --libro EVM_Programa.xlsx
 Vuelve a calcular la lista de paquetes fuera de umbral de la hoja `Análisis de desviaciones` para el mes
 de la fecha de corte del libro, con los valores que tiene el libro y **sin leer MS Project**. Se usa
 después de cargar a mano el AC del mes (por ejemplo, del ERP), para incluir los paquetes con CPI fuera
-de umbral ([Análisis de desviaciones](analisis-desviaciones.md#3-cierre-mensual)).
+de umbral ([Análisis de desviaciones](analisis-desviaciones.md#3-cierre-mensual)). Como `actualizar`,
+registra los cambios del BAC y de meses ya informados y revisa la coherencia del EV y el AC (con el AC
+recién cargado), el análisis del mes anterior y los meses sin informe.
 
 | Opción | Descripción |
 |---|---|

@@ -163,6 +163,11 @@ gantt
 6. Ejecutar **`actualizar`**, cargar en la hoja `AC` (o en las de cada empresa) el costo real devengado
    del mes que entrega Finanzas (ERP o contabilidad) y ejecutar **`analizar`** para completar la lista de
    paquetes fuera de umbral ([Análisis de desviaciones](analisis-desviaciones.md#3-cierre-mensual)).
+   Revisar sus avisos: paquetes con avance y sin costo, con costo y sin avance o con costo después de
+   terminar ([ACT-039](codigos.md#act-039) a [ACT-041](codigos.md#act-041)), análisis del mes anterior
+   incompleto y acciones vencidas ([ACT-043](codigos.md#act-043) a [ACT-045](codigos.md#act-045)), y
+   cambios del BAC o de meses ya informados, que se agregan a la hoja `Registro de cambios`: indicar su
+   motivo ([El libro Excel](libro-excel.md#registro-de-cambios)).
 7. **Abrir el libro** y revisar el `Cuadro de Mando` (mes de reporte = mes de corte) e `Indicadores EDT`:
    la tendencia de los últimos 3 meses y la variación respecto del mes anterior, y el plazo según el
    cronograma de MS Project (desvío de fin y paquetes críticos atrasados).
@@ -176,7 +181,9 @@ gantt
    del mes.
 
 > Aunque el informe sea bimestral, se recomienda registrar el estado **todos los meses**: la curva S y
-> los métodos `0/100` y `50/50` se miden con el período mensual, y las desviaciones se detectan antes.
+> los métodos `0/100` y `50/50` se miden con el período mensual, y las desviaciones se detectan antes. La
+> norma EIA-748 pide la información al menos cada mes; si se salta un mes, `actualizar` lo avisa
+> ([ACT-046](codigos.md#act-046)).
 
 ---
 
@@ -210,8 +217,9 @@ flowchart TD
 - Un cambio aprobado del **presupuesto** de un paquete se registra escribiendo su nuevo BAC en la
   columna D: el PV y el EV de todos sus meses se recalculan
   ([Cálculo del PV y el EV](calculo-pv-ev.md#13-cambios-de-bac-y-de-línea-base)).
-- Se recomienda guardar cada línea base aprobada en *Línea base 1..10* y llevar un registro de cambios
-  con la fecha, el motivo y la variación de BAC.
+- Se recomienda guardar cada línea base aprobada en *Línea base 1..10*. Cada cambio de BAC se agrega
+  solo a la hoja `Registro de cambios`, con la fecha y la variación: se completan el motivo y el número de
+  cambio aprobado ([El libro Excel](libro-excel.md#registro-de-cambios)).
 
 ---
 
@@ -272,7 +280,10 @@ flowchart TD
 - [ ] Costo real devengado del mes recibido de Finanzas (ERP o contabilidad).
 - [ ] `actualizar --simular` revisado: sin métodos `Por definir`, sin valores del mes negativos sin
       explicar, sin tareas con código EDT sin fila en el libro ni filas sin BAC.
-- [ ] `actualizar` ejecutado; AC del mes cargado en la hoja `AC` y `analizar` ejecutado.
+- [ ] `actualizar` ejecutado; AC del mes cargado en la hoja `AC` y `analizar` ejecutado, sin avisos de
+      EV y AC incoherentes sin explicar.
+- [ ] Cambios del BAC y de meses ya informados de la hoja `Registro de cambios` con su motivo.
+- [ ] Análisis del mes anterior completo (causa y acción) y acciones vencidas revisadas.
 - [ ] Cuadro de Mando revisado (tendencia y plazo incluidos); paquetes fuera de umbral explicados en
       `Análisis de desviaciones`.
 - [ ] EAC revisado y acciones correctivas definidas.

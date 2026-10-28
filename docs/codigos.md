@@ -113,9 +113,9 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [AVA](#49-ava--avance-a-la-fecha-de-estado) | Avance a la fecha de estado | Avance a la fecha de estado | validar | 17 |
 | [LOG](#410-log--lógica-del-cronograma) | Lógica del cronograma | Lógica del cronograma | validar | 16 |
 | [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar y generar `--migrar-desde` (lectura del libro) | 15 |
-| [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 17 |
+| [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 18 |
 | [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 8 |
-| [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 35 |
+| [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 46 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
 | [SIS](#416-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
 
@@ -1892,6 +1892,7 @@ Traslado del BAC, el % ganado, el AC y los métodos de un libro anterior.
 | [MIG-015](#mig-015) | Advertencia | Análisis de desviaciones sin fila en el libro nuevo |
 | [MIG-016](#mig-016) | Info | Análisis de desviaciones trasladado |
 | [MIG-017](#mig-017) | Advertencia | Filas sin trasladar |
+| [MIG-018](#mig-018) | Info | Registro de cambios trasladado |
 
 #### MIG-001
 
@@ -2029,6 +2030,14 @@ Resumen en la consola de las filas con historial que no se pudieron trasladar (v
 
 **Qué hacer:** Ver la hoja Validación del libro nuevo.
 
+#### MIG-018
+
+**Registro de cambios trasladado** · Info · generar `--migrar-desde` (hoja Validación) · se puede silenciar
+
+Se trasladaron las filas de la hoja Registro de cambios y la referencia de los valores informados, con la que actualizar detecta los cambios siguientes.
+
+**Qué hacer:** Ninguna.
+
 ---
 
 ### 4.13 DEP · Depuración de costes
@@ -2153,6 +2162,17 @@ Carga del % ganado del mes: fecha de corte, filas del libro, BAC y observaciones
 | [ACT-033](#act-033) | Info | Sin hitos ni % físico: % completado |
 | [ACT-034](#act-034) | Info | Método no definido: % completado |
 | [ACT-035](#act-035) | Info | Método no reconocido: % completado |
+| [ACT-036](#act-036) | Advertencia o Info | Cambio de BAC |
+| [ACT-037](#act-037) | Advertencia | Valores de meses ya informados modificados |
+| [ACT-038](#act-038) | Info | Referencia del registro de cambios guardada |
+| [ACT-039](#act-039) | Advertencia | Avance sin costo |
+| [ACT-040](#act-040) | Advertencia | Costo sin avance |
+| [ACT-041](#act-041) | Advertencia | Costo después de terminar el paquete |
+| [ACT-042](#act-042) | Info | AC del mes de corte sin cargar |
+| [ACT-043](#act-043) | Advertencia | Análisis del mes anterior incompleto |
+| [ACT-044](#act-044) | Advertencia | Desviaciones del mes anterior sin analizar |
+| [ACT-045](#act-045) | Advertencia | Acción vencida con el paquete fuera de umbral |
+| [ACT-046](#act-046) | Advertencia | Meses sin informe |
 
 #### ACT-001
 
@@ -2433,6 +2453,94 @@ La fila no tiene método de medición: se usó el % completado.
 El método de la fila no es uno de los admitidos: se usó el % completado (ver [MET-001](#met-001)).
 
 **Qué hacer:** Corregir el método en la columna C del libro o en MS Project.
+
+#### ACT-036
+
+**Cambio de BAC** · Advertencia o Info · actualizar y analizar · se puede silenciar
+
+El BAC de la fila cambió desde la ejecución anterior: el cambio se agregó a la hoja Registro de cambios. Es una advertencia si la fila tiene meses ya informados: su PV y su EV se recalcularon con el BAC nuevo (cambio retroactivo).
+
+**Qué hacer:** Indicar el motivo y el número de cambio aprobado en la hoja Registro de cambios.
+
+#### ACT-037
+
+**Valores de meses ya informados modificados** · Advertencia · actualizar y analizar · se puede silenciar
+
+El % ganado o el AC de meses anteriores al mes de corte cambió desde la ejecución anterior, o se cargó el AC de un mes anterior al último informado: el cambio se agregó a la hoja Registro de cambios.
+
+**Qué hacer:** Si es una corrección, indicar el motivo en la hoja Registro de cambios; si no, restaurar el valor anterior.
+
+#### ACT-038
+
+**Referencia del registro de cambios guardada** · Info · actualizar y analizar · se puede silenciar
+
+Primera ejecución con el registro de cambios: se guardaron el BAC y los valores de los meses informados de cada fila. Los cambios se registran a partir de la ejecución siguiente.
+
+**Qué hacer:** Ninguna.
+
+#### ACT-039
+
+**Avance sin costo** · Advertencia · actualizar y analizar · se puede silenciar
+
+La fila tiene EV acumulado y no tiene AC acumulado: el costo real no se cargó o se imputó a otro paquete, y el CPI no se puede calcular.
+
+**Qué hacer:** Cargar el AC del paquete en la hoja AC o revisar el avance informado.
+
+#### ACT-040
+
+**Costo sin avance** · Advertencia · actualizar y analizar · se puede silenciar
+
+La fila tiene AC acumulado y no tiene EV acumulado: costo sin trabajo medido. No se revisa en los paquetes con método 0/100 o «Hitos ponderados», en los que el EV llega al terminar o al cumplirse cada hito.
+
+**Qué hacer:** Revisar el avance en MS Project, el método de medición o la imputación del AC.
+
+#### ACT-041
+
+**Costo después de terminar el paquete** · Advertencia · actualizar y analizar · se puede silenciar
+
+La fila tiene AC en meses posteriores al mes en que su % ganado llegó al 100 %.
+
+**Qué hacer:** Revisar si es un costo tardío del paquete (y explicarlo) o un costo de otro paquete.
+
+#### ACT-042
+
+**AC del mes de corte sin cargar** · Info · actualizar y analizar · se puede silenciar
+
+Los controles del EV y el AC se revisan hasta el último mes con AC cargado (o no se revisan, si ningún mes tiene AC).
+
+**Qué hacer:** Cargar el AC del mes en la hoja AC y ejecutar analizar.
+
+#### ACT-043
+
+**Análisis del mes anterior incompleto** · Advertencia · actualizar y analizar · se puede silenciar
+
+La fila del último análisis anterior al mes de corte tiene texto, pero no tiene Causa o no tiene Acción correctiva.
+
+**Qué hacer:** Completar la causa y la acción correctiva en la hoja Análisis de desviaciones.
+
+#### ACT-044
+
+**Desviaciones del mes anterior sin analizar** · Advertencia · actualizar y analizar · se puede silenciar
+
+Paquetes que estaban fuera de umbral en el último análisis anterior al mes de corte y cuya fila no tiene ningún texto: se quitan de la hoja. Los que siguen fuera de umbral vuelven a listarse en el mes de corte.
+
+**Qué hacer:** Analizar las desviaciones de cada mes antes del cierre siguiente.
+
+#### ACT-045
+
+**Acción vencida con el paquete fuera de umbral** · Advertencia · actualizar y analizar · se puede silenciar
+
+El paquete sigue fuera de umbral en el mes de corte y la Fecha compromiso de su acción correctiva es anterior a la fecha de corte: la acción no se cumplió o no fue eficaz.
+
+**Qué hacer:** Revisar la acción correctiva y su fecha compromiso en la hoja Análisis de desviaciones.
+
+#### ACT-046
+
+**Meses sin informe** · Advertencia · actualizar y analizar · se puede silenciar
+
+Entre el primer mes con % ganado y el mes de corte hay meses sin % ganado cargado: su avance quedó en el mes cargado siguiente. La norma EIA-748-E pide la información al menos cada mes.
+
+**Qué hacer:** Ejecutar actualizar al cierre de cada mes, con la fecha de estado de ese mes, aunque el informe sea bimestral. Si la frecuencia está acordada con el cliente, silenciar [ACT-046](#act-046).
 
 ---
 

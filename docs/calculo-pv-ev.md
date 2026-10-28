@@ -627,7 +627,7 @@ comportamiento esperado de ese método.
 
 | Cambio | Qué hacer | Efecto |
 |---|---|---|
-| Cambio aprobado del BAC de una fila | Escribir el nuevo BAC en la columna D. | El PV y el EV de **todos los meses** de la fila se recalculan con el nuevo BAC (el SPI de la fila en los meses anteriores no cambia). El AC no cambia. Lo informado en cada mes queda en la copia de respaldo de cada `actualizar`. |
+| Cambio aprobado del BAC de una fila | Escribir el nuevo BAC en la columna D. | El PV y el EV de **todos los meses** de la fila se recalculan con el nuevo BAC (el SPI de la fila en los meses anteriores no cambia). El AC no cambia. El siguiente `actualizar` o `analizar` agrega el cambio a la hoja `Registro de cambios`, con el BAC anterior y la cantidad de meses informados que cambiaron: para la norma EIA-748 es un cambio retroactivo, que se debe explicar ([El libro Excel](libro-excel.md#registro-de-cambios)). |
 | Nueva línea base o cambio de EDT en MS Project | Generar un libro nuevo con `--migrar-desde` ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). | Se traslada el **BAC escrito**, el % ganado, el AC, los métodos y el análisis de desviaciones. Si varias filas anteriores pasan a una, el % ganado se combina ponderado por su BAC. |
 
 ---
@@ -658,6 +658,10 @@ comportamiento esperado de ese método.
 | Planificación distinta | `actualizar` usa siempre la planificación con la que se generó el libro. |
 | Celdas convertidas | Celdas de ingreso con texto o fórmulas que se reemplazaron por su valor numérico. |
 | Celdas sin la fórmula del libro | Subtotales, fila TOTAL o suma de las empresas que perdieron su fórmula (por ejemplo, porque se escribió un valor encima): se informan para restaurarlas. |
+| Cambios del BAC o de meses ya informados | El BAC de una fila, o el % ganado o el AC de un mes anterior al mes de corte, cambiaron desde la ejecución anterior: se agregan a la hoja `Registro de cambios` para indicar el motivo ([El libro Excel](libro-excel.md#registro-de-cambios)). |
+| EV y AC incoherentes | Paquetes con avance y sin costo, con costo y sin avance (salvo 0/100 e hitos ponderados) o con costo después de llegar al 100 %, hasta el último mes con AC cargado ([ACT-039](codigos.md#act-039) a [ACT-042](codigos.md#act-042)). |
+| Análisis del mes anterior incompleto y acciones vencidas | Ver [Análisis de desviaciones](analisis-desviaciones.md#3-cierre-mensual). |
+| Meses sin informe | Meses sin % ganado entre el último mes cargado y el mes de corte: su avance quedó en el mes de corte ([ACT-046](codigos.md#act-046)). |
 
 Antes de leer MS Project, `actualizar` **verifica el libro**: si falta o se renombró una hoja, si se
 insertaron, eliminaron u ordenaron filas en las hojas mensuales (los códigos EDT de la columna A no

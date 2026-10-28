@@ -885,6 +885,10 @@ _CODES = [
     _code("MIG-017", W, "Filas sin trasladar",
           "Resumen en la consola de las filas con historial que no se pudieron trasladar (ver MIG-014).",
           "Ver la hoja Validación del libro nuevo.", "generar --migrar-desde"),
+    _code("MIG-018", I, "Registro de cambios trasladado",
+          "Se trasladaron las filas de la hoja Registro de cambios y la referencia de los valores informados, con "
+          "la que actualizar detecta los cambios siguientes.",
+          "Ninguna."),
 
     # --- DEP: depuración de costes ------------------------------------------------------------------------------
     _code("DEP-001", I, "Depuración de costes activa",
@@ -1027,6 +1031,53 @@ _CODES = [
     _code("ACT-035", I, "Método no reconocido: % completado",
           "El método de la fila no es uno de los admitidos: se usó el % completado (ver MET-001).",
           "Corregir el método en la columna C del libro o en MS Project.", W_ROW),
+    _code("ACT-036", (W, I), "Cambio de BAC",
+          "El BAC de la fila cambió desde la ejecución anterior: el cambio se agregó a la hoja Registro de cambios. "
+          "Es una advertencia si la fila tiene meses ya informados: su PV y su EV se recalcularon con el BAC nuevo "
+          "(cambio retroactivo).",
+          "Indicar el motivo y el número de cambio aprobado en la hoja Registro de cambios.", W_AN),
+    _code("ACT-037", W, "Valores de meses ya informados modificados",
+          "El % ganado o el AC de meses anteriores al mes de corte cambió desde la ejecución anterior, o se cargó el "
+          "AC de un mes anterior al último informado: el cambio se agregó a la hoja Registro de cambios.",
+          "Si es una corrección, indicar el motivo en la hoja Registro de cambios; si no, restaurar el valor "
+          "anterior.", W_AN),
+    _code("ACT-038", I, "Referencia del registro de cambios guardada",
+          "Primera ejecución con el registro de cambios: se guardaron el BAC y los valores de los meses informados "
+          "de cada fila. Los cambios se registran a partir de la ejecución siguiente.",
+          "Ninguna.", W_AN),
+    _code("ACT-039", W, "Avance sin costo",
+          "La fila tiene EV acumulado y no tiene AC acumulado: el costo real no se cargó o se imputó a otro "
+          "paquete, y el CPI no se puede calcular.",
+          "Cargar el AC del paquete en la hoja AC o revisar el avance informado.", W_AN),
+    _code("ACT-040", W, "Costo sin avance",
+          "La fila tiene AC acumulado y no tiene EV acumulado: costo sin trabajo medido. No se revisa en los "
+          "paquetes con método 0/100 o «Hitos ponderados», en los que el EV llega al terminar o al cumplirse cada "
+          "hito.",
+          "Revisar el avance en MS Project, el método de medición o la imputación del AC.", W_AN),
+    _code("ACT-041", W, "Costo después de terminar el paquete",
+          "La fila tiene AC en meses posteriores al mes en que su % ganado llegó al 100 %.",
+          "Revisar si es un costo tardío del paquete (y explicarlo) o un costo de otro paquete.", W_AN),
+    _code("ACT-042", I, "AC del mes de corte sin cargar",
+          "Los controles del EV y el AC se revisan hasta el último mes con AC cargado (o no se revisan, si ningún "
+          "mes tiene AC).",
+          "Cargar el AC del mes en la hoja AC y ejecutar analizar.", W_AN),
+    _code("ACT-043", W, "Análisis del mes anterior incompleto",
+          "La fila del último análisis anterior al mes de corte tiene texto, pero no tiene Causa o no tiene Acción "
+          "correctiva.",
+          "Completar la causa y la acción correctiva en la hoja Análisis de desviaciones.", W_AN),
+    _code("ACT-044", W, "Desviaciones del mes anterior sin analizar",
+          "Paquetes que estaban fuera de umbral en el último análisis anterior al mes de corte y cuya fila no tiene "
+          "ningún texto: se quitan de la hoja. Los que siguen fuera de umbral vuelven a listarse en el mes de corte.",
+          "Analizar las desviaciones de cada mes antes del cierre siguiente.", W_AN),
+    _code("ACT-045", W, "Acción vencida con el paquete fuera de umbral",
+          "El paquete sigue fuera de umbral en el mes de corte y la Fecha compromiso de su acción correctiva es "
+          "anterior a la fecha de corte: la acción no se cumplió o no fue eficaz.",
+          "Revisar la acción correctiva y su fecha compromiso en la hoja Análisis de desviaciones.", W_AN),
+    _code("ACT-046", W, "Meses sin informe",
+          "Entre el primer mes con % ganado y el mes de corte hay meses sin % ganado cargado: su avance quedó en el "
+          "mes cargado siguiente. La norma EIA-748-E pide la información al menos cada mes.",
+          "Ejecutar actualizar al cierre de cada mes, con la fecha de estado de ese mes, aunque el informe sea "
+          "bimestral. Si la frecuencia está acordada con el cliente, silenciar ACT-046.", W_AN),
 
     # --- FIC: fichas de tareas ----------------------------------------------------------------------------------
     _code("FIC-001", W, "No hay fichas",

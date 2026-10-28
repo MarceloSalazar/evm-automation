@@ -38,10 +38,11 @@ El BAC de cada fila se ingresa en la hoja `PV`, el PV y el EV son el BAC × el %
 | **Evolución mensual** | Tabla mensual del proyecto (datos de la curva S). |
 | **Indicadores EDT** | Indicadores de cada elemento de la EDT a la fecha de corte y su plazo según el cronograma de MS Project (fin previsto, desvío de fin, holgura y camino crítico). |
 | **Análisis de desviaciones** | Paquetes fuera de umbral de cada mes, con causa, impacto, acción correctiva, responsable y fecha ([Análisis de desviaciones](analisis-desviaciones.md)). |
+| **Registro de cambios** | Cambios del BAC y de los valores de meses ya informados (% ganado y AC) que detectan `actualizar` y `analizar`, con columnas amarillas para el motivo y el número de cambio aprobado ([Registro de cambios](#registro-de-cambios)). |
 | **Validación** | Advertencias de la exportación ([Validaciones](validaciones-y-problemas.md#1-validaciones)). |
 | **Listas** | Métodos de medición del desplegable de la columna C y su regla de cálculo. |
 | **Depuración costes** y **PV-depuración** | Solo con `depuracion_costes = true`: gráfico comparativo y previsión pegada del plan de costes de una empresa; la hoja PV de esa empresa lleva una fila «(coste)» debajo de cada fila, y en las demás hojas esas filas quedan vacías y ocultas ([Depuración de costes](depuracion-costes.md)). |
-| `_graficos`, `_estructura`, `_meta` (y `_depuracion`, `_lista_edt`) | Hojas ocultas con los datos de los gráficos, los datos que usan `actualizar` y `--migrar-desde`, con depuración de costes, la asignación de la previsión pegada y, con `lista_edt`, la lista EDT con que se generó el libro. **No se deben modificar.** |
+| `_graficos`, `_estructura`, `_meta`, `_registro` (y `_depuracion`, `_lista_edt`) | Hojas ocultas con los datos de los gráficos, los datos que usan `actualizar` y `--migrar-desde`, la referencia del registro de cambios (los valores de la última ejecución), con depuración de costes, la asignación de la previsión pegada y, con `lista_edt`, la lista EDT con que se generó el libro. **No se deben modificar.** |
 
 ---
 
@@ -141,6 +142,9 @@ Qué se traslada:
   MS Project, se usa el nuevo.
 - El texto de la hoja `Análisis de desviaciones`
   ([Análisis de desviaciones](analisis-desviaciones.md#5-cambios-de-línea-base)).
+- Las filas de la hoja `Registro de cambios` (también el motivo y el número de cambio) y la referencia con
+  la que `actualizar` detecta los cambios siguientes, en las filas que se asocian una a una
+  ([Registro de cambios](#registro-de-cambios)).
 - La **fecha de corte** de la hoja `Resumen`.
 - Con depuración de costes, el contenido de la hoja `PV-depuración`, si el libro nuevo también depura la
   misma empresa ([Depuración de costes](depuracion-costes.md#8-ciclo-de-ajuste)).
@@ -205,6 +209,36 @@ Paquetes de trabajo con SPI o CPI en amarillo o rojo (por debajo o por encima de
 mes de corte, que `actualizar` (o
 `analizar`) agrega cada mes, con columnas amarillas para explicar cada desviación. El texto se conserva
 al actualizar y con `--migrar-desde`. Ver [Análisis de desviaciones](analisis-desviaciones.md).
+
+### Registro de cambios
+
+Registro de los cambios de los datos ya informados, que pide la norma EIA-748
+([Norma EIA-748-E](evaluacion-eia-748-e.md), guías 24 a 26). `actualizar` y `analizar` guardan al terminar
+el BAC, el % ganado y el AC de cada fila hasta la fecha de corte (hoja oculta `_registro`) y, en la
+ejecución siguiente, comparan el libro con esos valores:
+
+| Cambio | Se registra | Aviso en pantalla |
+|---|---|---|
+| BAC de una fila | Sí. *Meses informados afectados* indica cuántos meses anteriores al mes de corte cambiaron su PV o su EV: el PV y el EV de cada mes son el BAC × el %, así que un BAC nuevo los recalcula (cambio retroactivo). | [ACT-036](codigos.md#act-036): advertencia si hay meses informados afectados. |
+| % ganado o AC de un mes anterior al mes de corte (valor cambiado, borrado o cargado tarde) | Sí, con el mes del valor. | [ACT-037](codigos.md#act-037) |
+| AC del último mes informado cargado después de `actualizar` | No: es la carga habitual del AC del mes. | — |
+
+| Columna | Contenido |
+|---|---|
+| Detectado, Fecha de corte | Cuándo se detectó el cambio y la fecha de corte de esa ejecución. |
+| Código EDT, Actividad, Empresa | Fila del libro (y empresa, en multi-empresa). |
+| Dato, Mes del valor | `BAC`, `% ganado` o `AC`, y el mes del valor (vacío en el BAC). |
+| Valor anterior, Valor nuevo, Variación | Valores de la ejecución anterior y de esta. |
+| Meses informados afectados | En los cambios de BAC: meses anteriores al mes de corte con PV o EV. |
+| **Motivo**, **N.º de cambio aprobado** | Celdas amarillas: se completan a mano. |
+
+- Las filas no se borran: el registro es el historial de los cambios del libro. Se conservan con
+  `--migrar-desde`.
+- La primera ejecución (o la primera de un libro de una versión anterior) solo guarda la referencia
+  ([ACT-038](codigos.md#act-038)); una fila nueva, también.
+- `actualizar --simular` muestra los cambios sin registrarlos.
+- Un cambio que no corresponde (por ejemplo, un valor modificado por error) se corrige restaurando el
+  valor anterior en la hoja; la fila del registro queda como constancia, con el motivo.
 
 ### Validación
 

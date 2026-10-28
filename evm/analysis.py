@@ -17,6 +17,8 @@ from openpyxl.formatting.rule import FormulaRule
 from openpyxl.styles import Alignment, Font
 from openpyxl.worksheet.properties import PageSetupProperties
 
+from evm.messages import Issue
+from evm.wbs import plural
 from evm.workbook import (BORDER, COL_BAC, FILL_GREEN, FILL_INPUT, FILL_RED, FILL_YELLOW, FIRST_MONTH_COL,
                           FMT_DATE, FMT_DAYS, FMT_MONTH, FMT_RATIO, FMT_SLACK, FONT_NOTE, FONT_TITLE, HEADER_ROW,
                           NAME_START, SHEET_AC, SHEET_EV, SHEET_IND, SHEET_PV, Thresholds, _header, _traffic_light,
@@ -176,6 +178,57 @@ def refresh(entries: list[Entry], found: list[Deviation], month: date,
             if e.key in plan:
                 e.plan = tuple(plan[e.key])
     out += [e for e in entries if not e.key or (e.month != month and e.has_text)]
+    return out
+
+
+def _blank(value) -> bool:
+    return value is None or str(value).strip() == ""
+
+
+def incomplete(entries: list[Entry], month: date) -> list[Issue]:
+    """Filas del último análisis anterior al mes `month` sin causa o sin acción correctiva (ACT-043), o sin ningún
+    texto (ACT-044: 'refresh' las quita de la hoja). Se revisan antes de 'refresh'."""
+    earlier = [e.month for e in entries if e.key and e.month is not None and e.month < month]
+    if not earlier:
+        return []
+    last = max(earlier)
+    out: list[Issue] = []
+    empty: list[str] = []
+    for e in entries:
+        if not e.key or e.month != last:
+            continue
+        if not e.has_text:
+            empty.append(e.code)
+            continue
+        cause, action = (_blank(e.texts[TEXT_COLS.index(c_)]) for c_ in (A_CAUSE, A_ACTION))
+        if cause or action:
+            what = "causa ni acción correctiva" if cause and action else "causa" if cause else "acción correctiva"
+            out.append(Issue("ACT-043", e.code, e.name, f"El análisis de {last:%m/%Y} no tiene {what}."))
+    if empty:
+        shown = ", ".join(empty[:10]) + (f" y {len(empty) - 10} más" if len(empty) > 10 else "")
+        out.append(Issue("ACT-044", "", "",
+                         f"{plural(len(empty), 'paquete fuera de umbral', 'paquetes fuera de umbral')} en "
+                         f"{last:%m/%Y} {'quedó' if len(empty) == 1 else 'quedaron'} sin analizar, sin texto en la "
+                         f"hoja Análisis de desviaciones ({shown}): se quitan de la hoja, y los que siguen fuera de "
+                         "umbral vuelven a listarse en el mes de corte."))
+    return out
+
+
+def overdue(entries: list[Entry], found: list[Deviation], month: date, status: date) -> list[Issue]:
+    """Paquetes fuera de umbral en el mes `month` cuya fecha compromiso es anterior a la fecha de corte (ACT-045). Se
+    revisan después de 'refresh': la fila del mes copia el texto del análisis anterior."""
+    flagged = {d.key for d in found}
+    out: list[Issue] = []
+    for e in entries:
+        if e.key not in flagged or e.month != month:
+            continue
+        when = e.texts[TEXT_COLS.index(A_DATE)]
+        if isinstance(when, datetime):
+            when = when.date()
+        if isinstance(when, date) and when < status:
+            out.append(Issue("ACT-045", e.code, e.name,
+                             f"Sigue fuera de umbral y la fecha compromiso de su acción ({when:%d/%m/%Y}) es anterior "
+                             "a la fecha de corte."))
     return out
 
 

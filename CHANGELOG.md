@@ -58,6 +58,25 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - Documento nuevo [Evaluación DCMA de 14 puntos](docs/evaluacion-dcma.md): qué mide cada punto, cómo lo
   calcula `validar`, qué hacer en MS Project, la prueba manual del camino crítico (punto 12) y lo que el
   programa no verifica (los recursos, punto 10).
+- **Registro de cambios** (#24, #31): `actualizar` y `analizar` comparan el libro con los valores de la
+  ejecución anterior y agregan a la hoja nueva `Registro de cambios` cada cambio del BAC y del % ganado o
+  el AC de un mes ya informado, con el valor anterior, el nuevo y columnas amarillas para el motivo y el
+  número de cambio aprobado. Un cambio del BAC con meses informados es una advertencia (`ACT-036`): el PV
+  y el EV de esos meses se recalculan (cambio retroactivo, guía 26 de la norma EIA-748-E). Los cambios de
+  meses ya informados se avisan con `ACT-037`; cargar el AC del último mes informado no es un cambio. La
+  primera ejecución solo guarda la referencia (`ACT-038`), `--simular` no registra y `--migrar-desde`
+  traslada el registro y la referencia (`MIG-018`)
+  ([El libro Excel](docs/libro-excel.md#registro-de-cambios)).
+- **Coherencia del EV y el AC** (#32): `actualizar` y `analizar` avisan de los paquetes con avance y sin
+  costo (`ACT-039`), con costo y sin avance (`ACT-040`, salvo los métodos 0/100 e hitos ponderados) y con
+  costo después de llegar al 100 % (`ACT-041`), hasta el último mes con AC cargado (`ACT-042`).
+- **Análisis de desviaciones incompleto y acciones vencidas** (#33): en el cierre siguiente se avisa de
+  las filas del mes anterior sin causa o sin acción correctiva (`ACT-043`), de los paquetes que quedaron
+  sin analizar (`ACT-044`) y de las acciones con la fecha compromiso vencida de los paquetes que siguen
+  fuera de umbral (`ACT-045`)
+  ([Análisis de desviaciones](docs/analisis-desviaciones.md#3-cierre-mensual)).
+- **Meses sin informe** (#34): `actualizar` avisa de los meses sin % ganado entre el último mes cargado y
+  el mes de corte, y `analizar`, de todos los meses sin % ganado desde el primero cargado (`ACT-046`).
 
 ### Correcciones
 
@@ -67,8 +86,7 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - Documento nuevo [Norma EIA-748-E](docs/evaluacion-eia-748-e.md): las 27 guías de la norma de EE. UU.
   para sistemas EVM (revisión E, 2026), qué exige cada una, qué cubre el programa y con qué controles, y
-  qué debe aportar la organización. Advierte que un cambio del BAC recalcula el PV y el EV de los meses ya
-  informados, que para la norma es un cambio retroactivo.
+  qué debe aportar la organización.
 - El ayudante del ejemplo (`generar_ejemplo.py --libro`) escribe la previsión ficticia con líneas de EDT
   interna, y la captura de la hoja `PV-depuración` muestra el formato nuevo.
 - Hoja `Validación`: la columna `Código` es la B; el código EDT, la tarea, el detalle y el tema pasan a

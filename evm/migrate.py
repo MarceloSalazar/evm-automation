@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 
+from evm import changes
 from evm.analysis import A_CODE, A_KEY, A_MONTH, A_NAME, A_ORIGIN, SHEET_ANALYSIS, TEXT_COLS, read_entries
 from evm.config import ConfigError
 from evm.cost_review import SHEET_PASTE, month_offset, paste_months, read_paste, review_company, shift_rows
@@ -87,6 +88,10 @@ class PriorData:
     review_start: date | None = None
     review_legacy: bool = False
     review_keep: bool = False
+    # Registro de cambios: filas de la hoja y referencia de la última ejecución (con las claves del libro nuevo
+    # después de plan_migration)
+    change_log: list[list] = field(default_factory=list)
+    reference: changes.Reference | None = None
 
     def values_for(self, key: str, kind: str) -> dict[MonthKey, float]:
         return self.values.get(key, {}).get(kind, {})
@@ -131,6 +136,8 @@ def prior_from_book(path, project_name: str) -> PriorData:
     analysis = read_entries(wb[SHEET_ANALYSIS]) if SHEET_ANALYSIS in wb.sheetnames else []
     review_rows, review_legacy = (read_paste(wb[SHEET_PASTE], book.horizon.months) if SHEET_PASTE in wb.sheetnames
                                   else ([], False))
+    change_log = changes.read_rows(wb[changes.SHEET_LOG]) if changes.SHEET_LOG in wb.sheetnames else []
+    reference = changes.read_reference(wb)
     wb.close()
     level = book.meta.get("nivel_maximo")
     names = {n: str(source_meta(book.meta, "proyecto", n) or "") for n in book_sources(book.meta)}
@@ -139,7 +146,7 @@ def prior_from_book(path, project_name: str) -> PriorData:
                      max_level=int(level) if level else None, methods_list=methods_list, multi=book.multi,
                      project_names=names, analysis=analysis, review_rows=review_rows,
                      review_company=str(book.meta.get("depuracion_empresa") or ""), review_start=book.horizon.start,
-                     review_legacy=review_legacy)
+                     review_legacy=review_legacy, change_log=change_log, reference=reference)
 
 
 def _migrate_analysis(prior: PriorData, key_map: dict[str, str]) -> list[Issue]:
@@ -168,6 +175,31 @@ def _migrate_analysis(prior: PriorData, key_map: dict[str, str]) -> list[Issue]:
         issues.append(Issue("MIG-016", "", "", f"Se {'trasladó' if moved == 1 else 'trasladaron'} "
                                               f"{plural(moved, 'fila', 'filas')} del análisis de desviaciones."))
     return issues
+
+
+def _migrate_changes(prior: PriorData, key_map: dict[str, str], sources: dict[str, list]) -> list[Issue]:
+    """El registro de cambios pasa al libro nuevo con las claves nuevas (las filas cuyo paquete ya no tiene fila
+    quedan sin clave). La referencia solo se traslada en las filas asociadas una a una: una fila nueva que reúne
+    varias anteriores guarda su referencia en la primera ejecución, sin registrar cambios."""
+    for vals in prior.change_log:
+        vals[changes.L_KEY - 1] = key_map.get(str(vals[changes.L_KEY - 1] or ""))
+    moved = 0
+    if prior.reference is not None:
+        rows = {}
+        for (key, role), ref in prior.reference.rows.items():
+            new = key_map.get(key)
+            if new is not None and len(sources.get(new, [])) == 1:
+                rows[(new, role)] = ref
+        moved = len({key for key, _role in rows})
+        prior.reference = changes.Reference(prior.reference.start, prior.reference.cutoff, rows) if rows else None
+    if not prior.change_log and not moved:
+        return []
+    parts = []
+    if prior.change_log:
+        parts.append(plural(len(prior.change_log), "fila de la hoja", "filas de la hoja"))
+    if moved:
+        parts.append(f"la referencia de {plural(moved, 'fila', 'filas')} del libro")
+    return [Issue("MIG-018", "", "", f"Registro de cambios trasladado: {' y '.join(parts)}.")]
 
 
 def _migrate_review(report: Report, prior: PriorData) -> list[Issue]:
@@ -366,6 +398,7 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
     if prior.bac:
         issues.append(Issue("MIG-013", "", "", f"Se conservó el BAC de {plural(len(prior.bac), 'fila', 'filas')} del "
                                               "libro anterior."))
+    issues += _migrate_changes(prior, key_map, sources)
     issues += _migrate_review(report, prior)
     for old in prior.unmatched:
         bac = f"BAC {fmt_money(sum(old.bac.values()))}, "

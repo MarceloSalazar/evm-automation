@@ -13,7 +13,7 @@ import pytest
 from openpyxl import Workbook, load_workbook
 from openpyxl.writer.excel import ExcelWriter
 
-from evm import dashboard
+from evm import changes, dashboard
 from evm.cli import main
 from evm.config import Config, ConfigError, load_config
 from evm.migrate import plan_migration, prior_from_book
@@ -512,7 +512,9 @@ def test_update_roundtrip_preserves_workbook_features(small_book):
     assert chart_count(small_book) == 3
     run_update(P(progress_tasks()), Config(), small_book, date(2026, 1, 31), backup=False)
     run_update(P(progress_tasks()), Config(), small_book, date(2026, 2, 28), backup=False)
-    assert feature_snapshot(small_book) == before
+    after = feature_snapshot(small_book)
+    assert after[0].pop(changes.SHEET_REF) == (0, 0, "hidden", "None", 0)     # referencia del registro de cambios
+    assert after == before
     assert chart_count(small_book) == 3
 
 
