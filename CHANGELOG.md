@@ -65,6 +65,10 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Otros
 
+- Documento nuevo [Norma EIA-748-E](docs/evaluacion-eia-748-e.md): las 27 guías de la norma de EE. UU.
+  para sistemas EVM (revisión E, 2026), qué exige cada una, qué cubre el programa y con qué controles, y
+  qué debe aportar la organización. Advierte que un cambio del BAC recalcula el PV y el EV de los meses ya
+  informados, que para la norma es un cambio retroactivo.
 - El ayudante del ejemplo (`generar_ejemplo.py --libro`) escribe la previsión ficticia con líneas de EDT
   interna, y la captura de la hoja `PV-depuración` muestra el formato nuevo.
 - Hoja `Validación`: la columna `Código` es la B; el código EDT, la tarea, el detalle y el tema pasan a

@@ -16,6 +16,7 @@ rápido están en el [README principal](../README.md).
 | Organizar el cierre mensual | [Proceso de reporte EVM](proceso-reporte-evm.md) |
 | Revisar el archivo de MS Project antes de generar o actualizar el libro | [Comando `validar`](comandos.md#validar-revisa-el-archivo-de-ms-project) |
 | Evaluar la calidad del cronograma con los criterios de la DCMA | [Evaluación DCMA de 14 puntos](evaluacion-dcma.md) |
+| Saber qué requisitos de la norma EIA-748 cubre el programa | [Norma EIA-748-E](evaluacion-eia-748-e.md) |
 | Entregar al cliente las fichas de tareas | [Comando `generar-fichas`](comandos.md#generar-fichas-fichas-de-tareas-para-el-cliente) |
 | Reunir varios archivos de MS Project en un informe | [Varios archivos de MS Project](varios-archivos.md) |
 | Alinear el cronograma con el plan de costes de una empresa | [Depuración de costes](depuracion-costes.md) |
@@ -68,6 +69,7 @@ rápido están en el [README principal](../README.md).
 |---|---|
 | [Validaciones y solución de problemas](validaciones-y-problemas.md) | Controles de la hoja `Validación` y del comando `validar` (códigos EDT, fechas, pesos, método, avance y lógica del cronograma), limitaciones conocidas y mensajes frecuentes. |
 | [Evaluación DCMA de 14 puntos](evaluacion-dcma.md) | Los 14 controles de calidad del cronograma de la DCMA: qué mide cada uno, cómo lo calcula `validar` (12 de 14), qué hacer en MS Project, la prueba manual del camino crítico y lo que el programa no verifica. |
+| [Norma EIA-748-E](evaluacion-eia-748-e.md) | Las 27 guías de la norma de EE. UU. para sistemas EVM: qué exige cada una, qué cubre el programa, con qué controles, y qué aporta la organización. |
 | [Glosario](glosario.md) | Siglas EVM y su equivalencia con los campos de MS Project en español (CPTP, CPTR, CRTR...). |
 | [Registro de cambios](../CHANGELOG.md) | Cambios de cada versión: nuevas funciones, correcciones y otros. |
 | [Recursos externos](recursos-externos.md) | Documentación de Microsoft, estándares y guías de buenas prácticas. |

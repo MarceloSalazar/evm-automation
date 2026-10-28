@@ -29,7 +29,8 @@ Uno de ellos es un cronograma integrado: la secuencia del trabajo con sus depend
 de la línea base de medición (el PV). La *Defense Contract Management Agency* (DCMA), que revisa esos
 sistemas en los contratos de defensa, publicó 14 controles automáticos sobre el cronograma. Se
 convirtieron en la referencia habitual de las herramientas de análisis de cronogramas. Las métricas de
-cumplimiento que la DCMA usa hoy en sus revisiones (DECM) incluyen controles equivalentes.
+cumplimiento que la DCMA usa hoy en sus revisiones (DECM) incluyen controles equivalentes. Qué otros
+requisitos de la norma cubre el programa está en [Norma EIA-748-E](evaluacion-eia-748-e.md).
 
 Para este programa importa por dos motivos:
 

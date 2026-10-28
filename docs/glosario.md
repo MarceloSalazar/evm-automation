@@ -85,6 +85,7 @@ BAC que se ingresa en el libro × el % planificado y el % ganado, y el AC se car
 | Planificación | Rama del proyecto bajo una tarea de primer nivel con código EDT (`INTERNO`, `CLIENTE`) que se exporta a un libro. |
 | Horizonte | Meses del libro (120 por defecto). Por defecto, mes 1 = primer mes con % planificado (en general, el de inicio de la línea base); se cambia con `mes_inicio` o `--mes-inicio`. |
 | Mes de reporte | Mes que muestra el `Cuadro de Mando` (celda `E5`). |
+| EIA-748 | Norma de EE. UU. para los sistemas de gestión del valor ganado (revisión E, 2026: 27 guías). Evalúa el sistema de gestión de la organización; qué partes cubre el programa está en [Norma EIA-748-E](evaluacion-eia-748-e.md). |
 | DCMA de 14 puntos | Evaluación de calidad de cronogramas de la *Defense Contract Management Agency* de EE. UU.: lógica, adelantos, posiciones, tipos de vínculo, delimitaciones, holgura, duración, fechas no válidas, recursos, tareas incumplidas, camino crítico, CPLI y BEI. `validar` revisa 12 de los 14 puntos ([Evaluación DCMA de 14 puntos](evaluacion-dcma.md)). |
 | Valor del mes | Valor de un mes, no acumulado: el % ganado que `actualizar` escribe en la hoja `% EV` (el EV del mes es el BAC × ese %) o el AC que se ingresa en la hoja `AC`. |
 | Desvío de fin | Días laborables entre el fin de la línea base y el fin previsto de una fila o del proyecto, según el cronograma de MS Project (> 0 = atraso) ([Indicadores EDT](libro-excel.md#indicadores-edt)). |
