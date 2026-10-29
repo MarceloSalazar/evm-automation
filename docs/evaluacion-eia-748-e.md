@@ -77,7 +77,7 @@ La columna **Controles** indica los códigos de los controles automáticos relac
 | **Planificación, programación y presupuesto** | | | |
 | 5 | Identificar los indicadores de avance | Parcial | [HIT](codigos.md#46-hit--hitos-y-pesos), [FEC-004](codigos.md#fec-004), [FEC-005](codigos.md#fec-005) |
 | 6 | Programar el trabajo autorizado | Cubre | [LOG](codigos.md#410-log--lógica-del-cronograma), [AVA-008](codigos.md#ava-008) a [AVA-015](codigos.md#ava-015) ([Evaluación DCMA](evaluacion-dcma.md)) |
-| 7 | Establecer y mantener una línea base distribuida en el tiempo | Cubre | [FEC-009](codigos.md#fec-009) a [FEC-012](codigos.md#fec-012), [CFG-044](codigos.md#cfg-044), [CFG-045](codigos.md#cfg-045), [ACT-022](codigos.md#act-022) |
+| 7 | Establecer y mantener una línea base distribuida en el tiempo | Cubre | [FEC-009](codigos.md#fec-009) a [FEC-012](codigos.md#fec-012), [CFG-044](codigos.md#cfg-044), [CFG-045](codigos.md#cfg-045), [ACT-022](codigos.md#act-022), [ACT-023](codigos.md#act-023) |
 | 8 | Autorizar alcance, plazo y presupuesto por elementos de costo | Fuera de alcance | — |
 | 9 | Planificar en paquetes de trabajo y de planificación | Parcial | [MET-004](codigos.md#met-004), [LOG-016](codigos.md#log-016), [HIT-005](codigos.md#hit-005), [EDT-018](codigos.md#edt-018) |
 | 10 | Establecer los criterios de medición de cada paquete | Parcial | [MET](codigos.md#47-met--método-de-medición), [LEC-019](codigos.md#lec-019) |
@@ -99,7 +99,7 @@ La columna **Controles** indica los códigos de los controles automáticos relac
 | **Revisiones y mantenimiento de datos** | | | |
 | 24 | Incorporar los cambios del cliente | Parcial | [ACT-011](codigos.md#act-011) a [ACT-017](codigos.md#act-017), [ACT-036](codigos.md#act-036), [MIG](codigos.md#412-mig--migración---migrar-desde) |
 | 25 | Documentar y conciliar las replanificaciones internas | Parcial | [ACT-015](codigos.md#act-015), [ACT-036](codigos.md#act-036), [ACT-037](codigos.md#act-037), [FEC-010](codigos.md#fec-010) |
-| 26 | Controlar los cambios retroactivos | Cubre | [ACT-036](codigos.md#act-036), [ACT-037](codigos.md#act-037), [ACT-007](codigos.md#act-007), [ACT-020](codigos.md#act-020), [ACT-021](codigos.md#act-021), [ACT-024](codigos.md#act-024), [ACT-027](codigos.md#act-027) |
+| 26 | Controlar los cambios retroactivos | Cubre | [ACT-036](codigos.md#act-036), [ACT-037](codigos.md#act-037), [ACT-007](codigos.md#act-007), [ACT-020](codigos.md#act-020), [ACT-021](codigos.md#act-021), [ACT-024](codigos.md#act-024), [ACT-025](codigos.md#act-025), [ACT-027](codigos.md#act-027) |
 | 27 | Línea base o cronograma por encima del objetivo (OTB/OTS) | No cubre | — |
 
 **En resumen:** de las 27 guías, el programa **cubre 6**, cubre **en parte 14**, **no cubre 3** que
@@ -409,8 +409,9 @@ Para cumplir la norma, la organización debe aportar lo que el programa no hace:
   la conciliación con el presupuesto del contrato;
 - el **AC** de la contabilidad, con la misma fecha de corte que el EV, y los costos indirectos y de
   material;
-- el **control de cambios** de la línea base, con su registro
-  ([Cambios de línea base](proceso-reporte-evm.md#5-cambios-de-línea-base));
+- el **control de cambios** de la línea base: la aprobación de cada cambio y, en la hoja
+  [Registro de cambios](libro-excel.md#registro-de-cambios) que llena el programa, su motivo y su número
+  de cambio aprobado ([Cambios de línea base](proceso-reporte-evm.md#5-cambios-de-línea-base));
 - el **EAC** de cada responsable y del proyecto, con los riesgos;
 - la **frecuencia mensual** del análisis y el seguimiento de las acciones correctivas;
 - la **vigilancia** del sistema (revisiones internas periódicas).
