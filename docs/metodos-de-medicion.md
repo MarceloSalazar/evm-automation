@@ -317,7 +317,9 @@ dirección, oficina de proyecto (PMO), control de proyectos, administración de 
 cronograma sea coherente.
 
 **Precaución:** el LOE "diluye" los índices del proyecto (aporta SPI = 1). Se debe limitar a lo
-indispensable y no mezclar en el mismo paquete trabajo de soporte con trabajo medible.
+indispensable y no mezclar en el mismo paquete trabajo de soporte con trabajo medible. `actualizar` y
+`analizar` avisan si las filas LOE superan el `loe_maximo` del BAC total (15 % por defecto,
+[configuración](configuracion.md#claves); [ACT-049](codigos.md#act-049)).
 
 ---
 

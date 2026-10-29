@@ -351,6 +351,9 @@ _CODES = [
           "Resumen de las observaciones que no se muestran por [validacion] silenciar o --silenciar, con la cantidad "
           "de cada código.",
           "Ninguna. Para volver a verlas, quitar los códigos de silenciar."),
+    _code("CFG-050", F, "loe_maximo fuera de rango",
+          "[validacion] loe_maximo no es un % entre 0 y 100.",
+          "Indicar un % entre 0 y 100 (por defecto 15; 0 = no se controla)."),
 
     # --- LEC: lectura de MS Project -----------------------------------------------------------------------------
     _code("LEC-001", F, "No existe el archivo de origen",
@@ -569,9 +572,11 @@ _CODES = [
     _code("FEC-007", W, "Duración estimada",
           "Detalle de FEC-006: la duración de la tarea es estimada.",
           "Confirmar o corregir la duración."),
-    _code("FEC-008", I, "Tareas programadas manualmente",
-          "MS Project no recalcula las fechas de esas tareas cuando cambian sus predecesoras o el avance.",
-          "Programarlas automáticamente, salvo que sea intencional."),
+    _code("FEC-008", W, "Tareas programadas manualmente",
+          "MS Project no recalcula las fechas de esas tareas cuando cambian sus predecesoras o el avance: la lógica "
+          "del cronograma deja de funcionar en ese punto. En un cronograma integrado no debería haber ninguna.",
+          "Programarlas automáticamente. Si es intencional (p. ej. fechas impuestas por terceros), silenciar "
+          "FEC-008."),
     _code("FEC-009", W, "El proyecto no tiene la línea base seleccionada",
           "El % planificado se calculó con las fechas actuales de las tareas.",
           "Guardar la línea base en MS Project (Proyecto > Establecer línea base) o elegir otra con linea_base, y "
@@ -1078,6 +1083,24 @@ _CODES = [
           "mes cargado siguiente. La norma EIA-748-E pide la información al menos cada mes.",
           "Ejecutar actualizar al cierre de cada mes, con la fecha de estado de ese mes, aunque el informe sea "
           "bimestral. Si la frecuencia está acordada con el cliente, silenciar ACT-046.", W_AN),
+    _code("ACT-047", W, "Línea base de MS Project distinta de la del libro",
+          "El % planificado que resulta hoy de MS Project no coincide con el de las hojas % PV, que calculó generar: "
+          "se guardó de nuevo la línea base, o cambiaron las tareas o el calendario de la fila. El libro sigue con la "
+          "línea base anterior. No se comparan las filas con tareas sin fechas de línea base.",
+          "Si el cambio de línea base está aprobado, generar un libro nuevo con --migrar-desde (conserva el BAC, el % "
+          "ganado y el AC); si no, restaurar la línea base en MS Project.", W_ACT),
+    _code("ACT-048", W, "EAC poco realista",
+          "El TCPI(BAC) supera al CPI en más de 0,10, o el AC ya alcanzó el BAC con trabajo pendiente: terminar "
+          "dentro del BAC exige una eficiencia de costo muy superior a la lograda. Se calcula con el proyecto (cada "
+          "empresa en multi-empresa) en el último mes con AC cargado, desde el 20 % completado: antes, el CPI "
+          "acumulado todavía no es representativo.",
+          "Revisar el EAC y, si el desvío se confirma, evaluar una línea base por encima del objetivo (OTB) con el "
+          "cliente.", W_AN),
+    _code("ACT-049", W, "Mucho BAC en filas LOE",
+          "El % del BAC total en filas con método LOE supera [validacion] loe_maximo: su EV es igual a su PV y acerca "
+          "el SPI a 1 aunque el trabajo medible se atrase. La norma EIA-748-E pide mantener el LOE al mínimo.",
+          "Medir con hitos o % completado el trabajo que lo permita, o ajustar loe_maximo si el contrato lo admite.",
+          W_AN),
 
     # --- FIC: fichas de tareas ----------------------------------------------------------------------------------
     _code("FIC-001", W, "No hay fichas",

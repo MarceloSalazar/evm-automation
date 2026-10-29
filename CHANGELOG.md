@@ -77,6 +77,16 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   ([Análisis de desviaciones](docs/analisis-desviaciones.md#3-cierre-mensual)).
 - **Meses sin informe** (#34): `actualizar` avisa de los meses sin % ganado entre el último mes cargado y
   el mes de corte, y `analizar`, de todos los meses sin % ganado desde el primero cargado (`ACT-046`).
+- **Línea base de MS Project distinta de la del libro** (#35): `actualizar` compara el % planificado que
+  resulta hoy de la línea base de MS Project con el de las hojas `% PV` y avisa de las filas que cambiaron,
+  con el PV acumulado a la fecha de corte con cada línea base (`ACT-047`): se guardó una línea base nueva y
+  el libro sigue con la anterior hasta generarlo con `--migrar-desde`.
+- **EAC poco realista** (#36): desde el 20 % completado, `actualizar` y `analizar` avisan si el TCPI (BAC)
+  supera al CPI en más de 0,10, o si el AC ya alcanzó el BAC con trabajo pendiente (`ACT-048`), y
+  recomiendan revisar el EAC y evaluar una línea base por encima del objetivo (OTB).
+- **Peso del LOE en el BAC** (#37): `actualizar` y `analizar` avisan si las filas con método LOE superan el
+  % del BAC total de la clave nueva `[validacion] loe_maximo` (15 por defecto; 0 = no se controla;
+  `ACT-049`) ([Configuración](docs/configuracion.md#claves)).
 
 ### Correcciones
 
@@ -84,6 +94,9 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Otros
 
+- **Tareas programadas manualmente** (#38): `FEC-008` pasa de informativo a advertencia en `validar` y en
+  la hoja `Validación`: en un cronograma integrado no debería haber ninguna. Si es intencional, se puede
+  silenciar.
 - Documento nuevo [Norma EIA-748-E](docs/evaluacion-eia-748-e.md): las 27 guías de la norma de EE. UU.
   para sistemas EVM (revisión E, 2026), qué exige cada una, qué cubre el programa y con qué controles, y
   qué debe aportar la organización.

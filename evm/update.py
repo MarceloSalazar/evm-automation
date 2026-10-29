@@ -13,6 +13,7 @@ from openpyxl.workbook.properties import CalcProperties
 
 from evm import analysis, changes, consistency, progress
 from evm.config import MODE_PERCENT, Config, ConfigError
+from evm.fields import fmt_number
 from evm.messages import InputError, Issue, MissingFileError
 from evm.methods import parse_method
 from evm.model import ProjectData, Task
@@ -24,6 +25,8 @@ from evm.workbook import (COL_BAC, COL_CODE, COL_METHOD, FIRST_MONTH_COL, LEGACY
                           WorkbookFormatError, add_s_curve_chart, book_sources, clean_text, col, company_sheet,
                           pct_sheet, read_meta, read_schedule, read_structure, read_wbs_list, save_workbook,
                           source_meta, split_key, write_meta, write_schedule, write_summary_trend)
+
+PLAN_TOL = 1e-6         # diferencia del % planificado acumulado (fracción del BAC) que se considera un cambio
 
 
 # ----------------------------------------------------------------------------
@@ -578,10 +581,13 @@ def _tag(source: str, issue: Issue) -> Issue:
 
 
 def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares: dict[int, float], calendar,
-                 cfg: Config, idx: int) -> tuple[RowResult, list[tuple[str, str, float, float]]]:
+                 cfg: Config, idx: int) -> tuple[RowResult, list[tuple[str, str, float, float]],
+                                                 dict[str, list[float]] | None]:
     """% ganado acumulado de cada empresa en una fila a la fecha de corte.
 
-    Devuelve la fila del resultado y, por empresa, (clave, empresa, % ganado acumulado, BAC).
+    Devuelve la fila del resultado, por empresa (clave, empresa, % ganado acumulado, BAC) y el % planificado de cada
+    mes que resulta hoy de MS Project, por clave de empresa (como en 'generar'; None si alguna tarea no tiene fechas
+    de línea base: su % planificado sale de las fechas actuales).
     """
     from evm import percent as pct
     method = parse_method(book.method[s.row])
@@ -589,6 +595,9 @@ def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares:
     full = pct.full_weights(times)
     out = []
     notes: list[Issue] = []
+    planned: dict[str, list[float]] | None = {}
+    if any(tt.dist and not tt.from_baseline for tt in times):
+        planned = None
     for role, company in book.roles():
         share = None
         if role == "A":
@@ -596,6 +605,10 @@ def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares:
         elif role == "B":
             share = lambda t: 1.0 - shares.get(t.uid, 0.5)      # noqa: E731
         rw = pct.company_weights(times, share, company, full)
+        if planned is not None:
+            vec, before, _after = book.horizon.to_vector(pct.curve(times, rw))
+            vec[0] += before                # como en 'generar': lo anterior al horizonte, en el mes 1
+            planned[role] = vec
         pv_cum = sum(book.pct_pv[role][s.row][: idx + 1])
         frac, note = pct.earned_fraction(method, rw, pv_cum)
         bac = book.bac_role[role][s.row]
@@ -607,7 +620,41 @@ def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares:
                                "completa"))
         out.append((role, company, frac, bac))
     res = RowResult(s.code, s.name, book.method[s.row], book.bac[s.row], None, None, notes)
-    return res, out
+    return res, out, planned
+
+
+def _baseline_drift(book: BookData, s: StructRow, planned: dict[str, list[float]],
+                    idx: int) -> tuple[float, float] | None:
+    """PV acumulado de la fila a la fecha de corte con el % planificado de MS Project y con el del libro, si el %
+    planificado acumulado de algún mes difiere (None si coinciden)."""
+    now = book_pv = 0.0
+    differs = False
+    for role, _company in book.roles():
+        new, old = planned.get(role, []), book.pct_pv[role][s.row]
+        cum_new = cum_old = 0.0
+        for i in range(len(old)):
+            cum_new += new[i] if i < len(new) else 0.0
+            cum_old += old[i]
+            differs = differs or abs(cum_new - cum_old) > PLAN_TOL
+        bac = book.bac_role[role][s.row]
+        now += bac * sum(new[: idx + 1])
+        book_pv += bac * sum(old[: idx + 1])
+    return (now, book_pv) if differs else None
+
+
+def _drift_warning(drift: list[tuple[StructRow, float, float]], book: BookData, idx: int) -> Issue:
+    """ACT-047: filas cuyo % planificado no coincide con la línea base actual de MS Project."""
+    decimals = int(book.meta.get("decimales") or 0)
+    codes = ", ".join(s.code for s, _n, _o in drift[:10]) + (f" y {len(drift) - 10} más" if len(drift) > 10 else "")
+    now, old = sum(n for _s, n, _o in drift), sum(o for _s, _n, o in drift)
+    month = book.horizon.month_start(idx)
+    return Issue("ACT-047", message=(
+        f"El % planificado de {plural(len(drift), 'fila', 'filas')} no coincide con el que resulta hoy de MS "
+        f"Project ({codes}): el libro sigue con la línea base con la que se generó. Pasa cuando se guarda de nuevo la "
+        "línea base, o cambian las tareas o el calendario de la fila. Con la línea base actual, el PV acumulado de "
+        f"{'esa fila' if len(drift) == 1 else 'esas filas'} a {month:%m/%Y} sería {fmt_number(now, decimals)} "
+        f"({fmt_number(old, decimals)} en el libro). Si el cambio está aprobado, se debe generar un libro nuevo con "
+        "--migrar-desde; si no, restaurar la línea base en MS Project."))
 
 
 def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book_path: str | Path,
@@ -704,6 +751,7 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     later_months: set[int] = set()
     writes: list[tuple[str, int, int, float]] = []   # (hoja, fila, columna, valor)
     no_bac: list[str] = []                           # filas con avance y sin BAC
+    drift: list[tuple[StructRow, float, float]] = []  # filas con otro % planificado en MS Project (PV hoy y libro)
     progress.stage("calcular", "Cálculo del % ganado")
     inputs = book.input_rows
     for k, s in enumerate(inputs, start=1):
@@ -719,7 +767,11 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
         if any(t.uid in out_roots for t in contributors):
             contributors = [t for t in contributors if t.uid not in out_ids]
         leaves_of[s.row] = [t for t in contributors if not t.children]
-        res, parts = _percent_row(book, s, contributors, shares_of.get(src, {}), calendars[src], cfg, idx)
+        res, parts, planned = _percent_row(book, s, contributors, shares_of.get(src, {}), calendars[src], cfg, idx)
+        if planned is not None:
+            moved = _baseline_drift(book, s, planned, idx)
+            if moved is not None:
+                drift.append((s, *moved))
         for role, company, frac, bac_c in parts:
             sheet = pct_sheet(SHEET_EV, company)
             series = book.pct_ev[role][s.row]
@@ -753,6 +805,9 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
             + ("..." if len(later_filled) > 10 else "") + "). Esos valores se calcularon con el acumulado anterior: "
             "los acumulados de esos meses ya no coinciden con MS Project. Se deben revisar esos meses o volver a "
             "cargarlos con 'actualizar' (fecha de corte de cada mes, en orden).")))
+
+    if drift:
+        warnings.append(_drift_warning(drift, book, idx))
 
     where = (f"las hojas {company_sheet(SHEET_PV, book.company_a)} y {company_sheet(SHEET_PV, book.company_b)}"
              if multi else f"la hoja {SHEET_PV}")
@@ -798,6 +853,8 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     # Coherencia del EV y el AC y meses sin informe (con el % ganado del mes ya calculado)
     warnings += consistency.ev_ac_checks(book, idx)
     warnings += consistency.month_gaps(book, idx, latest_only=True)
+    warnings += consistency.eac_realism(book, idx)
+    warnings += consistency.loe_share(book, cfg.max_loe_share)
 
     # Paquetes fuera de umbral en el mes de corte (con el EV y el AC que quedan en el libro)
     th = analysis.thresholds(book.meta, cfg)
@@ -955,6 +1012,8 @@ def run_analysis(cfg: Config, book_path: str | Path, backup: bool = True) -> Upd
         warnings.append(changes.first_reference())
     warnings += consistency.ev_ac_checks(book, idx)
     warnings += consistency.month_gaps(book, idx, latest_only=False)
+    warnings += consistency.eac_realism(book, idx)
+    warnings += consistency.loe_share(book, cfg.max_loe_share)
     progress.stage("analizar", "Análisis de desviaciones")
     th = analysis.thresholds(book.meta, cfg)
     found = analysis.deviations(book, idx, th)

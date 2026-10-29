@@ -165,9 +165,12 @@ gantt
    paquetes fuera de umbral ([Análisis de desviaciones](analisis-desviaciones.md#3-cierre-mensual)).
    Revisar sus avisos: paquetes con avance y sin costo, con costo y sin avance o con costo después de
    terminar ([ACT-039](codigos.md#act-039) a [ACT-041](codigos.md#act-041)), análisis del mes anterior
-   incompleto y acciones vencidas ([ACT-043](codigos.md#act-043) a [ACT-045](codigos.md#act-045)), y
-   cambios del BAC o de meses ya informados, que se agregan a la hoja `Registro de cambios`: indicar su
-   motivo ([El libro Excel](libro-excel.md#registro-de-cambios)).
+   incompleto y acciones vencidas ([ACT-043](codigos.md#act-043) a [ACT-045](codigos.md#act-045)), EAC
+   poco realista ([ACT-048](codigos.md#act-048)), y cambios del BAC o de meses ya informados, que se
+   agregan a la hoja `Registro de cambios`: indicar su motivo
+   ([El libro Excel](libro-excel.md#registro-de-cambios)). Si `actualizar` avisa que la línea base de MS
+   Project no coincide con la del libro ([ACT-047](codigos.md#act-047)), ver la
+   [sección 5](#5-cambios-de-línea-base).
 7. **Abrir el libro** y revisar el `Cuadro de Mando` (mes de reporte = mes de corte) e `Indicadores EDT`:
    la tendencia de los últimos 3 meses y la variación respecto del mes anterior, y el plazo según el
    cronograma de MS Project (desvío de fin y paquetes críticos atrasados).
@@ -211,6 +214,9 @@ flowchart TD
   ([Preparación en MS Project](preparacion-ms-project.md#6-línea-base)).
 - **No** se recomienda volver a guardar la línea base de todo el proyecto cada mes: el PV pasaría a
   coincidir con el avance real y la SV dejaría de tener sentido.
+- Si se guarda la línea base en MS Project y no se genera el libro nuevo, `actualizar` lo avisa
+  ([ACT-047](codigos.md#act-047)): el libro sigue con el PV de la línea base anterior. Si el cambio no
+  estaba aprobado, se restaura la línea base en MS Project (por ejemplo, desde la copia en *Línea base N*).
 - El libro nuevo se genera con `--migrar-desde` para conservar el BAC ingresado, el % ganado y el AC
   ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). Si se entregaron
   fichas de tareas al cliente, se vuelven a crear con `generar-fichas`.

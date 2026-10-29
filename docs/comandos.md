@@ -206,8 +206,12 @@ python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config con
   Avisa si el análisis del mes anterior quedó incompleto o si hay acciones vencidas.
 - Registra los cambios del BAC y de los valores de meses ya informados (% ganado y AC) desde la ejecución
   anterior en la hoja `Registro de cambios` ([El libro Excel](libro-excel.md#registro-de-cambios)), y
-  revisa la coherencia del EV y el AC de cada paquete y los meses sin informe
+  revisa la coherencia del EV y el AC de cada paquete, los meses sin informe, el realismo del EAC (TCPI
+  frente al CPI) y el peso del LOE en el BAC
   ([Cálculo del PV y el EV](calculo-pv-ev.md#14-controles-y-validaciones)).
+- Avisa si el % planificado que resulta hoy de MS Project no coincide con el del libro: se guardó una
+  línea base nueva y el libro sigue con la anterior hasta generar uno nuevo con `--migrar-desde`
+  ([ACT-047](codigos.md#act-047)).
 - Escribe el plazo según el cronograma de MS Project: columnas Q a U de `Indicadores EDT` (fin previsto,
   desvío de fin, holgura y crítica de cada elemento) y la sección de plazo del `Resumen`
   ([El libro Excel](libro-excel.md#indicadores-edt)).
@@ -270,7 +274,8 @@ de la fecha de corte del libro, con los valores que tiene el libro y **sin leer 
 después de cargar a mano el AC del mes (por ejemplo, del ERP), para incluir los paquetes con CPI fuera
 de umbral ([Análisis de desviaciones](analisis-desviaciones.md#3-cierre-mensual)). Como `actualizar`,
 registra los cambios del BAC y de meses ya informados y revisa la coherencia del EV y el AC (con el AC
-recién cargado), el análisis del mes anterior y los meses sin informe.
+recién cargado), el análisis del mes anterior, los meses sin informe, el realismo del EAC y el peso del
+LOE.
 
 | Opción | Descripción |
 |---|---|

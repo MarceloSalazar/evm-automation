@@ -1,6 +1,7 @@
 """Controles del cierre mensual de la norma EIA-748-E: registro de cambios del BAC y de los meses ya informados
-(#24, #31), coherencia del EV y el AC (#32), análisis de desviaciones incompleto y acciones vencidas (#33) y meses
-sin informe (#34)."""
+(#24, #31), coherencia del EV y el AC (#32), análisis de desviaciones incompleto y acciones vencidas (#33), meses
+sin informe (#34), línea base de MS Project distinta de la del libro (#35), EAC poco realista (#36) y peso del LOE en
+el BAC (#37)."""
 from datetime import date, datetime
 from pathlib import Path
 
@@ -74,6 +75,45 @@ def test_ev_and_ac_until_the_last_month_with_ac():
                                         "hasta 02/2027.")
     empty = fake_book({"1.1": {"ev": [0.2]}})
     assert [i.message.startswith("Ningún mes tiene AC") for i in consistency.ev_ac_checks(empty, 0)] == [True]
+
+
+# ----------------------------------------------------------------------------
+# EAC poco realista (#36) y peso del LOE en el BAC (#37)
+# ----------------------------------------------------------------------------
+def test_tcpi_well_above_cpi():
+    book = fake_book({"1.1": {"ev": [0.1, 0.2], "ac": [150, 225]}})          # 30 %, CPI 0,8, TCPI 700/625
+    (issue,) = consistency.eac_realism(book, 1)
+    assert issue.id == "ACT-048"
+    assert issue.message == ("TCPI 1,12 frente a CPI 0,80 a 02/2027 (30 % completado): terminar dentro del BAC exige "
+                             "una eficiencia de costo de 1,12 en el trabajo que queda, frente a 0,80 lograda hasta "
+                             "ahora. Se debe revisar el EAC (EAC = BAC / CPI = 1.250) y, si el desvío se confirma, "
+                             "evaluar una línea base por encima del objetivo (OTB).")
+    fine = fake_book({"1.1": {"ev": [0.5], "ac": [510]}})                  # CPI 0,98, TCPI 1,02
+    early = fake_book({"1.1": {"ev": [0.1], "ac": [200]}})                 # 10 %: el CPI no es representativo
+    done = fake_book({"1.1": {"ev": [0.6, 0.4], "ac": [900, 900]}})        # terminado
+    assert consistency.eac_realism(fine, 0) == consistency.eac_realism(early, 0) == []
+    assert consistency.eac_realism(done, 1) == []
+
+
+def test_ac_already_above_bac_and_last_month_with_ac():
+    book = fake_book({"1.1": {"ev": [0.3, 0.2, 0.1], "ac": [600, 500]}})    # AC de marzo sin cargar
+    (issue,) = consistency.eac_realism(book, 2)
+    assert issue.message.startswith("El AC acumulado a 02/2027 (1.100) ya alcanzó el BAC (1.000) con el 50 % "
+                                    "completado: no se puede terminar dentro del BAC (CPI 0,45")
+    assert consistency.eac_realism(fake_book({"1.1": {"ev": [0.3]}}), 0) == []     # sin AC
+
+
+def test_loe_share_of_bac():
+    book = fake_book({"1.1": {"bac": 3000, "method": "Avance lineal (LOE)"}, "1.2": {"bac": 1000},
+                      "1.3": {"bac": 1000, "method": "Nivel de esfuerzo"}, "1.4": {"bac": 5000}})
+    (issue,) = consistency.loe_share(book, 15)
+    assert issue.id == "ACT-049"
+    assert issue.message == ("El 40 % del BAC (4.000) está en 2 filas con método LOE, más que el 15 % de [validacion] "
+                             "loe_maximo: su EV es igual a su PV y acerca el SPI a 1 aunque el trabajo medible se "
+                             "atrase. Se recomienda medir con hitos o % completado el trabajo que lo permita "
+                             "(1.1 (3.000), 1.3 (1.000)).")
+    assert consistency.loe_share(book, 40) == consistency.loe_share(book, 0) == []
+    assert consistency.loe_share(fake_book({"1.1": {"bac": 0, "method": "LOE"}}), 15) == []
 
 
 # ----------------------------------------------------------------------------
@@ -301,3 +341,34 @@ def test_month_gap_when_a_month_is_skipped(book, example_files, capsys):
                  "--libro", str(book), "--sin-respaldo", "--fecha-corte", "2027-08-31"]) == 0
     out = capsys.readouterr().out
     assert "[!] ACT-046 07/2027 no tiene % ganado cargado: su avance quedó en 08/2027." in out
+
+
+def with_new_baseline(source: Path, target: Path, task: str, finish: str) -> Path:
+    """Copia del XML con otro fin de línea base para las tareas con ese nombre (una línea base guardada de nuevo)."""
+    import re
+    text = source.read_text(encoding="utf-8")
+
+    def move(m: re.Match) -> str:
+        block = m.group(0)
+        if f"<Name>{task}</Name>" not in block:
+            return block
+        return re.sub(r"(<Baseline>.*?<Finish>)[^<]*(</Finish>)", rf"\g<1>{finish}\g<2>", block, flags=re.S)
+
+    target.write_text(re.sub(r"<Task>.*?</Task>", move, text, flags=re.S), encoding="utf-8")
+    return target
+
+
+def test_baseline_changed_in_ms_project(book, example_files, tmp_path, capsys):
+    assert update(book, example_files, "jun") == 0
+    assert "ACT-047" not in capsys.readouterr().out
+    jul = with_new_baseline(example_files["jul"], tmp_path / "jul_lb2.xml", "Detalle civil", "2028-03-03T17:00:00")
+    assert main(["actualizar", "--origen", str(jul), "--config", str(example_files["config"]), "--libro", str(book),
+                 "--sin-respaldo", "--simular"]) == 0
+    out = capsys.readouterr().out
+    (line,) = [x for x in out.splitlines() if "ACT-047" in x]
+    assert line.startswith("  [!] ACT-047 El % planificado de 1 fila no coincide con el que resulta hoy de MS Project "
+                           "(2.2.1): el libro sigue con la línea base con la que se generó.")
+    assert "el PV acumulado de esa fila a 07/2027 sería" in line and "--migrar-desde" in line
+    assert main(["actualizar", "--origen", str(example_files["jul"]), "--config", str(example_files["config"]),
+                 "--libro", str(book), "--sin-respaldo", "--simular"]) == 0
+    assert "ACT-047" not in capsys.readouterr().out

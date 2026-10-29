@@ -146,6 +146,8 @@ class Config:
     # cuales se avisa que un paquete con 0/100 (o con 50/50, 25/75, 20/80...) es largo para ese método; 0 = no se avisa
     max_months_0_100: float = 1.0         # meses_0_100
     max_months_fixed: float = 2.0         # meses_formula_fija
+    # loe_maximo: % del BAC total en filas LOE a partir del cual se avisa (actualizar y analizar); 0 = no se avisa
+    max_loe_share: float = 15.0
     # silenciar (y --silenciar): códigos de las observaciones que no se muestran ('FEC-003' o 'FEC-003:1.2.3')
     silence: list[str] = field(default_factory=list)
 
@@ -235,6 +237,9 @@ class Config:
         for key, value in (("meses_0_100", self.max_months_0_100), ("meses_formula_fija", self.max_months_fixed)):
             if not 0 <= value <= 120:
                 raise ConfigError("CFG-016", f"[validacion] {key} debe estar entre 0 y 120 meses (0 = no se controla).")
+        if not 0 <= self.max_loe_share <= 100:
+            raise ConfigError("CFG-050", "[validacion] loe_maximo debe ser un % entre 0 y 100 (por defecto 15; 0 = no "
+                                         "se controla).")
         if not 0 < self.cost_review_threshold <= 100:
             raise ConfigError("CFG-026",
                               "depuracion_umbral debe ser un % mayor que 0 y como máximo 100 (por defecto 10).")
@@ -434,6 +439,7 @@ def load_config(path: str | Path | None) -> Config:
     val = _section(data, "validacion")
     cfg.max_months_0_100 = _get(val, "meses_0_100", cfg.max_months_0_100, float)
     cfg.max_months_fixed = _get(val, "meses_formula_fija", cfg.max_months_fixed, float)
+    cfg.max_loe_share = _get(val, "loe_maximo", cfg.max_loe_share, float)
     cfg.silence = silence_list(val.get("silenciar", []), "silenciar")
 
     mul = _section(data, "multiempresa")

@@ -76,11 +76,11 @@ La columna **Controles** indica los códigos de los controles automáticos relac
 | 4 | Integrar los procesos de gestión con la EDT y la OBS | Parcial | [EDT-009](codigos.md#edt-009), [EDT-011](codigos.md#edt-011), [ACT-011](codigos.md#act-011) a [ACT-017](codigos.md#act-017) |
 | **Planificación, programación y presupuesto** | | | |
 | 5 | Identificar los indicadores de avance | Parcial | [HIT](codigos.md#46-hit--hitos-y-pesos), [FEC-004](codigos.md#fec-004), [FEC-005](codigos.md#fec-005) |
-| 6 | Programar el trabajo autorizado | Cubre | [LOG](codigos.md#410-log--lógica-del-cronograma), [AVA-008](codigos.md#ava-008) a [AVA-015](codigos.md#ava-015) ([Evaluación DCMA](evaluacion-dcma.md)) |
-| 7 | Establecer y mantener una línea base distribuida en el tiempo | Cubre | [FEC-009](codigos.md#fec-009) a [FEC-012](codigos.md#fec-012), [CFG-044](codigos.md#cfg-044), [CFG-045](codigos.md#cfg-045), [ACT-022](codigos.md#act-022), [ACT-023](codigos.md#act-023) |
+| 6 | Programar el trabajo autorizado | Cubre | [LOG](codigos.md#410-log--lógica-del-cronograma), [AVA-008](codigos.md#ava-008) a [AVA-015](codigos.md#ava-015), [FEC-008](codigos.md#fec-008) ([Evaluación DCMA](evaluacion-dcma.md)) |
+| 7 | Establecer y mantener una línea base distribuida en el tiempo | Cubre | [FEC-009](codigos.md#fec-009) a [FEC-012](codigos.md#fec-012), [CFG-044](codigos.md#cfg-044), [CFG-045](codigos.md#cfg-045), [ACT-022](codigos.md#act-022), [ACT-023](codigos.md#act-023), [ACT-047](codigos.md#act-047) |
 | 8 | Autorizar alcance, plazo y presupuesto por elementos de costo | Fuera de alcance | — |
 | 9 | Planificar en paquetes de trabajo y de planificación | Parcial | [MET-004](codigos.md#met-004), [LOG-016](codigos.md#log-016), [HIT-005](codigos.md#hit-005), [EDT-018](codigos.md#edt-018) |
-| 10 | Establecer los criterios de medición de cada paquete | Parcial | [MET](codigos.md#47-met--método-de-medición), [LEC-019](codigos.md#lec-019) |
+| 10 | Establecer los criterios de medición de cada paquete | Parcial | [MET](codigos.md#47-met--método-de-medición), [LEC-019](codigos.md#lec-019), [ACT-049](codigos.md#act-049) |
 | 11 | Aplicar tasas indirectas a los presupuestos | Fuera de alcance | — |
 | 12 | Identificar el presupuesto no distribuido y la reserva de gestión | No cubre | — |
 | 13 | Conciliar con el objetivo de costo | No cubre | — |
@@ -95,14 +95,14 @@ La columna **Controles** indica los códigos de los controles automáticos relac
 | 20 | Actualizar el EAC de cada cuenta de control | Parcial | — |
 | 21 | Resumir, revisar y evaluar los datos de desempeño | Cubre | — |
 | 22 | Implementar acciones de gestión | Parcial | [ACT-045](codigos.md#act-045) |
-| 23 | Revisar el EAC del proyecto | Parcial | — |
+| 23 | Revisar el EAC del proyecto | Parcial | [ACT-048](codigos.md#act-048) |
 | **Revisiones y mantenimiento de datos** | | | |
 | 24 | Incorporar los cambios del cliente | Parcial | [ACT-011](codigos.md#act-011) a [ACT-017](codigos.md#act-017), [ACT-036](codigos.md#act-036), [MIG](codigos.md#412-mig--migración---migrar-desde) |
-| 25 | Documentar y conciliar las replanificaciones internas | Parcial | [ACT-015](codigos.md#act-015), [ACT-036](codigos.md#act-036), [ACT-037](codigos.md#act-037), [FEC-010](codigos.md#fec-010) |
+| 25 | Documentar y conciliar las replanificaciones internas | Parcial | [ACT-015](codigos.md#act-015), [ACT-036](codigos.md#act-036), [ACT-037](codigos.md#act-037), [ACT-047](codigos.md#act-047), [FEC-010](codigos.md#fec-010) |
 | 26 | Controlar los cambios retroactivos | Cubre | [ACT-036](codigos.md#act-036), [ACT-037](codigos.md#act-037), [ACT-007](codigos.md#act-007), [ACT-020](codigos.md#act-020), [ACT-021](codigos.md#act-021), [ACT-024](codigos.md#act-024), [ACT-025](codigos.md#act-025), [ACT-027](codigos.md#act-027) |
-| 27 | Línea base o cronograma por encima del objetivo (OTB/OTS) | No cubre | — |
+| 27 | Línea base o cronograma por encima del objetivo (OTB/OTS) | Parcial | [ACT-048](codigos.md#act-048) |
 
-**En resumen:** de las 27 guías, el programa **cubre 6**, cubre **en parte 14**, **no cubre 3** que
+**En resumen:** de las 27 guías, el programa **cubre 6**, cubre **en parte 15**, **no cubre 2** que
 podría incorporar, y **4 están fuera de su alcance** (costos por elemento, indirectos y materiales). Lo
 más sólido es lo que se apoya en el cronograma de MS Project: la EDT, la lógica del cronograma, la
 línea base distribuida en el tiempo, la medición del EV con métodos objetivos y las variaciones, junto
@@ -179,7 +179,8 @@ responsables.
   hitos y un camino crítico para todo el período del contrato.
 - **Qué hace el programa:** `validar` revisa 12 de los 14 puntos de la evaluación DCMA: lógica,
   adelantos, posiciones, tipos de vínculo, delimitaciones, holgura, duración, fechas no válidas, tareas
-  incumplidas, CPLI y BEI ([Evaluación DCMA](evaluacion-dcma.md)). La trazabilidad a la EDT la revisan los
+  incumplidas, CPLI y BEI ([Evaluación DCMA](evaluacion-dcma.md)), y avisa de las tareas programadas
+  manualmente, que no se reprograman con la lógica (`FEC-008`). La trazabilidad a la EDT la revisan los
   controles de la guía 1.
 - **Qué queda a cargo de la organización:** la prueba del camino crítico (manual, en una copia del
   archivo) y la carga de recursos, si el contrato la exige.
@@ -191,7 +192,9 @@ responsables.
 - **Qué hace el programa:** el PV de cada fila es su BAC distribuido en los meses según las fechas de la
   línea base de MS Project: la coherencia con el cronograma está garantizada. Avisa si falta la línea base
   o la tienen solo algunas tareas (`FEC-009` a `FEC-012`), si parte del PV cae fuera del horizonte
-  (`CFG-044`, `CFG-045`) y si hay filas sin BAC (`ACT-022`, `ACT-023`).
+  (`CFG-044`, `CFG-045`) y si hay filas sin BAC (`ACT-022`, `ACT-023`). Como el % planificado se fija al
+  generar el libro, `actualizar` avisa si el que resulta hoy de la línea base de MS Project ya no coincide
+  (`ACT-047`): se guardó una línea base nueva sin generar el libro con `--migrar-desde`.
 - **Qué queda a cargo de la organización:** el BAC de cada fila, ingresado en el libro, y el presupuesto
   de los paquetes lejanos que todavía no se detallan (ver guía 12).
 
@@ -223,9 +226,9 @@ responsables.
 - **Qué hace el programa:** un método por fila de ingreso, del campo de MS Project o de la columna C
   ([Métodos de medición](metodos-de-medicion.md)). Avisa de los métodos sin definir, no reconocidos o
   distintos en las subtareas (`MET-001` a `MET-005`, `LEC-019`) y de los métodos 0/100 o de fórmula fija
-  en paquetes largos (`MET-004`). El LOE gana su PV.
-- **Qué falta:** no controla el peso del LOE en el BAC ni advierte del *% completado* sin respaldo
-  objetivo.
+  en paquetes largos (`MET-004`). El LOE gana su PV, y `actualizar` y `analizar` avisan si las filas LOE
+  superan el `loe_maximo` del BAC total (15 % por defecto; `ACT-049`).
+- **Qué falta:** no advierte del *% completado* sin respaldo objetivo.
 
 ### Guía 11 · Aplicar tasas indirectas a los presupuestos
 
@@ -340,7 +343,9 @@ responsables.
 
 - **Qué exige:** un EAC del proyecto basado en el desempeño, en los recursos que faltan y en los riesgos,
   comparado con el presupuesto del contrato.
-- **Qué hace el programa:** EAC por tres métodos, ETC, VAC, TCPI y término estimado con el SPI(t).
+- **Qué hace el programa:** EAC por tres métodos, ETC, VAC, TCPI y término estimado con el SPI(t). Desde
+  el 20 % completado, `actualizar` y `analizar` avisan si el TCPI (BAC) supera al CPI en más de 0,10 o si el
+  AC ya alcanzó el BAC con trabajo pendiente: terminar dentro del BAC no es realista (`ACT-048`).
 - **Qué falta:** el EAC detallado (suma de los EAC de los responsables) y la comparación con el
   presupuesto del contrato y la reserva.
 
@@ -366,9 +371,12 @@ responsables.
   base del período con la del anterior para identificar todas las diferencias.
 - **Qué hace el programa:** avisa de las tareas nuevas sin fila (`ACT-015`) y de las tareas sin línea base
   (`FEC-010`), y registra los cambios del BAC y de los valores de meses ya informados frente a la
-  ejecución anterior (`ACT-036`, `ACT-037`).
-- **Qué falta:** comparar las fechas de la línea base y el % planificado de cada mes entre dos lecturas
-  de MS Project.
+  ejecución anterior (`ACT-036`, `ACT-037`). `actualizar` compara el % planificado que resulta de la línea
+  base actual de MS Project con el del libro y avisa de las filas que cambiaron, con el PV acumulado a la
+  fecha de corte con cada línea base (`ACT-047`).
+- **Qué falta:** registrar en la hoja `Registro de cambios` los cambios de la línea base (fechas y %
+  planificado), como los del BAC; hoy se avisan, y se documentan al generar el libro con
+  `--migrar-desde`.
 
 ### Guía 26 · Controlar los cambios retroactivos
 
@@ -393,8 +401,13 @@ responsables.
 - **Qué exige:** cuando el trabajo que queda no se puede gestionar con el presupuesto o el plazo del
   contrato, proponer, documentar y aplicar (con aviso previo al cliente) una línea base mayor que el
   presupuesto del contrato o un cronograma mayor que el plazo del contrato.
-- **No cubre:** es una decisión de gestión. El programa muestra las señales que la anticipan (TCPI muy
-  por encima del CPI, CPLI bajo, desvío de fin), pero no las evalúa juntas ni registra la replanificación.
+- **Qué hace el programa:** avisa de la señal principal desde el 20 % completado: el TCPI (BAC) supera al
+  CPI en más de 0,10, o el AC ya alcanzó el BAC con trabajo pendiente (`ACT-048`), y recomienda evaluar
+  una línea base por encima del objetivo. `validar` y el plazo según MS Project muestran las señales de
+  plazo (CPLI bajo, desvío de fin).
+- **Qué falta:** registrar la replanificación (OTB/OTS) y su conciliación.
+- **Qué queda a cargo de la organización:** la decisión, el aviso previo al cliente y la aplicación de la
+  replanificación.
 
 ---
 

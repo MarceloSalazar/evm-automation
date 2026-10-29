@@ -250,7 +250,7 @@ métricas DECM) y las guías de buenas prácticas incluyen:
 | Tareas resumen con vínculos | [LOG-010](codigos.md#log-010) | Ocultan la lógica de las tareas de detalle. |
 | Vínculos comienzo a fin (CF) | [LOG-007](codigos.md#log-007) | Tipo de vínculo poco habitual y difícil de seguir. |
 | Proyecto o tareas sin línea base | [FEC-009](codigos.md#fec-009) a [FEC-011](codigos.md#fec-011) | Sin línea base no hay PV ni puntos 8, 11, 13 y 14. |
-| Duraciones estimadas y tareas programadas manualmente | [FEC-006](codigos.md#fec-006) a [FEC-008](codigos.md#fec-008) | Una duración sin confirmar define el % planificado; una tarea manual no se reprograma con la lógica. |
+| Duraciones estimadas y tareas programadas manualmente | [FEC-006](codigos.md#fec-006) a [FEC-008](codigos.md#fec-008) | Una duración sin confirmar define el % planificado; una tarea manual no se reprograma con la lógica: en un cronograma integrado no debería haber ninguna (advertencia). |
 | Método de medición frente a la duración del paquete | [MET-004](codigos.md#met-004) | 0/100 y fórmulas fijas solo en paquetes cortos (1 y 2 meses por defecto). |
 
 ---

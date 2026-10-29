@@ -209,7 +209,7 @@ def test_dates_and_duration():
     assert any("1 tarea tiene duración estimada" in i.message for i in dates)
     assert any(i.name.startswith("Estimada") and i.message == "Duración estimada («?»)." for i in dates)
     manual = [i for i in dates if "manualmente" in i.message]
-    assert len(manual) == 1 and manual[0].severity == SEV_INFO and "Id 7" in manual[0].message
+    assert len(manual) == 1 and manual[0].severity == SEV_WARN and "Id 7" in manual[0].message
 
 
 def test_duration_unknown_is_not_checked():
@@ -299,6 +299,13 @@ def test_validation_thresholds_in_config(tmp_path):
     path.write_text("[validacion]\nmeses_0_100 = -1\n", encoding="utf-8")
     with pytest.raises(ConfigError, match="meses_0_100"):
         load_config(path)
+    assert cfg.max_loe_share == 15.0
+    path.write_text("[validacion]\nloe_maximo = 25\n", encoding="utf-8")
+    assert load_config(path).max_loe_share == 25.0
+    path.write_text("[validacion]\nloe_maximo = 120\n", encoding="utf-8")
+    with pytest.raises(ConfigError, match="loe_maximo") as exc:
+        load_config(path)
+    assert exc.value.id == "CFG-050"
 
 
 def test_split_on_task_that_is_not_both():

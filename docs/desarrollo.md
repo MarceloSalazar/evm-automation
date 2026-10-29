@@ -39,7 +39,7 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 | `test_plazo_tendencia.py` | Plazo según el cronograma (días laborables, fin previsto, holgura y crítica de cada fila, filas resumen y total), columnas de `Indicadores EDT`, secciones del `Resumen` y del `Cuadro de Mando`, libros de versiones anteriores, tendencia (mes anterior con datos y últimos 3 meses) y recálculo de sus fórmulas con LibreOffice. |
 | `test_lista_edt.py` | Lista EDT (`lista_edt`): lectura del archivo, filas definidas por la lista, códigos faltantes, ramas sin elemento listado, lista guardada en el libro y usada por `actualizar`. |
 | `test_progreso.py` | Versión en pantalla y barra de progreso (etapas, % de la etapa y del total, ETA, consola no interactiva). |
-| `test_registro_cambios.py` | Controles del cierre mensual de la norma EIA-748-E: registro de cambios del BAC y de los meses ya informados (referencia, detección, hoja `Registro de cambios`, `--simular` y `--migrar-desde`), coherencia del EV y el AC, análisis de desviaciones incompleto, acciones vencidas y meses sin informe. |
+| `test_registro_cambios.py` | Controles del cierre mensual de la norma EIA-748-E: registro de cambios del BAC y de los meses ya informados (referencia, detección, hoja `Registro de cambios`, `--simular` y `--migrar-desde`), coherencia del EV y el AC, análisis de desviaciones incompleto, acciones vencidas, meses sin informe, línea base de MS Project distinta de la del libro, EAC poco realista (TCPI frente al CPI) y peso del LOE en el BAC. |
 | `test_codigos.py` | Códigos de errores y advertencias: formato y numeración del catálogo, todo mensaje con un código del catálogo, todo código usado, `docs/codigos.md` al día y silenciar (configuración, `--silenciar`, hoja `Validación` y código de salida de `validar`). |
 | `test_varios_archivos.py` | Varios archivos de MS Project (`[[proyectos]]`): el libro combinado coincide, fila por fila, con el libro de cada archivo (también en multi-empresa, con UniqueID repetidos entre archivos); errores de configuración y de la línea de comandos, fechas de estado y `--migrar-desde`. |
 | Resto | Casos del programa de ejemplo, Cuadro de Mando, semáforo, multi-empresa, planificación, campo `Visible`, depuración de costes, calendario y lector COM simulado. |
@@ -112,7 +112,7 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/methods.py` | Métodos de medición: interpretación del texto de la columna C y criterios de tarea comenzada y terminada. |
 | `evm/analysis.py` | Hoja `Análisis de desviaciones`: paquetes fuera de umbral, texto conservado, análisis del mes anterior incompleto y acciones vencidas. |
 | `evm/changes.py` | Registro de cambios: referencia de la última ejecución (hoja oculta `_registro`), cambios del BAC y de los meses ya informados y hoja `Registro de cambios`. |
-| `evm/consistency.py` | Controles del libro en el cierre mensual: coherencia del EV y el AC y meses sin informe. |
+| `evm/consistency.py` | Controles del libro en el cierre mensual: coherencia del EV y el AC, meses sin informe, EAC poco realista y peso del LOE en el BAC. |
 | `evm/update.py` | Comandos `actualizar` (% ganado del mes) y `analizar`, y lectura y verificación del libro. |
 | `evm/migrate.py` | Traslado del BAC, el % ganado, el AC y los métodos al regenerar el libro (`--migrar-desde`). |
 | `evm/indicators.py` | Indicadores que se muestran en pantalla (mismos cálculos que la hoja `Resumen`), incluida la tendencia. |

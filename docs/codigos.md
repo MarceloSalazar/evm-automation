@@ -102,7 +102,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 
 | Área | Nombre | Tema en la hoja Validación | Dónde aparecen | Códigos |
 |---|---|---|---|---|
-| [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 49 |
+| [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 50 |
 | [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 22 |
 | [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 22 |
 | [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 10 |
@@ -115,7 +115,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar y generar `--migrar-desde` (lectura del libro) | 15 |
 | [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 18 |
 | [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 8 |
-| [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 46 |
+| [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 49 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
 | [SIS](#416-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
 
@@ -178,6 +178,7 @@ Archivo de configuración, opciones de la línea de comandos, horizonte y códig
 | [CFG-047](#cfg-047) | Advertencia | Código desconocido en silenciar |
 | [CFG-048](#cfg-048) | Advertencia | Código que no se puede silenciar |
 | [CFG-049](#cfg-049) | Info | Observaciones silenciadas |
+| [CFG-050](#cfg-050) | Error (detiene el programa) | loe_maximo fuera de rango |
 
 #### CFG-001
 
@@ -570,6 +571,14 @@ Se pidió silenciar un error que detiene el programa, el resumen de las observac
 Resumen de las observaciones que no se muestran por `[validacion] silenciar` o `--silenciar`, con la cantidad de cada código.
 
 **Qué hacer:** Ninguna. Para volver a verlas, quitar los códigos de silenciar.
+
+#### CFG-050
+
+**loe_maximo fuera de rango** · Error (detiene el programa) · Todos los comandos · no se puede silenciar
+
+`[validacion] loe_maximo` no es un % entre 0 y 100.
+
+**Qué hacer:** Indicar un % entre 0 y 100 (por defecto 15; 0 = no se controla).
 
 ---
 
@@ -1099,7 +1108,7 @@ Fechas de la línea base y del programa actual, hitos y duración de las tareas.
 | [FEC-005](#fec-005) | Advertencia | Duración 0 sin marca de hito |
 | [FEC-006](#fec-006) | Advertencia | Tareas con duración estimada |
 | [FEC-007](#fec-007) | Advertencia | Duración estimada |
-| [FEC-008](#fec-008) | Info | Tareas programadas manualmente |
+| [FEC-008](#fec-008) | Advertencia | Tareas programadas manualmente |
 | [FEC-009](#fec-009) | Advertencia | El proyecto no tiene la línea base seleccionada |
 | [FEC-010](#fec-010) | Advertencia | Tareas sin fechas de línea base |
 | [FEC-011](#fec-011) | Advertencia | Tarea sin fechas de línea base |
@@ -1163,11 +1172,11 @@ Detalle de [FEC-006](#fec-006): la duración de la tarea es estimada.
 
 #### FEC-008
 
-**Tareas programadas manualmente** · Info · generar (hoja Validación) y validar · se puede silenciar
+**Tareas programadas manualmente** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-MS Project no recalcula las fechas de esas tareas cuando cambian sus predecesoras o el avance.
+MS Project no recalcula las fechas de esas tareas cuando cambian sus predecesoras o el avance: la lógica del cronograma deja de funcionar en ese punto. En un cronograma integrado no debería haber ninguna.
 
-**Qué hacer:** Programarlas automáticamente, salvo que sea intencional.
+**Qué hacer:** Programarlas automáticamente. Si es intencional (p. ej. fechas impuestas por terceros), silenciar [FEC-008](#fec-008).
 
 #### FEC-009
 
@@ -2173,6 +2182,9 @@ Carga del % ganado del mes: fecha de corte, filas del libro, BAC y observaciones
 | [ACT-044](#act-044) | Advertencia | Desviaciones del mes anterior sin analizar |
 | [ACT-045](#act-045) | Advertencia | Acción vencida con el paquete fuera de umbral |
 | [ACT-046](#act-046) | Advertencia | Meses sin informe |
+| [ACT-047](#act-047) | Advertencia | Línea base de MS Project distinta de la del libro |
+| [ACT-048](#act-048) | Advertencia | EAC poco realista |
+| [ACT-049](#act-049) | Advertencia | Mucho BAC en filas LOE |
 
 #### ACT-001
 
@@ -2541,6 +2553,30 @@ El paquete sigue fuera de umbral en el mes de corte y la Fecha compromiso de su 
 Entre el primer mes con % ganado y el mes de corte hay meses sin % ganado cargado: su avance quedó en el mes cargado siguiente. La norma EIA-748-E pide la información al menos cada mes.
 
 **Qué hacer:** Ejecutar actualizar al cierre de cada mes, con la fecha de estado de ese mes, aunque el informe sea bimestral. Si la frecuencia está acordada con el cliente, silenciar [ACT-046](#act-046).
+
+#### ACT-047
+
+**Línea base de MS Project distinta de la del libro** · Advertencia · actualizar · se puede silenciar
+
+El % planificado que resulta hoy de MS Project no coincide con el de las hojas % PV, que calculó generar: se guardó de nuevo la línea base, o cambiaron las tareas o el calendario de la fila. El libro sigue con la línea base anterior. No se comparan las filas con tareas sin fechas de línea base.
+
+**Qué hacer:** Si el cambio de línea base está aprobado, generar un libro nuevo con `--migrar-desde` (conserva el BAC, el % ganado y el AC); si no, restaurar la línea base en MS Project.
+
+#### ACT-048
+
+**EAC poco realista** · Advertencia · actualizar y analizar · se puede silenciar
+
+El TCPI(BAC) supera al CPI en más de 0,10, o el AC ya alcanzó el BAC con trabajo pendiente: terminar dentro del BAC exige una eficiencia de costo muy superior a la lograda. Se calcula con el proyecto (cada empresa en multi-empresa) en el último mes con AC cargado, desde el 20 % completado: antes, el CPI acumulado todavía no es representativo.
+
+**Qué hacer:** Revisar el EAC y, si el desvío se confirma, evaluar una línea base por encima del objetivo (OTB) con el cliente.
+
+#### ACT-049
+
+**Mucho BAC en filas LOE** · Advertencia · actualizar y analizar · se puede silenciar
+
+El % del BAC total en filas con método LOE supera `[validacion] loe_maximo`: su EV es igual a su PV y acerca el SPI a 1 aunque el trabajo medible se atrase. La norma EIA-748-E pide mantener el LOE al mínimo.
+
+**Qué hacer:** Medir con hitos o % completado el trabajo que lo permita, o ajustar loe_maximo si el contrato lo admite.
 
 ---
 

@@ -179,6 +179,11 @@ rojo_superior = 1.10
 meses_0_100 = 1
 meses_formula_fija = 2
 
+# % del BAC total en filas con método "Avance lineal (LOE)" a partir del cual
+# actualizar y analizar avisan (ACT-049): el EV del LOE es igual a su PV y acerca
+# el SPI a 1. La norma no fija un número. 0 = no se controla.
+loe_maximo = 15
+
 # Códigos de las observaciones que no se muestran en la consola ni en la hoja
 # Validación, una vez revisadas (ver docs/codigos.md): "LOG-004" silencia todas las
 # de ese código y "MET-004:1.2.1", solo las de la fila o tarea 1.2.1. Siempre se
