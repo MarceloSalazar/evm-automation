@@ -18,17 +18,20 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Nuevas funciones
 
-- **Depuración de costes con EDT cliente y EDT interna**: la hoja `PV-depuración` sigue el plan de
-  costes de la empresa en dos niveles: A `EDT cliente`, B `Actividad`, C `EDT interna` (conceptos de
-  coste internos, con códigos no numéricos como `ABC01`), D `Actividad interna`, E `BAC` y los meses
-  desde la columna F. Cada línea de EDT interna se suma en su EDT cliente, la de la línea de arriba o la
-  repetida en la columna A; la línea de la EDT cliente es un subtotal y no se suma. Los controles pasan a
-  la columna E, y `Asignado a` y `Observación` a las columnas DW y DX, con una observación nueva para las
-  líneas de EDT interna sin EDT cliente encima
-  ([Depuración de costes](docs/depuracion-costes.md#4-hoja-pv-depuración-la-previsión-pegada)).
-- `--migrar-desde` pasa al formato nuevo la previsión pegada en un libro de depuración anterior: los
-  códigos numéricos quedan como EDT cliente y los demás (`XRF01`), como EDT interna. `actualizar` y
-  `analizar` siguen funcionando con los libros de depuración anteriores.
+- Ninguna.
+
+### Correcciones
+
+- Ninguna.
+
+### Otros
+
+- Ninguna.
+
+## [2.4.0] - 2026-10-30 · Códigos de mensajes, evaluación DCMA y controles de la norma EIA-748-E
+
+### Nuevas funciones
+
 - **Códigos de errores y advertencias**: cada mensaje del programa tiene un código `ÁREA-NNN` (por
   ejemplo `FEC-003`), en la consola (`[!] FEC-007 1.2.3 Montaje: ...`, `ERROR CFG-001: ...`) y en la
   nueva columna `Código` de la hoja `Validación`. El documento nuevo
@@ -87,6 +90,17 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - **Peso del LOE en el BAC** (#37): `actualizar` y `analizar` avisan si las filas con método LOE superan el
   % del BAC total de la clave nueva `[validacion] loe_maximo` (15 por defecto; 0 = no se controla;
   `ACT-049`) ([Configuración](docs/configuracion.md#claves)).
+- **Depuración de costes con EDT cliente y EDT interna**: la hoja `PV-depuración` sigue el plan de
+  costes de la empresa en dos niveles: A `EDT cliente`, B `Actividad`, C `EDT interna` (conceptos de
+  coste internos, con códigos no numéricos como `ABC01`), D `Actividad interna`, E `BAC` y los meses
+  desde la columna F. Cada línea de EDT interna se suma en su EDT cliente, la de la línea de arriba o la
+  repetida en la columna A; la línea de la EDT cliente es un subtotal y no se suma. Los controles pasan a
+  la columna E, y `Asignado a` y `Observación` a las columnas DW y DX, con una observación nueva para las
+  líneas de EDT interna sin EDT cliente encima
+  ([Depuración de costes](docs/depuracion-costes.md#4-hoja-pv-depuración-la-previsión-pegada)).
+- `--migrar-desde` pasa al formato nuevo la previsión pegada en un libro de depuración anterior: los
+  códigos numéricos quedan como EDT cliente y los demás (`XRF01`), como EDT interna. `actualizar` y
+  `analizar` siguen funcionando con los libros de depuración anteriores.
 
 ### Correcciones
 
@@ -100,6 +114,11 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - Documento nuevo [Norma EIA-748-E](docs/evaluacion-eia-748-e.md): las 27 guías de la norma de EE. UU.
   para sistemas EVM (revisión E, 2026), qué exige cada una, qué cubre el programa y con qué controles, y
   qué debe aportar la organización.
+- Presentación para el equipo de proyecto: diapositiva nueva sobre los avisos del cierre (registro de cambios,
+  línea base distinta, coherencia del EV y el AC, meses sin informe, análisis incompleto y EAC poco realista),
+  salidas de `generar` y `actualizar` con los códigos de los mensajes, pestaña `Registro de cambios`, aviso
+  del peso del LOE y notas actualizadas; captura nueva de la hoja `Registro de cambios` en
+  [El libro Excel](docs/libro-excel.md#registro-de-cambios).
 - El ayudante del ejemplo (`generar_ejemplo.py --libro`) escribe la previsión ficticia con líneas de EDT
   interna, y la captura de la hoja `PV-depuración` muestra el formato nuevo.
 - Hoja `Validación`: la columna `Código` es la B; el código EDT, la tarea, el detalle y el tema pasan a
@@ -550,7 +569,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.3.0...HEAD
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.0...HEAD
+[2.4.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.2.1...v2.3.0
 [2.2.1]: https://github.com/MarceloSalazar/evm-automation/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.1.0...v2.2.0

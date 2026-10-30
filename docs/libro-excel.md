@@ -232,6 +232,8 @@ ejecución siguiente, comparan el libro con esos valores:
 | Meses informados afectados | En los cambios de BAC: meses anteriores al mes de corte con PV o EV. |
 | **Motivo**, **N.º de cambio aprobado** | Celdas amarillas: se completan a mano. |
 
+![Hoja Registro de cambios con un cambio del BAC y un AC corregido de un mes anterior](img/excel/registro-cambios.png)
+
 - Las filas no se borran: el registro es el historial de los cambios del libro. Se conservan con
   `--migrar-desde`.
 - La primera ejecución (o la primera de un libro de una versión anterior) solo guarda la referencia
@@ -263,6 +265,11 @@ Los libros generados con las versiones 2.0 a 2.2 se siguen actualizando: `actual
 de plazo de `Indicadores EDT`, las secciones de tendencia y de plazo del `Resumen` y las columnas nuevas
 del `Análisis de desviaciones`. Las secciones de tendencia y de plazo del `Cuadro de Mando` requieren
 regenerar el libro con `--migrar-desde`.
+
+Los libros generados con versiones anteriores a la 2.4.0 reciben la hoja `Registro de cambios` en la primera
+ejecución de `actualizar` o `analizar`, que solo guarda la referencia ([ACT-038](codigos.md#act-038)). La hoja
+`Validación` la escribe `generar`: conserva sus columnas anteriores, sin la columna `Código`, hasta regenerar el
+libro con `--migrar-desde`.
 
 Los libros generados con versiones 1.x del programa, que calculaban el PV y el EV con los costos
 de MS Project, no se pueden usar: `actualizar`, `analizar` y `--migrar-desde` se detienen sin

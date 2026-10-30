@@ -99,7 +99,7 @@ python evm_export.py generar --origen ejemplos\programa_ejemplo.xml --config con
 ```
 
 ```text
-Exportador EVM 2.3.0
+Exportador EVM 2.4.0
 Leyendo ejemplos\programa_ejemplo.xml ...
 Proyecto: Programa de ejemplo EVM
   Planificación: INTERNO
@@ -202,6 +202,10 @@ El CPI de los últimos 3 meses (0,58) es mucho menor que el acumulado (0,76): el
 el EAC subió 2,1 millones respecto de noviembre. El cronograma vigente del ejemplo termina 36 días
 laborables después de la línea base, con 5 paquetes críticos atrasados: el atraso afecta la fecha de
 fin.
+
+En los dos últimos meses, con más del 20 % completado, `actualizar` avisa además que el EAC es poco
+realista ([ACT-048](codigos.md#act-048)): terminar dentro del BAC exige un TCPI de 1,11 frente al CPI de
+0,76 logrado hasta ahora.
 
 > `--sin-respaldo` evita crear 24 copias de respaldo durante la prueba. En el uso real conviene
 > conservar el respaldo.

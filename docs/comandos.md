@@ -23,7 +23,7 @@ ejecuta con `evm_export` en lugar de `python evm_export.py` (por ejemplo, `evm_e
 Para ver mensajes de diagnóstico se agrega `-v` **antes** del comando:
 `python evm_export.py -v generar ...`
 
-Todos los comandos muestran en la primera línea la versión del programa (`Exportador EVM 2.3.0`). En
+Todos los comandos muestran en la primera línea la versión del programa (`Exportador EVM 2.4.0`). En
 una consola, mientras trabajan, muestran también una barra de progreso con la tarea en curso, el % de esa
 tarea y del total, y el tiempo restante estimado:
 
@@ -85,7 +85,7 @@ Ejemplo de salida con el avance simulado del proyecto de ejemplo a junio de 2027
 [tutorial](ejemplo-paso-a-paso.md#2-configuración); se omiten algunas líneas):
 
 ```text
-Exportador EVM 2.3.0
+Exportador EVM 2.4.0
 Leyendo avance.xml ...
 Validación: Programa de ejemplo EVM
   Planificación: INTERNO  |  Línea base  |  Fecha de estado: 30/06/2027
@@ -148,7 +148,7 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 Ejemplo de salida con el proyecto de ejemplo (se omiten algunas líneas):
 
 ```text
-Exportador EVM 2.3.0
+Exportador EVM 2.4.0
 Leyendo ejemplos/programa_ejemplo.xml ...
 Proyecto: Programa de ejemplo EVM
   Planificación: INTERNO
@@ -221,7 +221,7 @@ python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config con
 Ejemplo de salida:
 
 ```text
-Exportador EVM 2.3.0
+Exportador EVM 2.4.0
 Leyendo ...\avance_2027-06.xml ...
 Fecha de corte: 30/06/2027 (mes 18 del horizonte)
 Observaciones por fila:
@@ -329,7 +329,7 @@ como predecesora y la de `1.2.1` muestra `1.2.3` como sucesora.
 Ejemplo de salida con el proyecto de ejemplo, que no tiene vínculos entre tareas:
 
 ```text
-Exportador EVM 2.3.0
+Exportador EVM 2.4.0
 Leyendo ejemplos/programa_ejemplo.xml ...
 Proyecto: Programa de ejemplo EVM
   Planificación: INTERNO

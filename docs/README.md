@@ -42,7 +42,7 @@ rápido están en el [README principal](../README.md).
 | [Comandos y opciones](comandos.md) | `validar`, `generar`, `actualizar`, `analizar` y `generar-fichas` (fichas de tareas para el cliente en Markdown), todas sus opciones y ejemplos de salida. |
 | [Configuración](configuracion.md) | Claves del archivo `config.toml` y ejemplos. |
 | [Códigos de errores y advertencias](codigos.md) | Código de cada mensaje (`ÁREA-NNN`): severidad, causa y qué hacer; cómo silenciar observaciones con `[validacion] silenciar` o `--silenciar`. |
-| [Presentación para el equipo de proyecto](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) | 37 diapositivas para unos 30 minutos, con notas para el presentador: conceptos EVM y semáforo, preparación en MS Project (incluidas la línea base y la definición del método de medición), `validar`, `generar` y `actualizar`, Cuadro de Mando, análisis de desviaciones y cierre mensual. Se abre con PowerPoint o LibreOffice Impress. |
+| [Presentación para el equipo de proyecto](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) | 38 diapositivas para unos 30 minutos, con notas para el presentador: conceptos EVM y semáforo, preparación en MS Project (incluidas la línea base y la definición del método de medición), `validar`, `generar` y `actualizar`, Cuadro de Mando, análisis de desviaciones, avisos del cierre y cierre mensual. Se abre con PowerPoint o LibreOffice Impress. |
 
 **Preparación en MS Project**
 
