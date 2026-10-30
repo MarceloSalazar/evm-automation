@@ -179,7 +179,7 @@ verde: el SPI de un paquete LOE siempre es 1, pero su costo puede desviarse. En 
 LOE de gestión (`1.1.1` a `1.1.3` y `1.2.3`) tienen CPI de 1,08 a 1,10 en diciembre de 2027 porque su
 costo real es menor que el planificado.
 
-**¿Qué pasa si borro una fila del análisis?** Si el paquete sigue fuera de umbral en el mes de corte,
+**¿Qué pasa si se borra una fila del análisis?** Si el paquete sigue fuera de umbral en el mes de corte,
 vuelve a aparecer (sin texto) la próxima vez que se ejecute `actualizar` o `analizar` para ese mes.
 
 **¿Se puede analizar un mes anterior?** Para ver sus valores basta con elegirlo como mes de reporte en el

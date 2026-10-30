@@ -61,8 +61,8 @@ Además, revisa dos aspectos del cronograma que no afectan al libro:
   (cronograma sin actualizar), avance fuera de secuencia, índice de ejecución de la línea base (BEI),
   tareas incumplidas respecto de la línea base e índice de longitud del camino crítico (CPLI).
 - **Lógica del cronograma:** tareas sin predecesoras o sin sucesoras, adelantos, posiciones, vínculos
-  comienzo a fin, vínculos en tareas resumen, delimitaciones que fijan fechas, holgura alta, holgura
-  negativa y tareas de duración alta.
+  comienzo a fin, proporción de vínculos fin a comienzo, vínculos en tareas resumen, delimitaciones que
+  fijan fechas, holgura alta, holgura negativa y tareas de duración alta.
 
 Con estos controles, `validar` revisa 12 de los 14 puntos de la
 [evaluación DCMA de calidad de cronogramas](evaluacion-dcma.md). El detalle de cada control está en
@@ -72,7 +72,7 @@ Con estos controles, `validar` revisa 12 de los 14 puntos de la
 | Opción | Descripción |
 |---|---|
 | `--origen`, `--config`, `--motor`, `--planificacion`, `--linea-base`, `--nivel-max`, `--visible`, `--silenciar` | Igual que en `generar`. Con varios archivos (`[[proyectos]]`) se revisan todos. Los errores silenciados no cuentan para el código de salida. |
-| `--fecha-corte AAAA-MM-DD` | Fecha de corte (fecha de estado) con la que se revisa el avance. Por defecto, la fecha de estado de cada archivo. Sin fecha de estado, solo se revisa la coherencia de las fechas reales. |
+| `--fecha-corte AAAA-MM-DD` | Fecha de corte (fecha de estado) con la que se revisa el avance. Por defecto, la fecha de estado de cada archivo. Sin fecha de estado, solo se revisan la coherencia de las fechas reales y el avance fuera de secuencia. |
 | `--todas` | Muestra todas las observaciones. Por defecto, hasta 20 por tema. |
 
 Si la planificación indicada no existe, o si dos archivos de `[[proyectos]]` tienen el mismo código
@@ -97,11 +97,17 @@ Estructura y códigos EDT: 3 informativas
   [i] EDT-017 INTERNO Planificación interna: Planificación 'INTERNO': se exportan las 51 tareas que dependen de 'Planificación interna'.
   ...
 
+Campo Visible: sin observaciones
+
 Fechas y duración: sin observaciones
+
+Hitos y pesos: sin observaciones
 
 Método de medición: 6 advertencias, 1 informativa
   [!] MET-004 1.2.1 Licitación de ingeniería: Método 0/100 en un paquete de 3,6 meses (línea base), más de 1: el EV queda en 0 hasta que termina. Se recomienda dividir el paquete o usar un método de avance (% completado, hitos ponderados). Umbral: [validacion] meses_0_100.
   ...
+
+Empresas: sin observaciones
 
 Avance a la fecha de estado: 2 advertencias, 1 informativa
   [!] AVA-013 Índice de ejecución de la línea base (BEI) = 0,33: 4 tareas terminadas y 12 que debían terminar a la fecha de estado (DCMA: al menos 0,95). Sin terminar: 1.2.1, 1.2.2, 2.1.1, 2.1.2.1, 2.1.2.2, 2.1.2.3, 2.1.3, 2.1.4.
@@ -134,7 +140,7 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 | `--origen` | Archivo `.mpp` (requiere MS Project), `.xml` de MS Project, o `activo` para usar el proyecto abierto en MS Project. **Obligatoria**, salvo con varios archivos (`[[proyectos]]` en la configuración): en ese caso se omite, o se indica `NOMBRE=RUTA` para reemplazar la ruta de un archivo ([Varios archivos](varios-archivos.md)). `NOMBRE=RUTA` se puede repetir; una ruta relativa se toma desde la carpeta actual (no desde la del archivo de configuración). |
 | `--salida` | Libro `.xlsx` a crear. Por defecto `<origen>_EVM.xlsx` (con `--origen activo`, `EVM.xlsx` en la carpeta actual); obligatoria con varios archivos. |
 | `--config` | Archivo de configuración TOML ([Configuración](configuracion.md)). |
-| `--mes-inicio AAAA-MM` | Primer mes del horizonte (mes 1). Por defecto, `mes_inicio` de la configuración o, si no se indica, el mes en que comienza la línea base. |
+| `--mes-inicio AAAA-MM` | Primer mes del horizonte (mes 1). Por defecto, `mes_inicio` de la configuración o, si no se indica, el primer mes con % planificado (en general, el de inicio de la línea base). |
 | `--meses N` | Cantidad de meses (columnas). Por defecto, `meses` de la configuración (120). |
 | `--planificacion CODIGO` | Código EDT de la planificación a exportar (`INTERNO`, `CLIENTE`...). Reemplaza el valor del archivo de configuración; `""` exporta todas. Con varios archivos no se admite: la planificación se indica en cada `[[proyectos]]`. |
 | `--linea-base N` | 0 = Línea base, 1..10 = Línea base N. Por defecto, la que el proyecto usa para el valor acumulado. Con varios archivos no se admite: se indica en cada `[[proyectos]]`. |
@@ -281,7 +287,7 @@ LOE.
 |---|---|
 | `--libro` | Libro creado con `generar`, con al menos un `actualizar`. **Obligatoria.** |
 | `--sin-respaldo` | No crea la copia de respaldo del libro. |
-| `--config` | Solo se usa `[validacion] silenciar`: el libro guarda los umbrales del semáforo al generarse. |
+| `--config` | Solo se usan `[validacion] silenciar` y `loe_maximo` ([ACT-049](codigos.md#act-049)): el libro guarda los umbrales del semáforo al generarse. Sin `--config`, `loe_maximo` vale 15. |
 | `--silenciar CODIGOS` | Igual que en `generar`. |
 
 ---
@@ -294,7 +300,7 @@ python evm_export.py generar-fichas --origen "C:\Programa\Programa.mpp" --config
 
 Crea un documento Markdown (`.md`) con una ficha por cada elemento EDT, para entregar al cliente. **No
 crea ni modifica el libro.** Las fichas corresponden a las filas del libro (planificación,
-`nivel_maximo`, campo `Visible`, tareas inactivas y varios archivos), sin las filas «-D». Cada ficha
+`nivel_maximo`, campo `Visible` o lista EDT, tareas inactivas y varios archivos), sin las filas «-D». Cada ficha
 tiene como título el código EDT y el nombre, con el nivel de su fila (`##` para `1.0.0`, `###` para
 `1.1.0`...), y estos datos:
 
@@ -315,8 +321,8 @@ como predecesora y la de `1.2.1` muestra `1.2.3` como sucesora.
 - La ficha de un elemento resumen (por ejemplo `1.2.0`, con fichas debajo) muestra solo los vínculos
   de la propia tarea resumen y de sus tareas sin ficha propia (por ejemplo, las tareas sin código EDT
   que dependen directamente de ella).
-- Los vínculos con tareas sin ficha (de otra planificación, inactivas, con `Visible = No` o de otro
-  proyecto) no se muestran, para que el documento no incluya tareas que no se entregan. La consola
+- Los vínculos con tareas sin ficha (de otra planificación, inactivas, con `Visible = No`, fuera de la
+  lista EDT o de otro proyecto) no se muestran, para que el documento no incluya tareas que no se entregan. La consola
   indica cuántos se omitieron.
 - No se indica el tipo de vínculo (fin a comienzo, comienzo a comienzo...) ni la posición o el adelanto.
 

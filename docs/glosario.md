@@ -64,7 +64,7 @@ BAC que se ingresa en el libro × el % planificado y el % ganado, y el AC se car
 | Predecesoras, sucesoras, vínculos FC, CC, FF y CF | Predecessors, successors, FS, SS, FF and SF links | `validar`: lógica del cronograma. `generar-fichas`: predecesoras y sucesoras de cada ficha. |
 | Posiciones (positivas o negativas, adelantos) | Lag (lead) | `validar`: esperas y adelantos en los vínculos. |
 | Delimitación (*Debe comenzar el*, *No finalizar después del*...) | Constraint (Must Start On, Finish No Later Than...) | `validar`: delimitaciones que fijan las fechas. |
-| Comienzo, Fin | Start, Finish | Cronograma vigente: el fin previsto de cada paquete. |
+| Comienzo, Fin | Start, Finish | Cronograma vigente: el libro llama **fin previsto** al *Fin* de cada paquete. No se debe confundir con el campo *Fin previsto* de MS Project en español, que es el fin de la línea base. |
 | Holgura total | Total Slack | Tiempo que una tarea puede atrasarse sin atrasar el fin del proyecto (columna `Holgura` de `Indicadores EDT`, en días laborables). |
 | Crítica, camino crítico | Critical, critical path | Tareas sin holgura: su atraso atrasa el fin del proyecto (columna `Crítica`). |
 | Variación de fin | Finish Variance | Equivale al desvío de fin del libro (que se cuenta con el calendario del programa). |
@@ -81,7 +81,7 @@ BAC que se ingresa en el libro × el % planificado y el % ganado, y el AC se car
 | Peso de una tarea | Fracción del BAC de la fila que le corresponde, por su duración de línea base o, en un hito, por su `Peso hito`. |
 | Fecha de corte | Último día del mes informado. Por defecto, la fecha de estado de MS Project. |
 | Fila de ingreso | Fila sin filas inferiores (por defecto, de nivel 3) donde se ingresan el BAC y el AC, y cuyo % ganado escribe `actualizar`: paquetes de trabajo y filas `-D`. Las filas con filas inferiores son subtotales. |
-| Fila `-D Otras tareas` | Fila `<código>-D Otras tareas de «tarea»` que reúne las tareas sin fila propia (sin código EDT o con código más detallado que `nivel_maximo`) que dependen directamente de una fila resumen, con su propio BAC. |
+| Fila `-D Otras tareas` | Fila `<código>-D Otras tareas de «tarea»` que reúne las tareas sin fila propia (sin código EDT, con código más detallado que `nivel_maximo` o, con `lista_edt`, fuera de la lista) que dependen directamente de una fila resumen, con su propio BAC. |
 | Planificación | Rama del proyecto bajo una tarea de primer nivel con código EDT (`INTERNO`, `CLIENTE`) que se exporta a un libro. |
 | Horizonte | Meses del libro (120 por defecto). Por defecto, mes 1 = primer mes con % planificado (en general, el de inicio de la línea base); se cambia con `mes_inicio` o `--mes-inicio`. |
 | Mes de reporte | Mes que muestra el `Cuadro de Mando` (celda `E5`). |

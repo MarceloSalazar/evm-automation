@@ -79,7 +79,7 @@ cálculo:
 
 | Paso | Qué se necesita |
 |---|---|
-| Código EDT | Cada fila del libro es un elemento EDT hasta el nivel máximo, o el detalle que indique el campo `Visible` de cada tarea ([sección 3](#3-filas-del-libro)). |
+| Código EDT | Cada fila del libro es un elemento EDT hasta el nivel máximo, con el detalle que indique el campo `Visible` de cada tarea, o un código de la lista EDT ([sección 3](#3-filas-del-libro)). |
 | Línea base | Guardada (*Proyecto > Establecer línea base*): el % planificado usa sus **fechas**. |
 | Tareas de detalle | Su **duración** define su peso dentro del paquete: conviene que las tareas representen el trabajo del paquete. Una tarea larga de poco valor pesa más que una corta de mucho valor. |
 | Hitos | Con el campo `Peso hito` (*Número1*), que se indica en `[campos] peso_hito`: el % del BAC del paquete que se planifica en el mes del hito ([sección 4](#4--planificado-peso-de-cada-tarea)). Cómo cuenta en el % ganado depende del método ([sección 6](#6--ganado-métodos-de-medición)). |
@@ -278,8 +278,8 @@ elemento:
 - dentro de un paquete de nivel 3, del propio paquete;
 - directamente bajo una fila resumen (de nivel 1 o 2, o de nivel 3 que pasa a ser subtotal por un
   `Sí`), de la fila `<código>-D Otras tareas de «tarea»`, que tiene su propio BAC. Esa fila reúne
-  también las tareas con código más detallado que `nivel_maximo` que dependen directamente de la fila
-  resumen.
+  también las tareas con código más detallado que `nivel_maximo` (o, con `lista_edt`, las que no están
+  en la lista) que dependen directamente de la fila resumen.
 
 Si no dependen de ningún elemento EDT (por ejemplo, un hito suelto bajo la planificación), se omiten y
 se informan en `Validación`. Un hito sin peso no forma una fila `-D` por sí solo.
@@ -651,7 +651,7 @@ comportamiento esperado de ese método.
 | Control | Qué indica |
 |---|---|
 | Filas con % ganado y sin BAC | Su EV no se puede valorar hasta ingresar el BAC. Si ninguna fila tiene BAC, los indicadores quedan en 0. |
-| Fila cuya tarea ya no existe o está inactiva | La tarea se eliminó, se desactivó o cambió de UniqueID en MS Project: la fila se omite y se conservan los valores ya cargados. Si cambió la EDT, se debe regenerar el libro con `--migrar-desde` ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). |
+| Fila cuya tarea ya no existe o está inactiva | La tarea se eliminó, se desactivó o cambió de *Id. único* en MS Project: la fila se omite y se conservan los valores ya cargados. Si cambió la EDT, se debe regenerar el libro con `--migrar-desde` ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). |
 | Tarea con código EDT sin fila en el libro | Paquetes con código EDT agregados en MS Project después de generar el libro: su avance no se incluye en el % ganado. Se debe regenerar el libro con `--migrar-desde`. |
 | Campo `Visible` distinto de las filas del libro | `Visible` cambió después de generar el libro: el libro conserva sus filas y su % planificado hasta regenerarlo; el % ganado usa el valor actual ([sección 3.3](#33-campo-visible-más-o-menos-detalle-en-cada-rama)). |
 | Libro de otro proyecto | Si el nombre del proyecto no coincide con el del libro, las filas se asocian por código EDT y se recomienda verificar los resultados. |

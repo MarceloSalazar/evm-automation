@@ -45,7 +45,7 @@ body:
     attributes:
       label: Versión del programa
       description: Resultado de `python evm_export.py --version` (con el instalador de Windows, `evm_export --version`).
-      placeholder: evm_export 2.2.1
+      placeholder: evm_export 2.4.0
     validations:
       required: true
   - type: input
@@ -82,6 +82,8 @@ body:
         - Varios archivos de MS Project ([[proyectos]])
         - --migrar-desde
         - Campo Visible
+        - Lista EDT (lista_edt)
+        - Silenciar observaciones ([validacion] silenciar o --silenciar)
         - Depuración de costes
         - analizar (AC cargado después de actualizar)
         - generar-fichas

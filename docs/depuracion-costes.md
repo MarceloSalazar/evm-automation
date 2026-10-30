@@ -165,7 +165,7 @@ Las líneas que son subtotales se muestran en gris.
 ![Hoja PV-EmpresaA con las filas «(coste)» debajo de cada fila y el indicador de alineamiento](img/excel/depuracion-pv-empresa-a.png)
 
 En la hoja PV de la empresa que se depura (`PV-EmpresaA`, `PV-EmpresaB` o, en un libro de una sola
-empresa, `PV`), debajo de **cada fila de la EDT** (hasta `nivel_maximo`) y de la fila TOTAL va su fila
+empresa, `PV`), debajo de **cada fila de la EDT** y de la fila TOTAL va su fila
 «(coste)», con fondo naranja claro:
 
 | Fila | Meses | BAC (columna D) |

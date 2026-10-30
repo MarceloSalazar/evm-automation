@@ -76,11 +76,12 @@ cronograma de las secciones [1.2](#12-avance-a-la-fecha-de-estado-validar) y
 | Varios archivos: observaciones precedidas por el nombre del archivo (`[P1]`, `[P2]`) y monedas distintas | Revisar cada archivo; si las monedas difieren, indicar `moneda` en `[exportacion]` ([Varios archivos](varios-archivos.md#8-validaciones-y-controles)). |
 
 `actualizar` informa sus controles en pantalla: filas con % ganado y sin BAC, filas cuya tarea ya no
-existe o está inactiva, tareas con código EDT sin fila en el libro, cambios del campo `Visible`, celdas
-sin la fórmula del libro, cambios del BAC y de meses ya informados (que agrega a la hoja `Registro de
-cambios`), EV y AC incoherentes, análisis del mes anterior incompleto, acciones vencidas y meses sin
-informe ([Cálculo del PV y el EV](calculo-pv-ev.md#14-controles-y-validaciones)). `analizar` informa los
-mismos controles del libro.
+existe o está inactiva, tareas con código EDT sin fila en el libro, cambios del campo `Visible` o de la
+lista EDT, celdas sin la fórmula del libro, cambios del BAC y de meses ya informados (que agrega a la hoja
+`Registro de cambios`), EV y AC incoherentes, análisis del mes anterior incompleto, acciones vencidas,
+meses sin informe, línea base de MS Project distinta de la del libro, EAC poco realista y peso del LOE en
+el BAC ([Cálculo del PV y el EV](calculo-pv-ev.md#14-controles-y-validaciones)). `analizar` informa los
+mismos controles del libro, salvo la comparación con la línea base de MS Project.
 
 Las observaciones de `--migrar-desde` y los recordatorios del BAC y de la depuración de costes solo
 aparecen en la hoja `Validación` de `generar`.
@@ -144,7 +145,7 @@ puntos no revisa está en [Evaluación DCMA de 14 puntos](evaluacion-dcma.md).
   No se usan los calendarios de recursos ni de tareas. Con XML se ignoran las excepciones recurrentes
   relativas (por ejemplo, "primer lunes del mes" o "último viernes de marzo"), que se informan en
   `Validación`.
-- Si la curva PV no alcanza el BAC dentro del horizonte, la duración planificada y el Cronograma Ganado
+- Si la curva PV no alcanza el BAC dentro del horizonte, la duración planificada y el Earned Schedule
   quedan vacíos; en ese caso se debe aumentar `meses`.
 - Dentro de una fila, el % planificado sigue la duración de las tareas, no su valor: una tarea larga de
   poco valor pesa más que una corta de mucho valor. El total de la fila es siempre el BAC ingresado.
@@ -194,7 +195,7 @@ puntos no revisa está en [Evaluación DCMA de 14 puntos](evaluacion-dcma.md).
 | `--migrar-desde no se admite entre un libro de una sola empresa y uno multi-empresa` | Se debe generar el libro nuevo sin `--migrar-desde` y cargar a mano el historial que se necesite. |
 | `No se encontró el campo de empresa ...` | Se debe revisar `campo_empresa` en `[multiempresa]`: nombre del campo (`Text3`) o su alias en MS Project. |
 | `No se encontró el campo de descripción ...` | Se debe revisar `descripcion` en `[campos]`: `"Notas"` para las notas de la tarea, o el nombre del campo (`Text20`) o su alias en MS Project. Las fichas se crean sin descripción. |
-| `generar-fichas`: una ficha no muestra un vínculo que sí está en MS Project | Los vínculos entre tareas del mismo elemento EDT y los vínculos con tareas sin ficha (otra planificación, inactivas, con `Visible = No` u otro proyecto) no se muestran; la consola indica cuántos vínculos se omitieron ([Comandos](comandos.md#generar-fichas-fichas-de-tareas-para-el-cliente)). |
+| `generar-fichas`: una ficha no muestra un vínculo que sí está en MS Project | Los vínculos entre tareas del mismo elemento EDT y los vínculos con tareas sin ficha (otra planificación, inactivas, con `Visible = No`, fuera de la lista EDT u otro proyecto) no se muestran; la consola indica cuántos vínculos se omitieron ([Comandos](comandos.md#generar-fichas-fichas-de-tareas-para-el-cliente)). |
 | Los indicadores aparecen vacíos al abrir el libro | El libro se abrió en vista protegida o en una vista previa: se debe habilitar la edición para que Excel calcule las fórmulas. |
 | `El código EDT ... está en los archivos ... y ...` | Varios archivos: cada código EDT debe estar en un solo archivo. Se deben corregir los códigos EDT o la planificación de cada archivo en `[[proyectos]]` ([Varios archivos](varios-archivos.md#3-preparación-en-ms-project)). |
 | `Los archivos tienen fechas de estado distintas ...` | Se debe definir la misma fecha de estado en todos los archivos o indicar `--fecha-corte`. |

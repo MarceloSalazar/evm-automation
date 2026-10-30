@@ -23,7 +23,8 @@ Información para quien modifica el programa o la documentación.
 ```powershell
 python -m pip install -r requirements-dev.txt
 python -m pytest                          # todas las pruebas
-python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffice (más rápido)
+python -m pytest -n 4 --dist loadfile     # en paralelo, en 4 procesos (pytest-xdist): unas 2,5 veces más rápido
+python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffice
 ```
 
 | Archivo de pruebas | Contenido |
@@ -42,7 +43,11 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 | `test_registro_cambios.py` | Controles del cierre mensual de la norma EIA-748-E: registro de cambios del BAC y de los meses ya informados (referencia, detección, hoja `Registro de cambios`, `--simular` y `--migrar-desde`), coherencia del EV y el AC, análisis de desviaciones incompleto, acciones vencidas, meses sin informe, línea base de MS Project distinta de la del libro, EAC poco realista (TCPI frente al CPI) y peso del LOE en el BAC. |
 | `test_codigos.py` | Códigos de errores y advertencias: formato y numeración del catálogo, todo mensaje con un código del catálogo, todo código usado, `docs/codigos.md` al día y silenciar (configuración, `--silenciar`, hoja `Validación` y código de salida de `validar`). |
 | `test_varios_archivos.py` | Varios archivos de MS Project (`[[proyectos]]`): el libro combinado coincide, fila por fila, con el libro de cada archivo (también en multi-empresa, con UniqueID repetidos entre archivos); errores de configuración y de la línea de comandos, fechas de estado y `--migrar-desde`. |
-| Resto | Casos del programa de ejemplo, Cuadro de Mando, semáforo, multi-empresa, planificación, campo `Visible`, depuración de costes, calendario y lector COM simulado. |
+| `test_rendimiento.py` | Optimizaciones de la lectura de MS Project y de la escritura del libro: mismos estilos que openpyxl, celdas vacías de las hojas `% PV` y `% EV`, una sola lectura del libro, reparto por meses del calendario y lecturas de MS Project (vínculos y alias de los campos, solo cuando hacen falta). |
+| `test_review_fixes.py` | Regresiones de los problemas detectados en las revisiones del código: migración, `actualizar` y `analizar`, análisis de desviaciones, registro de cambios, mensajes y errores de la línea de comandos. |
+| `test_workbook_update.py` | Libro del proyecto de ejemplo: disposición de las hojas, ciclo de `actualizar`, respaldo, meses posteriores cargados, `--migrar-desde` y recálculo de las fórmulas con LibreOffice. |
+| `test_report_xml.py`, `test_timeline_methods.py` | Lectura del XML de ejemplo, filas EDT y % planificado; calendario, horizonte, fechas, redondeo, métodos de medición e indicadores. |
+| Resto | Cuadro de Mando, semáforo, multi-empresa, planificación, campo `Visible`, depuración de costes, calendario y lector COM simulado. |
 
 - **LibreOffice:** si está instalado, las pruebas marcadas `libreoffice` recalculan las fórmulas del
   libro y las comparan con el cálculo en Python. Se usa un perfil propio de LibreOffice, por lo que
@@ -135,6 +140,23 @@ flowchart LR
     U --> WB
     CLI --> MI["migrate.py"]
 ```
+
+**Rendimiento.** Con proyectos grandes, el tiempo se va en la lectura de MS Project y en leer y guardar
+el libro, que tiene cientos de miles de celdas (120 meses por fila en cada hoja mensual). Al modificar el
+código se deben mantener estas pautas (las pruebas de `test_rendimiento.py` comprueban que los
+resultados no cambian):
+
+- Con `.mpp`, cada propiedad de una tarea que se lee es una llamada a MS Project, en otro proceso: se
+  leen solo los datos que usa el comando (por ejemplo, `generar` y `actualizar` no leen los vínculos ni
+  las delimitaciones: `links=False`).
+- Los estilos de las celdas de las hojas grandes se asignan con `workbook.styled(celda, font=...,
+  fill=...)`: openpyxl calcula el hash del objeto de estilo en cada asignación (`celda.font = ...`), y
+  `styled` lo calcula una vez por libro. Los objetos de estilo se crean una sola vez (constantes del
+  módulo o `workbook.indent(nivel)`), no uno por celda.
+- No se escriben celdas vacías solo para darles formato: en las hojas `% PV` y `% EV`, `actualizar` da
+  formato a las celdas que carga.
+- El libro se lee una sola vez; el libro con los valores calculados (`data_only`) se lee solo si una
+  celda de ingreso tiene una fórmula.
 
 ---
 
@@ -291,7 +313,7 @@ consultan para entender un mensaje y para silenciar los códigos que ya revisaro
 3. **Usar el código en el programa**:
    - observación (consola y hoja `Validación`): `Issue("FEC-013", codigo_edt, nombre, mensaje)`; la
      severidad y el tema se toman del catálogo (los códigos de severidad variable la indican);
-   - error que detiene el programa: `raise ConfigError("CFG-050", mensaje)`, o la clase de
+   - error que detiene el programa: `raise ConfigError("CFG-052", mensaje)`, o la clase de
      `evm/messages.py` que corresponda (`InputError`, `MissingFileError`, `SaveError`...). No se
      lanzan `ValueError` ni `RuntimeError` con un mensaje para el usuario.
 4. **Regenerar el documento**: `python docs\herramientas\codigos.py` (con `--comprobar` solo se

@@ -236,7 +236,7 @@ no se usan los calendarios de recursos ni de tareas
   restricciones innecesarias y con duraciones acotadas es la base de un PV confiable. Las guías de
   evaluación de cronogramas listadas en [Recursos externos](recursos-externos.md) (por ejemplo, la del
   GAO) describen los controles habituales. `validar` revisa 12 de los 14 puntos de la evaluación DCMA:
-  lógica, adelantos y posiciones, delimitaciones, holgura, duración, fechas no válidas, tareas
-  incumplidas, CPLI y BEI ([Evaluación DCMA de 14 puntos](evaluacion-dcma.md)). Para que MS Project
+  lógica, adelantos, posiciones, tipos de vínculo, delimitaciones, holgura, duración, fechas no
+  válidas, tareas incumplidas, CPLI y BEI ([Evaluación DCMA de 14 puntos](evaluacion-dcma.md)). Para que MS Project
   muestre la holgura frente a la fecha de fin comprometida, se recomienda ponerla como **fecha límite**
   del hito de fin, en lugar de una delimitación.

@@ -48,7 +48,8 @@ descripcion = ""
 
 [horizonte]
 # Primer mes del horizonte (mes 1), formato "AAAA-MM".
-# Vacío o sin la clave = mes en que comienza la línea base del proyecto.
+# Vacío o sin la clave = primer mes con % planificado (en general, el mes en que
+# comienza la línea base del proyecto).
 mes_inicio = "2026-01"
 
 # Cantidad de meses (columnas mensuales). 120 = 10 años.
@@ -117,8 +118,8 @@ moneda = "EUR"
 decimales = 0
 
 # Título del informe (Cuadro de Mando, Resumen y documento de generar-fichas).
-# Si se omite, se usa el nombre
-# del proyecto en MS Project (con varios archivos, los nombres unidos con "+").
+# Si se omite, se usa el nombre del proyecto en MS Project (con varios archivos,
+# los nombres unidos con "+").
 # titulo = "Programa de ejemplo"
 
 # Depuración de costes (ver docs/depuracion-costes.md).
@@ -133,7 +134,7 @@ depuracion_costes = false
 
 # Empresa que se depura en multi-empresa: el valor de empresa_a o empresa_b.
 # Vacío o sin la clave = empresa_a.
-depuracion_empresa = "EmpresaA"
+# depuracion_empresa = "EmpresaB"
 
 # Indicador de alineamiento en las filas «(coste)»: diferencia de BAC y diferencia
 # máxima acumulada entre las dos curvas, en % del BAC, y resaltado de los meses en
@@ -220,8 +221,9 @@ reparto_por_defecto = 50
 # Varios archivos de MS Project en un mismo libro (ver docs/varios-archivos.md).
 # Sin secciones [[proyectos]], el archivo se indica con --origen (un solo archivo).
 # Con ellas, 'validar', 'generar', 'actualizar' y 'generar-fichas' leen todos los
-# archivos y no se indica --origen. Los códigos EDT no se deben repetir entre archivos (por ejemplo,
-# 1.0.0 a 8.0.0 en un archivo y 9.0.0 en otro). Una sección por archivo:
+# archivos y no se indica --origen. Los códigos EDT no se deben repetir entre
+# archivos (por ejemplo, 1.0.0 a 8.0.0 en un archivo y 9.0.0 en otro). Una sección
+# por archivo:
 #   nombre        nombre corto y fijo del archivo en el libro (no se debe cambiar)
 #   origen        archivo .mpp o .xml; las rutas relativas se toman desde la
 #                 carpeta de este archivo de configuración

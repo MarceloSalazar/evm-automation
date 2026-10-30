@@ -33,7 +33,7 @@ simulado.*
   variación respecto del mes anterior) y tres gráficos nativos de Excel.
 - **Plazo según el cronograma de MS Project**: fin previsto, desvío de fin, holgura total y camino
   crítico del proyecto y de cada elemento de la EDT, para saber si un atraso afecta la fecha de fin.
-- **Indicadores** del proyecto y de cada elemento de la EDT, incluido el **Cronograma Ganado**.
+- **Indicadores** del proyecto y de cada elemento de la EDT, incluido el **Earned Schedule**.
 - **Semáforo** de CPI y SPI con umbrales inferiores y superiores configurables, indicados en el Cuadro
   de Mando.
 - **Análisis de desviaciones**: cada mes, la lista de paquetes con SPI o CPI fuera de umbral, con

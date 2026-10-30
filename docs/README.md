@@ -58,9 +58,9 @@ rápido están en el [README principal](../README.md).
 
 | Documento | Contenido |
 |---|---|
-| [Cálculo del PV y el EV](calculo-pv-ev.md) | PV y EV = BAC ingresado en el libro × % planificado y % ganado de MS Project: datos que se leen, filas del libro (planificación, niveles por código EDT, campo `Visible`, tareas sin código), peso de tareas e hitos, horizonte, métodos de medición, valor del mes, fecha de corte, AC, multi-empresa, cierre mensual y controles. |
+| [Cálculo del PV y el EV](calculo-pv-ev.md) | PV y EV = BAC ingresado en el libro × % planificado y % ganado de MS Project: datos que se leen, filas del libro (planificación, niveles por código EDT, campo `Visible`, lista EDT, tareas sin código), peso de tareas e hitos, horizonte, métodos de medición, valor del mes, fecha de corte, AC, multi-empresa, cierre mensual y controles. |
 | [El libro Excel](libro-excel.md) | Hojas, reglas de uso y `--migrar-desde`. |
-| [Cuadro de Mando e indicadores](cuadro-de-mando.md) | Tablero, gráficos, fórmulas, Cronograma Ganado y cómo leer los indicadores. |
+| [Cuadro de Mando e indicadores](cuadro-de-mando.md) | Tablero, gráficos, fórmulas, Earned Schedule y cómo leer los indicadores. |
 | [Análisis de desviaciones](analisis-desviaciones.md) | Paquetes fuera de umbral de cada mes, causa, impacto y acción correctiva; comando `analizar`. |
 
 **Referencia**
