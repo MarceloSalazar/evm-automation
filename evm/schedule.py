@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
+from evm.methods import is_complete
 from evm.model import Task
 from evm.workcalendar import WorkCalendar
 
@@ -49,7 +50,8 @@ class RowSchedule:
 
 
 def finished(t: Task) -> bool:
-    return t.percent_complete >= 100 - 1e-9 or t.actual_finish is not None
+    """Tarea terminada: el mismo criterio que el % ganado (methods.is_complete)."""
+    return is_complete(t)
 
 
 def _day(d: datetime | date) -> date:

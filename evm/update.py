@@ -20,8 +20,8 @@ from evm.model import ProjectData, Task
 from evm.timeline import Horizon
 from evm.wbs import (KIND_RESIDUAL, KIND_SUMMARY, Scope, Visibility, build_tree, iter_subtree, pad_code, plural,
                      prune_inactive, row_visibility, select_scope)
-from evm.workbook import (COL_BAC, COL_CODE, COL_METHOD, FIRST_MONTH_COL, LEGACY_SHEET_CURVE, SHEET_AC,
-                          SHEET_EV, SHEET_META, SHEET_PV, SHEET_SUMMARY, STATUS_CELL, StructRow,
+from evm.workbook import (COL_BAC, COL_CODE, COL_METHOD, FIRST_MONTH_COL, FMT_PCT_MONTH, LEGACY_SHEET_CURVE,
+                          PCT_PREFIX, SHEET_AC, SHEET_EV, SHEET_META, SHEET_PV, SHEET_SUMMARY, STATUS_CELL, StructRow,
                           WorkbookFormatError, add_s_curve_chart, book_sources, clean_text, col, company_sheet,
                           pct_sheet, read_meta, read_schedule, read_structure, read_wbs_list, save_workbook,
                           source_meta, split_key, write_meta, write_schedule, write_summary_trend)
@@ -54,8 +54,9 @@ class BookData:
     ev_b: dict[int, list[float | None]] = field(default_factory=dict)
     ac_a: dict[int, list[float | None]] = field(default_factory=dict)
     ac_b: dict[int, list[float | None]] = field(default_factory=dict)
-    # Celdas que deben tener fórmula (subtotales, fila TOTAL, suma de empresas) y tienen un valor
+    # Celdas que deben tener fórmula (subtotales, fila TOTAL, suma de empresas) y no la tienen: vacías o con un valor
     formula_gaps: list[str] = field(default_factory=list)
+    formula_values: list[str] = field(default_factory=list)     # las que tienen un valor escrito
     # BAC ingresado, % planificado y % ganado de cada mes por empresa
     # (clave "" en un libro de una sola empresa; "A" y "B" en multi-empresa)
     bac_role: dict[str, dict[int, float]] = field(default_factory=dict)
@@ -112,6 +113,15 @@ def _num(value, cached, where: str, fixable: list | None = None, key=None) -> fl
             "Se debe ingresar como número.")
     fixable.append((*key, number, "número guardado como texto convertido a número"))
     return number
+
+
+def _write_fixable(wb, book: "BookData") -> None:
+    """Reemplaza por su valor numérico las celdas de ingreso con texto o fórmulas (en las hojas de %, con el formato
+    de %)."""
+    for sheet, r, c, v, _why in book.fixable:
+        cell = wb[sheet].cell(row=r, column=c, value=v)
+        if sheet.startswith(PCT_PREFIX):
+            cell.number_format = FMT_PCT_MONTH
 
 
 def _as_date(v) -> date | None:
@@ -194,16 +204,17 @@ def _check_layout(wb, structure: list[StructRow], meta: dict) -> None:
                     "--migrar-desde.")
 
 
-def _formula_gaps(wb, structure: list[StructRow], meta: dict) -> list[str]:
+def _formula_gaps(wb, structure: list[StructRow], meta: dict) -> tuple[list[str], list[str]]:
     """Celdas que deben tener fórmula y tienen un valor o están vacías: en las hojas PV y EV los meses de todas las
     filas (BAC × %) y el BAC de los subtotales y de la fila TOTAL; en AC, los subtotales y la fila TOTAL; en
-    multi-empresa, todas las filas de las hojas PV, EV y AC (suma de las dos empresas)."""
+    multi-empresa, todas las filas de las hojas PV, EV y AC (suma de las dos empresas). Devuelve todas y las que
+    tienen un valor escrito."""
     total = meta["fila_total"]
     months = list(range(FIRST_MONTH_COL, FIRST_MONTH_COL + meta["meses"]))
     subtotals = [s.row for s in structure if s.kind == KIND_SUMMARY] + [total]
     every = [s.row for s in structure] + [total]
     multi = bool(meta.get("multiempresa"))
-    out = []
+    out, typed = [], []
     for name in data_sheets(meta):
         is_total_sheet = multi and name in (SHEET_PV, SHEET_EV, SHEET_AC)
         is_pv = name == SHEET_PV or name.startswith(SHEET_PV + "-")
@@ -221,7 +232,9 @@ def _formula_gaps(wb, structure: list[StructRow], meta: dict) -> list[str]:
             value = ws.cell(row=r, column=c).value
             if not (isinstance(value, str) and value.startswith("=")):
                 out.append(f"{name}!{col(c)}{r}")
-    return out
+                if value is not None and str(value).strip():
+                    typed.append(out[-1])
+    return out, typed
 
 
 def read_book(path: str | Path, wb=None, allow_fix: bool = False) -> BookData:
@@ -237,37 +250,40 @@ def read_book(path: str | Path, wb=None, allow_fix: bool = False) -> BookData:
         raise WorkbookFormatError("LIB-003", f"'{path.name}' no es un libro .xlsx generado por este programa.")
     try:
         wb = wb or load_workbook(path)
-        wb_vals = load_workbook(path, data_only=True)
     except (zipfile.BadZipFile, InvalidFileException, OSError) as exc:
         raise WorkbookFormatError("LIB-004", f"No se pudo abrir '{path.name}' como libro de Excel: {exc}") from exc
+    cached_values = []
+
+    def cached(sheet: str, r: int, c: int):
+        """Valor que calculó Excel en una celda con fórmula. El libro con los valores calculados se lee solo si hace
+        falta (las celdas de ingreso con fórmula son raras): leerlo duplica el tiempo de lectura."""
+        if not cached_values:
+            cached_values.append(load_workbook(path, data_only=True))
+        return cached_values[0][sheet].cell(row=r, column=c).value
     meta = read_meta(wb)
     check_version(meta)
     structure = read_structure(wb)
     check_sheets(wb.sheetnames, meta)
     _check_layout(wb, structure, meta)
-    gaps = _formula_gaps(wb, structure, meta)
+    gaps, typed = _formula_gaps(wb, structure, meta)
     horizon = Horizon(meta["horizonte_inicio"], meta["meses"])
     months = horizon.months
     inputs = [s for s in structure if s.is_input]
     fixable: list = []
 
+    def value(name: str, ws, r: int, c: int, fix: bool) -> float | None:
+        v = ws.cell(row=r, column=c).value
+        formula = isinstance(v, str) and v.startswith("=")
+        return _num(v, cached(name, r, c) if formula else None, f"{name}!{col(c)}{r}", fixable if fix else None,
+                    (name, r, c))
+
     def sheet_values(name: str, fix: bool) -> dict[int, list[float | None]]:
-        ws, wv = wb[name], wb_vals[name]
-        out = {}
-        for s in inputs:
-            vals = []
-            for i in range(months):
-                c = FIRST_MONTH_COL + i
-                vals.append(_num(ws.cell(row=s.row, column=c).value, wv.cell(row=s.row, column=c).value,
-                                 f"{name}!{col(c)}{s.row}", fixable if fix else None, (name, s.row, c)))
-            out[s.row] = vals
-        return out
+        ws = wb[name]
+        return {s.row: [value(name, ws, s.row, FIRST_MONTH_COL + i, fix) for i in range(months)] for s in inputs}
 
     def bac_values(name: str) -> dict[int, float]:
-        ws, wv = wb[name], wb_vals[name]
-        return {s.row: _num(ws.cell(row=s.row, column=COL_BAC).value, wv.cell(row=s.row, column=COL_BAC).value,
-                            f"{name}!D{s.row}", fixable if allow_fix else None, (name, s.row, COL_BAC)) or 0.0
-                for s in inputs}
+        ws = wb[name]
+        return {s.row: value(name, ws, s.row, COL_BAC, allow_fix) or 0.0 for s in inputs}
 
     def zeros(series: dict[int, list[float | None]]) -> dict[int, list[float]]:
         return {r: [v or 0.0 for v in vals] for r, vals in series.items()}
@@ -292,8 +308,8 @@ def read_book(path: str | Path, wb=None, allow_fix: bool = False) -> BookData:
         pv_r[role] = {r: [bacs[r] * v for v in vals] for r, vals in pct_pv[role].items()}
         ev_r[role] = {r: [None if v is None else bacs[r] * v for v in vals] for r, vals in pct_ev[role].items()}
         ac_r[role] = sheet_values(company_sheet(SHEET_AC, company) if company else SHEET_AC, allow_fix)
-    extra = dict(bac_role=bac_role, pct_pv=pct_pv, pct_ev=pct_ev, formula_gaps=gaps, fixable=fixable,
-                 wbs_list=read_wbs_list(wb))
+    extra = dict(bac_role=bac_role, pct_pv=pct_pv, pct_ev=pct_ev, formula_gaps=gaps, formula_values=typed,
+                 fixable=fixable, wbs_list=read_wbs_list(wb))
     if multi:
         pv = {r: [x + y for x, y in zip(pv_r["A"][r], pv_r["B"][r])] for r in pv_r["A"]}
         bac = {r: bac_role["A"][r] + bac_role["B"][r] for r in bac_role["A"]}
@@ -833,8 +849,9 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     if book.fixable:
         cells = ", ".join(f"{sh}!{col(c)}{r}" for sh, r, c, _v, _why in book.fixable[:8])
         more = f" y {len(book.fixable) - 8} más" if len(book.fixable) > 8 else ""
-        warnings.append(Issue("ACT-025", message=f"Se reemplazaron por su valor numérico celdas de ingreso con texto "
-                                                 f"o fórmulas: {cells}{more}."))
+        verb = "reemplazarán" if dry_run else "reemplazaron"
+        warnings.append(Issue("ACT-025", message=f"Se {verb} por su valor numérico celdas de ingreso con texto o "
+                                                 f"fórmulas: {cells}{more}."))
 
     # Valores en memoria (también en simulación, para mostrar los indicadores resultantes)
     pct_roles = {pct_sheet(SHEET_EV, company): role for role, company in book.roles()}
@@ -866,10 +883,10 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     backup_path = None
     if not dry_run:
         progress.stage("guardar", "Guardado del libro")
-        for sheet, r, c, v, _why in book.fixable:
-            wb[sheet].cell(row=r, column=c, value=v)
+        _write_fixable(wb, book)
         for sheet, r, c, v in writes:
-            wb[sheet].cell(row=r, column=c, value=v)
+            # Las celdas vacías de las hojas '% EV' no tienen formato: se da al cargar el valor
+            wb[sheet].cell(row=r, column=c, value=v).number_format = FMT_PCT_MONTH
         wb[SHEET_SUMMARY][STATUS_CELL].value = status
         meta = dict(book.meta)
         meta.pop("meses_grafico", None)
@@ -1002,8 +1019,7 @@ def run_analysis(cfg: Config, book_path: str | Path, backup: bool = True) -> Upd
         more = f" y {len(book.fixable) - 8} más" if len(book.fixable) > 8 else ""
         warnings.append(Issue("ACT-025", message=f"Se reemplazaron por su valor numérico celdas de ingreso con texto "
                                                  f"o fórmulas: {cells}{more}."))
-        for sheet, r, c, v, _why in book.fixable:
-            wb[sheet].cell(row=r, column=c, value=v)
+        _write_fixable(wb, book)
     decimals = int(book.meta.get("decimales") or 0)
     reference = changes.read_reference(wb)
     changed = changes.detect(book, reference, idx)

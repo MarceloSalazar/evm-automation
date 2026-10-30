@@ -30,6 +30,11 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
+def is_undefined(text: str) -> bool:
+    """Método sin definir (vacío, «Por definir», «Pendiente»...): MET-005."""
+    return parse_method(text).kind == UNDEFINED
+
+
 def parse_method(text: str) -> Method:
     """Interpreta el texto de la columna C (o del campo de MS Project)."""
     raw = (text or "").strip()

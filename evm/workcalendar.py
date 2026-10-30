@@ -48,18 +48,22 @@ class WorkCalendar:
     def minutes_by_month(self, start: datetime, finish: datetime) -> dict[MonthKey, float]:
         """Minutos laborables del intervalo [start, finish) agrupados por mes."""
         out: dict[MonthKey, float] = {}
-        d = start.date()
+        first = d = start.date()
         last = finish.date()
+        one_day = timedelta(days=1)
         while d <= last:
-            day0 = datetime.combine(d, time(0, 0))
-            for a, b in self.windows(d):
-                ws = day0 + timedelta(minutes=a)
-                we = day0 + timedelta(minutes=b)
-                lo, hi = max(ws, start), min(we, finish)
-                if hi > lo:
-                    k = (d.year, d.month)
-                    out[k] = out.get(k, 0.0) + (hi - lo).total_seconds() / 60.0
-            d += timedelta(days=1)
+            k = (d.year, d.month)
+            if first < d < last:            # día completo (el intervalo lo cubre entero)
+                minutes = sum(b - a for a, b in self.windows(d))
+                if minutes:
+                    out[k] = out.get(k, 0.0) + minutes
+            else:                           # primer y último día: solo la parte dentro del intervalo
+                day0 = datetime.combine(d, time(0, 0))
+                for a, b in self.windows(d):
+                    lo, hi = max(day0 + timedelta(minutes=a), start), min(day0 + timedelta(minutes=b), finish)
+                    if hi > lo:
+                        out[k] = out.get(k, 0.0) + (hi - lo).total_seconds() / 60.0
+            d += one_day
         return out
 
 

@@ -111,7 +111,7 @@ class Config:
     wbs_list_file: str = ""
     wbs_list: list[str] | None = None
     include_inactive: bool = False
-    distribution: str = "habiles"         # tareas sin datos mensuales: "habiles" | "calendario"
+    distribution: str = "habiles"         # reparto de la duración de las tareas: "habiles" | "calendario"
     holidays: set[date] = field(default_factory=set)
     default_method: str = "Por definir"
     currency: str = "EUR"                 # "" = código de moneda del proyecto en MS Project
@@ -386,8 +386,12 @@ def load_config(path: str | Path | None) -> Config:
     cfg.description_field = _get(campos, "descripcion", cfg.description_field, str).strip()
 
     hor = _section(data, "horizonte")
-    start = _get(hor, "mes_inicio", "", str).strip()
-    cfg.start_month = parse_month(start) if start else None
+    start = hor.get("mes_inicio")
+    if isinstance(start, date):                 # fecha TOML sin comillas (mes_inicio = 2026-01-01)
+        cfg.start_month = date(start.year, start.month, 1)
+    else:
+        start = _get(hor, "mes_inicio", "", str).strip()
+        cfg.start_month = parse_month(start) if start else None
     cfg.months = _get(hor, "meses", cfg.months, int)
 
     exp = _section(data, "exportacion")

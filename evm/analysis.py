@@ -22,7 +22,7 @@ from evm.wbs import plural
 from evm.workbook import (BORDER, COL_BAC, FILL_GREEN, FILL_INPUT, FILL_RED, FILL_YELLOW, FIRST_MONTH_COL,
                           FMT_DATE, FMT_DAYS, FMT_MONTH, FMT_RATIO, FMT_SLACK, FONT_NOTE, FONT_TITLE, HEADER_ROW,
                           NAME_START, SHEET_AC, SHEET_EV, SHEET_IND, SHEET_PV, Thresholds, _header, _traffic_light,
-                          col, fmt_decimal, loaded_month, money_format, put_text)
+                          col, fmt_decimal, loaded_month, money_format, put_text, styled)
 
 SHEET_ANALYSIS = "Análisis de desviaciones"
 STATUS_ROW = 3              # resumen del último análisis
@@ -48,6 +48,15 @@ WIDTHS = {A_MONTH: 10, A_CODE: 11, A_NAME: 34, A_BAC: 13, A_PV: 13, A_EV: 13, A_
           A_SPI: 7, A_CPI: 7, A_LIGHT: 10, A_SPI_PREV: 8, A_CPI_PREV: 8, A_TREND: 10, A_VARIANCE: 9, A_SLACK: 9,
           A_CRITICAL: 9, A_ORIGIN: 24, A_CAUSE: 38, A_IMPACT: 30, A_ACTION: 38, A_OWNER: 16, A_DATE: 12}
 NEW = "Nuevo"
+ALIGN_TOP = Alignment(vertical="top", wrap_text=False)
+ALIGN_TOP_WRAP = Alignment(vertical="top", wrap_text=True)
+ALIGN_TOP_CENTER = Alignment(horizontal="center", vertical="top")
+CELL_ALIGN = {**{c_: ALIGN_TOP_WRAP for c_ in (A_NAME, A_ORIGIN) + TEXT_COLS},
+              **{c_: ALIGN_TOP_CENTER for c_ in (A_TREND, A_VARIANCE, A_SLACK, A_CRITICAL)}}
+# Formato de número de las columnas (las demás quedan con el que tengan: una fecha escrita a mano se ve como fecha)
+MONEY_COLS = (A_BAC, A_PV, A_EV, A_AC, A_SV, A_CV)
+CELL_FORMATS = {A_MONTH: FMT_MONTH, A_SPI: FMT_RATIO, A_CPI: FMT_RATIO, A_SPI_PREV: FMT_RATIO,
+                A_CPI_PREV: FMT_RATIO, A_VARIANCE: FMT_DAYS, A_SLACK: FMT_SLACK, A_DATE: FMT_DATE}
 TREND_TOL = 0.01            # variación de la distancia de un índice a 1 que cuenta como mejora o empeoramiento
 
 
@@ -143,13 +152,17 @@ def refresh(entries: list[Entry], found: list[Deviation], month: date,
             plan: dict[str, tuple] | None = None) -> list[Entry]:
     """Análisis del mes `month`: los paquetes fuera de umbral (`found`) más las filas de ese mes con texto.
 
-    - Un paquete que ya tenía fila en el mes conserva su texto.
+    - Un paquete que ya tenía fila en el mes conserva su texto. Si tiene varias (una fila copiada a mano para otra
+      causa o acción, o filas que --migrar-desde reunió en un paquete), se conservan todas las que tienen texto.
     - Un paquete nuevo en el mes copia el texto de su último análisis anterior (para revisarlo).
     - Las filas de otros meses se conservan solo si tienen texto (o si se agregaron a mano).
     - plan: desvío de fin, holgura y crítica de cada fila (clave -> valores) para las filas del mes; las de meses
       anteriores conservan los suyos.
     """
-    current = {e.key: e for e in entries if e.key and e.month == month}
+    current: dict[str, list[Entry]] = {}
+    for e in entries:
+        if e.key and e.month == month:
+            current.setdefault(e.key, []).append(e)
     earlier: dict[str, Entry] = {}
     for e in entries:
         if e.key and e.month is not None and e.month < month:
@@ -159,20 +172,22 @@ def refresh(entries: list[Entry], found: list[Deviation], month: date,
     flagged = set()
     for d in found:
         flagged.add(d.key)
-        e = current.get(d.key)
-        if e is None:
-            prev = earlier.get(d.key)
-            if prev is None:
-                e = Entry(month, d.key, d.code, d.name, origin=NEW)
-            elif prev.has_text:
-                e = Entry(month, d.key, d.code, d.name, list(prev.texts),
-                          f"Texto copiado de {prev.month:%m/%Y}: se debe revisar")
-            else:
-                e = Entry(month, d.key, d.code, d.name, origin=f"También en {prev.month:%m/%Y}")
+        mine = current.get(d.key)
+        if mine:
+            for e in mine:
+                e.code, e.name = d.code, d.name
+            out += [e for e in mine if e.has_text] or mine[:1]
+            continue
+        prev = earlier.get(d.key)
+        if prev is None:
+            e = Entry(month, d.key, d.code, d.name, origin=NEW)
+        elif prev.has_text:
+            e = Entry(month, d.key, d.code, d.name, list(prev.texts),
+                      f"Texto copiado de {prev.month:%m/%Y}: se debe revisar")
         else:
-            e.code, e.name = d.code, d.name
+            e = Entry(month, d.key, d.code, d.name, origin=f"También en {prev.month:%m/%Y}")
         out.append(e)
-    out += [e for k, e in current.items() if k not in flagged and e.has_text]
+    out += [e for k, mine in current.items() if k not in flagged for e in mine if e.has_text]
     if plan:
         for e in out:
             if e.key in plan:
@@ -264,13 +279,13 @@ def write_sheet(wb, entries: list[Entry], row_of: dict[str, int], months: int, t
                 decimals: int, month: date | None = None, found: int | None = None):
     """Escribe (o vuelve a escribir) la hoja. row_of: clave -> fila de las hojas PV, EV y AC."""
     if SHEET_ANALYSIS in wb.sheetnames:
-        ws = wb[SHEET_ANALYSIS]
-        ws.delete_rows(1, ws.max_row)
-        ws.conditional_formatting = type(ws.conditional_formatting)()
-        ws.auto_filter.ref = None
+        # La hoja se crea de nuevo, en su lugar: no quedan el filtro (sus criterios ocultarían filas nuevas), las
+        # filas ocultas ni las celdas combinadas de la hoja anterior
+        index = wb.sheetnames.index(SHEET_ANALYSIS)
+        wb.remove(wb[SHEET_ANALYSIS])
     else:
         index = wb.sheetnames.index(SHEET_IND) + 1 if SHEET_IND in wb.sheetnames else len(wb.sheetnames)
-        ws = wb.create_sheet(SHEET_ANALYSIS, index)
+    ws = wb.create_sheet(SHEET_ANALYSIS, index)
     money = money_format(decimals)
     first, last = col(FIRST_MONTH_COL), col(FIRST_MONTH_COL + months - 1)
     header = f"'{SHEET_PV}'!${first}${HEADER_ROW}:${last}${HEADER_ROW}"
@@ -333,21 +348,9 @@ def write_sheet(wb, entries: list[Entry], row_of: dict[str, int], months: int, t
                 for c_, f in formulas.items():
                     ws.cell(row=i, column=c_, value=f)
         for c_ in range(1, A_KEY):
-            cell = ws.cell(row=i, column=c_)
-            cell.border = BORDER
-            cell.alignment = Alignment(vertical="top", wrap_text=c_ in (A_NAME, A_ORIGIN) + TEXT_COLS)
-            if c_ in TEXT_COLS:
-                cell.fill = FILL_INPUT
-        ws.cell(row=i, column=A_MONTH).number_format = FMT_MONTH
-        for c_ in (A_BAC, A_PV, A_EV, A_AC, A_SV, A_CV):
-            ws.cell(row=i, column=c_).number_format = money
-        for c_ in (A_SPI, A_CPI, A_SPI_PREV, A_CPI_PREV):
-            ws.cell(row=i, column=c_).number_format = FMT_RATIO
-        ws.cell(row=i, column=A_VARIANCE).number_format = FMT_DAYS
-        ws.cell(row=i, column=A_SLACK).number_format = FMT_SLACK
-        for c_ in (A_TREND, A_VARIANCE, A_SLACK, A_CRITICAL):
-            ws.cell(row=i, column=c_).alignment = Alignment(horizontal="center", vertical="top")
-        ws.cell(row=i, column=A_DATE).number_format = FMT_DATE
+            styled(ws.cell(row=i, column=c_), border=BORDER, alignment=CELL_ALIGN.get(c_, ALIGN_TOP),
+                   fill=FILL_INPUT if c_ in TEXT_COLS else None,
+                   number_format=money if c_ in MONEY_COLS else CELL_FORMATS.get(c_))
 
     end = max(FIRST, FIRST + len(entries) - 1)
     _traffic_light(ws, f"{col(A_SPI)}{FIRST}:{col(A_CPI)}{end}", th)

@@ -12,6 +12,7 @@ from evm.fields import fmt_number
 from evm.messages import (SEV_ERROR, SEV_INFO, SEV_WARN, TOPIC_BOOK, TOPIC_COMPANY, TOPIC_DATES,  # noqa: F401
                           TOPIC_LOGIC, TOPIC_METHOD, TOPIC_PROGRESS, TOPIC_READ, TOPIC_VISIBLE, TOPIC_WBS,
                           TOPIC_WEIGHTS, TOPICS, Issue)
+from evm.methods import is_undefined
 from evm.model import MonthKey, ProjectData, Task
 from evm.timeline import Horizon, first_of_month
 
@@ -170,10 +171,6 @@ def plural(n: int, singular: str, plural_form: str) -> str:
 def task_name(task: Task, code_of) -> str:
     """Nombre de la tarea para las observaciones; sin código EDT, con su Id de MS Project para encontrarla."""
     return task.name if code_of(task) else f"{task.name} (Id {task.id})"
-
-
-def tolerance(amount: float) -> float:
-    return max(0.5, abs(amount) * 1e-7)
 
 
 def fmt_money(v: float) -> str:
@@ -623,9 +620,12 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
         loose = [n for b in loose_full for n in iter_subtree(b) if not n.children]
         aggregated += sum(1 for b in loose_full for _ in iter_subtree(b)) + len(loose_own)
         if any(_has_weight(n) for n in loose):
+            # Fechas de la línea base de sus propias tareas (no las de toda la tarea resumen)
+            starts = [n.baseline_start for n in loose if n.baseline_start]
+            finishes = [n.baseline_finish for n in loose if n.baseline_finish]
             res = ReportRow(code=f"{row.code}-D", name=f"Otras tareas de «{t.name}»",
-                            level=row.level + 1, kind=KIND_RESIDUAL, task=t,
-                            method=cfg.default_method, start=s, finish=f, parent=row)
+                            level=row.level + 1, kind=KIND_RESIDUAL, task=t, method=cfg.default_method,
+                            start=min(starts) if starts else s, finish=max(finishes) if finishes else f, parent=row)
             res.leaves = loose
             rows.append(res)
             row.children.append(res)
@@ -868,7 +868,7 @@ def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:
                            "% EV), que se calculan con la duración de la línea base de las tareas y el peso de los "
                            "hitos. Se debe ingresar el BAC de cada fila en las celdas amarillas de la columna D de "
                            f"{'las hojas' if cfg.multi_enabled else 'la hoja'} {sheets}."))
-    undefined = [r for r in rows if r.is_input and r.method.strip().lower() in ("", "por definir", "a definir")]
+    undefined = [r for r in rows if r.is_input and is_undefined(r.method)]
     if undefined:
         issues.append(Issue("MET-005", "", "",
                             f"{plural(len(undefined), 'fila', 'filas')} sin método de medición definido "

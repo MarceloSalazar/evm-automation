@@ -9,8 +9,9 @@ from evm.analysis import A_CODE, A_KEY, A_MONTH, A_NAME, A_ORIGIN, SHEET_ANALYSI
 from evm.config import ConfigError
 from evm.cost_review import SHEET_PASTE, month_offset, paste_months, read_paste, review_company, shift_rows
 from evm.fields import same_name
-from evm.model import MonthKey
 from evm.messages import SEV_INFO, SEV_WARN, Issue
+from evm.methods import is_undefined
+from evm.model import MonthKey
 from evm.wbs import KIND_LEAF, Report, ReportRow, fmt_money, iter_subtree, plural
 from evm.workbook import (PCT_PREFIX, SHEET_EV, SHEET_LISTS, book_sources, clean_text, pct_sheet, role_key, row_key,
                           source_meta, split_key)
@@ -92,6 +93,8 @@ class PriorData:
     # después de plan_migration)
     change_log: list[list] = field(default_factory=list)
     reference: changes.Reference | None = None
+    # Celdas del libro anterior con un valor escrito sobre la fórmula (subtotales, TOTAL, suma de empresas)
+    overwritten: list[str] = field(default_factory=list)
 
     def values_for(self, key: str, kind: str) -> dict[MonthKey, float]:
         return self.values.get(key, {}).get(kind, {})
@@ -146,7 +149,8 @@ def prior_from_book(path, project_name: str) -> PriorData:
                      max_level=int(level) if level else None, methods_list=methods_list, multi=book.multi,
                      project_names=names, analysis=analysis, review_rows=review_rows,
                      review_company=str(book.meta.get("depuracion_empresa") or ""), review_start=book.horizon.start,
-                     review_legacy=review_legacy, change_log=change_log, reference=reference)
+                     review_legacy=review_legacy, change_log=change_log, reference=reference,
+                     overwritten=list(book.formula_values))
 
 
 def _migrate_analysis(prior: PriorData, key_map: dict[str, str]) -> list[Issue]:
@@ -380,9 +384,7 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
                             + (" (el libro anterior no indica si se editaron en Excel o cambiaron en MS Project; "
                                "se recomienda revisarlos)." if legacy else ", editados en Excel.")))
         # Recalcular el aviso de filas sin método
-        undefined = sum(1 for r in inputs
-                        if (prior.methods.get(row_key(r)) or r.method).strip().lower() in ("", "por definir",
-                                                                                          "a definir"))
+        undefined = sum(1 for r in inputs if is_undefined(prior.methods.get(row_key(r)) or r.method))
         report.issues[:] = [i for i in report.issues if i.id != "MET-005"]
         if undefined:
             issues.append(Issue("MET-005", "", "", f"{plural(undefined, 'fila', 'filas')} sin método de medición "
@@ -400,6 +402,13 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
                                               "libro anterior."))
     issues += _migrate_changes(prior, key_map, sources)
     issues += _migrate_review(report, prior)
+    if prior.overwritten:
+        shown = ", ".join(prior.overwritten[:8])
+        more = f" y {len(prior.overwritten) - 8} más" if len(prior.overwritten) > 8 else ""
+        issues.append(Issue("MIG-019", "", "",
+                            f"El libro anterior tiene valores escritos sobre celdas con fórmula (subtotales, fila "
+                            f"TOTAL o suma de las empresas) que no se trasladan: {shown}{more}. Si son el AC o el BAC "
+                            "de un paquete, se deben cargar en sus filas de ingreso del libro nuevo."))
     for old in prior.unmatched:
         bac = f"BAC {fmt_money(sum(old.bac.values()))}, "
         issues.append(Issue("MIG-014", old.code, old.name,

@@ -739,3 +739,34 @@ def test_generar_writes_topic_and_new_checks(tmp_path):
     assert ("Error", "EDT-005", "1.14.2", "Mal") == rows[[r[2] for r in rows].index("1.14.2")][:4]
     assert {r[5] for r in rows} >= {TOPIC_WBS}
     assert not [r for r in rows if r[5] in (TOPIC_PROGRESS, TOPIC_LOGIC)]     # solo en validar
+
+
+def test_lead_allows_progress_before_the_predecessor_finishes():
+    tasks = tree('''
+        1 Fase
+          1.1 Comenzada
+          1.2 Con adelanto
+    ''')
+    t = by_name(tasks)
+    t["Comenzada"].actual_start, t["Comenzada"].percent_complete = S, 40
+    t["Con adelanto"].actual_start, t["Con adelanto"].percent_complete = S, 10
+    t["Con adelanto"].predecessors = [Link(t["Comenzada"].uid, LINK_FS, -4800)]
+    assert not [i for i in progress(tasks, None) if i.id in ("AVA-016", "AVA-017")]
+    assert [i.id for i in logic(tasks) if i.id == "LOG-006"] == ["LOG-006"]       # el adelanto se informa aparte
+
+
+def test_dcma_metrics_count_detail_tasks_only():
+    tasks = tree('''
+        1 Fase
+          1.1 A
+          1.2 B
+    ''')
+    t = by_name(tasks)
+    t["Fase"].constraint_type = CONSTRAINT_MSO                  # delimitación en la tarea resumen
+    t["B"].predecessors = [Link(t["A"].uid, LINK_FS)]
+    t["Fase"].predecessors = [Link(t["A"].uid, LINK_SS)]        # vínculo de la resumen: LOG-010
+    issues = logic(tasks)
+    ids = [i.id for i in issues]
+    assert "LOG-011" not in ids and "LOG-012" not in ids
+    assert "LOG-009" not in ids                                 # el vínculo CC de la resumen no cuenta
+    assert [i.name for i in issues if i.id == "LOG-010"] == ["Fase"]

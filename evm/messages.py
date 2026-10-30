@@ -354,6 +354,9 @@ _CODES = [
     _code("CFG-050", F, "loe_maximo fuera de rango",
           "[validacion] loe_maximo no es un % entre 0 y 100.",
           "Indicar un % entre 0 y 100 (por defecto 15; 0 = no se controla)."),
+    _code("CFG-051", F, "No existe la carpeta de salida",
+          "La carpeta del archivo indicado en --salida no existe.",
+          "Crear la carpeta o indicar otra ruta en --salida.", "generar y generar-fichas"),
 
     # --- LEC: lectura de MS Project -----------------------------------------------------------------------------
     _code("LEC-001", F, "No existe el archivo de origen",
@@ -561,7 +564,8 @@ _CODES = [
           "La tarea no tiene fechas en el programa actual (p. ej. una tarea programada manualmente sin fechas).",
           "Indicar sus fechas o su duración."),
     _code("FEC-004", W, "Hito con duración",
-          "La tarea está marcada como hito y tiene duración: su % planificado va entero al mes de su fecha de fin.",
+          "La tarea está marcada como hito y tiene duración: se calcula como hito, sin su duración (sin Peso hito no "
+          "pesa en el % planificado; con Peso hito, pesa entero en el mes de su fecha de fin).",
           "Si no es un hito, quitar la marca de hito (Información de la tarea > Avanzado)."),
     _code("FEC-005", W, "Duración 0 sin marca de hito",
           "La tarea dura 0 y no es un hito: no pesa en el % planificado de su fila.",
@@ -725,7 +729,8 @@ _CODES = [
           "Corregir el avance registrado o el vínculo, si ya no representa la secuencia real del trabajo."),
     _code("AVA-017", W, "Tarea con avance fuera de secuencia",
           "Detalle de AVA-016: la tarea tiene avance y su predecesora no terminó (vínculo fin a comienzo o fin a "
-          "fin) o no comenzó (comienzo a comienzo o comienzo a fin).",
+          "fin) o no comenzó (comienzo a comienzo o comienzo a fin). Los vínculos con adelanto no se revisan "
+          "(LOG-006).",
           "Corregir el avance de la tarea o de su predecesora, o el vínculo."),
 
     # --- LOG: lógica del cronograma (validar) ---------------------------------------------------------------------
@@ -894,6 +899,12 @@ _CODES = [
           "Se trasladaron las filas de la hoja Registro de cambios y la referencia de los valores informados, con "
           "la que actualizar detecta los cambios siguientes.",
           "Ninguna."),
+    _code("MIG-019", E, "Valores escritos sobre fórmulas sin trasladar",
+          "El libro anterior tiene valores escritos sobre celdas que deben tener fórmula (subtotales, fila TOTAL o "
+          "suma de las empresas; ver ACT-024). El libro nuevo tiene la fórmula en esas celdas: los valores no se "
+          "trasladan.",
+          "Revisar esas celdas en el libro anterior: si son el AC o el BAC de un paquete, cargarlos en sus filas de "
+          "ingreso del libro nuevo.", "generar --migrar-desde"),
 
     # --- DEP: depuración de costes ------------------------------------------------------------------------------
     _code("DEP-001", I, "Depuración de costes activa",

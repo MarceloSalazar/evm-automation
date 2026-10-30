@@ -2,18 +2,24 @@
 from datetime import date, datetime
 
 import pytest
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 
-from evm.config import Config
+from evm.analysis import SHEET_ANALYSIS, Deviation, Entry, refresh, write_sheet
+from evm.cli import main
+from evm.config import Config, load_config
 from evm.indicators import earned_schedule, planned_duration
 from evm.methods import parse_method
+from evm.messages import SEV_ERROR, Issue
 from evm.migrate import plan_migration, prior_from_book
 from evm.model import ProjectData, Task
 from evm.percent import RowWeights, TaskTime, earned_fraction
+from evm.reader_xml import read_xml
 from evm.update import book_totals, read_book, run_update
 from evm.wbs import KIND_RESIDUAL, build_report
-from evm.workbook import (COL_BAC, FIRST_MONTH_COL, FIRST_ROW, WorkbookFormatError, _sum_formula, read_structure,
-                          write_workbook)
+from evm.workbook import (COL_BAC, FIRST_MONTH_COL, FIRST_ROW, Thresholds, WorkbookFormatError, _sum_formula,
+                          read_structure, write_workbook)
+
+from mspdi import project_xml, task_xml, write_xml
 
 
 S, F = datetime(2026, 1, 5, 8), datetime(2026, 3, 27, 17)
@@ -355,3 +361,164 @@ def test_formula_in_bac_cell_is_replaced_by_its_value(tmp_path, recalc):
     assert any("texto o fórmulas" in w.message for w in res.warnings)
     assert load_workbook(calc)["PV"].cell(r, 4).value == 100
     read_book(calc)                                          # el siguiente uso no falla
+
+
+# ----------------------------------------------------------------------------
+# Revisión de la versión 2.4.0
+# ----------------------------------------------------------------------------
+def set_cells(path, sheet, values):
+    """Simula lo que se escribe a mano en Excel: {(código EDT, columna): valor} en la hoja indicada."""
+    wb = load_workbook(path)
+    rows = {s.code: s.row for s in read_structure(wb)}
+    for (code, column), value in values.items():
+        wb[sheet].cell(rows[code], column, value)
+    wb.save(path)
+
+
+def ids(issues, *wanted):
+    return [i for i in issues if i.id in wanted]
+
+
+def test_first_bac_after_the_first_update_is_not_a_change(tmp_path):
+    book, cfg = tmp_path / "b.xlsx", Config(months=12)
+    make_book(book, P(base_tasks()), cfg)                       # todavía sin BAC (ACT-022)
+    run_update(P(progress_tasks()), cfg, book, date(2026, 1, 31), backup=False)
+    set_cells(book, "PV", {("1.1.0", COL_BAC): 100, ("1.2.0", COL_BAC): 200})
+    res = run_update(P(progress_tasks()), cfg, book, date(2026, 2, 28), backup=False)
+    assert not ids(res.warnings, "ACT-036")
+    set_cells(book, "PV", {("1.1.0", COL_BAC): 150})            # un cambio del BAC sí se registra
+    res = run_update(P(progress_tasks()), cfg, book, date(2026, 3, 31), backup=False)
+    assert [w.code for w in ids(res.warnings, "ACT-036")] == ["1.1.0"]
+
+
+def test_migration_that_moves_month_one_logs_no_false_changes(tmp_path):
+    old, new, cfg = tmp_path / "old.xlsx", tmp_path / "new.xlsx", Config(months=12)
+    make_book(old, P(base_tasks()), cfg, bac=BAC)
+    run_update(P(progress_tasks()), cfg, old, date(2026, 1, 31), backup=False)
+    set_cells(old, "AC", {("1.1.0", FIRST_MONTH_COL): 30, ("1.2.0", FIRST_MONTH_COL): 20})
+    run_update(P(progress_tasks()), cfg, old, date(2026, 2, 28), backup=False)     # referencia: enero y febrero
+    later = Config(months=12, start_month=date(2026, 2, 1))
+    rep = make_book(new, P(base_tasks()), later, prior=prior_from_book(old, "Programa"))
+    assert ids(rep.issues, "MIG-011")                           # enero se acumuló en el mes 1 (febrero)
+    for status in (date(2026, 2, 28), date(2026, 3, 31)):
+        res = run_update(P(progress_tasks()), later, new, status, backup=False)
+        assert not ids(res.warnings, "ACT-036", "ACT-037"), status
+
+
+def test_migration_reports_values_typed_over_subtotal_formulas(tmp_path):
+    old, cfg = tmp_path / "old.xlsx", Config(months=12)
+    make_book(old, P(base_tasks()), cfg, bac=BAC)
+    set_cells(old, "AC", {("1.0.0", FIRST_MONTH_COL + 1): 500})     # AC escrito sobre la fórmula del subtotal
+    rep = make_book(tmp_path / "new.xlsx", P(base_tasks()), cfg, prior=prior_from_book(old, "Programa"))
+    found = ids(rep.issues, "MIG-019")
+    assert len(found) == 1 and "AC!H5" in found[0].message and found[0].severity == SEV_ERROR
+
+
+def test_simulation_says_cells_would_be_replaced(tmp_path):
+    book, cfg = tmp_path / "b.xlsx", Config(months=12)
+    make_book(book, P(base_tasks()), cfg, bac=BAC)
+    set_cells(book, "AC", {("1.1.0", FIRST_MONTH_COL): "1234,5"})   # número escrito como texto
+    res = run_update(P(progress_tasks()), cfg, book, date(2026, 1, 31), backup=False, dry_run=True)
+    assert ids(res.warnings, "ACT-025")[0].message.startswith("Se reemplazarán")
+    assert load_workbook(book)["AC"].cell(6, FIRST_MONTH_COL).value == "1234,5"
+
+
+def test_analysis_keeps_every_row_of_a_package_in_the_month():
+    month = date(2027, 6, 1)
+
+    def texts(n):
+        return [f"Causa {n}", None, f"Acción {n}", None, None]
+
+    a, b = Entry(month, "10", "1.1.0", "A", texts(1)), Entry(month, "10", "1.1.0", "A", texts(2))
+    empty = Entry(month, "10", "1.1.0", "A")
+    c, d = Entry(month, "20", "1.2.0", "B", texts(3)), Entry(month, "20", "1.2.0", "B", texts(4))
+    out = refresh([a, b, empty, c, d], [Deviation("10", "1.1.0", "A nueva", 0.8, 0.9)], month)
+    assert [id(e) for e in out] == [id(x) for x in (a, b, c, d)]
+    assert a.name == b.name == "A nueva"
+    # Un paquete fuera de umbral con una sola fila, sin texto: se conserva esa fila
+    assert [id(e) for e in refresh([empty], [Deviation("10", "1.1.0", "A", 0.8, 0.9)], month)] == [id(empty)]
+
+
+def test_analysis_sheet_is_written_without_the_old_filter():
+    wb = Workbook()
+    ws = wb.create_sheet(SHEET_ANALYSIS)
+    wb.create_sheet("Otra")
+    ws.auto_filter.ref = "A4:Y20"
+    ws.auto_filter.add_filter_column(17, ["Sí"])                # filtro de Excel con un criterio
+    ws.row_dimensions[6].hidden = True
+    ws.merge_cells("T7:U7")
+    month = date(2027, 6, 1)
+    new = write_sheet(wb, [Entry(month, "10", "1.1.0", "A"), Entry(month, "20", "1.2.0", "B")], {"10": 5, "20": 6},
+                      12, Thresholds.from_config(Config()), 0)
+    assert wb.sheetnames.index(SHEET_ANALYSIS) == 1
+    assert not new.auto_filter.filterColumn and not new.merged_cells.ranges and not new.row_dimensions[6].hidden
+    assert new.auto_filter.ref == "A4:Y6"
+
+
+def test_missing_output_folder_and_bad_books_are_reported_with_their_code(tmp_path, capsys):
+    xml = write_xml(tmp_path / "p.xml", project_xml([task_xml(1, 1, "A", wbs="1", start=S, finish=F,
+                                                              baselines=[(0, S, F, 0)])]))
+    missing = tmp_path / "no existe"
+    assert main(["generar", "--origen", str(xml), "--salida", str(missing / "EVM.xlsx")]) == 2
+    assert "ERROR CFG-051" in capsys.readouterr().err
+    assert main(["generar-fichas", "--origen", str(xml), "--salida", str(missing / "f.md")]) == 2
+    assert "ERROR CFG-051" in capsys.readouterr().err
+    assert main(["analizar", "--libro", str(tmp_path / "falta.xlsx")]) == 2
+    assert "ERROR LIB-002" in capsys.readouterr().err
+    bad = tmp_path / "dañado.xlsx"
+    bad.write_bytes(b"no es un libro")
+    assert main(["analizar", "--libro", str(bad)]) == 2
+    assert "ERROR LIB-004" in capsys.readouterr().err
+
+
+def test_undefined_methods_are_reported_as_the_calculation_reads_them():
+    tasks = [T(1, 1, "1", "Fase"), T(2, 2, "1.1", "A", method="Pendiente"), T(3, 2, "1.2", "B", method="n/a"),
+             T(4, 2, "1.3", "C", method="50/50")]
+    met = ids(build_report(P(tasks), Config()).issues, "MET-005")
+    assert len(met) == 1 and met[0].message.startswith("2 filas")
+
+
+def test_other_tasks_row_has_the_dates_of_its_own_tasks():
+    tasks = [T(1, 1, "1", "Fase", bs=datetime(2026, 1, 5, 8), bf=datetime(2027, 12, 31, 17)),
+             T(2, 2, "1.1", "A", bs=datetime(2026, 1, 5, 8), bf=datetime(2027, 12, 31, 17)),
+             T(3, 2, "", "Suelta", bs=datetime(2026, 3, 2, 8), bf=datetime(2026, 3, 6, 17))]
+    rep = build_report(P(tasks), Config(default_method="0/100"))
+    d = next(r for r in rep.rows if r.code.endswith("-D"))
+    assert (d.start, d.finish) == (datetime(2026, 3, 2, 8), datetime(2026, 3, 6, 17))
+    assert not [i for i in ids(rep.issues, "MET-004") if i.code == d.code]     # 0/100 en 5 días: sin aviso
+
+
+def test_milestone_with_duration_message_matches_the_calculation():
+    tasks = [T(1, 1, "1", "Fase"), T(2, 2, "1.1", "A", milestone=True, duration=4800.0)]
+    msg = ids(build_report(P(tasks), Config()).issues, "FEC-004")[0].message
+    assert "sin Peso hito no pesa en el % planificado" in msg
+
+
+def test_start_month_accepts_a_toml_date(tmp_path):
+    path = tmp_path / "c.toml"
+    path.write_text("[horizonte]\nmes_inicio = 2026-03-15\n", encoding="utf-8")
+    assert load_config(path).start_month == date(2026, 3, 1)
+
+
+def test_schedule_and_earned_value_agree_on_finished_tasks():
+    from evm.schedule import finished
+    t = T(1, 1, "1", "A", actual_finish=F, percent_complete=50)     # fin real con 50 % (AVA-005)
+    assert not finished(t)
+    t.percent_complete = 100
+    assert finished(t)
+
+
+def test_xml_baseline_of_the_project_summary_task_only_is_not_a_baseline(tmp_path):
+    path = write_xml(tmp_path / "p.xml", project_xml([
+        task_xml(0, 0, "Proyecto", start=S, finish=F, baselines=[(0, S, F, 0)]),
+        task_xml(1, 1, "A", wbs="1", start=S, finish=F),
+    ]))
+    p = read_xml(path, Config())
+    assert not p.baseline_found and p.baseline_label.startswith("Programa actual")
+
+
+def test_console_limits_informational_lines(capsys):
+    from evm.cli import _print_issues
+    _print_issues([Issue("MIG-013", "", "", f"informativa {n}") for n in range(20)])
+    out = capsys.readouterr().out
+    assert out.count("informativa ") == 15 and "... y 5 informativas más" in out

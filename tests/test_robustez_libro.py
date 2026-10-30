@@ -333,15 +333,15 @@ def load_text_in_ac(path, text):
     return ws.cell(row_of(ws, "1.1.0"), FIRST_MONTH_COL).value
 
 
-@pytest.mark.parametrize("text, accepted", [
-    ("60", {60}),
-    ("12,5", {12.5}),
-    ("1 234", {1234}),
-    ("1.234,5", {1234.5, ERROR}),
-    ("1,234.50", {1234.5, ERROR}),
+@pytest.mark.parametrize("text, expected", [
+    ("60", 60),
+    ("12,5", 12.5),
+    ("1 234", 1234),
+    ("1.234,5", ERROR),             # separador de miles: no se interpreta (se debe ingresar como número)
+    ("1,234.50", ERROR),
 ])
-def test_text_numbers_in_input_cells(small_book, text, accepted):
-    assert load_text_in_ac(small_book, text) in accepted
+def test_text_numbers_in_input_cells(small_book, text, expected):
+    assert load_text_in_ac(small_book, text) == expected
 
 
 # ----------------------------------------------------------------------------

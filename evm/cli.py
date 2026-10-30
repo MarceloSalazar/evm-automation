@@ -45,10 +45,11 @@ def _engine_for(origen: str, motor: str) -> str:
 
 @contextmanager
 def open_project(origen: str, cfg: Config, motor: str, visible: bool = False, status: date | None = None,
-                 name: str = ""):
+                 name: str = "", links: bool = True):
     """Devuelve el proyecto leído (ProjectData). Con COM, MS Project queda abierto mientras dure el bloque.
 
     name: nombre del archivo en [[proyectos]] (etapas de la barra de progreso).
+    links: lee los vínculos y las delimitaciones de las tareas (validar y generar-fichas).
     """
     engine = _engine_for(origen, motor)
     if origen.lower() != "activo" and not Path(origen).is_file():
@@ -57,13 +58,13 @@ def open_project(origen: str, cfg: Config, motor: str, visible: bool = False, st
     if engine == "xml":
         from evm.reader_xml import read_xml
         progress.stage(f"leer:{name}", f"Lectura del XML{which}")
-        yield read_xml(origen, cfg)
+        yield read_xml(origen, cfg, links=links)
         return
     from evm.reader_com import ComSession
     progress.stage(f"abrir:{name}", f"Apertura en MS Project{which}")
     with ComSession(origen, visible=visible) as session:
         progress.stage(f"leer:{name}", f"Lectura de MS Project{which}")
-        yield session.read_project(cfg, status_date=status)
+        yield session.read_project(cfg, status_date=status, links=links)
 
 
 def _stages(files: list[tuple[str, str, Config]], motor: str, before: dict[str, float] | None = None,
@@ -166,8 +167,10 @@ def _issue_line(i: Issue) -> str:
 def _print_issues(issues: list[Issue], limit: int = 15) -> None:
     serious = [i for i in issues if i.severity != SEV_INFO]
     infos = [i for i in issues if i.severity == SEV_INFO]
-    for i in infos:
+    for i in infos[:limit]:
         print(_issue_line(i))
+    if len(infos) > limit:
+        print(f"  ... y {len(infos) - limit} informativas más (ver hoja 'Validación').")
     serious.sort(key=lambda i: i.severity != SEV_ERROR)
     for i in serious[:limit]:
         print(_issue_line(i))
@@ -190,6 +193,7 @@ def cmd_generar(args) -> int:
         salida = Path(origen).with_name(Path(origen).stem + "_EVM.xlsx")
     if salida.suffix.lower() != ".xlsx":
         raise ConfigError("CFG-041", "La salida debe ser un archivo .xlsx")
+    _check_folder(salida)
     if salida.exists() and not args.sobrescribir:
         raise ConfigError("CFG-042",
                           f"'{salida}' ya existe. Para reemplazarlo se debe usar --sobrescribir; para conservar "
@@ -206,7 +210,7 @@ def cmd_generar(args) -> int:
                                    after={**after, "escribir": 20.0, "guardar": 15.0})):
         for name, origin, pcfg in files:
             progress.say(_reading(name, origin))
-            with open_project(origin, pcfg, args.motor, args.visible, name=name) as project:
+            with open_project(origin, pcfg, args.motor, args.visible, name=name, links=False) as project:
                 _computing(name, "Cálculo del % planificado")
                 parts.append(build_part(project, pcfg, name))
         report = assemble_report(parts, cfg)
@@ -250,6 +254,14 @@ def cmd_generar(args) -> int:
             print(_issue_line(i))
     print(f"Libro generado: {salida.resolve()}")
     return 0
+
+
+def _check_folder(salida: Path) -> None:
+    """La carpeta de --salida debe existir: se informa antes de leer MS Project, no al guardar."""
+    folder = salida.resolve().parent
+    if not folder.is_dir():
+        raise ConfigError("CFG-051", f"No existe la carpeta del archivo de salida: {folder}. Se debe crear la "
+                                     "carpeta o indicar otra ruta en --salida.")
 
 
 def _rows_rule(cfg) -> str:
@@ -353,8 +365,9 @@ def _print_deviations(res, limit: int = 25) -> None:
 def cmd_analizar(args) -> int:
     cfg = load_config(args.config)
     _add_silence(cfg, args)
-    from evm.update import run_analysis
+    from evm.update import book_meta, run_analysis
     from evm.workbook import check_writable
+    book_meta(args.libro)                   # libro inexistente o que no es de este programa: error con su código
     check_writable(args.libro)
     with progress.tracking({"libro": 40.0, "analizar": 10.0, "guardar": 40.0}):
         res = run_analysis(cfg, args.libro, backup=not args.sin_respaldo)
@@ -384,7 +397,7 @@ def cmd_actualizar(args) -> int:
     with progress.tracking(_stages(files, args.motor, after=after)):
         for name, origin, pcfg in files:
             progress.say(_reading(name, origin))
-            with open_project(origin, pcfg, args.motor, args.visible, status, name=name) as project:
+            with open_project(origin, pcfg, args.motor, args.visible, status, name=name, links=False) as project:
                 projects[name] = project
         res = run_update(projects if cfg.projects else projects[""], cfg, args.libro, status,
                          backup=not args.sin_respaldo, force=args.forzar, dry_run=args.simular)
@@ -491,6 +504,7 @@ def cmd_generar_fichas(args) -> int:
         salida = Path(origen).with_name(Path(origen).stem + "_fichas.md")
     if salida.suffix.lower() != ".md":
         raise ConfigError("CFG-041", "Las fichas se guardan en un archivo .md (Markdown).")
+    _check_folder(salida)
     if salida.exists() and not args.sobrescribir:
         raise ConfigError("CFG-042", f"'{salida}' ya existe. Para reemplazarlo se debe usar --sobrescribir.")
 
@@ -578,7 +592,8 @@ def build_parser() -> argparse.ArgumentParser:
     g = sub.add_parser("generar", help="crea el libro Excel con el PV mensual a partir de MS Project")
     common_source(g)
     g.add_argument("--salida", help="libro .xlsx a crear (por defecto <origen>_EVM.xlsx)")
-    g.add_argument("--mes-inicio", help="primer mes del horizonte, AAAA-MM (por defecto, mes_inicio de la configuración o el inicio de la línea base)")
+    g.add_argument("--mes-inicio", help="primer mes del horizonte, AAAA-MM (por defecto, mes_inicio de la "
+                                        "configuración o el primer mes con %% planificado)")
     g.add_argument("--meses", type=int, help="cantidad de meses (por defecto, meses de la configuración: 120)")
     g.add_argument("--migrar-desde", help="libro anterior del que se copian el BAC, el %% ganado y el AC ya cargados")
     g.add_argument("--sobrescribir", action="store_true", help="reemplaza el libro de salida si existe")
@@ -615,8 +630,8 @@ def build_parser() -> argparse.ArgumentParser:
     n = sub.add_parser("analizar", help="actualiza la hoja 'Análisis de desviaciones' con los valores del libro, "
                                         "sin leer MS Project (p. ej. después de cargar a mano el AC del mes)")
     n.add_argument("--libro", required=True, help="libro .xlsx generado con 'generar'")
-    n.add_argument("--config", help="archivo de configuración: solo se usa [validacion] silenciar (el libro guarda "
-                                    "los umbrales del semáforo)")
+    n.add_argument("--config", help="archivo de configuración: solo se usan [validacion] silenciar y loe_maximo (el "
+                                    "libro guarda los umbrales del semáforo)")
     n.add_argument("--sin-respaldo", action="store_true", help="no crea copia de respaldo del libro")
     silence_option(n)
     n.set_defaults(func=cmd_analizar)

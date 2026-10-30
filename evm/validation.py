@@ -287,9 +287,10 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
                                 "manualmente sin fechas)."))
         if t.milestone and _positive_duration(t):
             dates.append(_issue("FEC-004", t, code_of,
-                                "Está marcada como hito y tiene duración: su % planificado va entero al mes de su "
-                                "fecha de fin. Si no es un hito, se debe quitar la marca de hito en MS Project "
-                                "(Información de la tarea > Avanzado)."))
+                                "Está marcada como hito y tiene duración: se calcula como hito, sin su duración "
+                                "(sin Peso hito no pesa en el % planificado; con Peso hito, pesa entero en el mes "
+                                "de su fecha de fin). Si no es un hito, se debe quitar la marca de hito en MS "
+                                "Project (Información de la tarea > Avanzado)."))
         elif not t.milestone and _zero_duration(t):
             dates.append(_issue("FEC-005", t, code_of,
                                 "Duración 0 y no está marcada como hito: no pesa en el % planificado de su fila "
@@ -411,7 +412,8 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
 # ----------------------------------------------------------------------------
 def _out_of_sequence(project: ProjectData, leaves: list[Task], code_of: CodeOf) -> list[Issue]:
     """Avance que el vínculo con la predecesora todavía no permite: la sucesora comenzó (FC y CC) o terminó (FF y CF)
-    y su predecesora no terminó (FC y FF) o no comenzó (CC y CF). Las predecesoras resumen no se revisan (LOG-010)."""
+    y su predecesora no terminó (FC y FF) o no comenzó (CC y CF). Las predecesoras resumen no se revisan (LOG-010), ni
+    los vínculos con adelanto, que permiten ese avance (LOG-006)."""
     by_uid = {t.uid: t for t in project.tasks}
     found: list[Issue] = []
     tasks: set[int] = set()
@@ -421,7 +423,7 @@ def _out_of_sequence(project: ProjectData, leaves: list[Task], code_of: CodeOf) 
         for link in t.predecessors:
             p = by_uid.get(link.uid)
             rule = SEQUENCE.get(link.kind)
-            if p is None or rule is None or p.children or not p.active:
+            if p is None or rule is None or p.children or not p.active or link.lag < 0:
                 continue
             kind, own_done, pred_done = rule
             if own_done and not is_complete(t):
@@ -644,7 +646,8 @@ def logic_checks(project: ProjectData, scope: Scope, code_of: CodeOf,
                     found.append(_issue("LOG-005", t, code_of, "Sin sucesoras."))
             issues += found[:LIMIT]
 
-        own = [(t, link) for t in tasks for link in t.predecessors]
+        # Las métricas DCMA cuentan los vínculos de las tareas de detalle (los de las resumen, LOG-010)
+        own = [(t, link) for t in detail for link in t.predecessors]
         found = []
         for t, link in own:
             if link.lag < 0:
@@ -676,7 +679,7 @@ def logic_checks(project: ProjectData, scope: Scope, code_of: CodeOf,
                 issues.append(_issue("LOG-010", t, code_of,
                                      "Tarea resumen con vínculos: se recomienda vincular sus tareas de detalle."))
 
-    hard = [t for t in tasks if t.constraint_type in HARD_CONSTRAINTS and not is_complete(t)]
+    hard = [t for t in detail if t.constraint_type in HARD_CONSTRAINTS and not is_complete(t)]
     if hard:
         share = _pct(len(hard), len(open_tasks) or len(tasks))
         issues.append(Issue("LOG-011", "", "",
