@@ -136,7 +136,7 @@ def test_update_skips_deleted_uid(tmp_path):
     tasks.pop(2)                                                     # C eliminada
     tasks.append(T(9, 2, "1.2", "Otra", percent_complete=80))        # nueva, ocupa el código de C
     res = run_update(P(tasks), Config(), book, date(2026, 1, 31), backup=False)
-    assert "ya no existe" in " ".join(res.warnings)
+    assert "ya no existe" in " ".join(w.message for w in res.warnings)
     _, ev, _, _ = book_totals(res.book)
     assert sum(ev) == pytest.approx(50)                              # la tarea nueva no gana el EV de C
 
@@ -158,7 +158,7 @@ def test_text_numbers_and_formulas_in_input_cells(tmp_path):
     with pytest.raises(WorkbookFormatError, match="texto"):
         read_book(book)
     res = run_update(P(progress_tasks()), Config(), book, date(2026, 2, 28), backup=False)
-    assert any("texto o fórmulas" in w for w in res.warnings)
+    assert any("texto o fórmulas" in w.message for w in res.warnings)
     wb = load_workbook(book)
     assert any(isinstance(c.value, (int, float)) and c.value == 60
                for c in wb["AC"].iter_rows(min_row=FIRST_ROW, min_col=FIRST_MONTH_COL, max_col=FIRST_MONTH_COL)
@@ -205,7 +205,7 @@ def test_percent_fixed_formulas_and_single_leaf_physical():
     rw = RowWeights({2: 1.0}, [TaskTime(leaf, 480, {(2026, 1): 1.0}, True)])
     assert earned_fraction(parse_method("% Físico completado"), rw, 0)[0] == pytest.approx(0.6)
     frac, note = earned_fraction(parse_method("Hitos ponderados"), rw, 0)
-    assert frac == pytest.approx(0.6) and "físico" in note
+    assert frac == pytest.approx(0.6) and "físico" in note.message
 
 
 # ------------------------------------------------------------------ cronograma ganado
@@ -352,6 +352,6 @@ def test_formula_in_bac_cell_is_replaced_by_its_value(tmp_path, recalc):
     wb.save(book)
     calc = recalc(book)                                     # guarda valores calculados, como Excel
     res = run_update(P(progress_tasks()), Config(), calc, date(2026, 1, 31), backup=False)
-    assert any("texto o fórmulas" in w for w in res.warnings)
+    assert any("texto o fórmulas" in w.message for w in res.warnings)
     assert load_workbook(calc)["PV"].cell(r, 4).value == 100
     read_book(calc)                                          # el siguiente uso no falla

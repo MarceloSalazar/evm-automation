@@ -23,7 +23,7 @@ ejecuta con `evm_export` en lugar de `python evm_export.py` (por ejemplo, `evm_e
 Para ver mensajes de diagnóstico se agrega `-v` **antes** del comando:
 `python evm_export.py -v generar ...`
 
-Todos los comandos muestran en la primera línea la versión del programa (`Exportador EVM 2.3.0`). En
+Todos los comandos muestran en la primera línea la versión del programa (`Exportador EVM 2.4.0`). En
 una consola, mientras trabajan, muestran también una barra de progreso con la tarea en curso, el % de esa
 tarea y del total, y el tiempo restante estimado:
 
@@ -58,17 +58,20 @@ Además, revisa dos aspectos del cronograma que no afectan al libro:
 
 - **Avance a la fecha de estado:** *Comienzo real* y *Fin real* coherentes con el *% completado*,
   avance posterior a la fecha de estado, trabajo pendiente programado antes de la fecha de estado
-  (cronograma sin actualizar) e índice de ejecución de la línea base (BEI).
+  (cronograma sin actualizar), avance fuera de secuencia, índice de ejecución de la línea base (BEI),
+  tareas incumplidas respecto de la línea base e índice de longitud del camino crítico (CPLI).
 - **Lógica del cronograma:** tareas sin predecesoras o sin sucesoras, adelantos, posiciones, vínculos
-  comienzo a fin, vínculos en tareas resumen y delimitaciones que fijan fechas, con los criterios de la
-  evaluación DCMA de 14 puntos.
+  comienzo a fin, vínculos en tareas resumen, delimitaciones que fijan fechas, holgura alta, holgura
+  negativa y tareas de duración alta.
 
-El detalle de cada control está en [Validaciones](validaciones-y-problemas.md#1-validaciones). Se
-recomienda ejecutar `validar` antes de `generar` y antes de cada `actualizar`.
+Con estos controles, `validar` revisa 12 de los 14 puntos de la
+[evaluación DCMA de calidad de cronogramas](evaluacion-dcma.md). El detalle de cada control está en
+[Validaciones](validaciones-y-problemas.md#1-validaciones). Se recomienda ejecutar `validar` antes de
+`generar` y antes de cada `actualizar`.
 
 | Opción | Descripción |
 |---|---|
-| `--origen`, `--config`, `--motor`, `--planificacion`, `--linea-base`, `--nivel-max`, `--visible` | Igual que en `generar`. Con varios archivos (`[[proyectos]]`) se revisan todos. |
+| `--origen`, `--config`, `--motor`, `--planificacion`, `--linea-base`, `--nivel-max`, `--visible`, `--silenciar` | Igual que en `generar`. Con varios archivos (`[[proyectos]]`) se revisan todos. Los errores silenciados no cuentan para el código de salida. |
 | `--fecha-corte AAAA-MM-DD` | Fecha de corte (fecha de estado) con la que se revisa el avance. Por defecto, la fecha de estado de cada archivo. Sin fecha de estado, solo se revisa la coherencia de las fechas reales. |
 | `--todas` | Muestra todas las observaciones. Por defecto, hasta 20 por tema. |
 
@@ -82,7 +85,7 @@ Ejemplo de salida con el avance simulado del proyecto de ejemplo a junio de 2027
 [tutorial](ejemplo-paso-a-paso.md#2-configuración); se omiten algunas líneas):
 
 ```text
-Exportador EVM 2.3.0
+Exportador EVM 2.4.0
 Leyendo avance.xml ...
 Validación: Programa de ejemplo EVM
   Planificación: INTERNO  |  Línea base  |  Fecha de estado: 30/06/2027
@@ -91,30 +94,32 @@ Validación: Programa de ejemplo EVM
 Lectura y configuración: sin observaciones
 
 Estructura y códigos EDT: 3 informativas
-  [i] INTERNO Planificación interna: Planificación 'INTERNO': se exportan las 51 tareas que dependen de 'Planificación interna'.
+  [i] EDT-017 INTERNO Planificación interna: Planificación 'INTERNO': se exportan las 51 tareas que dependen de 'Planificación interna'.
   ...
 
 Fechas y duración: sin observaciones
 
 Método de medición: 6 advertencias, 1 informativa
-  [!] 1.2.1 Licitación de ingeniería: Método 0/100 en un paquete de 3,6 meses (línea base), más de 1: el EV queda en 0 hasta que termina. Se recomienda dividir el paquete o usar un método de avance (% completado, hitos ponderados). Umbral: [validacion] meses_0_100.
+  [!] MET-004 1.2.1 Licitación de ingeniería: Método 0/100 en un paquete de 3,6 meses (línea base), más de 1: el EV queda en 0 hasta que termina. Se recomienda dividir el paquete o usar un método de avance (% completado, hitos ponderados). Umbral: [validacion] meses_0_100.
   ...
 
-Avance a la fecha de estado: 10 advertencias
-  [!] 8 tareas tienen trabajo pendiente programado antes de la fecha de estado (30/06/2027): el cronograma no está actualizado. Se debe registrar el avance o reprogramar el trabajo pendiente después de la fecha de estado (Proyecto > Actualizar proyecto).
-  [!] 1.2.1 Licitación de ingeniería: Fin (24/04/2026) anterior a la fecha de estado y no está terminada (85 %).
-  ...
-  [!] Índice de ejecución de la línea base (BEI) = 0,33: 4 tareas terminadas y 12 que debían terminar a la fecha de estado (DCMA: al menos 0,95). Sin terminar: 1.2.1, 1.2.2, 2.1.1, 2.1.2.1, 2.1.2.2, 2.1.2.3, 2.1.3, 2.1.4.
+Avance a la fecha de estado: 2 advertencias, 1 informativa
+  [!] AVA-013 Índice de ejecución de la línea base (BEI) = 0,33: 4 tareas terminadas y 12 que debían terminar a la fecha de estado (DCMA: al menos 0,95). Sin terminar: 1.2.1, 1.2.2, 2.1.1, 2.1.2.1, 2.1.2.2, 2.1.2.3, 2.1.3, 2.1.4.
+  [!] AVA-014 De 12 tareas que debían terminar a la fecha de estado según la línea base, 12 no terminaron a tiempo (100 %; DCMA: hasta 5 %): 8 sin terminar y 4 terminadas después de su fin de línea base (Id 2, 1.2.1, 1.2.2, 2.1.1, 2.1.2.1, Id 17, 2.1.2.2, Id 19, 2.1.2.3, Id 21 y 2 más).
+  [i] AVA-015 Índice de longitud del camino crítico (CPLI) = 0,96: quedan 898 días laborables hasta el fin previsto (09/12/2030) y el fin de la línea base es el 18/10/2030 (36 días laborables de atraso) (DCMA: al menos 0,95).
 
 Lógica del cronograma: 1 advertencia
-  [!] El cronograma no tiene vínculos entre tareas: las fechas no se recalculan cuando cambian las duraciones o el avance. Se recomienda vincular las tareas (cada tarea con al menos una predecesora y una sucesora).
+  [!] LOG-001 El cronograma no tiene vínculos entre tareas: las fechas no se recalculan cuando cambian las duraciones o el avance. Se recomienda vincular las tareas (cada tarea con al menos una predecesora y una sucesora).
 
-Resultado: 17 advertencias, 4 informativas.
+Resultado: 9 advertencias, 5 informativas.
 No se creó ni se modificó ningún archivo.
 ```
 
-Cada línea indica la severidad (`[X]` error, `[!]` advertencia, `[i]` informativa), el código EDT y
-el nombre de la tarea (las tareas sin código EDT, con su Id de MS Project) y la observación.
+Cada línea indica la severidad (`[X]` error, `[!]` advertencia, `[i]` informativa), el código de la
+observación (por ejemplo `MET-004`, explicado en [Códigos de errores y advertencias](codigos.md)), el
+código EDT y el nombre de la tarea (las tareas sin código EDT, con su Id de MS Project) y la observación.
+Las observaciones que ya se revisaron se pueden ocultar con `--silenciar` o con `[validacion] silenciar`
+([Silenciar observaciones](codigos.md#2-silenciar-observaciones)).
 
 ---
 
@@ -138,11 +143,12 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 | `--migrar-desde libro.xlsx` | Copia al libro nuevo el BAC ingresado, el % ganado y el AC ya cargados, los métodos editados en la columna C, el análisis de desviaciones y la fecha de corte de un libro anterior ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). Con depuración de costes, también la previsión pegada en `PV-depuración` ([Depuración de costes](depuracion-costes.md#8-ciclo-de-ajuste)). |
 | `--sobrescribir` | Reemplaza el libro de salida si ya existe. |
 | `--visible` | Muestra la ventana de MS Project mientras se lee (solo COM). No tiene relación con el campo `Visible`. |
+| `--silenciar CODIGOS` | Códigos de las observaciones que no se muestran, separados por comas (`LOG-004,FEC-007`, o `MET-004:1.2.1` para una sola fila); se puede repetir y se suma a `[validacion] silenciar` ([Silenciar observaciones](codigos.md#2-silenciar-observaciones)). |
 
 Ejemplo de salida con el proyecto de ejemplo (se omiten algunas líneas):
 
 ```text
-Exportador EVM 2.3.0
+Exportador EVM 2.4.0
 Leyendo ejemplos/programa_ejemplo.xml ...
 Proyecto: Programa de ejemplo EVM
   Planificación: INTERNO
@@ -150,12 +156,12 @@ Proyecto: Programa de ejemplo EVM
   Filas EDT: 36 (24 de ingreso)  |  Nivel máximo: 3
   Horizonte: 01/2026 a 12/2035 (120 meses)
   BAC: se debe ingresar el BAC de cada fila en la columna D de PV (celdas amarillas).
-  [i] El PV y el EV de cada fila son el BAC × el % planificado y el % ganado (hojas % PV y % EV), que se calculan con la duración de la línea base de las tareas y el peso de los hitos. Se debe ingresar el BAC de cada fila en las celdas amarillas de la columna D de la hoja PV.
-  [i] Planificación 'INTERNO': se exportan las 51 tareas que dependen de 'Planificación interna'.
-  [i] Se omitió 1 tarea sin código EDT que no depende de ningún elemento EDT: no forma parte de ninguna fila del libro.
-  [i] 14 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.
-  [i] 1 fila sin método de medición definido (columna C).
-  [!] 1.2.1 Licitación de ingeniería: Método 0/100 en un paquete de 3,6 meses (línea base), más de 1: el EV queda en 0 hasta que termina. Se recomienda dividir el paquete o usar un método de avance (% completado, hitos ponderados). Umbral: [validacion] meses_0_100.
+  [i] LIB-001 El PV y el EV de cada fila son el BAC × el % planificado y el % ganado (hojas % PV y % EV), que se calculan con la duración de la línea base de las tareas y el peso de los hitos. Se debe ingresar el BAC de cada fila en las celdas amarillas de la columna D de la hoja PV.
+  [i] EDT-017 INTERNO Planificación interna: Planificación 'INTERNO': se exportan las 51 tareas que dependen de 'Planificación interna'.
+  [i] EDT-020 Se omitió 1 tarea sin código EDT que no depende de ningún elemento EDT: no forma parte de ninguna fila del libro.
+  [i] EDT-022 14 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.
+  [i] MET-005 1 fila sin método de medición definido (columna C).
+  [!] MET-004 1.2.1 Licitación de ingeniería: Método 0/100 en un paquete de 3,6 meses (línea base), más de 1: el EV queda en 0 hasta que termina. Se recomienda dividir el paquete o usar un método de avance (% completado, hitos ponderados). Umbral: [validacion] meses_0_100.
   ...
 Libro generado: ...\EVM_Ejemplo.xlsx
 ```
@@ -179,7 +185,7 @@ python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config con
 | `--simular` | Muestra el EV calculado para cada fila y los indicadores resultantes, sin modificar el libro. |
 | `--forzar` | Permite actualizar aunque haya valores en meses posteriores. Esos meses no se recalculan: se avisa cuáles quedaron con un acumulado que ya no coincide con MS Project, para revisarlos o volver a cargarlos en orden. |
 | `--sin-respaldo` | No crea la copia `<libro>.respaldo-AAAAMMDD-HHMMSS.xlsx` (si ya existe una con ese nombre, se agrega `-2`, `-3`...). |
-| `--config`, `--motor`, `--visible` | Igual que en `generar`. |
+| `--config`, `--motor`, `--visible`, `--silenciar` | Igual que en `generar`. |
 | `--linea-base N` | Igual que en `generar`. Debe ser la misma línea base con la que se generó el libro: sus duraciones definen el peso de cada tarea en el % ganado. |
 | `--planificacion`, `--nivel-max` | No se aplican: `actualizar` usa siempre la planificación, el nivel máximo y la lista EDT con los que se generó el libro (si la configuración indica otra planificación u otra lista, lo advierte). |
 
@@ -197,6 +203,15 @@ python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config con
   en un archivo temporal, de modo que un error al guardar no daña el libro anterior.
 - Agrega a la hoja `Análisis de desviaciones` los paquetes con SPI o CPI fuera del rango verde del
   semáforo en el mes de corte, y conserva lo ya escrito ([Análisis de desviaciones](analisis-desviaciones.md)).
+  Avisa si el análisis del mes anterior quedó incompleto o si hay acciones vencidas.
+- Registra los cambios del BAC y de los valores de meses ya informados (% ganado y AC) desde la ejecución
+  anterior en la hoja `Registro de cambios` ([El libro Excel](libro-excel.md#registro-de-cambios)), y
+  revisa la coherencia del EV y el AC de cada paquete, los meses sin informe, el realismo del EAC (TCPI
+  frente al CPI) y el peso del LOE en el BAC
+  ([Cálculo del PV y el EV](calculo-pv-ev.md#14-controles-y-validaciones)).
+- Avisa si el % planificado que resulta hoy de MS Project no coincide con el del libro: se guardó una
+  línea base nueva y el libro sigue con la anterior hasta generar uno nuevo con `--migrar-desde`
+  ([ACT-047](codigos.md#act-047)).
 - Escribe el plazo según el cronograma de MS Project: columnas Q a U de `Indicadores EDT` (fin previsto,
   desvío de fin, holgura y crítica de cada elemento) y la sección de plazo del `Resumen`
   ([El libro Excel](libro-excel.md#indicadores-edt)).
@@ -206,12 +221,13 @@ python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config con
 Ejemplo de salida:
 
 ```text
-Exportador EVM 2.3.0
+Exportador EVM 2.4.0
 Leyendo ...\avance_2027-06.xml ...
 Fecha de corte: 30/06/2027 (mes 18 del horizonte)
 Observaciones por fila:
-  4.2.2 Cierre administrativo: método no definido: se usó % completado
-  [i] El AC se carga a mano en la hoja 'AC'; los indicadores de costo usan los valores cargados.
+  [i] ACT-034 4.2.2 Cierre administrativo: método no definido: se usó % completado
+  [!] ACT-044 13 paquetes fuera de umbral en 05/2027 quedaron sin analizar, sin texto en la hoja Análisis de desviaciones (1.1.1, 1.1.2, 1.1.3, 1.2.1, 1.2.2, 1.2.3, 2.1.1, 2.1.2, 2.1.3, 2.1.4 y 3 más): se quitan de la hoja, y los que siguen fuera de umbral vuelven a listarse en el mes de corte.
+  [i] ACT-026 El AC se carga a mano en la hoja 'AC'; los indicadores de costo usan los valores cargados.
 Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05): 13 (hoja 'Análisis de desviaciones')
   1.1.1      Oficina de gestión del programa (PMO)     SPI  1,00  CPI  1,11
   1.1.2      Control de proyectos y EVM                SPI  1,00  CPI  1,11
@@ -256,13 +272,17 @@ python evm_export.py analizar --libro EVM_Programa.xlsx
 Vuelve a calcular la lista de paquetes fuera de umbral de la hoja `Análisis de desviaciones` para el mes
 de la fecha de corte del libro, con los valores que tiene el libro y **sin leer MS Project**. Se usa
 después de cargar a mano el AC del mes (por ejemplo, del ERP), para incluir los paquetes con CPI fuera
-de umbral ([Análisis de desviaciones](analisis-desviaciones.md#3-cierre-mensual)).
+de umbral ([Análisis de desviaciones](analisis-desviaciones.md#3-cierre-mensual)). Como `actualizar`,
+registra los cambios del BAC y de meses ya informados y revisa la coherencia del EV y el AC (con el AC
+recién cargado), el análisis del mes anterior, los meses sin informe, el realismo del EAC y el peso del
+LOE.
 
 | Opción | Descripción |
 |---|---|
 | `--libro` | Libro creado con `generar`, con al menos un `actualizar`. **Obligatoria.** |
 | `--sin-respaldo` | No crea la copia de respaldo del libro. |
-| `--config` | Se admite por compatibilidad, pero no se usa: el libro guarda los umbrales del semáforo al generarse. |
+| `--config` | Solo se usa `[validacion] silenciar`: el libro guarda los umbrales del semáforo al generarse. |
+| `--silenciar CODIGOS` | Igual que en `generar`. |
 
 ---
 
@@ -304,12 +324,12 @@ como predecesora y la de `1.2.1` muestra `1.2.3` como sucesora.
 |---|---|
 | `--salida` | Archivo `.md` a crear. Por defecto `<origen>_fichas.md` (con `--origen activo`, `Fichas.md` en la carpeta actual); obligatoria con varios archivos. |
 | `--sobrescribir` | Reemplaza el archivo de salida si ya existe. |
-| `--origen`, `--config`, `--motor`, `--planificacion`, `--linea-base`, `--nivel-max`, `--visible` | Igual que en `generar`. Con varios archivos (`[[proyectos]]`) se crea un solo documento con las fichas de todos, en el orden del libro. |
+| `--origen`, `--config`, `--motor`, `--planificacion`, `--linea-base`, `--nivel-max`, `--visible`, `--silenciar` | Igual que en `generar`. Con varios archivos (`[[proyectos]]`) se crea un solo documento con las fichas de todos, en el orden del libro. |
 
 Ejemplo de salida con el proyecto de ejemplo, que no tiene vínculos entre tareas:
 
 ```text
-Exportador EVM 2.3.0
+Exportador EVM 2.4.0
 Leyendo ejemplos/programa_ejemplo.xml ...
 Proyecto: Programa de ejemplo EVM
   Planificación: INTERNO
@@ -402,8 +422,8 @@ Todos los comandos terminan con un código que permite usarlos en procesos autom
 |---|---|
 | 0 | El comando terminó correctamente. En `validar`: no hay errores, aunque puede haber advertencias. |
 | 1 | `validar` encontró errores (`[X]`) en el archivo de MS Project: se deben corregir antes de generar o actualizar el libro. Ningún otro comando termina con 1. |
-| 2 | El comando no se pudo ejecutar por un problema previsto, explicado en el mensaje `ERROR: ...`: configuración no válida, archivo inexistente o sin permiso, libro abierto en Excel o con un formato que no se reconoce, MS Project que no responde, error de lectura o escritura (disco lleno, unidad de red no disponible) u opción mal escrita. |
-| 3 | Error inesperado del programa (`ERROR inesperado: ...`). Se debe ejecutar de nuevo con `-v` y, si se repite, informarlo en un [ticket](https://github.com/MarceloSalazar/evm-automation/issues/new/choose) con ese detalle. |
+| 2 | El comando no se pudo ejecutar por un problema previsto, explicado en el mensaje `ERROR CFG-001: ...` (con su [código](codigos.md)): configuración no válida, archivo inexistente o sin permiso, libro abierto en Excel o con un formato que no se reconoce, MS Project que no responde, error de lectura o escritura (disco lleno, unidad de red no disponible) u opción mal escrita. |
+| 3 | Error inesperado del programa (`ERROR SIS-001: error inesperado: ...`). Se debe ejecutar de nuevo con `-v` y, si se repite, informarlo en un [ticket](https://github.com/MarceloSalazar/evm-automation/issues/new/choose) con ese detalle. |
 | 130 | Ejecución cancelada con Ctrl+C. |
 
 Por ejemplo, en PowerShell, para actualizar el libro solo si `validar` no encuentra errores:

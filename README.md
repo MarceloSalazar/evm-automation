@@ -39,6 +39,11 @@ simulado.*
 - **Análisis de desviaciones**: cada mes, la lista de paquetes con SPI o CPI fuera de umbral, con
   columnas para la causa, el impacto, la acción correctiva, el responsable y la fecha, que se conservan
   de un mes a otro.
+- **Controles del cierre mensual** según la norma EIA-748-E: hoja `Registro de cambios` con los cambios
+  del BAC y de los meses ya informados, y avisos de datos incoherentes (avance sin costo, meses sin
+  informe, línea base de MS Project distinta de la del libro, EAC poco realista o mucho BAC en LOE).
+- **Códigos de los mensajes** (`FEC-003`...), explicados en la documentación; las observaciones ya
+  revisadas se pueden silenciar.
 - Opcional: **multi-empresa**, con el BAC, el PV, el EV y el AC de dos empresas por separado.
 - Opcional: **varios archivos de MS Project** en un mismo informe, cada uno con sus códigos EDT (por
   ejemplo, `1.0.0` a `8.0.0` en un archivo y `9.0.0` en otro).
@@ -176,6 +181,9 @@ El [tutorial](docs/ejemplo-paso-a-paso.md) recorre el ciclo completo con 24 mese
 | `validar`, `generar`, `actualizar`, `analizar`, `generar-fichas` (fichas de tareas para el cliente) y sus opciones | [Comandos y opciones](docs/comandos.md) |
 | `config.toml` | [Configuración](docs/configuracion.md) |
 | Comando `validar`, hoja `Validación`, limitaciones y mensajes de error | [Validaciones y solución de problemas](docs/validaciones-y-problemas.md) |
+| Código de cada error y advertencia (`FEC-003`...), qué hacer y cómo silenciarlo | [Códigos de errores y advertencias](docs/codigos.md) |
+| Calidad del cronograma con los 14 puntos de la DCMA | [Evaluación DCMA](docs/evaluacion-dcma.md) |
+| Requisitos de la norma EIA-748-E que cubre el programa y los que aporta la organización | [Norma EIA-748-E](docs/evaluacion-eia-748-e.md) |
 | Siglas EVM y campos de MS Project en español | [Glosario](docs/glosario.md) |
 | Microsoft, PMI, GAO y otras referencias | [Recursos externos](docs/recursos-externos.md) |
 | Pruebas, estructura del código, flujo del repositorio, versiones e instalador de Windows | [Desarrollo](docs/desarrollo.md) |

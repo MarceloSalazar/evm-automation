@@ -28,15 +28,117 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - Ninguna.
 
+## [2.4.0] - 2026-10-30 · Códigos de mensajes, evaluación DCMA y controles de la norma EIA-748-E
+
+### Nuevas funciones
+
+- **Códigos de errores y advertencias**: cada mensaje del programa tiene un código `ÁREA-NNN` (por
+  ejemplo `FEC-003`), en la consola (`[!] FEC-007 1.2.3 Montaje: ...`, `ERROR CFG-001: ...`) y en la
+  nueva columna `Código` de la hoja `Validación`. El documento nuevo
+  [Códigos de errores y advertencias](docs/codigos.md) explica cada código (severidad, causa, qué hacer y
+  comandos en que aparece).
+- **Silenciar observaciones**: las observaciones ya revisadas se ocultan en la consola y en la hoja
+  `Validación` con `[validacion] silenciar = ["LOG-004", "MET-004:1.2.1"]` o con la opción
+  `--silenciar` de cualquier comando (un código, o un código para una sola fila o tarea). Siempre se
+  informa cuántas se silenciaron (`CFG-049`); los errores silenciados no cuentan para el código de salida
+  de `validar` y los errores que detienen el programa no se pueden silenciar
+  ([Silenciar observaciones](docs/codigos.md#2-silenciar-observaciones)).
+- **Evaluación DCMA en `validar`**: nuevos controles del cronograma, con los criterios de la evaluación
+  DCMA de 14 puntos. `validar` revisa ahora 12 de los 14 puntos:
+  - holgura alta: tareas sin terminar con más de 44 días laborables de holgura total (`LOG-013`;
+    advertencia si superan el 5 %);
+  - holgura negativa (`LOG-014` y `LOG-015`, con la holgura de cada tarea);
+  - duración alta: tareas sin terminar con más de 44 días laborables de duración en la línea base
+    (`LOG-016`; advertencia si superan el 5 %). La holgura alta y la duración alta no cuentan las filas
+    LOE;
+  - tareas incumplidas: las que debían terminar según la línea base y no terminaron, o terminaron
+    después de su fin de línea base (`AVA-014`; advertencia si superan el 5 %);
+  - índice de longitud del camino crítico (CPLI): días laborables que quedan hasta el fin previsto, más la
+    holgura frente al fin de la línea base, divididos por los días que quedan (`AVA-015`; advertencia si
+    es menor que 0,95).
+- **Avance fuera de secuencia** en `validar` (`AVA-016` y `AVA-017`): tareas que comenzaron (o
+  terminaron) y cuya predecesora no terminó (vínculo FC o FF) o no comenzó (CC o CF).
+- Documento nuevo [Evaluación DCMA de 14 puntos](docs/evaluacion-dcma.md): qué mide cada punto, cómo lo
+  calcula `validar`, qué hacer en MS Project, la prueba manual del camino crítico (punto 12) y lo que el
+  programa no verifica (los recursos, punto 10).
+- **Registro de cambios** (#24, #31): `actualizar` y `analizar` comparan el libro con los valores de la
+  ejecución anterior y agregan a la hoja nueva `Registro de cambios` cada cambio del BAC y del % ganado o
+  el AC de un mes ya informado, con el valor anterior, el nuevo y columnas amarillas para el motivo y el
+  número de cambio aprobado. Un cambio del BAC con meses informados es una advertencia (`ACT-036`): el PV
+  y el EV de esos meses se recalculan (cambio retroactivo, guía 26 de la norma EIA-748-E). Los cambios de
+  meses ya informados se avisan con `ACT-037`; cargar el AC del último mes informado no es un cambio. La
+  primera ejecución solo guarda la referencia (`ACT-038`), `--simular` no registra y `--migrar-desde`
+  traslada el registro y la referencia (`MIG-018`)
+  ([El libro Excel](docs/libro-excel.md#registro-de-cambios)).
+- **Coherencia del EV y el AC** (#32): `actualizar` y `analizar` avisan de los paquetes con avance y sin
+  costo (`ACT-039`), con costo y sin avance (`ACT-040`, salvo los métodos 0/100 e hitos ponderados) y con
+  costo después de llegar al 100 % (`ACT-041`), hasta el último mes con AC cargado (`ACT-042`).
+- **Análisis de desviaciones incompleto y acciones vencidas** (#33): en el cierre siguiente se avisa de
+  las filas del mes anterior sin causa o sin acción correctiva (`ACT-043`), de los paquetes que quedaron
+  sin analizar (`ACT-044`) y de las acciones con la fecha compromiso vencida de los paquetes que siguen
+  fuera de umbral (`ACT-045`)
+  ([Análisis de desviaciones](docs/analisis-desviaciones.md#3-cierre-mensual)).
+- **Meses sin informe** (#34): `actualizar` avisa de los meses sin % ganado entre el último mes cargado y
+  el mes de corte, y `analizar`, de todos los meses sin % ganado desde el primero cargado (`ACT-046`).
+- **Línea base de MS Project distinta de la del libro** (#35): `actualizar` compara el % planificado que
+  resulta hoy de la línea base de MS Project con el de las hojas `% PV` y avisa de las filas que cambiaron,
+  con el PV acumulado a la fecha de corte con cada línea base (`ACT-047`): se guardó una línea base nueva y
+  el libro sigue con la anterior hasta generarlo con `--migrar-desde`.
+- **EAC poco realista** (#36): desde el 20 % completado, `actualizar` y `analizar` avisan si el TCPI (BAC)
+  supera al CPI en más de 0,10, o si el AC ya alcanzó el BAC con trabajo pendiente (`ACT-048`), y
+  recomiendan revisar el EAC y evaluar una línea base por encima del objetivo (OTB).
+- **Peso del LOE en el BAC** (#37): `actualizar` y `analizar` avisan si las filas con método LOE superan el
+  % del BAC total de la clave nueva `[validacion] loe_maximo` (15 por defecto; 0 = no se controla;
+  `ACT-049`) ([Configuración](docs/configuracion.md#claves)).
+- **Depuración de costes con EDT cliente y EDT interna**: la hoja `PV-depuración` sigue el plan de
+  costes de la empresa en dos niveles: A `EDT cliente`, B `Actividad`, C `EDT interna` (conceptos de
+  coste internos, con códigos no numéricos como `ABC01`), D `Actividad interna`, E `BAC` y los meses
+  desde la columna F. Cada línea de EDT interna se suma en su EDT cliente, la de la línea de arriba o la
+  repetida en la columna A; la línea de la EDT cliente es un subtotal y no se suma. Los controles pasan a
+  la columna E, y `Asignado a` y `Observación` a las columnas DW y DX, con una observación nueva para las
+  líneas de EDT interna sin EDT cliente encima
+  ([Depuración de costes](docs/depuracion-costes.md#4-hoja-pv-depuración-la-previsión-pegada)).
+- `--migrar-desde` pasa al formato nuevo la previsión pegada en un libro de depuración anterior: los
+  códigos numéricos quedan como EDT cliente y los demás (`XRF01`), como EDT interna. `actualizar` y
+  `analizar` siguen funcionando con los libros de depuración anteriores.
+
+### Correcciones
+
+- Ninguna.
+
+### Otros
+
+- **Tareas programadas manualmente** (#38): `FEC-008` pasa de informativo a advertencia en `validar` y en
+  la hoja `Validación`: en un cronograma integrado no debería haber ninguna. Si es intencional, se puede
+  silenciar.
+- Documento nuevo [Norma EIA-748-E](docs/evaluacion-eia-748-e.md): las 27 guías de la norma de EE. UU.
+  para sistemas EVM (revisión E, 2026), qué exige cada una, qué cubre el programa y con qué controles, y
+  qué debe aportar la organización.
+- Presentación para el equipo de proyecto: diapositiva nueva sobre los avisos del cierre (registro de cambios,
+  línea base distinta, coherencia del EV y el AC, meses sin informe, análisis incompleto y EAC poco realista),
+  salidas de `generar` y `actualizar` con los códigos de los mensajes, pestaña `Registro de cambios`, aviso
+  del peso del LOE y notas actualizadas; captura nueva de la hoja `Registro de cambios` en
+  [El libro Excel](docs/libro-excel.md#registro-de-cambios).
+- El ayudante del ejemplo (`generar_ejemplo.py --libro`) escribe la previsión ficticia con líneas de EDT
+  interna, y la captura de la hoja `PV-depuración` muestra el formato nuevo.
+- Hoja `Validación`: la columna `Código` es la B; el código EDT, la tarea, el detalle y el tema pasan a
+  las columnas C a F. En la consola, las observaciones informativas de `generar` y las de `actualizar`,
+  `analizar` y `generar-fichas` se muestran con el mismo formato que las de `validar` (código, fila o
+  tarea y mensaje).
+- Metodología para agregar un mensaje con su código en
+  [Desarrollo](docs/desarrollo.md#5-códigos-de-errores-y-advertencias): catálogo en `evm/messages.py`,
+  `docs/codigos.md` generado con `docs/herramientas/codigos.py` y pruebas que comprueban que todo mensaje
+  tenga un código del catálogo y que el documento esté al día.
+
 ## [2.3.0] - 2026-10-26 · Plazo según MS Project, tendencia de los índices y lista EDT
 
 ### Nuevas funciones
 
 - **Plazo según el cronograma de MS Project** (#22): `generar` y `actualizar` leen la holgura total y la
   marca de tarea crítica de cada tarea, y el libro muestra si un atraso afecta la fecha de fin:
-  - `Indicadores EDT`, columnas Q a U: fin de línea base, fin previsto, desvío de fin (días laborables;
-    > 0 = atraso), holgura total y crítica de cada elemento EDT, con sus tareas de detalle; en rojo el
-    desvío de los paquetes críticos o con holgura negativa
+  - `Indicadores EDT`, columnas Q a U: fin de línea base, fin previsto, desvío de fin (días
+    laborables; > 0 = atraso), holgura total y crítica de cada elemento EDT, con sus tareas de detalle;
+    en rojo el desvío de los paquetes críticos o con holgura negativa
     ([El libro Excel](docs/libro-excel.md#indicadores-edt)).
   - `Resumen` y `Cuadro de Mando`: fin de línea base y fin previsto del proyecto, desvío de fin, paquetes
     críticos sin terminar (y cuántos con el fin atrasado) y término estimado con el SPI(t).
@@ -467,7 +569,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.3.0...HEAD
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.0...HEAD
+[2.4.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.2.1...v2.3.0
 [2.2.1]: https://github.com/MarceloSalazar/evm-automation/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.1.0...v2.2.0

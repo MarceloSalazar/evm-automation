@@ -142,16 +142,16 @@ def test_book_keeps_its_list_and_actualizar_uses_it(tmp_path):
     res = run_update(P(tasks), Config(), book, datetime(2026, 2, 28).date(), backup=False, dry_run=True)
     codes = {r.code for r in res.rows}
     assert codes == {"1.1.1", "1.1.0-D", "1.0.0-D", "2.0.0"}
-    assert not any("lista" in w for w in res.warnings)
+    assert not any("lista" in w.message for w in res.warnings)
     # Lista distinta en la configuración: aviso, y se mantiene la del libro
     res = run_update(P(tasks), listed(["1", "2"]), book, datetime(2026, 2, 28).date(), backup=False,
                      dry_run=True)
-    assert any("La lista EDT de la configuración cambió" in w for w in res.warnings)
+    assert any("La lista EDT de la configuración cambió" in w.message for w in res.warnings)
     assert {r.code for r in res.rows} == codes
     # Misma lista escrita de otra forma (sin relleno): sin aviso
     res = run_update(P(tasks), listed(["1.0.0", "1.1.0", "1.1.1", "2.0.0"]), book, datetime(2026, 2, 28).date(),
                      backup=False, dry_run=True)
-    assert not any("lista" in w for w in res.warnings)
+    assert not any("lista" in w.message for w in res.warnings)
 
 
 def test_actualizar_warns_when_book_has_no_list(tmp_path):
@@ -159,7 +159,7 @@ def test_actualizar_warns_when_book_has_no_list(tmp_path):
     book = tmp_path / "libro.xlsx"
     write_workbook(build_report(P(tasks), Config()), Config(), book)
     res = run_update(P(tasks), listed(["1"]), book, datetime(2026, 2, 28).date(), backup=False, dry_run=True)
-    assert any("el libro se generó sin lista EDT" in w for w in res.warnings)
+    assert any("el libro se generó sin lista EDT" in w.message for w in res.warnings)
 
 
 def test_kinds_of_residual_rows_with_list():

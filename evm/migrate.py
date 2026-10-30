@@ -4,12 +4,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 
+from evm import changes
 from evm.analysis import A_CODE, A_KEY, A_MONTH, A_NAME, A_ORIGIN, SHEET_ANALYSIS, TEXT_COLS, read_entries
 from evm.config import ConfigError
 from evm.cost_review import SHEET_PASTE, month_offset, paste_months, read_paste, review_company, shift_rows
 from evm.fields import same_name
 from evm.model import MonthKey
-from evm.wbs import KIND_LEAF, SEV_ERROR, SEV_INFO, SEV_WARN, Issue, Report, ReportRow, fmt_money, iter_subtree, plural
+from evm.messages import SEV_INFO, SEV_WARN, Issue
+from evm.wbs import KIND_LEAF, Report, ReportRow, fmt_money, iter_subtree, plural
 from evm.workbook import (PCT_PREFIX, SHEET_EV, SHEET_LISTS, book_sources, clean_text, pct_sheet, role_key, row_key,
                           source_meta, split_key)
 
@@ -78,12 +80,18 @@ class PriorData:
     matched: int = 0
     unmatched: list[PriorRow] = field(default_factory=list)
     bac: dict[str, dict[str, float]] = field(default_factory=dict)    # clave nueva -> BAC
-    # Depuración de costes: líneas de la hoja PV-depuración, empresa que se depuraba ('' = libro de una sola
-    # empresa), mes 1 del horizonte y si se trasladan al libro nuevo (lo decide plan_migration)
+    # Depuración de costes: líneas de la hoja PV-depuración (en el formato actual), empresa que se depuraba ('' =
+    # libro de una sola empresa), mes 1 del horizonte, si la hoja tenía el formato anterior a las columnas de EDT
+    # interna y si se trasladan al libro nuevo (lo decide plan_migration)
     review_rows: list[list] = field(default_factory=list)
     review_company: str = ""
     review_start: date | None = None
+    review_legacy: bool = False
     review_keep: bool = False
+    # Registro de cambios: filas de la hoja y referencia de la última ejecución (con las claves del libro nuevo
+    # después de plan_migration)
+    change_log: list[list] = field(default_factory=list)
+    reference: changes.Reference | None = None
 
     def values_for(self, key: str, kind: str) -> dict[MonthKey, float]:
         return self.values.get(key, {}).get(kind, {})
@@ -126,7 +134,10 @@ def prior_from_book(path, project_name: str) -> PriorData:
             if len(value.strip()) <= 60:
                 methods_list.append(value.strip())
     analysis = read_entries(wb[SHEET_ANALYSIS]) if SHEET_ANALYSIS in wb.sheetnames else []
-    review_rows = read_paste(wb[SHEET_PASTE], book.horizon.months) if SHEET_PASTE in wb.sheetnames else []
+    review_rows, review_legacy = (read_paste(wb[SHEET_PASTE], book.horizon.months) if SHEET_PASTE in wb.sheetnames
+                                  else ([], False))
+    change_log = changes.read_rows(wb[changes.SHEET_LOG]) if changes.SHEET_LOG in wb.sheetnames else []
+    reference = changes.read_reference(wb)
     wb.close()
     level = book.meta.get("nivel_maximo")
     names = {n: str(source_meta(book.meta, "proyecto", n) or "") for n in book_sources(book.meta)}
@@ -134,7 +145,8 @@ def prior_from_book(path, project_name: str) -> PriorData:
                      project_name=str(book.meta.get("proyecto") or ""),
                      max_level=int(level) if level else None, methods_list=methods_list, multi=book.multi,
                      project_names=names, analysis=analysis, review_rows=review_rows,
-                     review_company=str(book.meta.get("depuracion_empresa") or ""), review_start=book.horizon.start)
+                     review_company=str(book.meta.get("depuracion_empresa") or ""), review_start=book.horizon.start,
+                     review_legacy=review_legacy, change_log=change_log, reference=reference)
 
 
 def _migrate_analysis(prior: PriorData, key_map: dict[str, str]) -> list[Issue]:
@@ -156,13 +168,38 @@ def _migrate_analysis(prior: PriorData, key_map: dict[str, str]) -> list[Issue]:
             raw[c_ - 1] = v
         e.key, e.raw = "", raw
         if e.has_text:
-            issues.append(Issue(SEV_WARN, e.code, e.name,
+            issues.append(Issue("MIG-015", e.code, e.name,
                                 f"Análisis de desviaciones de {e.month:%m/%Y}: el paquete ya no tiene fila en el libro "
                                 "nuevo; el texto se conservó, sin valores."))
     if moved:
-        issues.append(Issue(SEV_INFO, "", "", f"Se {'trasladó' if moved == 1 else 'trasladaron'} "
+        issues.append(Issue("MIG-016", "", "", f"Se {'trasladó' if moved == 1 else 'trasladaron'} "
                                               f"{plural(moved, 'fila', 'filas')} del análisis de desviaciones."))
     return issues
+
+
+def _migrate_changes(prior: PriorData, key_map: dict[str, str], sources: dict[str, list]) -> list[Issue]:
+    """El registro de cambios pasa al libro nuevo con las claves nuevas (las filas cuyo paquete ya no tiene fila
+    quedan sin clave). La referencia solo se traslada en las filas asociadas una a una: una fila nueva que reúne
+    varias anteriores guarda su referencia en la primera ejecución, sin registrar cambios."""
+    for vals in prior.change_log:
+        vals[changes.L_KEY - 1] = key_map.get(str(vals[changes.L_KEY - 1] or ""))
+    moved = 0
+    if prior.reference is not None:
+        rows = {}
+        for (key, role), ref in prior.reference.rows.items():
+            new = key_map.get(key)
+            if new is not None and len(sources.get(new, [])) == 1:
+                rows[(new, role)] = ref
+        moved = len({key for key, _role in rows})
+        prior.reference = changes.Reference(prior.reference.start, prior.reference.cutoff, rows) if rows else None
+    if not prior.change_log and not moved:
+        return []
+    parts = []
+    if prior.change_log:
+        parts.append(plural(len(prior.change_log), "fila de la hoja", "filas de la hoja"))
+    if moved:
+        parts.append(f"la referencia de {plural(moved, 'fila', 'filas')} del libro")
+    return [Issue("MIG-018", "", "", f"Registro de cambios trasladado: {' y '.join(parts)}.")]
 
 
 def _migrate_review(report: Report, prior: PriorData) -> list[Issue]:
@@ -172,24 +209,30 @@ def _migrate_review(report: Report, prior: PriorData) -> list[Issue]:
         return []
     lines = plural(len(prior.review_rows), "línea", "líneas")
     if report.cost_review is None:
-        return [Issue(SEV_INFO, "", "", f"La hoja {SHEET_PASTE} del libro anterior ({lines}) no se trasladó: el libro "
+        return [Issue("DEP-004", "", "", f"La hoja {SHEET_PASTE} del libro anterior ({lines}) no se trasladó: el libro "
                                         "nuevo no tiene depuración de costes.")]
     company = review_company(report)
     if not same_name(company, prior.review_company):
         old = prior.review_company or "el libro de una sola empresa"
-        return [Issue(SEV_WARN, "", "", f"La hoja {SHEET_PASTE} del libro anterior no se trasladó: tiene la previsión "
-                                        f"de {old} y el libro nuevo depura {company or 'un libro de una sola empresa'}. "
-                                        "Se debe pegar la previsión de nuevo.")]
+        return [Issue("DEP-005", "", "",
+                      f"La hoja {SHEET_PASTE} del libro anterior no se trasladó: tiene la previsión de {old} y el "
+                      f"libro nuevo depura {company or 'un libro de una sola empresa'}. Se debe pegar la previsión "
+                      "de nuevo.")]
     prior.review_keep = True
-    issues = [Issue(SEV_INFO, "", "", f"Se conservó el contenido de la hoja {SHEET_PASTE} ({lines}).")]
+    issues = [Issue("DEP-006", "", "", f"Se conservó el contenido de la hoja {SHEET_PASTE} ({lines}).")]
+    if prior.review_legacy:
+        issues.append(Issue("DEP-007", "", "", f"La hoja {SHEET_PASTE} del libro anterior tenía el formato sin EDT "
+                                              "interna: los códigos numéricos quedaron como EDT cliente y los demás "
+                                              "(p. ej. XRF01), como EDT interna."))
     offset = month_offset(prior.review_start, report.horizon.start) if prior.review_start else 0
     if offset:
         prior.review_rows, lost = shift_rows(prior.review_rows, offset, paste_months(report.horizon.months))
-        issues.append(Issue(SEV_WARN if lost > 0.005 else SEV_INFO, "", "",
+        issues.append(Issue("DEP-008", "", "",
                             f"El mes 1 del horizonte cambió ({prior.review_start:%m/%Y} a "
                             f"{report.horizon.start:%m/%Y}): los meses de la hoja {SHEET_PASTE} se desplazaron "
                             f"{abs(offset)} columnas para conservar su fecha"
-                            + (f"; quedaron fuera {fmt_money(lost)}." if lost > 0.005 else ".")))
+                            + (f"; quedaron fuera {fmt_money(lost)}." if lost > 0.005 else "."),
+                            SEV_WARN if lost > 0.005 else SEV_INFO))
     return issues
 
 
@@ -202,7 +245,8 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
     """
     issues: list[Issue] = []
     if prior.multi != report.multi:
-        raise ConfigError("--migrar-desde no se admite entre un libro de una sola empresa y uno multi-empresa: "
+        raise ConfigError("MIG-001",
+                          "--migrar-desde no se admite entre un libro de una sola empresa y uno multi-empresa: "
                           "el historial de EV y AC no se puede repartir entre empresas. Se debe generar el libro "
                           "nuevo sin --migrar-desde.")
     # Mismo proyecto: se compara cada archivo del libro anterior con el archivo del mismo nombre del nuevo
@@ -210,11 +254,11 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
     old_names = prior.project_names or {"": prior.project_name}
     same = {n: n in new_names and old_names[n] == clean_text(new_names[n]) for n in old_names}
     if "" in old_names and "" not in new_names:
-        issues.append(Issue(SEV_WARN, "", "",
+        issues.append(Issue("MIG-002", "", "",
                             f"El libro anterior es de un solo archivo de MS Project ('{old_names['']}') y el nuevo "
                             "combina varios archivos: los EV/AC se asocian por código EDT."))
     elif "" in new_names and "" not in old_names:
-        issues.append(Issue(SEV_WARN, "", "",
+        issues.append(Issue("MIG-003", "", "",
                             f"El libro anterior combina varios archivos de MS Project ({', '.join(old_names)}) y el "
                             "nuevo es de un solo archivo: los EV/AC se asocian por código EDT."))
     else:
@@ -222,14 +266,16 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
             if ok:
                 continue
             if n not in new_names:
+                code_id = "MIG-004"
                 text = (f"El archivo '{n}' del libro anterior no forma parte del libro nuevo: los EV/AC de sus "
                         "filas se asocian por código EDT.")
             else:
+                code_id = "MIG-005"
                 text = (f"El libro anterior corresponde al proyecto '{old_names[n]}' y el nuevo a "
                         f"'{new_names[n]}': los EV/AC se asocian por código EDT.")
-            issues.append(Issue(SEV_WARN, "", "", f"[{n}] {text}" if n else text))
+            issues.append(Issue(code_id, "", "", f"[{n}] {text}" if n else text))
     if prior.max_level and prior.max_level != max_level:
-        issues.append(Issue(SEV_WARN, "", "",
+        issues.append(Issue("MIG-006", "", "",
                             f"El libro anterior usaba nivel máximo {prior.max_level} y el nuevo {max_level}. Las "
                             "filas que ahora se dividen en varias no pueden repartir su historial (ver errores)."))
 
@@ -295,10 +341,10 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
                     nk = horizon.key(i)
                     merged[kind][nk] = merged[kind].get(nk, 0.0) + v * factor
             if how == "rama" and old.has_values:
-                issues.append(Issue(SEV_INFO, target.code, target.name,
+                issues.append(Issue("MIG-007", target.code, target.name,
                                     f"Se sumó el historial de EV/AC de la fila anterior {old.code} '{old.name}'."))
             if how == "codigo" and old.has_values and old.name != target.name:
-                issues.append(Issue(SEV_WARN, target.code, target.name,
+                issues.append(Issue("MIG-008", target.code, target.name,
                                     f"Recibió el historial de EV/AC de la fila anterior {old.code} '{old.name}' "
                                     "(asociada por código EDT)."))
         if several:
@@ -310,7 +356,7 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
                     merged[kind] = {k: v / total_bac for k, v in data.items()}
                 elif data:
                     merged[kind] = {}
-                    issues.append(Issue(SEV_WARN, target.code, target.name,
+                    issues.append(Issue("MIG-009", target.code, target.name,
                                         "Recibió el % ganado de varias filas del libro anterior sin BAC: no se pudo "
                                         "combinar. Se debe revisar la hoja % EV de esta fila."))
         if any(merged_bac.values()):
@@ -328,33 +374,35 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
 
     if prior.methods:
         legacy = any(o.origin_method is None for o in prior.rows)
-        issues.append(Issue(SEV_INFO, "", "",
-                            f"Se conservaron {len(prior.methods)} métodos de medición de la columna C del libro anterior"
+        issues.append(Issue("MIG-010", "", "",
+                            f"Se conservaron {len(prior.methods)} métodos de medición de la columna C del libro "
+                            "anterior"
                             + (" (el libro anterior no indica si se editaron en Excel o cambiaron en MS Project; "
                                "se recomienda revisarlos)." if legacy else ", editados en Excel.")))
         # Recalcular el aviso de filas sin método
         undefined = sum(1 for r in inputs
                         if (prior.methods.get(row_key(r)) or r.method).strip().lower() in ("", "por definir",
                                                                                           "a definir"))
-        report.issues[:] = [i for i in report.issues if "sin método de medición" not in i.message]
+        report.issues[:] = [i for i in report.issues if i.id != "MET-005"]
         if undefined:
-            issues.append(Issue(SEV_INFO, "", "", f"{plural(undefined, 'fila', 'filas')} sin método de medición "
-                                                  "definido (columna C)."))
+            issues.append(Issue("MET-005", "", "", f"{plural(undefined, 'fila', 'filas')} sin método de medición "
+                                                   "definido (columna C)."))
     if early > 0.005:
-        issues.append(Issue(SEV_WARN, "", "",
+        issues.append(Issue("MIG-011", "", "",
                             f"Hay EV/AC por {fmt_money(early)} cargados antes del primer mes del nuevo horizonte "
                             f"({horizon.start:%m/%Y}): se acumularon en el mes 1."))
     if clamped > 0.005:
-        issues.append(Issue(SEV_WARN, "", "",
+        issues.append(Issue("MIG-012", "", "",
                             f"Hay EV/AC por {fmt_money(clamped)} cargados después del último mes del nuevo horizonte: "
                             "se acumularon en el último mes."))
     if prior.bac:
-        issues.append(Issue(SEV_INFO, "", "", f"Se conservó el BAC de {plural(len(prior.bac), 'fila', 'filas')} del "
+        issues.append(Issue("MIG-013", "", "", f"Se conservó el BAC de {plural(len(prior.bac), 'fila', 'filas')} del "
                                               "libro anterior."))
+    issues += _migrate_changes(prior, key_map, sources)
     issues += _migrate_review(report, prior)
     for old in prior.unmatched:
         bac = f"BAC {fmt_money(sum(old.bac.values()))}, "
-        issues.append(Issue(SEV_ERROR, old.code, old.name,
+        issues.append(Issue("MIG-014", old.code, old.name,
                             f"No se pudo trasladar su historial ({bac}EV {fmt_money(old.total('EV'))}, AC "
                             f"{fmt_money(old.total('AC'))}): la tarea no existe en el proyecto nuevo o se dividió "
                             "en varias filas. Se debe cargar a mano en las filas que correspondan."))

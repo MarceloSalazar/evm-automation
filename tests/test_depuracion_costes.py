@@ -64,7 +64,8 @@ def set_bac(path, sheet: str, values: dict[str, float]) -> None:
 
 
 def paste(path, lines: list[list]) -> None:
-    """Pega líneas en la hoja PV-depuración: [código, descripción, BAC, mes 1, mes 2...]."""
+    """Pega líneas en la hoja PV-depuración: [EDT cliente, actividad, EDT interna, actividad interna, BAC, mes 1,
+    mes 2...]."""
     wb = load_workbook(path)
     ws = wb[cr.SHEET_PASTE]
     for k, line in enumerate(lines):
@@ -194,7 +195,7 @@ def test_lookup_of_book_codes(tmp_path):
 # ----------------------------------------------------------------------------
 # --migrar-desde
 # ----------------------------------------------------------------------------
-LINES = [["1.1", "Dirección", 200, 100, 100], ["1.2.1", "Licitación", None, 50]]
+LINES = [["1.1", "Dirección", None, None, 200, 100, 100], ["1.2.1", "Licitación", "ABC01", "Pliegos", None, 50]]
 
 
 def test_migration_keeps_the_pasted_forecast_and_the_bac(tmp_path):
@@ -205,7 +206,8 @@ def test_migration_keeps_the_pasted_forecast_and_the_bac(tmp_path):
     new = tmp_path / "new.xlsx"
     rep = make_book(new, config(), prior_from_book(old, "Programa"))
     ws = load_workbook(new)[cr.SHEET_PASTE]
-    assert [ws.cell(row=cr.P_FIRST, column=c).value for c in range(1, 6)] == LINES[0]
+    assert [ws.cell(row=cr.P_FIRST, column=c).value for c in range(1, 8)] == LINES[0]
+    assert [ws.cell(row=cr.P_FIRST + 1, column=c).value for c in range(1, 5)] == LINES[1][:4]
     assert issues_with(rep, f"Se conservó el contenido de la hoja {cr.SHEET_PASTE} (2 líneas)")
     assert read_book(new).bac_role["A"][rows(load_workbook(new))["1.1.0"]] == 1234.0
 
@@ -222,16 +224,43 @@ def test_migration_keeps_the_pasted_forecast_and_the_bac(tmp_path):
 def test_migration_shifts_months_and_checks_the_company(tmp_path):
     old = tmp_path / "old.xlsx"
     make_book(old, config())
-    paste(old, [["1.1", "Dirección", 300, 100, 100, 100]])
+    paste(old, [["1.1", "Dirección", None, None, 300, 100, 100, 100]])
     later = tmp_path / "later.xlsx"                 # el horizonte empieza un mes después
     rep = make_book(later, config(start_month=date(2027, 2, 1)), prior_from_book(old, "Programa"))
     ws = load_workbook(later)[cr.SHEET_PASTE]
-    assert [ws.cell(row=cr.P_FIRST, column=c).value for c in range(4, 7)] == [100, 100, None]
+    assert [ws.cell(row=cr.P_FIRST, column=c).value for c in range(6, 9)] == [100, 100, None]
     assert issues_with(rep, "se desplazaron 1 columnas", SEV_WARN) and issues_with(rep, "quedaron fuera 100,00")
     other = tmp_path / "other.xlsx"
     rep = make_book(other, config(cost_review_company="EmpresaB"), prior_from_book(old, "Programa"))
     assert issues_with(rep, "tiene la previsión de EmpresaA y el libro nuevo depura EmpresaB", SEV_WARN)
     assert load_workbook(other)[cr.SHEET_PASTE].cell(row=cr.P_FIRST, column=1).value is None
+
+
+def test_migration_converts_a_paste_without_internal_wbs_columns(tmp_path):
+    """Libro anterior a las columnas de EDT interna: código, descripción, BAC y meses desde la columna D."""
+    old = tmp_path / "old.xlsx"
+    make_book(old, config())
+    wb = load_workbook(old)
+    ws = wb[cr.SHEET_PASTE]
+    ws.cell(row=cr.P_HEADER_ROW, column=3, value=cr.LEGACY_BAC_HEADER)
+    for k, line in enumerate([[1.2, "Contratos", None], ["XRF01", "Subtarea", 50, 20, None, 30],
+                              [None, "Nota", None], ["2.1", "Básica", 10, 10]]):
+        for c, v in enumerate(line, start=1):
+            ws.cell(row=cr.P_FIRST + k, column=c, value=v)
+    wb.save(old)
+    assert cr.is_legacy_paste(load_workbook(old)[cr.SHEET_PASTE])
+    assert cr.last_paste_month(load_workbook(old)[cr.SHEET_PASTE], 24) == 3
+    new = tmp_path / "new.xlsx"
+    rep = make_book(new, config(), prior_from_book(old, "Programa"))
+    assert issues_with(rep, "tenía el formato sin EDT interna", SEV_INFO)
+    ws = load_workbook(new)[cr.SHEET_PASTE]
+    assert not cr.is_legacy_paste(ws)
+    got = [[ws.cell(row=cr.P_FIRST + k, column=c).value for c in range(1, 9)] for k in range(4)]
+    assert got == [[1.2, "Contratos", None, None, None, None, None, None],
+                   [None, None, "XRF01", "Subtarea", 50, 20, None, 30],
+                   [None, None, None, "Nota", None, None, None, None],
+                   ["2.1", "Básica", None, None, 10, 10, None, None]]
+    assert cr.last_paste_month(ws, 24) == 3
 
 
 # ----------------------------------------------------------------------------
@@ -243,17 +272,25 @@ def test_pasted_lines_are_assigned_to_book_rows(tmp_path, recalc):
     make_book(path, config(cost_review_alignment=True))
     set_bac(path, "PV-EmpresaA", {"1.1.0": 200.0, "1.2.1": 50.0, "1.2.2": 60.0, "1.0.0-D": 10.0, "2.1.0": 400.0})
     lines = [
-        ["1", "Gestión (cabecera, sin importes)", None],
-        ["XRF01", "Subtarea suelta de Gestión", None, *months((3, 10))],      # -> 1.0.0-D («Otras tareas»)
-        ["1.1", "Dirección", 200, 100, 100, "50"],                           # 1.1 = 1.1.0; "50": texto
-        [1.2, "Contratos (subtotal con importes propios)", None, *months((1, 999))],
-        ["1.2.1.5", "Licitación, tarea de detalle", None, *months((1, 50))],  # -> 1.2.1
-        ["1.2.2", "Obras", 70, *months((2, 30), (3, 30))],                    # BAC distinto de los meses
-        [None, None, None],
-        [None, "Nota sin código ni importes", None],
-        ["2.1", "Básica", None, *months((2, 200), (30, 200))],               # mes 30: fuera del horizonte
-        ["1.2.7", "Tarea de un resumen sin fila propia", None, *months((1, 5))],
-        ["9.9", "Código inexistente", None, *months((1, 7))],
+        [None, None, "ABC00", "EDT interna sin EDT cliente encima", None, *months((1, 3))],
+        ["1", "Gestión (cabecera, sin importes)"],
+        [None, None, "XRF01", "Subtarea suelta de Gestión", None, *months((3, 10))],     # -> 1.0.0-D
+        ["1.1", "Dirección", None, None, 200, 100, 100, "50"],                          # 1.1 = 1.1.0; "50": texto
+        [1.2, "Contratos (subtotal con importes propios)", None, None, None, *months((1, 999))],
+        ["1.2.1.5", "Licitación, tarea de detalle", None, None, None, *months((1, 50))],  # -> 1.2.1
+        ["1.2.2", "Obras (BAC distinto de los meses)", None, None, 70, *months((2, 30), (3, 30))],
+        [None, None, "ABC01", "Personal propio", 30, *months((2, 30))],                 # -> 1.2.2
+        [None, None, "ABC02", "Subcontratas", None, *months((3, 30))],
+        [None, None, None, None, None],
+        [None, None, None, "Nota sin código ni importes"],
+        ["2.1", "Básica", None, None, 400, *months((2, 200), (30, 200))],             # EDT cliente repetida
+        ["2.1", "Básica", "ABC03", "Ingeniería", None, *months((2, 150), (30, 200))],  # mes 30: fuera del horizonte
+        ["2.1", "Básica", "ABC04", "Revisión", None, *months((2, 50))],
+        ["1.2.7", "Tarea de un resumen sin fila propia", None, None, None, *months((1, 5))],
+        ["9.9", "Código inexistente", None, None, None, *months((1, 7))],
+        ["1", "Gestión", "ABC05", "Gastos generales", None, *months((3, 4))],           # -> 1.0.0-D
+        ["1.2.1", "Licitación", "ABC06", "Pliegos", 6, *months((2, 6))],                 # sin línea de subtotal
+        ["1.2.1", "Licitación", "ABC07", "Ofertas", 4, *months((3, 4))],
     ]
     paste(path, lines)
     wb = load_workbook(path)
@@ -263,14 +300,16 @@ def test_pasted_lines_are_assigned_to_book_rows(tmp_path, recalc):
     ws = wv[cr.SHEET_PASTE]
     status_col = cr.P_FIRST_MONTH + cr.paste_months(24) + 1
     status = [ws.cell(row=cr.P_FIRST + k, column=status_col).value or None for k in range(len(lines))]
-    assert status == [cr.STATUS_SUBTOTAL, "1.0.0-D", "1.1.0", cr.STATUS_SUBTOTAL, "1.2.1", "1.2.2", None, None,
-                      "2.1.0", cr.STATUS_SUMMARY, cr.STATUS_NONE]
+    assert status == [cr.STATUS_NONE, cr.STATUS_SUBTOTAL, "1.0.0-D", "1.1.0", cr.STATUS_SUBTOTAL, "1.2.1",
+                      cr.STATUS_SUBTOTAL, "1.2.2", "1.2.2", None, None, cr.STATUS_SUBTOTAL, "2.1.0", "2.1.0",
+                      cr.STATUS_SUMMARY, cr.STATUS_NONE, "1.0.0-D", "1.2.1", "1.2.1"]
     obs = [ws.cell(row=cr.P_FIRST + k, column=status_col + 1).value for k in range(len(lines))]
-    assert "Subtotal distinto" in obs[3] and "BAC distinto" in obs[5] and "fuera del horizonte" in obs[8]
-    assert "como texto" in obs[2] and not obs[0] and not obs[4]
-    pasted = 10 + 200 + 50 + 60 + 400 + 5 + 7
-    assert ws.cell(row=cr.P_TOTAL_ROW, column=3).value == pytest.approx(pasted)
-    assert ws.cell(row=cr.P_MISSING_ROW, column=3).value == pytest.approx(200 + 5 + 7)
+    assert "Sin EDT cliente" in obs[0] and "como texto" in obs[3] and "Subtotal distinto" in obs[4]
+    assert "BAC distinto" in obs[6] and "Subtotal distinto" not in obs[6] and "fuera del horizonte" in obs[12]
+    assert not any(obs[k] for k in (1, 2, 5, 7, 8, 11, 13, 16, 17, 18))
+    pasted = 3 + 10 + 200 + 50 + 60 + 400 + 5 + 7 + 4 + 10
+    assert ws.cell(row=cr.P_TOTAL_ROW, column=cr.P_BAC).value == pytest.approx(pasted)
+    assert ws.cell(row=cr.P_MISSING_ROW, column=cr.P_BAC).value == pytest.approx(3 + 200 + 5 + 7)
 
     pv_a = wv["PV-EmpresaA"]
     r = rows(wb)
@@ -278,11 +317,11 @@ def test_pasted_lines_are_assigned_to_book_rows(tmp_path, recalc):
     def cost(code: str) -> list:
         return [pv_a.cell(row=r[code] + 1, column=7 + i).value or 0 for i in range(3)]
 
-    assert cost("1.1.0") == [100, 100, 0] and cost("1.2.1") == [50, 0, 0] and cost("1.2.2") == [0, 30, 30]
-    assert cost("1.0.0-D") == [0, 0, 10] and cost("2.1.0") == [0, 200, 0]
-    assert cost("1.2.0") == [50, 30, 30] and cost("1.0.0") == [150, 130, 40]
+    assert cost("1.1.0") == [100, 100, 0] and cost("1.2.1") == [50, 6, 4] and cost("1.2.2") == [0, 30, 30]
+    assert cost("1.0.0-D") == [0, 0, 14] and cost("2.1.0") == [0, 200, 0]
+    assert cost("1.2.0") == [50, 36, 34] and cost("1.0.0") == [150, 136, 48]
     total = max(r.values()) + 2
-    assert pv_a.cell(row=total + 1, column=4).value == pytest.approx(pasted - 200 - 5 - 7)
+    assert pv_a.cell(row=total + 1, column=4).value == pytest.approx(pasted - 3 - 200 - 5 - 7)
     assert pv_a.cell(row=r["1.2.2"] + 1, column=4).value == 60
     # Indicador: diferencia de BAC y diferencia máxima acumulada en % del BAC
     last = 7 + 24
@@ -292,8 +331,8 @@ def test_pasted_lines_are_assigned_to_book_rows(tmp_path, recalc):
     assert pv_a.cell(row=r["1.1.0"], column=last + 1).value is None
 
     chart = wv[cr.SHEET_CHART]
-    assert chart["B5"].value == pytest.approx(110) and chart["B6"].value == pytest.approx(110)
-    assert chart.cell(row=cr.G_FIRST + 2, column=cr.G_COSTC).value == pytest.approx(110)
+    assert chart["B5"].value == pytest.approx(110) and chart["B6"].value == pytest.approx(120)
+    assert chart.cell(row=cr.G_FIRST + 2, column=cr.G_COSTC).value == pytest.approx(120)
     assert chart["C4"].value == "Contratos"
 
 
@@ -312,12 +351,14 @@ def test_example_forecast_is_fully_assigned(tmp_path, generator, recalc):
     write_workbook(rep, cfg, path)
     generator.fill_book(path)
     ws = load_workbook(path)[cr.SHEET_PASTE]
-    codes = [ws.cell(row=cr.P_FIRST + k, column=1).value for k in range(40)]
-    assert "HP-01" in codes and "XRF01" in codes
+    codes = [ws.cell(row=cr.P_FIRST + k, column=cr.P_INT_CODE).value for k in range(cr.P_LINES)]
+    assert {"PER01", "HP-01", "XRF01"} <= set(codes)
     wv = load_workbook(recalc(path), data_only=True)
     pa = wv[cr.SHEET_PASTE]
-    assert pa.cell(row=cr.P_TOTAL_ROW, column=3).value > 0
-    assert pa.cell(row=cr.P_MISSING_ROW, column=3).value == pytest.approx(0)
+    assert pa.cell(row=cr.P_TOTAL_ROW, column=cr.P_BAC).value > 0
+    assert pa.cell(row=cr.P_MISSING_ROW, column=cr.P_BAC).value == pytest.approx(0)
+    obs_col = cr.P_FIRST_MONTH + cr.paste_months(24) + 2
+    assert not any(pa.cell(row=cr.P_FIRST + k, column=obs_col).value for k in range(cr.P_LINES))   # todo cuadra
     total = max(rows(load_workbook(path)).values()) + 2
     assert wv["PV-EmpresaA"].cell(row=total + 1, column=4).value == pytest.approx(
-        pa.cell(row=cr.P_TOTAL_ROW, column=3).value)
+        pa.cell(row=cr.P_TOTAL_ROW, column=cr.P_BAC).value)

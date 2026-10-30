@@ -9,6 +9,7 @@ from __future__ import annotations
 import calendar as _cal
 from datetime import date, datetime, time, timedelta
 
+from evm.messages import Issue
 from evm.model import MonthKey
 
 Window = tuple[int, int]          # minutos desde las 00:00 (fin 1440 = 24:00)
@@ -191,7 +192,7 @@ def _exception_days(r, ex) -> list[date] | None:
     return days
 
 
-def calendar_from_xml(r, root, uid: int | None, warnings: list[str] | None = None) -> WorkCalendar | None:
+def calendar_from_xml(r, root, uid: int | None, warnings: list[Issue] | None = None) -> WorkCalendar | None:
     """Calendario del proyecto (con herencia del calendario base) o None si no existe.
 
     Las excepciones que no se pueden interpretar se omiten y se informan en `warnings`.
@@ -250,10 +251,10 @@ def calendar_from_xml(r, root, uid: int | None, warnings: list[str] | None = Non
                     if warnings is not None:
                         name = r.text(ex, "Name")
                         label = f"'{name}'" if name else "sin nombre"
-                        warnings.append(
+                        warnings.append(Issue("LEC-018", message=(
                             f"Calendario '{r.text(c, 'Name')}': se omite la excepción {label} "
                             f"(tipo {r.text(ex, 'Type') or '?'}) porque su periodicidad no se interpreta. Solo "
-                            "afecta el reparto de la duración de las tareas entre los meses (% planificado).")
+                            "afecta el reparto de la duración de las tareas entre los meses (% planificado).")))
                     continue
                 for d in days:
                     cal.exceptions[d] = wins

@@ -603,8 +603,8 @@ Código           EV del mes     EV acumulado
 3.1.1               416.000        2.208.000
 ...
 Observaciones por fila:
-  4.2.2 Cierre administrativo: método no definido: se usó % completado
-  [i] El AC se carga a mano en la hoja 'AC'; los indicadores de costo usan los valores cargados.
+  [i] ACT-034 4.2.2 Cierre administrativo: método no definido: se usó % completado
+  [i] ACT-026 El AC se carga a mano en la hoja 'AC'; los indicadores de costo usan los valores cargados.
 ...
 BAC (EUR)              44.210.000
 PV acumulado             12.092.032   % planificado 27,4 %
@@ -627,8 +627,8 @@ comportamiento esperado de ese método.
 
 | Cambio | Qué hacer | Efecto |
 |---|---|---|
-| Cambio aprobado del BAC de una fila | Escribir el nuevo BAC en la columna D. | El PV y el EV de **todos los meses** de la fila se recalculan con el nuevo BAC (el SPI de la fila en los meses anteriores no cambia). El AC no cambia. Lo informado en cada mes queda en la copia de respaldo de cada `actualizar`. |
-| Nueva línea base o cambio de EDT en MS Project | Generar un libro nuevo con `--migrar-desde` ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). | Se traslada el **BAC escrito**, el % ganado, el AC, los métodos y el análisis de desviaciones. Si varias filas anteriores pasan a una, el % ganado se combina ponderado por su BAC. |
+| Cambio aprobado del BAC de una fila | Escribir el nuevo BAC en la columna D. | El PV y el EV de **todos los meses** de la fila se recalculan con el nuevo BAC (el SPI de la fila en los meses anteriores no cambia). El AC no cambia. El siguiente `actualizar` o `analizar` agrega el cambio a la hoja `Registro de cambios`, con el BAC anterior y la cantidad de meses informados que cambiaron: para la norma EIA-748 es un cambio retroactivo, que se debe explicar ([El libro Excel](libro-excel.md#registro-de-cambios)). |
+| Nueva línea base o cambio de EDT en MS Project | Generar un libro nuevo con `--migrar-desde` ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). | Se traslada el **BAC escrito**, el % ganado, el AC, los métodos y el análisis de desviaciones. Si varias filas anteriores pasan a una, el % ganado se combina ponderado por su BAC. Mientras no se genere el libro nuevo, `actualizar` avisa de las filas cuyo % planificado ya no coincide con la línea base de MS Project ([ACT-047](codigos.md#act-047)). |
 
 ---
 
@@ -658,6 +658,13 @@ comportamiento esperado de ese método.
 | Planificación distinta | `actualizar` usa siempre la planificación con la que se generó el libro. |
 | Celdas convertidas | Celdas de ingreso con texto o fórmulas que se reemplazaron por su valor numérico. |
 | Celdas sin la fórmula del libro | Subtotales, fila TOTAL o suma de las empresas que perdieron su fórmula (por ejemplo, porque se escribió un valor encima): se informan para restaurarlas. |
+| Cambios del BAC o de meses ya informados | El BAC de una fila, o el % ganado o el AC de un mes anterior al mes de corte, cambiaron desde la ejecución anterior: se agregan a la hoja `Registro de cambios` para indicar el motivo ([El libro Excel](libro-excel.md#registro-de-cambios)). |
+| EV y AC incoherentes | Paquetes con avance y sin costo, con costo y sin avance (salvo 0/100 e hitos ponderados) o con costo después de llegar al 100 %, hasta el último mes con AC cargado ([ACT-039](codigos.md#act-039) a [ACT-042](codigos.md#act-042)). |
+| Análisis del mes anterior incompleto y acciones vencidas | Ver [Análisis de desviaciones](analisis-desviaciones.md#3-cierre-mensual). |
+| Meses sin informe | Meses sin % ganado entre el último mes cargado y el mes de corte: su avance quedó en el mes de corte ([ACT-046](codigos.md#act-046)). |
+| Línea base distinta de la del libro | Solo `actualizar`: el % planificado que resulta hoy de MS Project no coincide con el de las hojas `% PV` (se guardó de nuevo la línea base, o cambiaron las tareas o el calendario de la fila). El libro sigue con la línea base anterior hasta generar uno nuevo con `--migrar-desde`. No se comparan las filas con tareas sin fechas de línea base ([ACT-047](codigos.md#act-047)). |
+| EAC poco realista | Desde el 20 % completado, el TCPI (BAC) supera al CPI en más de 0,10, o el AC ya alcanzó el BAC con trabajo pendiente: terminar dentro del BAC no es realista ([ACT-048](codigos.md#act-048)). |
+| Mucho BAC en filas LOE | El % del BAC total en filas con método LOE supera `[validacion] loe_maximo` (15 % por defecto): su EV es igual a su PV y acerca el SPI a 1 ([ACT-049](codigos.md#act-049)). |
 
 Antes de leer MS Project, `actualizar` **verifica el libro**: si falta o se renombró una hoja, si se
 insertaron, eliminaron u ordenaron filas en las hojas mensuales (los códigos EDT de la columna A no

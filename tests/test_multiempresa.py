@@ -180,11 +180,11 @@ def test_xml_reads_company_fields(tmp_path, example_files):
     assert by_name["Ingeniería"].company == "EmpresaA"
     assert by_name["Estudios de terreno"].company == "EmpresaB"
     assert by_name["Detalle civil"].company == "" and by_name["Detalle civil"].split_a is None
-    assert not any("empresa" in w for w in p.warnings)
+    assert not any("empresa" in w.message for w in p.warnings)
 
     missing = load_config(multi_config(tmp_path, example_files, 'campo_empresa = "No existe"\n', "m2.toml"))
     p2 = read_xml(example_files["base"], missing)
-    assert any("No se encontró el campo de empresa 'No existe'" in w for w in p2.warnings)
+    assert any("No se encontró el campo de empresa 'No existe'" in w.message for w in p2.warnings)
 
 
 def test_com_reads_company_fields():

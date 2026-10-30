@@ -226,7 +226,7 @@ def test_migrate_keeps_the_analysis(book, example_files, tmp_path):
     data_row = next(s.row for s in read_book(new).input_rows if s.code == "2.2.1")
     ws = load_workbook(new)[SHEET_ANALYSIS]
     assert ws.cell(rows_of(new)["2.2.1"], A_BAC).value == f"='PV'!$D${data_row}"
-    details = [r[3] for r in load_workbook(new)["Validación"].iter_rows(min_row=4, values_only=True) if r[3]]
+    details = [r[4] for r in load_workbook(new)["Validación"].iter_rows(min_row=4, values_only=True) if r[4]]
     assert any(f"trasladaron {JUNE_COUNT - 1} filas del análisis de desviaciones" in d for d in details)
     assert any("ya no tiene fila en el libro nuevo" in d for d in details)
 

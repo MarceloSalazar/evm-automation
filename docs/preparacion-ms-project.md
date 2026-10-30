@@ -235,6 +235,8 @@ no se usan los calendarios de recursos ni de tareas
 - **Calidad del cronograma:** un cronograma con lógica completa (predecesoras y sucesoras), sin
   restricciones innecesarias y con duraciones acotadas es la base de un PV confiable. Las guías de
   evaluación de cronogramas listadas en [Recursos externos](recursos-externos.md) (por ejemplo, la del
-  GAO) describen los controles habituales. `validar` revisa la lógica, los adelantos y las posiciones, las
-  delimitaciones y el índice de ejecución de la línea base (BEI) con los criterios de la evaluación DCMA
-  de 14 puntos ([Validaciones](validaciones-y-problemas.md#13-lógica-del-cronograma-validar)).
+  GAO) describen los controles habituales. `validar` revisa 12 de los 14 puntos de la evaluación DCMA:
+  lógica, adelantos y posiciones, delimitaciones, holgura, duración, fechas no válidas, tareas
+  incumplidas, CPLI y BEI ([Evaluación DCMA de 14 puntos](evaluacion-dcma.md)). Para que MS Project
+  muestre la holgura frente a la fecha de fin comprometida, se recomienda ponerla como **fecha límite**
+  del hito de fin, en lugar de una delimitación.

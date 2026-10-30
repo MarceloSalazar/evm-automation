@@ -137,23 +137,23 @@ def milestone_row(weights, done=(0,)):
 def test_weighted_milestones_without_weights_count_equally():
     for weights in ((None, None, None), (0, 0, 0)):
         frac, note = earned_fraction(parse_method("Hitos ponderados"), milestone_row(weights), 0)
-        assert frac == pytest.approx(1 / 3) and "por igual" in note
+        assert frac == pytest.approx(1 / 3) and "por igual" in note.message
 
 
 def test_weighted_milestones_negative_weight_counts_as_zero():
     """Un peso negativo no es válido: el hito pesa 0 y se informa."""
     method = parse_method("Hitos ponderados")
     frac, note = earned_fraction(method, milestone_row((100, -50)), 0)
-    assert frac == pytest.approx(1.0) and "negativo" in note
+    assert frac == pytest.approx(1.0) and "negativo" in note.message
     frac, note = earned_fraction(method, milestone_row((100, -50), done=(1,)), 0)
-    assert frac == 0.0 and "negativo" in note
+    assert frac == 0.0 and "negativo" in note.message
 
 
 def test_weighted_milestones_all_negative_weights_count_equally():
     """Sin ningún peso válido, los hitos pesan igual (como sin pesos) y se informa."""
     frac, note = earned_fraction(parse_method("Hitos ponderados"), milestone_row((-10, -50)), 0)
     assert frac == pytest.approx(0.5)
-    assert "sin hitos" not in note and "por igual" in note and "negativo" in note
+    assert "sin hitos" not in note.message and "por igual" in note.message and "negativo" in note.message
 
 
 def test_progress_without_weights_is_simple_average():

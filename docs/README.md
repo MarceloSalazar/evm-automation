@@ -15,6 +15,8 @@ rápido están en el [README principal](../README.md).
 | Preparar un proyecto real por primera vez | [Cálculo del PV y el EV](calculo-pv-ev.md) → [Preparación en MS Project](preparacion-ms-project.md) → [Métodos de medición](metodos-de-medicion.md) |
 | Organizar el cierre mensual | [Proceso de reporte EVM](proceso-reporte-evm.md) |
 | Revisar el archivo de MS Project antes de generar o actualizar el libro | [Comando `validar`](comandos.md#validar-revisa-el-archivo-de-ms-project) |
+| Evaluar la calidad del cronograma con los criterios de la DCMA | [Evaluación DCMA de 14 puntos](evaluacion-dcma.md) |
+| Saber qué requisitos de la norma EIA-748 cubre el programa | [Norma EIA-748-E](evaluacion-eia-748-e.md) |
 | Entregar al cliente las fichas de tareas | [Comando `generar-fichas`](comandos.md#generar-fichas-fichas-de-tareas-para-el-cliente) |
 | Reunir varios archivos de MS Project en un informe | [Varios archivos de MS Project](varios-archivos.md) |
 | Alinear el cronograma con el plan de costes de una empresa | [Depuración de costes](depuracion-costes.md) |
@@ -23,7 +25,8 @@ rápido están en el [README principal](../README.md).
 | Definir las filas del libro con una lista de códigos EDT, sin marcar el cronograma | [Lista EDT](calculo-pv-ev.md#34-lista-edt-filas-definidas-en-un-archivo) |
 | Explicar las desviaciones del mes | [Análisis de desviaciones](analisis-desviaciones.md) |
 | Entender un valor del libro | [Cálculo del PV y el EV](calculo-pv-ev.md) |
-| Resolver un mensaje de error | [Validaciones y solución de problemas](validaciones-y-problemas.md) |
+| Resolver un mensaje de error o entender un código (`FEC-003`...) | [Códigos de errores y advertencias](codigos.md) y [Validaciones y solución de problemas](validaciones-y-problemas.md) |
+| Ocultar una observación que ya se revisó | [Silenciar observaciones](codigos.md#2-silenciar-observaciones) |
 | Presentar el programa al equipo de proyecto | [Presentación de 30 minutos](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) |
 
 ---
@@ -38,7 +41,8 @@ rápido están en el [README principal](../README.md).
 | [Proceso de reporte EVM](proceso-reporte-evm.md) | Puesta en marcha, cierre mensual, cambios de línea base, roles, calendario, buenas prácticas y lista de control. |
 | [Comandos y opciones](comandos.md) | `validar`, `generar`, `actualizar`, `analizar` y `generar-fichas` (fichas de tareas para el cliente en Markdown), todas sus opciones y ejemplos de salida. |
 | [Configuración](configuracion.md) | Claves del archivo `config.toml` y ejemplos. |
-| [Presentación para el equipo de proyecto](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) | 37 diapositivas para unos 30 minutos, con notas para el presentador: conceptos EVM y semáforo, preparación en MS Project (incluidas la línea base y la definición del método de medición), `validar`, `generar` y `actualizar`, Cuadro de Mando, análisis de desviaciones y cierre mensual. Se abre con PowerPoint o LibreOffice Impress. |
+| [Códigos de errores y advertencias](codigos.md) | Código de cada mensaje (`ÁREA-NNN`): severidad, causa y qué hacer; cómo silenciar observaciones con `[validacion] silenciar` o `--silenciar`. |
+| [Presentación para el equipo de proyecto](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) | 38 diapositivas para unos 30 minutos, con notas para el presentador: conceptos EVM y semáforo, preparación en MS Project (incluidas la línea base y la definición del método de medición), `validar`, `generar` y `actualizar`, Cuadro de Mando, análisis de desviaciones, avisos del cierre y cierre mensual. Se abre con PowerPoint o LibreOffice Impress. |
 
 **Preparación en MS Project**
 
@@ -64,6 +68,8 @@ rápido están en el [README principal](../README.md).
 | Documento | Contenido |
 |---|---|
 | [Validaciones y solución de problemas](validaciones-y-problemas.md) | Controles de la hoja `Validación` y del comando `validar` (códigos EDT, fechas, pesos, método, avance y lógica del cronograma), limitaciones conocidas y mensajes frecuentes. |
+| [Evaluación DCMA de 14 puntos](evaluacion-dcma.md) | Los 14 controles de calidad del cronograma de la DCMA: qué mide cada uno, cómo lo calcula `validar` (12 de 14), qué hacer en MS Project, la prueba manual del camino crítico y lo que el programa no verifica. |
+| [Norma EIA-748-E](evaluacion-eia-748-e.md) | Las 27 guías de la norma de EE. UU. para sistemas EVM: qué exige cada una, qué cubre el programa, con qué controles, y qué aporta la organización. |
 | [Glosario](glosario.md) | Siglas EVM y su equivalencia con los campos de MS Project en español (CPTP, CPTR, CRTR...). |
 | [Registro de cambios](../CHANGELOG.md) | Cambios de cada versión: nuevas funciones, correcciones y otros. |
 | [Recursos externos](recursos-externos.md) | Documentación de Microsoft, estándares y guías de buenas prácticas. |

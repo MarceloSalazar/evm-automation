@@ -52,7 +52,7 @@ flowchart LR
 ```
 
 - La empresa **pega** su previsión mensual en la hoja `PV-depuración`, tal como sale de su plan de
-  costes: código EDT, descripción, BAC y un importe por mes.
+  costes: EDT cliente, actividad, EDT interna, actividad interna, BAC y un importe por mes.
 - Con **fórmulas de Excel**, cada línea pegada se asigna a una fila del libro. En la hoja PV de la
   empresa, debajo de cada fila de la EDT, la fila **«(coste)»** muestra la previsión de esa fila. Al
   pegar o cambiar la previsión, el libro se actualiza al instante, sin ejecutar el programa.
@@ -100,10 +100,24 @@ La hoja tiene el mismo formato que el plan de costes de la empresa, para pegar e
 
 | Columna | Contenido |
 |---|---|
-| A | Código EDT del elemento (`2.3.4.1`), o código de una subtarea o hito de pago (`XRF01`). |
-| B | Descripción. |
-| C | BAC (total) de la línea. Solo se usa como control: se compara con la suma de sus meses. |
-| D en adelante | Importe de cada mes, del mes 1 al 120 (o hasta el último mes del horizonte, si tiene más). |
+| A · EDT cliente | Código EDT del elemento en el cronograma (`2.3.4.1`). |
+| B · Actividad | Descripción de la EDT cliente. |
+| C · EDT interna | Código del concepto de coste interno de la empresa que corresponde a la EDT cliente: partidas, subtareas o hitos de pago, con códigos no numéricos (`ABC01`, `XRF01`, `HP-01`). Vacía en la línea de la EDT cliente. |
+| D · Actividad interna | Descripción del concepto interno. |
+| E · BAC | Importe total de la línea; en la línea de la EDT cliente, la suma de sus líneas de EDT interna. Solo se usa como control: se compara con la suma de sus meses. |
+| F en adelante | Importe de cada mes, del mes 1 al 120 (o hasta el último mes del horizonte, si tiene más). |
+
+Ejemplo de una EDT cliente con dos conceptos internos:
+
+| A · EDT cliente | B · Actividad | C · EDT interna | D · Actividad interna | E · BAC | F · mes 1 | G · mes 2 | Se suma |
+|---|---|---|---|---:|---:|---:|---|
+| `1.1.1` | Oficina del programa | | | 1.000 | 500 | 500 | No: es el subtotal |
+| | | `ABC01` | Personal propio | 700 | 350 | 350 | Sí, en la fila `1.1.1` |
+| | | `ABC02` | Subcontratas | 300 | 150 | 150 | Sí, en la fila `1.1.1` |
+
+La columna A de las líneas de EDT interna puede ir vacía (como en el ejemplo) o repetir la EDT cliente;
+en los dos casos, cada línea se suma en su EDT cliente. Si el plan de costes no tiene la línea de
+subtotal de la EDT cliente, se pegan solo las líneas de EDT interna, con la EDT cliente en la columna A.
 
 - Encima de cada columna de meses, el programa escribe el **N° de mes** y su **fecha**: el mes 1 de la
   previsión debe ser el mes 1 del libro (`[horizonte] mes_inicio`). Si el plan de costes empieza en otro
@@ -116,27 +130,31 @@ La hoja tiene el mismo formato que el plan de costes de la empresa, para pegar e
 
 | Línea pegada | Se suma en |
 |---|---|
-| Código numérico igual al de una fila del libro (`2.1.3`) | Esa fila. Los ceros finales no cuentan: `1.2` es `1.2.0`. |
-| Código numérico más detallado que el libro (`1.2.2.9`) | La fila de la que depende (`1.2.2`). |
-| Código no numérico o vacío (`XRF01`, `HP-01`) | La fila del **último código numérico de las líneas anteriores**: las subtareas y los hitos de pago se agrupan bajo su código EDT padre. |
-| Línea con subtareas o códigos más detallados debajo | **No se suma**: es un subtotal. Se suman sus subtareas, para no contar dos veces el mismo importe. |
-| Código de un resumen del libro (`1.2` cuando el libro tiene `1.2.1` y `1.2.2`) | No se asigna: el importe se debe pegar con el código de cada paquete. Si el resumen tiene fila «Otras tareas», las subtareas que dependen de él van a esa fila. |
-| Código que no está en el libro | No se asigna. |
+| EDT cliente igual al código de una fila del libro (`2.1.3`), sin EDT interna | Esa fila. Los ceros finales no cuentan: `1.2` es `1.2.0`. |
+| EDT cliente más detallada que el libro (`1.2.2.9`) | La fila de la que depende (`1.2.2`). |
+| Línea de EDT interna (`ABC01` en la columna C) con la columna A vacía | La fila de la **última EDT cliente de las líneas anteriores**. |
+| Línea de EDT interna con la EDT cliente en la columna A | La fila de esa EDT cliente (o de la que depende, si es más detallada que el libro). |
+| EDT cliente sin EDT interna, con líneas de EDT interna o códigos más detallados debajo | **No se suma**: es un subtotal. Se suman sus líneas, para no contar dos veces el mismo importe. Una línea de EDT interna nunca es un subtotal. |
+| EDT cliente de un resumen del libro (`1.2` cuando el libro tiene `1.2.1` y `1.2.2`) | No se asigna: el importe se debe pegar con el código de cada paquete. Si el resumen tiene fila «Otras tareas», sus líneas de EDT interna van a esa fila. |
+| EDT cliente que no está en el libro | No se asigna. |
+| Código no numérico en la columna A (`XRF01`) | Igual que una línea de EDT interna: la fila de la última EDT cliente de las líneas anteriores. |
 | Línea vacía o solo con descripción | Se ignora. |
 
+Una línea es de EDT interna si tiene algo en la columna C o en la D.
+
 > Excel convierte en número un código como `1.10` (que queda `1.1`). Para evitarlo, la columna del código
-> en el plan de costes debe tener formato de texto. La columna A de `PV-depuración` ya tiene formato de
-> texto.
+> en el plan de costes debe tener formato de texto. Las columnas A y C de `PV-depuración` ya tienen
+> formato de texto.
 
 ### 4.3 Controles
 
 | Control | Dónde | Qué indica |
 |---|---|---|
-| **Total pegado (sin subtotales)** | Celda C3 | Suma de las líneas que se suman. |
-| **Asignado a filas del libro** | Celda C4 | Parte del total pegado que llegó a filas del libro, dentro del horizonte. |
-| **Sin asignar** | Celda C5 (en rojo si no es 0) | Códigos sin fila en el libro, códigos de resúmenes sin fila propia o meses fuera del horizonte. |
-| **Asignado a** | Columna a la derecha de los meses (DU con 120 meses) | La fila del libro de cada línea, `Subtotal (no se suma)`, `Resumen sin fila propia` o `Sin fila del libro` (en rojo). |
-| **Observación** | Columna siguiente (DV) | `BAC distinto de la suma de los meses`, `Subtotal distinto de la suma de sus subtareas` (la línea del padre tenía importes propios), `Importes fuera del horizonte del libro` o `Importes guardados como texto: no se suman`. |
+| **Total pegado (sin subtotales)** | Celda E3 | Suma de las líneas que se suman. |
+| **Asignado a filas del libro** | Celda E4 | Parte del total pegado que llegó a filas del libro, dentro del horizonte. |
+| **Sin asignar** | Celda E5 (en rojo si no es 0) | Códigos sin fila en el libro, códigos de resúmenes sin fila propia, líneas de EDT interna sin EDT cliente encima o meses fuera del horizonte. |
+| **Asignado a** | Columna a la derecha de los meses (DW con 120 meses) | La fila del libro de cada línea, `Subtotal (no se suma)`, `Resumen sin fila propia` o `Sin fila del libro` (en rojo). |
+| **Observación** | Columna siguiente (DX) | `BAC distinto de la suma de los meses`, `Sin EDT cliente en las líneas anteriores` (línea de EDT interna antes de la primera EDT cliente), `Subtotal distinto de la suma de sus líneas` (la línea de la EDT cliente tenía importes que no son la suma de sus líneas), `Importes fuera del horizonte del libro` o `Importes guardados como texto: no se suman`. |
 
 Las líneas que son subtotales se muestran en gris.
 
@@ -255,6 +273,9 @@ Sobre `--migrar-desde` en la depuración:
 - Si cambió el mes 1 del horizonte, los meses de `PV-depuración` se desplazan para conservar su fecha;
   lo que queda antes del mes 1 se informa en `Validación`.
 - Las líneas se asignan de nuevo con los códigos EDT del libro nuevo, aunque la EDT haya cambiado.
+- Si el libro anterior tiene la hoja sin las columnas de EDT interna (código, descripción, BAC y meses
+  desde la columna D), la previsión se pasa al formato actual: los códigos numéricos quedan como EDT
+  cliente y los demás (`XRF01`), como EDT interna.
 
 ---
 
@@ -266,6 +287,7 @@ Sobre `--migrar-desde` en la depuración:
 | `... filas tienen código EDT no numérico ... no pueden recibir la previsión` (Advertencia) | Las filas con códigos como `INTERNO` o `A1` no se pueden asignar: la previsión solo se asocia por códigos numéricos. |
 | `códigos EDT repetidos en el libro ...` (Advertencia) | Un código está en dos filas: la previsión se asigna a la primera. |
 | `Se conservó el contenido de la hoja PV-depuración ...` (Info) | `--migrar-desde` trasladó la previsión. |
+| `La hoja PV-depuración del libro anterior tenía el formato sin EDT interna ...` (Info) | La previsión trasladada se pasó al formato con las columnas de EDT interna. |
 | `La hoja PV-depuración del libro anterior ... no se trasladó` (Info o Advertencia) | El libro nuevo no tiene depuración, o depura otra empresa. |
 
 Limitaciones:
@@ -288,16 +310,18 @@ depuración.
 funcionan igual. Pero el libro muestra la previsión de costes de la empresa: para entregar o compartir
 el libro, se genera sin depuración.
 
-**¿Qué pasa con la fila del padre que trae el total de sus subtareas?** Se ignora y se suman las
-subtareas. Si la fila del padre tenía además importes propios, esos importes no se suman; la columna
-`Observación` lo marca para corregir el plan de costes o pegarlos en una subtarea.
+**¿Qué pasa con la línea de la EDT cliente que trae el total de sus líneas de EDT interna?** Se ignora
+y se suman sus líneas de EDT interna. Si la línea de la EDT cliente tenía además importes propios, esos
+importes no se suman; la columna `Observación` lo marca para corregir el plan de costes o pegarlos en una
+línea de EDT interna.
 
 **¿Y si el plan de costes tiene más detalle que el libro?** Los códigos más detallados se suman en su
-fila del libro (`2.3.4.1.5` en `2.3.4.1`), y las subtareas sin código numérico en su código padre.
+fila del libro (`2.3.4.1.5` en `2.3.4.1`), y las líneas de EDT interna en su EDT cliente.
 
 **¿Se puede depurar con un libro de una sola empresa?** Sí: se depura la hoja `PV`.
 
 **¿Cómo se prueba la función sin un proyecto real?** Con el [proyecto de ejemplo](ejemplo-paso-a-paso.md):
 se genera el libro multi-empresa con `depuracion_costes = true` y se ejecuta
 `python ejemplos\generar_ejemplo.py --libro EVM_Depuracion.xlsx`, que escribe el BAC de cada fila y una
-previsión ficticia de EmpresaA en `PV-depuración` (con meses desplazados, hitos de pago y subtareas).
+previsión ficticia de EmpresaA en `PV-depuración`: cada EDT cliente con sus líneas de EDT interna
+(personal propio y subcontratas, hitos de pago o subtareas), con algunos meses desplazados.

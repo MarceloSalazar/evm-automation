@@ -7,7 +7,8 @@ Pasos:
    diciembre de 2027), con el AC de cada mes del ejemplo.
 2. Abre cada libro con Excel por automatización COM, sin mostrarlo y en solo lectura,
    exporta cada zona a PDF y la convierte a PNG con pdftoppm (Poppler).
-3. Agrega los números de las zonas a la captura del Cuadro de Mando.
+3. Agrega los números de las zonas a la captura del Cuadro de Mando y exporta la hoja
+   Registro de cambios de una copia del libro con dos cambios de datos ya informados.
 4. Genera un libro multi-empresa con depuración de costes de EmpresaA (BAC y previsión
    ficticios del ejemplo) y exporta sus hojas PV-EmpresaA, PV-depuración y
    Depuración costes.
@@ -57,7 +58,7 @@ SINGLE = [
     ("ac", "AC", "$A$1:$AD$41", {"landscape": True, "headings": True, "hide": "G:R"}),
     ("evolucion-mensual", "Evolución mensual", "$A$1:$O$28", {"landscape": True}),
     ("indicadores-edt", "Indicadores EDT", "$A$1:$U$41", {"landscape": True}),
-    ("validacion", "Validación", "$A$1:$D$9", {"landscape": True}),
+    ("validacion", "Validación", "$A$1:$E$9", {"landscape": True}),
     ("listas", "Listas", "$A$1:$B$11", {"width": ("B", 150)}),
     ("cdm-mes-anterior", "Cuadro de Mando", "$B$1:$U$54", {"date": ("E5", dt.datetime(2027, 6, 1))}),
     ("cdm-eac-alternativo", "Cuadro de Mando", "$B$1:$U$22",
@@ -79,21 +80,30 @@ SINGLE = [
          ("V21", "Inspección semanal en fábrica y plan de recuperación del proveedor."),
          ("W21", "Jefe de Compras"), ("X21", dt.datetime(2028, 2, 15))]}),
 ]
+# Registro de cambios: dos cambios de datos ya informados en una copia del libro del ejemplo (build_change_log_book),
+# con el motivo y el número de cambio completados como ejemplo
+CHANGE_LOG = [
+    ("registro-cambios", "Registro de cambios", "$A$1:$M$6",
+     {"landscape": True, "values": [
+         ("A5", dt.datetime(2028, 1, 5, 9, 30)), ("A6", dt.datetime(2028, 1, 5, 9, 30)),
+         ("L5", "Corrección de Finanzas: factura de un proveedor imputada a otro paquete."), ("M5", "No aplica"),
+         ("L6", "Ampliación de alcance aprobada: movimiento de tierras de la playa de acopio."), ("M6", "CC-007")]}),
+]
 MULTI = [
     ("multi-pv-empresa-a", "PV-EmpresaA", "$A$1:$P$41", {"landscape": True, "headings": True}),
     ("multi-pct-pv-empresa-a", "% PV-EmpresaA", "$A$1:$P$41", {"landscape": True, "headings": True}),
     ("multi-ev-empresa-b", "EV-EmpresaB", "$A$1:$AD$41", {"landscape": True, "headings": True, "hide": "G:R"}),
-    ("multi-validacion", "Validación", "$A$1:$D$11", {"landscape": True}),
+    ("multi-validacion", "Validación", "$A$1:$E$11", {"landscape": True}),
 ]
 SEVERAL = [
     ("varios-cdm", "Cuadro de Mando", "$B$1:$U$22", {}),
     ("varios-pv", "PV", "$A$1:$P$49", {"landscape": True, "headings": True, "hide_rows": "5:33"}),
-    ("varios-validacion", "Validación", "$A$1:$D$10", {"landscape": True}),
+    ("varios-validacion", "Validación", "$A$1:$E$10", {"landscape": True}),
 ]
 # Depuración de costes (horizonte de 120 meses): meses 1 a 9, total e indicador de alineamiento
 REVIEW = [
     ("depuracion-pv-empresa-a", "PV-EmpresaA", "$A$1:$DY$26", {"landscape": True, "headings": True, "hide": "P:DV"}),
-    ("depuracion-pegado", "PV-depuración", "$A$1:$DV$31", {"landscape": True, "headings": True, "hide": "M:DS"}),
+    ("depuracion-pegado", "PV-depuración", "$A$1:$DX$31", {"landscape": True, "headings": True, "hide": "M:DU"}),
     ("depuracion-grafico", "Depuración costes", "$A$1:$U$30", {"landscape": True}),
     ("depuracion-grafico-paquete", "Depuración costes", "$A$1:$U$30", {"landscape": True, "value": ("B4", "1.1.2")}),
 ]
@@ -173,6 +183,23 @@ def build_review_book(work: Path) -> Path:
     run("evm_export.py", "generar", "--origen", str(Path("ejemplos") / "programa_ejemplo.xml"), "--config", str(cfg),
         "--salida", str(book))
     example_helper().fill_book(book)            # BAC de cada fila y previsión pegada en PV-depuración
+    return book
+
+
+def build_change_log_book(single: Path, work: Path) -> Path:
+    """Copia del libro del ejemplo con dos cambios de datos ya informados, que analizar agrega a la hoja Registro de
+    cambios: el BAC de 3.1.1 (cambio de alcance aprobado) y el AC de noviembre de 2027 de 2.2.1 (corrección)."""
+    from openpyxl import load_workbook
+    book = work / "EVM_Registro.xlsx"
+    shutil.copy(single, book)
+    wb = load_workbook(book)
+    for sheet, code, column, factor in (("PV", "3.1.1", 4, 1.1), ("AC", "2.2.1", 7 + MONTHS.index((2027, 11)), 0.8)):
+        ws = wb[sheet]
+        cell = ws.cell(row=next(r for r in range(1, ws.max_row + 1) if ws.cell(row=r, column=1).value == code),
+                       column=column)
+        cell.value = round(cell.value * factor, 2)
+    wb.save(book)
+    run("evm_export.py", "analizar", "--libro", str(book), "--sin-respaldo")
     return book
 
 
@@ -311,6 +338,7 @@ def main() -> None:
                     export(book, items, pdftoppm, work)
             if "una-empresa" in groups:
                 annotate()
+                export(build_change_log_book(single, work), CHANGE_LOG, pdftoppm, work)
         if "depuracion" in groups:
             print("Generando el libro con depuración de costes...")
             export(build_review_book(work), REVIEW, pdftoppm, work)

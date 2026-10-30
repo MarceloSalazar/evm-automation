@@ -13,6 +13,8 @@ Información para quien modifica el programa o la documentación.
 3. [Flujo de trabajo del repositorio](#3-flujo-de-trabajo-del-repositorio) (incluye versiones,
    publicaciones e [instalador de Windows](#32-instalador-de-windows))
 4. [Documentación e imágenes](#4-documentación-e-imágenes)
+5. [Códigos de errores y advertencias](#5-códigos-de-errores-y-advertencias) (metodología para agregar un
+   mensaje)
 
 ---
 
@@ -32,11 +34,13 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 | `test_robustez_libro.py` | `actualizar`, `--migrar-desde`, libros modificados a mano, errores de la línea de comandos y del archivo de configuración. |
 | `test_proyectos_aleatorios.py` | Proyectos aleatorios de punta a punta (`generar`, varias fechas de corte, migración y recálculo). |
 | `test_analisis_desviaciones.py` | Hoja `Análisis de desviaciones`: lista calculada aparte, texto conservado y copiado al mes siguiente, `analizar` con AC cargado a mano, libros antiguos, `--migrar-desde` y recálculo de sus fórmulas con LibreOffice. |
-| `test_validar.py` | Comando `validar` y controles del archivo: códigos EDT (dependencia de la tarea superior, formato, orden, duplicados), fechas y duración, pesos, método frente a la duración, empresas, avance a la fecha de estado, lógica del cronograma (DCMA), lectura de duración, vínculos y delimitaciones (XML y COM) y columna `Tema` de la hoja `Validación`. |
+| `test_validar.py` | Comando `validar` y controles del archivo: códigos EDT (dependencia de la tarea superior, formato, orden, duplicados), fechas y duración, pesos, método frente a la duración, empresas, avance a la fecha de estado y fuera de secuencia, lógica del cronograma y evaluación DCMA (holgura, duración, tareas incumplidas, CPLI y BEI), lectura de duración, vínculos y delimitaciones (XML y COM) y columna `Tema` de la hoja `Validación`. |
 | `test_fichas_tareas.py` | Comando `generar-fichas`: fichas de los elementos del libro, vínculos trasladados al elemento con ficha (internos, repetidos y con tareas sin ficha), fechas y duración de la línea base, documento Markdown, varios archivos y lectura de la duración de la línea base, las horas por día y la descripción (XML y COM). |
 | `test_plazo_tendencia.py` | Plazo según el cronograma (días laborables, fin previsto, holgura y crítica de cada fila, filas resumen y total), columnas de `Indicadores EDT`, secciones del `Resumen` y del `Cuadro de Mando`, libros de versiones anteriores, tendencia (mes anterior con datos y últimos 3 meses) y recálculo de sus fórmulas con LibreOffice. |
 | `test_lista_edt.py` | Lista EDT (`lista_edt`): lectura del archivo, filas definidas por la lista, códigos faltantes, ramas sin elemento listado, lista guardada en el libro y usada por `actualizar`. |
 | `test_progreso.py` | Versión en pantalla y barra de progreso (etapas, % de la etapa y del total, ETA, consola no interactiva). |
+| `test_registro_cambios.py` | Controles del cierre mensual de la norma EIA-748-E: registro de cambios del BAC y de los meses ya informados (referencia, detección, hoja `Registro de cambios`, `--simular` y `--migrar-desde`), coherencia del EV y el AC, análisis de desviaciones incompleto, acciones vencidas, meses sin informe, línea base de MS Project distinta de la del libro, EAC poco realista (TCPI frente al CPI) y peso del LOE en el BAC. |
+| `test_codigos.py` | Códigos de errores y advertencias: formato y numeración del catálogo, todo mensaje con un código del catálogo, todo código usado, `docs/codigos.md` al día y silenciar (configuración, `--silenciar`, hoja `Validación` y código de salida de `validar`). |
 | `test_varios_archivos.py` | Varios archivos de MS Project (`[[proyectos]]`): el libro combinado coincide, fila por fila, con el libro de cada archivo (también en multi-empresa, con UniqueID repetidos entre archivos); errores de configuración y de la línea de comandos, fechas de estado y `--migrar-desde`. |
 | Resto | Casos del programa de ejemplo, Cuadro de Mando, semáforo, multi-empresa, planificación, campo `Visible`, depuración de costes, calendario y lector COM simulado. |
 
@@ -92,12 +96,13 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm_export.py` | Punto de entrada. |
 | `evm/cli.py` | Comandos y opciones. |
 | `evm/config.py` | Configuración TOML. |
+| `evm/messages.py` | Catálogo de los códigos de errores y advertencias (severidad, explicación y qué hacer), observaciones con código (`Issue`), errores con código que detienen el programa y silenciar ([5](#5-códigos-de-errores-y-advertencias)). |
 | `evm/model.py` | Datos comunes: tareas (fechas y duración de la línea base, fechas actuales, avance, duración, vínculos, delimitaciones, campos personalizados y descripción) y proyecto leídos de MS Project. |
 | `evm/reader_com.py` | Lectura de `.mpp` con MS Project (COM): fechas, avance, holgura, tareas críticas y campos personalizados. Los costos no se leen. |
 | `evm/reader_xml.py`, `evm/workcalendar.py` | Lectura del XML de MS Project (los costos no se leen) y calendario laboral con el que se reparte la duración de las tareas entre los meses. |
 | `evm/fields.py` | Identificación de campos personalizados (Texto1..30, Número1..20 y alias). |
 | `evm/wbs.py` | Estructura EDT hasta el nivel máximo o el detalle que indique el campo `Visible` (o la lista EDT), % planificado de cada fila, combinación de varios archivos y horizonte. |
-| `evm/validation.py` | Controles del archivo de MS Project: códigos EDT, fechas y duración, pesos, método y empresas (hoja `Validación` y `validar`), avance a la fecha de estado y lógica del cronograma (solo `validar`). |
+| `evm/validation.py` | Controles del archivo de MS Project: códigos EDT, fechas y duración, pesos, método y empresas (hoja `Validación` y `validar`), avance a la fecha de estado y lógica del cronograma con los criterios DCMA (solo `validar`). |
 | `evm/percent.py` | Peso de cada tarea (duración de la línea base y `Peso hito`), % planificado y % ganado de cada fila y de cada empresa. |
 | `evm/cost_review.py` | Depuración de costes: hojas `PV-depuración`, `Depuración costes` y `_depuracion` (asignación con fórmulas de la previsión pegada) e indicador de alineamiento. |
 | `evm/companies.py` | Multi-empresa: parte de cada empresa en cada tarea (columnas `Empresa` y `% Reparto`, con herencia de la tarea superior). |
@@ -105,7 +110,9 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/workbook.py` | Escritura del libro Excel y de sus indicadores. |
 | `evm/dashboard.py` | Hoja `Cuadro de Mando` y sus tres gráficos. |
 | `evm/methods.py` | Métodos de medición: interpretación del texto de la columna C y criterios de tarea comenzada y terminada. |
-| `evm/analysis.py` | Hoja `Análisis de desviaciones`: paquetes fuera de umbral y texto conservado. |
+| `evm/analysis.py` | Hoja `Análisis de desviaciones`: paquetes fuera de umbral, texto conservado, análisis del mes anterior incompleto y acciones vencidas. |
+| `evm/changes.py` | Registro de cambios: referencia de la última ejecución (hoja oculta `_registro`), cambios del BAC y de los meses ya informados y hoja `Registro de cambios`. |
+| `evm/consistency.py` | Controles del libro en el cierre mensual: coherencia del EV y el AC, meses sin informe, EAC poco realista y peso del LOE en el BAC. |
 | `evm/update.py` | Comandos `actualizar` (% ganado del mes) y `analizar`, y lectura y verificación del libro. |
 | `evm/migrate.py` | Traslado del BAC, el % ganado, el AC y los métodos al regenerar el libro (`--migrar-desde`). |
 | `evm/indicators.py` | Indicadores que se muestran en pantalla (mismos cálculos que la hoja `Resumen`), incluida la tendencia. |
@@ -262,3 +269,46 @@ con Python; sin MS Project se usa el XML.
   archivo, actualizando el enlace en el documento).
 - Las imágenes PNG de `docs/img/` están permitidas en `.gitignore` (el resto de los PNG del repositorio
   se ignora).
+
+---
+
+## 5. Códigos de errores y advertencias
+
+Cada mensaje del programa (error que detiene el programa, error, advertencia o informativa) tiene un
+código `ÁREA-NNN` del catálogo `CATALOG` de `evm/messages.py`, con su severidad, su explicación y qué
+hacer. El documento [`docs/codigos.md`](codigos.md) se genera a partir del catálogo; los usuarios lo
+consultan para entender un mensaje y para silenciar los códigos que ya revisaron
+([Códigos de errores y advertencias](codigos.md#2-silenciar-observaciones)).
+
+### 5.1 Metodología para agregar un mensaje
+
+1. **Elegir el área** del mensaje (las de `AREAS` en `evm/messages.py`: `CFG`, `LEC`, `EDT`, `FEC`...).
+   El área define el tema de la hoja `Validación` y del comando `validar`.
+2. **Agregar el código al catálogo**, al final de su área, con el **número siguiente** al último de esa
+   área: `_code("FEC-013", W, "Título", "Causa.", "Qué hacer.")`. Se indican la severidad (`F` detiene el
+   programa, `E` error, `W` advertencia, `I` informativa; una tupla si depende del caso) y, si no son los
+   del área, los comandos en que aparece.
+3. **Usar el código en el programa**:
+   - observación (consola y hoja `Validación`): `Issue("FEC-013", codigo_edt, nombre, mensaje)`; la
+     severidad y el tema se toman del catálogo (los códigos de severidad variable la indican);
+   - error que detiene el programa: `raise ConfigError("CFG-050", mensaje)`, o la clase de
+     `evm/messages.py` que corresponda (`InputError`, `MissingFileError`, `SaveError`...). No se
+     lanzan `ValueError` ni `RuntimeError` con un mensaje para el usuario.
+4. **Regenerar el documento**: `python docs\herramientas\codigos.py` (con `--comprobar` solo se
+   verifica que esté al día).
+5. **Probar**: `python -m pytest tests/test_codigos.py` comprueba el formato y la numeración del catálogo,
+   que todo mensaje y todo error tenga un código del catálogo, que todo código del catálogo se use y que
+   `docs/codigos.md` esté al día.
+6. **Anotar en el CHANGELOG** los códigos nuevos, cambiados o retirados.
+
+### 5.2 Reglas
+
+- **Un código no se renumera ni se reutiliza.** Si un mensaje deja de existir, su código queda en el
+  catálogo con `retired="X.Y.Z"` (la versión en que se retiró): el documento lo muestra como retirado y
+  las configuraciones que lo silencian siguen siendo válidas. La prueba de numeración correlativa
+  detecta un código borrado.
+- Si cambia el texto o la severidad de un mensaje, el código se mantiene y se actualiza su explicación.
+- Un mensaje con otro significado lleva un código nuevo, aunque se parezca a uno existente.
+- Los textos del catálogo se escriben en español y sin Markdown: el generador pone en formato de código
+  las opciones y las claves, y convierte en enlaces los códigos que se mencionan.
+

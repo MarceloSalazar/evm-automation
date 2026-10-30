@@ -88,7 +88,7 @@ las diferencias en el informe.
 | ETC | EAC − AC | Costo estimado para terminar. |
 | EAC | Según el método elegido | Costo estimado a la conclusión. |
 | VAC | BAC − EAC | < 0: se espera terminar por encima del presupuesto. |
-| TCPI (BAC) | (BAC − EV) / (BAC − AC) | Eficiencia necesaria en el trabajo restante para terminar dentro del BAC. |
+| TCPI (BAC) | (BAC − EV) / (BAC − AC) | Eficiencia necesaria en el trabajo restante para terminar dentro del BAC. Desde el 20 % completado, `actualizar` y `analizar` avisan si supera al CPI en más de 0,10: terminar dentro del BAC no es realista ([ACT-048](codigos.md#act-048)). |
 | TCPI (EAC) | (BAC − EV) / (EAC − AC) | Eficiencia necesaria para terminar dentro del EAC. Con el método `BAC / CPI` es igual al CPI. |
 
 **Semáforos.** Los umbrales son comunes para el CPI y el SPI, con un límite **inferior** y otro

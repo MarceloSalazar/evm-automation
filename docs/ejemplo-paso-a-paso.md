@@ -99,7 +99,7 @@ python evm_export.py generar --origen ejemplos\programa_ejemplo.xml --config con
 ```
 
 ```text
-Exportador EVM 2.3.0
+Exportador EVM 2.4.0
 Leyendo ejemplos\programa_ejemplo.xml ...
 Proyecto: Programa de ejemplo EVM
   Planificación: INTERNO
@@ -107,17 +107,17 @@ Proyecto: Programa de ejemplo EVM
   Filas EDT: 36 (24 de ingreso)  |  Nivel máximo: 3
   Horizonte: 01/2026 a 12/2035 (120 meses)
   BAC: se debe ingresar el BAC de cada fila en la columna D de PV (celdas amarillas).
-  [i] El PV y el EV de cada fila son el BAC × el % planificado y el % ganado (hojas % PV y % EV), ...
-  [i] Planificación 'INTERNO': se exportan las 51 tareas que dependen de 'Planificación interna'.
-  [i] Se omitió 1 tarea sin código EDT que no depende de ningún elemento EDT: no forma parte de ninguna fila del libro.
-  [i] 14 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.
-  [i] 1 fila sin método de medición definido (columna C).
-  [!] 1.2.1 Licitación de ingeniería: Método 0/100 en un paquete de 3,6 meses (línea base), más de 1: el EV queda en 0 hasta que termina. ...
-  [!] 1.2.2 Licitación de obras: Método 50/50 en un paquete de 4,5 meses (línea base), más de 2: ...
-  [!] 2.1.1 Estudios de terreno: Método 50/50 en un paquete de 2,7 meses (línea base), más de 2: ...
-  [!] 4.1.1 Pruebas en frío: Método 0/100 en un paquete de 2,7 meses (línea base), más de 1: ...
-  [!] 4.1.2 Pruebas en caliente: Método 20/80 en un paquete de 2,7 meses (línea base), más de 2: ...
-  [!] 4.2.1 Capacitación y entrega: Método 50/50 en un paquete de 2,7 meses (línea base), más de 2: ...
+  [i] LIB-001 El PV y el EV de cada fila son el BAC × el % planificado y el % ganado (hojas % PV y % EV), ...
+  [i] EDT-017 INTERNO Planificación interna: Planificación 'INTERNO': se exportan las 51 tareas que dependen de 'Planificación interna'.
+  [i] EDT-020 Se omitió 1 tarea sin código EDT que no depende de ningún elemento EDT: no forma parte de ninguna fila del libro.
+  [i] EDT-022 14 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.
+  [i] MET-005 1 fila sin método de medición definido (columna C).
+  [!] MET-004 1.2.1 Licitación de ingeniería: Método 0/100 en un paquete de 3,6 meses (línea base), más de 1: el EV queda en 0 hasta que termina. ...
+  [!] MET-004 1.2.2 Licitación de obras: Método 50/50 en un paquete de 4,5 meses (línea base), más de 2: ...
+  [!] MET-004 2.1.1 Estudios de terreno: Método 50/50 en un paquete de 2,7 meses (línea base), más de 2: ...
+  [!] MET-004 4.1.1 Pruebas en frío: Método 0/100 en un paquete de 2,7 meses (línea base), más de 1: ...
+  [!] MET-004 4.1.2 Pruebas en caliente: Método 20/80 en un paquete de 2,7 meses (línea base), más de 2: ...
+  [!] MET-004 4.2.1 Capacitación y entrega: Método 50/50 en un paquete de 2,7 meses (línea base), más de 2: ...
 Libro generado: ...\ejemplo.xlsx
 ```
 
@@ -174,8 +174,10 @@ foreach ($m in 1..24) {
 ```
 
 Cada `actualizar` usa como fecha de corte la fecha de estado del XML (último día del mes), calcula el %
-ganado acumulado y escribe la diferencia en el mes correspondiente. Al final de cada ejecución muestra
-los indicadores; el último mes:
+ganado acumulado y escribe la diferencia en el mes correspondiente. Como la simulación no completa la
+hoja `Análisis de desviaciones`, cada mes avisa de los paquetes del mes anterior que quedaron sin
+analizar ([ACT-044](codigos.md#act-044)); en un proyecto real, ese análisis se completa antes del cierre
+siguiente. Al final de cada ejecución muestra los indicadores; el último mes:
 
 ```text
 Fecha de corte: 31/12/2027 (mes 24 del horizonte)
@@ -200,6 +202,10 @@ El CPI de los últimos 3 meses (0,58) es mucho menor que el acumulado (0,76): el
 el EAC subió 2,1 millones respecto de noviembre. El cronograma vigente del ejemplo termina 36 días
 laborables después de la línea base, con 5 paquetes críticos atrasados: el atraso afecta la fecha de
 fin.
+
+En los dos últimos meses, con más del 20 % completado, `actualizar` avisa además que el EAC es poco
+realista ([ACT-048](codigos.md#act-048)): terminar dentro del BAC exige un TCPI de 1,11 frente al CPI de
+0,76 logrado hasta ahora.
 
 > `--sin-respaldo` evita crear 24 copias de respaldo durante la prueba. En el uso real conviene
 > conservar el respaldo.

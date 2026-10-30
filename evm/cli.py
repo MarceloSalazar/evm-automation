@@ -12,13 +12,16 @@ import argparse
 import logging
 import sys
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
 from evm import __version__, progress
 from evm.config import Config, ConfigError, load_config, parse_date, parse_month
 from evm.fields import fmt_number
-from evm.wbs import SEV_ERROR, SEV_INFO, SEV_WARN, assemble_report, build_part, fmt_money, plural
+from evm.messages import (SEV_ERROR, SEV_INFO, SEV_WARN, SUMMARY_ID, EvmError, Issue, MissingFileError, Silence,
+                          parse_silence)
+from evm.wbs import assemble_report, build_part, fmt_money, plural
 
 log = logging.getLogger("evm")
 
@@ -35,7 +38,8 @@ def _engine_for(origen: str, motor: str) -> str:
         return "xml"
     if ext in COM_EXTENSIONS:
         return "com"
-    raise ConfigError(f"No se reconoce la extensión '{ext}'. Se debe usar un archivo .mpp (requiere MS Project) "
+    raise ConfigError("CFG-035",
+                      f"No se reconoce la extensión '{ext}'. Se debe usar un archivo .mpp (requiere MS Project) "
                       "o .xml (MS Project > Guardar como > XML), o indicar --motor.")
 
 
@@ -48,7 +52,7 @@ def open_project(origen: str, cfg: Config, motor: str, visible: bool = False, st
     """
     engine = _engine_for(origen, motor)
     if origen.lower() != "activo" and not Path(origen).is_file():
-        raise FileNotFoundError(f"No existe el archivo de origen: {origen}")
+        raise MissingFileError("LEC-001", f"No existe el archivo de origen: {origen}")
     which = f" ({name})" if name else ""
     if engine == "xml":
         from evm.reader_xml import read_xml
@@ -95,8 +99,19 @@ def _apply_overrides(cfg: Config, args) -> Config:
         cfg.max_level = args.nivel_max
     if getattr(args, "planificacion", None) is not None:
         cfg.plan = args.planificacion.strip()
+    _add_silence(cfg, args)
     cfg.validate()
     return cfg
+
+
+def _add_silence(cfg: Config, args) -> None:
+    """--silenciar (se puede repetir y separar con comas) se suma a [validacion] silenciar."""
+    for item in getattr(args, "silenciar", None) or []:
+        cfg.silence += [x.strip() for x in item.split(",") if x.strip()]
+
+
+def _silence(cfg: Config) -> Silence:
+    return parse_silence(cfg.silence)
 
 
 def _sources(cfg: Config, args) -> list[tuple[str, str, Config]]:
@@ -108,23 +123,28 @@ def _sources(cfg: Config, args) -> list[tuple[str, str, Config]]:
     given = args.origen or []
     if not cfg.projects:
         if not given:
-            raise ConfigError("Se debe indicar el archivo de MS Project con --origen (o los archivos en secciones "
+            raise ConfigError("CFG-036",
+                              "Se debe indicar el archivo de MS Project con --origen (o los archivos en secciones "
                               "[[proyectos]] del archivo de configuración).")
         if len(given) > 1:
-            raise ConfigError("Para combinar varios archivos de MS Project en un mismo libro, se deben indicar en "
+            raise ConfigError("CFG-037",
+                              "Para combinar varios archivos de MS Project en un mismo libro, se deben indicar en "
                               "secciones [[proyectos]] del archivo de configuración (--origen se indica una vez).")
         return [("", given[0], cfg)]
     if args.planificacion is not None or args.linea_base is not None:
-        raise ConfigError("Con varios archivos ([[proyectos]]), la planificación y la línea base se indican en la "
+        raise ConfigError("CFG-038",
+                          "Con varios archivos ([[proyectos]]), la planificación y la línea base se indican en la "
                           "sección [[proyectos]] de cada archivo, no con --planificacion ni --linea-base.")
     origins = {p.name: p.origin for p in cfg.projects}
     for item in given:
         name, sep, path = (x.strip() for x in item.partition("="))
         if not sep or name not in origins or not path:
-            raise ConfigError(f"--origen '{item}': con varios archivos ([[proyectos]]) se indica NOMBRE=RUTA para "
+            raise ConfigError("CFG-039",
+                              f"--origen '{item}': con varios archivos ([[proyectos]]) se indica NOMBRE=RUTA para "
                               f"reemplazar la ruta de un archivo, con uno de estos nombres: {', '.join(origins)}.")
         if path.lower() == "activo":
-            raise ConfigError("Con varios archivos ([[proyectos]]) no se admite 'activo': se debe indicar la ruta del "
+            raise ConfigError("CFG-031",
+                              "Con varios archivos ([[proyectos]]) no se admite 'activo': se debe indicar la ruta del "
                               "archivo .mpp o .xml.")
         origins[name] = path
     return [(p.name, origins[p.name], cfg.project_config(p.name)) for p in cfg.projects]
@@ -137,16 +157,17 @@ def _reading(name: str, origin: str) -> str:
 MARKS = {SEV_ERROR: "[X]", SEV_WARN: "[!]", SEV_INFO: "[i]"}
 
 
-def _issue_line(i) -> str:
+def _issue_line(i: Issue) -> str:
+    """'  [!] FEC-003 1.2.3 Montaje: mensaje' (el código de la observación, la fila o tarea y el mensaje)."""
     where = f"{i.code} {i.name}".strip()
-    return f"  {MARKS.get(i.severity, '[!]')} {where + ': ' if where else ''}{i.message}"
+    return f"  {MARKS.get(i.severity, '[!]')} {i.id} {where + ': ' if where else ''}{i.message}"
 
 
-def _print_issues(issues, limit: int = 15) -> None:
+def _print_issues(issues: list[Issue], limit: int = 15) -> None:
     serious = [i for i in issues if i.severity != SEV_INFO]
     infos = [i for i in issues if i.severity == SEV_INFO]
     for i in infos:
-        print(f"  [i] {i.message}")
+        print(_issue_line(i))
     serious.sort(key=lambda i: i.severity != SEV_ERROR)
     for i in serious[:limit]:
         print(_issue_line(i))
@@ -161,18 +182,20 @@ def cmd_generar(args) -> int:
     if args.salida:
         salida = Path(args.salida)
     elif cfg.projects:
-        raise ConfigError("Con varios archivos ([[proyectos]]) se debe indicar el libro a crear con --salida.")
+        raise ConfigError("CFG-040",
+                          "Con varios archivos ([[proyectos]]) se debe indicar el libro a crear con --salida.")
     elif origen.lower() == "activo":
         salida = Path("EVM.xlsx")
     else:
         salida = Path(origen).with_name(Path(origen).stem + "_EVM.xlsx")
     if salida.suffix.lower() != ".xlsx":
-        raise ConfigError("La salida debe ser un archivo .xlsx")
+        raise ConfigError("CFG-041", "La salida debe ser un archivo .xlsx")
     if salida.exists() and not args.sobrescribir:
-        raise ConfigError(f"'{salida}' ya existe. Para reemplazarlo se debe usar --sobrescribir; para conservar "
+        raise ConfigError("CFG-042",
+                          f"'{salida}' ya existe. Para reemplazarlo se debe usar --sobrescribir; para conservar "
                           "los EV/AC cargados se debe generar un archivo nuevo con --migrar-desde.")
     if args.migrar_desde and Path(args.migrar_desde).resolve() == salida.resolve():
-        raise ConfigError("--migrar-desde debe ser un archivo distinto de --salida.")
+        raise ConfigError("CFG-043", "--migrar-desde debe ser un archivo distinto de --salida.")
 
     from evm.workbook import check_writable, write_workbook
     if salida.exists():
@@ -193,6 +216,15 @@ def cmd_generar(args) -> int:
             progress.stage("migrar", "Lectura del libro anterior")
             prior = prior_from_book(args.migrar_desde, report.project.name)
             report.issues.extend(plan_migration(report, prior, cfg.max_level))
+        silence = _silence(cfg)
+        unmatched = []
+        if prior is not None and prior.unmatched:
+            lost_ev = sum(r.total("EV") for r in prior.unmatched)
+            lost_ac = sum(r.total("AC") for r in prior.unmatched)
+            unmatched = silence.filter([Issue("MIG-017", message=f"{len(prior.unmatched)} filas no se pudieron "
+                                                                 f"trasladar (EV {fmt_money(lost_ev)}, AC "
+                                                                 f"{fmt_money(lost_ac)}). Ver hoja 'Validación'.")])
+        report.issues = silence.apply(report.issues)
         write_workbook(report, cfg, salida, prior)
 
     leaves = sum(1 for r in report.rows if r.is_input)
@@ -213,12 +245,9 @@ def cmd_generar(args) -> int:
     print(f"  BAC: se debe ingresar el BAC de cada fila en la columna D de {sheets} (celdas amarillas).")
     _print_issues(report.issues)
     if prior is not None:
-        lost_ev = sum(r.total("EV") for r in prior.unmatched)
-        lost_ac = sum(r.total("AC") for r in prior.unmatched)
         print(f"Migración desde {args.migrar_desde}: {prior.matched} filas con historial trasladado.")
-        if prior.unmatched:
-            print(f"  [!] {len(prior.unmatched)} filas no se pudieron trasladar (EV {fmt_money(lost_ev)}, AC "
-                  f"{fmt_money(lost_ac)}). Ver hoja 'Validación'.")
+        for i in unmatched:
+            print(_issue_line(i))
     print(f"Libro generado: {salida.resolve()}")
     return 0
 
@@ -248,7 +277,7 @@ def _print_schedule(plan) -> None:
     print(f"  Paquetes críticos sin terminar: {plan.critical} ({plan.late_critical} con fin atrasado)")
 
 
-def _print_update(res, currency: str) -> None:
+def _print_update(res, currency: str, silence: Silence) -> None:
     from evm.indicators import format_table
     from evm.update import indicators_for
     print(f"Fecha de corte: {res.status_date:%d/%m/%Y} (mes {res.month_index + 1} del horizonte)")
@@ -261,22 +290,22 @@ def _print_update(res, currency: str) -> None:
         for r in res.rows:
             print(f"{r.code:<10} {m(r.ev_month):>16} {m(r.ev_cum):>16}"
                   + "".join(f" {m(r.by_company.get(k)):>16}" for k in company_cols))
-    shown = [r for r in res.rows if r.note]
-    if shown:
+    notes = silence.filter([n for r in res.rows for n in r.notes])
+    if notes:
         print("Observaciones por fila:")
-        for r in shown[:25]:
-            print(f"  {r.code} {r.name[:40]}: {r.note}")
-        if len(shown) > 25:
-            print(f"  ... y {len(shown) - 25} más")
-    for w in res.warnings[:30]:
-        print(f"  [!] {w}")
-    if len(res.warnings) > 30:
-        print(f"  ... y {len(res.warnings) - 30} advertencias más.")
+        for n in notes[:25]:
+            print(_issue_line(replace(n, name=n.name[:40])))
+        if len(notes) > 25:
+            print(f"  ... y {len(notes) - 25} más")
+    reminder = []
     if res.book is not None and res.book.multi:
-        print(f"  [i] El AC se carga a mano en las hojas 'AC-{res.book.company_a}' y 'AC-{res.book.company_b}'; "
-              "los indicadores de costo usan los valores cargados.")
+        reminder.append(Issue("ACT-026", message=f"El AC se carga a mano en las hojas 'AC-{res.book.company_a}' y "
+                                                 f"'AC-{res.book.company_b}'; los indicadores de costo usan los "
+                                                 "valores cargados."))
     elif res.book is not None:
-        print("  [i] El AC se carga a mano en la hoja 'AC'; los indicadores de costo usan los valores cargados.")
+        reminder.append(Issue("ACT-026", message="El AC se carga a mano en la hoja 'AC'; los indicadores de costo "
+                                                 "usan los valores cargados."))
+    _print_notices(silence.apply(res.warnings + reminder))
     _print_deviations(res)
     if res.book is not None:
         print()
@@ -284,6 +313,18 @@ def _print_update(res, currency: str) -> None:
     if res.schedule is not None:
         print()
         _print_schedule(res.schedule)
+
+
+def _print_notices(issues: list[Issue], limit: int = 30) -> None:
+    """Advertencias e informativas de actualizar, analizar y generar-fichas (el resumen de las silenciadas, siempre)."""
+    shown = [i for i in issues if i.id != SUMMARY_ID]
+    for i in shown[:limit]:
+        print(_issue_line(i))
+    if len(shown) > limit:
+        print(f"  ... y {len(shown) - limit} observaciones más.")
+    for i in issues:
+        if i.id == SUMMARY_ID:
+            print(_issue_line(i))
 
 
 def _print_deviations(res, limit: int = 25) -> None:
@@ -311,14 +352,14 @@ def _print_deviations(res, limit: int = 25) -> None:
 
 def cmd_analizar(args) -> int:
     cfg = load_config(args.config)
+    _add_silence(cfg, args)
     from evm.update import run_analysis
     from evm.workbook import check_writable
     check_writable(args.libro)
     with progress.tracking({"libro": 40.0, "analizar": 10.0, "guardar": 40.0}):
         res = run_analysis(cfg, args.libro, backup=not args.sin_respaldo)
     print(f"Fecha de corte: {res.status_date:%d/%m/%Y} (mes {res.month_index + 1} del horizonte)")
-    for w in res.warnings:
-        print(f"  [!] {w}")
+    _print_notices(_silence(cfg).apply(res.warnings))
     _print_deviations(res)
     if res.backup:
         print(f"Respaldo: {res.backup}")
@@ -347,7 +388,7 @@ def cmd_actualizar(args) -> int:
                 projects[name] = project
         res = run_update(projects if cfg.projects else projects[""], cfg, args.libro, status,
                          backup=not args.sin_respaldo, force=args.forzar, dry_run=args.simular)
-    _print_update(res, str(res.book.meta.get("moneda") or "") if res.book else "")
+    _print_update(res, str(res.book.meta.get("moneda") or "") if res.book else "", _silence(cfg))
     if args.simular:
         print("Simulación: no se modificó el libro.")
     else:
@@ -369,10 +410,12 @@ def _count_text(issues) -> str:
 
 def _print_validation(issues, limit: int | None) -> None:
     """Observaciones agrupadas por tema (el tema Libro, solo si tiene observaciones)."""
-    from evm.wbs import TOPIC_BOOK, TOPICS
+    from evm.messages import TOPIC_BOOK, TOPICS
     order = {SEV_ERROR: 0, SEV_WARN: 1, SEV_INFO: 2}
     for topic in TOPICS:
-        found = sorted((i for i in issues if i.topic == topic), key=lambda i: order.get(i.severity, 1))
+        # El resumen de las observaciones silenciadas va primero: no queda fuera del límite
+        found = sorted((i for i in issues if i.topic == topic),
+                       key=lambda i: (i.id != SUMMARY_ID, order.get(i.severity, 1)))
         if not found and topic == TOPIC_BOOK:
             continue
         print()
@@ -398,6 +441,7 @@ def cmd_validar(args) -> int:
                 parts.append(validate_part(project, pcfg, name, status))
         progress.stage("revisar", "Revisión de los códigos EDT de todos los archivos")
         report, issues = combine(parts, cfg)
+    issues = _silence(cfg).apply(issues)
 
     def when(project) -> str:
         if status is not None:
@@ -439,15 +483,16 @@ def cmd_generar_fichas(args) -> int:
     if args.salida:
         salida = Path(args.salida)
     elif cfg.projects:
-        raise ConfigError("Con varios archivos ([[proyectos]]) se debe indicar el archivo de las fichas con --salida.")
+        raise ConfigError("CFG-040",
+                          "Con varios archivos ([[proyectos]]) se debe indicar el archivo de las fichas con --salida.")
     elif origen.lower() == "activo":
         salida = Path("Fichas.md")
     else:
         salida = Path(origen).with_name(Path(origen).stem + "_fichas.md")
     if salida.suffix.lower() != ".md":
-        raise ConfigError("Las fichas se guardan en un archivo .md (Markdown).")
+        raise ConfigError("CFG-041", "Las fichas se guardan en un archivo .md (Markdown).")
     if salida.exists() and not args.sobrescribir:
-        raise ConfigError(f"'{salida}' ya existe. Para reemplazarlo se debe usar --sobrescribir.")
+        raise ConfigError("CFG-042", f"'{salida}' ya existe. Para reemplazarlo se debe usar --sobrescribir.")
 
     parts = []
     with progress.tracking(_stages(files, args.motor, compute=10.0, after={"fichas": 5.0})):
@@ -473,22 +518,26 @@ def cmd_generar_fichas(args) -> int:
             print(f"  Planificación: {report.plan}")
         print(f"  {report.project.baseline_label}")
     print(f"  Fichas: {len(cards.cards)}  |  {_rows_rule(cfg)}  |  Vínculos entre fichas: {cards.links}")
-    for s in report.sources:
-        for w in s.project.warnings:
-            print(f"  [!] {f'[{s.name}] ' if s.name else ''}{w}")
+    silence = _silence(cfg)
+    notices = [replace(w, message=f"[{s.name}] {w.message}") if s.name else w
+               for s in report.sources for w in s.project.warnings]
     if not cards.cards:
-        print("  [!] Ninguna tarea tiene código EDT: no hay fichas. Se debe revisar el campo EDT configurado "
-              "([campos] edt) y la planificación elegida.")
+        notices.append(Issue("FIC-001", message="Ninguna tarea tiene código EDT: no hay fichas. Se debe revisar el "
+                                                "campo EDT configurado ([campos] edt) y la planificación elegida."))
     if cards.hidden:
-        print(f"  [i] {plural(cards.hidden, 'vínculo', 'vínculos')} con tareas sin ficha (de otra planificación, "
-              "inactivas, con Visible = No, fuera de la lista EDT o de otro proyecto): no se muestran.")
+        notices.append(Issue("FIC-002", message=f"{plural(cards.hidden, 'vínculo', 'vínculos')} con tareas sin ficha "
+                                                "(de otra planificación, inactivas, con Visible = No, fuera de la "
+                                                "lista EDT o de otro proyecto): no se muestran."))
     if cards.current:
-        print(f"  [!] {plural(cards.current, 'ficha', 'fichas')} sin línea base: se usaron las fechas y la duración "
-              "del programa actual (se indica en la ficha).")
-    errors = sum(1 for i in report.issues if i.severity == SEV_ERROR)
+        notices.append(Issue("FIC-003", message=f"{plural(cards.current, 'ficha', 'fichas')} sin línea base: se "
+                                                "usaron las fechas y la duración del programa actual (se indica en "
+                                                "la ficha)."))
+    errors = sum(1 for i in report.issues if i.severity == SEV_ERROR and not silence.matches(i))
     if errors:
-        print(f"  [!] El archivo tiene {plural(errors, 'error', 'errores')} (por ejemplo, códigos EDT duplicados): "
-              "se recomienda revisarlo con 'validar'.")
+        notices.append(Issue("FIC-004", message=f"El archivo tiene {plural(errors, 'error', 'errores')} (por "
+                                                "ejemplo, códigos EDT duplicados): se recomienda revisarlo con "
+                                                "'validar'."))
+    _print_notices(silence.apply(notices), limit=50)
     print(f"Fichas generadas: {salida.resolve()}")
     return 0
 
@@ -518,6 +567,13 @@ def build_parser() -> argparse.ArgumentParser:
                         help="código EDT de la planificación a exportar, p. ej. INTERNO o CLIENTE (reemplaza el "
                              "valor del archivo de configuración; \"\" = todas)")
         sp.add_argument("--visible", action="store_true", help="muestra MS Project durante la lectura (COM)")
+        silence_option(sp)
+
+    def silence_option(sp):
+        sp.add_argument("--silenciar", action="append", metavar="CODIGOS",
+                        help="códigos de las observaciones que no se muestran, separados por comas (p. ej. "
+                             "FEC-003,LOG-004 o MET-002:1.2.3 para una fila); se suman a [validacion] silenciar. "
+                             "Ver docs/codigos.md")
 
     g = sub.add_parser("generar", help="crea el libro Excel con el PV mensual a partir de MS Project")
     common_source(g)
@@ -559,9 +615,10 @@ def build_parser() -> argparse.ArgumentParser:
     n = sub.add_parser("analizar", help="actualiza la hoja 'Análisis de desviaciones' con los valores del libro, "
                                         "sin leer MS Project (p. ej. después de cargar a mano el AC del mes)")
     n.add_argument("--libro", required=True, help="libro .xlsx generado con 'generar'")
-    n.add_argument("--config", help="se admite por compatibilidad y no se usa: el libro guarda los umbrales del "
-                                    "semáforo")
+    n.add_argument("--config", help="archivo de configuración: solo se usa [validacion] silenciar (el libro guarda "
+                                    "los umbrales del semáforo)")
     n.add_argument("--sin-respaldo", action="store_true", help="no crea copia de respaldo del libro")
+    silence_option(n)
     n.set_defaults(func=cmd_analizar)
 
     return p
@@ -582,15 +639,20 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Exportador EVM {__version__}", flush=True)
     try:
         return args.func(args)
-    except (ConfigError, FileNotFoundError, PermissionError, ValueError, RuntimeError) as exc:
+    except EvmError as exc:                 # errores previstos, con su código del catálogo (docs/codigos.md)
         if args.verbose:
             log.exception("Error")
-        print(f"ERROR: {exc}", file=sys.stderr)
+        _error(exc.id, str(exc))
+        return 2
+    except (FileNotFoundError, PermissionError, ValueError, RuntimeError) as exc:
+        if args.verbose:
+            log.exception("Error")
+        _error("SIS-003", str(exc))
         return 2
     except OSError as exc:  # disco lleno, unidad de red no disponible, ruta no válida...
         if args.verbose:
             log.exception("Error")
-        print(f"ERROR: no se pudo leer o escribir un archivo: {exc}", file=sys.stderr)
+        _error("SIS-002", f"no se pudo leer o escribir un archivo: {exc}")
         return 2
     except KeyboardInterrupt:
         print("Cancelado.", file=sys.stderr)
@@ -600,5 +662,10 @@ def main(argv: list[str] | None = None) -> int:
             log.exception("Error inesperado")
         else:
             print("Para ver el detalle técnico se debe ejecutar de nuevo con -v.", file=sys.stderr)
-        print(f"ERROR inesperado: {type(exc).__name__}: {exc}", file=sys.stderr)
+        _error("SIS-001", f"error inesperado: {type(exc).__name__}: {exc}")
         return 3
+
+
+def _error(id: str, text: str) -> None:
+    """Error que detiene el programa: 'ERROR CFG-001: mensaje' en la salida de error."""
+    print(f"ERROR {id}: {text}", file=sys.stderr)

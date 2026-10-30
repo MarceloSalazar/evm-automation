@@ -115,6 +115,15 @@ flowchart LR
 3. Se completan las columnas amarillas de los paquetes del mes, con los responsables de cada paquete
    ([Proceso de reporte](proceso-reporte-evm.md#43-pasos-detallados)).
 
+En el cierre siguiente, `actualizar` y `analizar` revisan el análisis del mes anterior (la norma
+EIA-748 pide explicar cada mes las desviaciones significativas y seguir las acciones hasta su cierre):
+
+| Aviso | Qué indica |
+|---|---|
+| [ACT-043](codigos.md#act-043) | Una fila del análisis anterior tiene texto, pero no tiene *Causa* o no tiene *Acción correctiva*. |
+| [ACT-044](codigos.md#act-044) | Paquetes del análisis anterior **sin ningún texto**: se quitan de la hoja (como siempre), pero quedan listados en la consola. Los que siguen fuera de umbral vuelven a listarse en el mes de corte. |
+| [ACT-045](codigos.md#act-045) | Acción vencida: el paquete sigue fuera de umbral y la *Fecha compromiso* de su acción es anterior a la fecha de corte. Si el paquete vuelve al rango verde, deja de listarse y la acción se da por cumplida. |
+
 ---
 
 ## 4. Qué se conserva de un mes a otro
