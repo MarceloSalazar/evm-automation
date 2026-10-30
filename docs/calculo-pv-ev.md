@@ -148,12 +148,21 @@ ceros finales no cuentan.
 | `2.1.0` | 2 | Subtotal o fila de ingreso si no tiene hijos. |
 | `2.1.1` | 3 | Fila de ingreso: paquete de trabajo. |
 | `2.1.1.1` | 4 | Sin fila propia: forma parte de `2.1.1`. |
-| `2.1.0.1` | 3 | Fila de ingreso: hijo directo de `2.1.0`, como `2.1.1` (0 intermedio). |
+| `2.1.0.1` | 4 | Sin fila propia: actividad de `2.1.0` (0 intermedio), se suma en su fila. |
 
-Un **0 intermedio** permite insertar un elemento sin renumerar a sus hermanos: debajo de `1.2.0.0`,
-`1.2.0.1` se inserta antes de `1.2.1.0` y es su hermano. Los ceros intermedios no cuentan para el nivel,
-igual que los finales. `1.2.0.1` debajo de `1.2.1.0` sigue siendo un error: su código no depende del de
-su tarea superior.
+Un **0 intermedio** indica que el código depende directamente del elemento formado por los segmentos
+anteriores: `1.2.0.1` depende de `1.2.0.0`. Su nivel depende de `[exportacion] ignorar_ceros_intermedios`:
+
+| `ignorar_ceros_intermedios` | Nivel de `1.2.0.1` | Uso |
+|---|---|---|
+| `false` (por defecto) | 4, como `1.2.1.1` | Una actividad de `1.2.0.0` sin paquete de nivel 3. Con `nivel_maximo = 3` se suma en la fila de `1.2.0.0` o, si `1.2.0.0` tiene otras filas (como `1.2.1.0`), en su fila `1.2.0.0-D` (*Otras tareas*). |
+| `true` | 3, como `1.2.1.0` | Un elemento insertado debajo de `1.2.0.0`, antes de `1.2.1.0`, sin renumerar a sus hermanos: tiene fila propia. |
+
+En los dos casos, `1.2.0.1` debajo de `1.2.1.0` es un error: su código no depende del de su tarea
+superior. `actualizar` usa el valor con que se generó el libro (los libros de las versiones 2.3.0 a 2.4.x
+no contaban los ceros intermedios); si la configuración indica otro y alguna fila cambiaría, lo informa
+([ACT-050](codigos.md#act-050)) y el libro conserva sus filas. Para aplicar el cambio, se regenera el libro con
+`--migrar-desde`.
 
 - Tienen fila propia las tareas con código EDT hasta el nivel máximo (`nivel_maximo`, 3 por defecto).
 - El % planificado y el % ganado de una fila de nivel 3 se calculan con todas las tareas de detalle que
@@ -656,6 +665,7 @@ comportamiento esperado de ese método.
 | Campo `Visible` distinto de las filas del libro | `Visible` cambió después de generar el libro: el libro conserva sus filas y su % planificado hasta regenerarlo; el % ganado usa el valor actual ([sección 3.3](#33-campo-visible-más-o-menos-detalle-en-cada-rama)). |
 | Libro de otro proyecto | Si el nombre del proyecto no coincide con el del libro, las filas se asocian por código EDT y se recomienda verificar los resultados. |
 | Planificación distinta | `actualizar` usa siempre la planificación con la que se generó el libro. |
+| `ignorar_ceros_intermedios` distinto del libro | Algunas tareas con un 0 intermedio en el código tendrían otra fila: el libro conserva sus filas hasta regenerarlo con `--migrar-desde` ([ACT-050](codigos.md#act-050); [sección 3.2](#32-niveles-por-código-edt)). |
 | Celdas convertidas | Celdas de ingreso con texto o fórmulas que se reemplazaron por su valor numérico. |
 | Celdas sin la fórmula del libro | Subtotales, fila TOTAL o suma de las empresas que perdieron su fórmula (por ejemplo, porque se escribió un valor encima): se informan para restaurarlas. |
 | Cambios del BAC o de meses ya informados | El BAC de una fila, o el % ganado o el AC de un mes anterior al mes de corte, cambiaron desde la ejecución anterior: se agregan a la hoja `Registro de cambios` para indicar el motivo ([El libro Excel](libro-excel.md#registro-de-cambios)). |

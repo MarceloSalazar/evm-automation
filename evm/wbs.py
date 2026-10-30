@@ -180,18 +180,31 @@ def fmt_money(v: float) -> str:
 # ----------------------------------------------------------------------------
 # Códigos EDT y planificación
 # ----------------------------------------------------------------------------
-def code_level(code: str) -> int:
-    """Nivel de un código EDT: cantidad de segmentos sin contar los ceros finales ni los intermedios.
-
-    '2.0.0' -> 1, '2.1.0' -> 2, '2.1.1' -> 3, '2.1.1.4' -> 4, 'INTERNO' -> 1. Un 0 intermedio indica un hijo
-    directo del elemento anterior: '1.2.0.1' -> 3 (hijo de 1.2, como 1.2.1.0).
-    """
+def _code_parts(code: str) -> list[str]:
+    """Segmentos de un código EDT sin los ceros finales (relleno): '1.2.0.1.0' -> ['1', '2', '0', '1']."""
     parts = [p.strip() for p in (code or "").strip().split(".")]
     while len(parts) > 1 and not parts[-1].strip("0"):
         parts.pop()
-    if all(p.isdigit() for p in parts):
+    return parts
+
+
+def code_level(code: str, ignore_interior_zeros: bool = False) -> int:
+    """Nivel de un código EDT: cantidad de segmentos sin contar los ceros finales.
+
+    '2.0.0' -> 1, '2.1.0' -> 2, '2.1.1' -> 3, '2.1.1.4' -> 4, 'INTERNO' -> 1. Un 0 intermedio cuenta como un
+    nivel sin elemento: '1.2.0.1' -> 4 (actividad de 1.2). Con ignore_interior_zeros ([exportacion]
+    ignorar_ceros_intermedios) tampoco cuentan los ceros intermedios: '1.2.0.1' -> 3 (hijo de 1.2, como 1.2.1.0).
+    """
+    parts = _code_parts(code)
+    if ignore_interior_zeros and all(p.isdigit() for p in parts):
         return 1 + sum(1 for p in parts[1:] if p.strip("0"))
     return len(parts)
+
+
+def has_interior_zero(code: str) -> bool:
+    """El código EDT numérico tiene un 0 intermedio (su nivel depende de ignorar_ceros_intermedios)."""
+    parts = _code_parts(code)
+    return all(p.isdigit() for p in parts) and any(not p.strip("0") for p in parts[1:])
 
 
 class PlanNotFound(ConfigError):
@@ -324,8 +337,9 @@ def row_visibility(scope: Scope, cfg: Config, code_of=None) -> Visibility:
                 out.issues.append(Issue("VIS-004", code_of(t), t.name,
                                         "Visible = Sí en una tarea sin código EDT: no puede tener fila propia; se "
                                         "suma en su fila superior."))
-            has_row = bool(raw) and inner is None and (value is True or code_level(raw) <= cfg.max_level)
-            if has_row and code_level(raw) > cfg.max_level:
+            level = code_level(raw, cfg.ignore_interior_zeros)
+            has_row = bool(raw) and inner is None and (value is True or level <= cfg.max_level)
+            if has_row and level > cfg.max_level:
                 out.shown += 1
             out.rows[t.uid] = has_row
             walk(t.children, t, inner)
@@ -594,9 +608,9 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
         row_tasks, loose_full, loose_own = gather(t)
         # En el nivel máximo la fila suma toda su rama, salvo que una tarea de la rama tenga Visible = Sí
         is_leaf_row = not row_tasks or (not visibility.listed
-                                        and code_level(scope.raw_code(t)) >= cfg.max_level
-                                        and not any(code_level(scope.raw_code(c)) > cfg.max_level
-                                                    for c in row_tasks))
+                                        and code_level(scope.raw_code(t), cfg.ignore_interior_zeros) >= cfg.max_level
+                                        and not any(code_level(scope.raw_code(c), cfg.ignore_interior_zeros)
+                                                    > cfg.max_level for c in row_tasks))
         row = ReportRow(code=code_of(t), name=t.name, level=(parent.level + 1) if parent else 1,
                         kind=KIND_LEAF if is_leaf_row else KIND_SUMMARY, task=t,
                         start=s, finish=f, parent=parent)

@@ -113,9 +113,9 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [AVA](#49-ava--avance-a-la-fecha-de-estado) | Avance a la fecha de estado | Avance a la fecha de estado | validar | 17 |
 | [LOG](#410-log--lógica-del-cronograma) | Lógica del cronograma | Lógica del cronograma | validar | 16 |
 | [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar y generar `--migrar-desde` (lectura del libro) | 15 |
-| [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 19 |
+| [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 20 |
 | [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 8 |
-| [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 49 |
+| [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 50 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
 | [SIS](#416-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
 
@@ -1912,6 +1912,7 @@ Traslado del BAC, el % ganado, el AC y los métodos de un libro anterior.
 | [MIG-017](#mig-017) | Advertencia | Filas sin trasladar |
 | [MIG-018](#mig-018) | Info | Registro de cambios trasladado |
 | [MIG-019](#mig-019) | Error | Valores escritos sobre fórmulas sin trasladar |
+| [MIG-020](#mig-020) | Advertencia | Ceros intermedios con otro criterio |
 
 #### MIG-001
 
@@ -1965,7 +1966,7 @@ Las filas que ahora se dividen en varias no pueden repartir su historial.
 
 **Historial sumado en el paquete** · Info · generar `--migrar-desde` (hoja Validación) · se puede silenciar
 
-El historial de una fila anterior que quedó dentro de un paquete nuevo se sumó en ese paquete.
+El historial de una fila anterior que quedó dentro de un paquete nuevo, o de una fila -D (Otras tareas), se sumó en esa fila.
 
 **Qué hacer:** Ninguna.
 
@@ -2064,6 +2065,14 @@ Se trasladaron las filas de la hoja Registro de cambios y la referencia de los v
 El libro anterior tiene valores escritos sobre celdas que deben tener fórmula (subtotales, fila TOTAL o suma de las empresas; ver [ACT-024](#act-024)). El libro nuevo tiene la fórmula en esas celdas: los valores no se trasladan.
 
 **Qué hacer:** Revisar esas celdas en el libro anterior: si son el AC o el BAC de un paquete, cargarlos en sus filas de ingreso del libro nuevo.
+
+#### MIG-020
+
+**Ceros intermedios con otro criterio** · Advertencia · generar `--migrar-desde` (hoja Validación) · se puede silenciar
+
+El libro anterior y el nuevo se generaron con distinto ignorar_ceros_intermedios: los códigos con un 0 intermedio (p. ej. 1.2.0.1) cambian de nivel. Las filas que ahora se dividen en varias no pueden repartir su historial.
+
+**Qué hacer:** Cargar a mano el historial de las filas que informa [MIG-014](#mig-014).
 
 ---
 
@@ -2203,6 +2212,7 @@ Carga del % ganado del mes: fecha de corte, filas del libro, BAC y observaciones
 | [ACT-047](#act-047) | Advertencia | Línea base de MS Project distinta de la del libro |
 | [ACT-048](#act-048) | Advertencia | EAC poco realista |
 | [ACT-049](#act-049) | Advertencia | Mucho BAC en filas LOE |
+| [ACT-050](#act-050) | Advertencia | Ceros intermedios con otro criterio que el libro |
 
 #### ACT-001
 
@@ -2595,6 +2605,14 @@ El TCPI(BAC) supera al CPI en más de 0,10, o el AC ya alcanzó el BAC con traba
 El % del BAC total en filas con método LOE supera `[validacion] loe_maximo`: su EV es igual a su PV y acerca el SPI a 1 aunque el trabajo medible se atrase. La norma EIA-748-E pide mantener el LOE al mínimo.
 
 **Qué hacer:** Medir con hitos o % completado el trabajo que lo permita, o ajustar loe_maximo si el contrato lo admite.
+
+#### ACT-050
+
+**Ceros intermedios con otro criterio que el libro** · Advertencia · actualizar · se puede silenciar
+
+ignorar_ceros_intermedios de la configuración no coincide con el del libro, y algunas tareas con un 0 intermedio en el código (p. ej. 1.2.0.1) tendrían otra fila: el libro conserva sus filas.
+
+**Qué hacer:** Para aplicar la configuración, regenerar el libro con `--migrar-desde`; si no, indicar en la configuración el valor con que se generó el libro.
 
 ---
 

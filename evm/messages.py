@@ -863,7 +863,8 @@ _CODES = [
           "Las filas que ahora se dividen en varias no pueden repartir su historial.",
           "Cargar a mano el historial de las filas que informa MIG-014."),
     _code("MIG-007", I, "Historial sumado en el paquete",
-          "El historial de una fila anterior que quedó dentro de un paquete nuevo se sumó en ese paquete.",
+          "El historial de una fila anterior que quedó dentro de un paquete nuevo, o de una fila -D (Otras tareas), "
+          "se sumó en esa fila.",
           "Ninguna."),
     _code("MIG-008", W, "Historial asociado por código EDT",
           "La fila recibió el historial de una fila anterior con otro nombre, asociada por código EDT.",
@@ -905,6 +906,11 @@ _CODES = [
           "trasladan.",
           "Revisar esas celdas en el libro anterior: si son el AC o el BAC de un paquete, cargarlos en sus filas de "
           "ingreso del libro nuevo.", "generar --migrar-desde"),
+    _code("MIG-020", W, "Ceros intermedios con otro criterio",
+          "El libro anterior y el nuevo se generaron con distinto ignorar_ceros_intermedios: los códigos con un 0 "
+          "intermedio (p. ej. 1.2.0.1) cambian de nivel. Las filas que ahora se dividen en varias no pueden repartir "
+          "su historial.",
+          "Cargar a mano el historial de las filas que informa MIG-014."),
 
     # --- DEP: depuración de costes ------------------------------------------------------------------------------
     _code("DEP-001", I, "Depuración de costes activa",
@@ -1112,6 +1118,11 @@ _CODES = [
           "el SPI a 1 aunque el trabajo medible se atrase. La norma EIA-748-E pide mantener el LOE al mínimo.",
           "Medir con hitos o % completado el trabajo que lo permita, o ajustar loe_maximo si el contrato lo admite.",
           W_AN),
+    _code("ACT-050", W, "Ceros intermedios con otro criterio que el libro",
+          "ignorar_ceros_intermedios de la configuración no coincide con el del libro, y algunas tareas con un 0 "
+          "intermedio en el código (p. ej. 1.2.0.1) tendrían otra fila: el libro conserva sus filas.",
+          "Para aplicar la configuración, regenerar el libro con --migrar-desde; si no, indicar en la configuración "
+          "el valor con que se generó el libro."),
 
     # --- FIC: fichas de tareas ----------------------------------------------------------------------------------
     _code("FIC-001", W, "No hay fichas",

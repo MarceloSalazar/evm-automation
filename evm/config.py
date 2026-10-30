@@ -104,6 +104,9 @@ class Config:
     # [exportacion]
     plan: str = ""                        # código EDT de la planificación (p. ej. INTERNO); "" = todas
     max_level: int = 3
+    # ignorar_ceros_intermedios: un 0 intermedio no cuenta para el nivel (1.2.0.1 es de nivel 3, como 1.2.1.0);
+    # False = el nivel es la posición del último segmento (1.2.0.1 es de nivel 4, actividad de 1.2)
+    ignore_interior_zeros: bool = False
     baseline: int | None = None           # 0 = Línea base; 1..10 = Línea base N; None = la del proyecto
     pad_wbs: bool = True                  # "1" -> "1.0.0", "1.2" -> "1.2.0"
     # lista_edt: archivo con los códigos EDT que tienen fila en el libro (reemplaza a max_level y al campo Visible
@@ -397,6 +400,7 @@ def load_config(path: str | Path | None) -> Config:
     exp = _section(data, "exportacion")
     cfg.plan = _get(exp, "planificacion", cfg.plan, str).strip()
     cfg.max_level = _get(exp, "nivel_maximo", cfg.max_level, int)
+    cfg.ignore_interior_zeros = _get(exp, "ignorar_ceros_intermedios", cfg.ignore_interior_zeros, bool)
     if exp.get("linea_base") not in (None, ""):
         cfg.baseline = _get(exp, "linea_base", 0, int)
     cfg.pad_wbs = _get(exp, "rellenar_edt", cfg.pad_wbs, bool)

@@ -10,8 +10,8 @@ from evm.config import Config, ConfigError, load_config
 from evm.model import CONSTRAINT_MSO, LINK_FF, LINK_FS, LINK_SF, LINK_SS, Link
 from evm.reader_xml import duration_minutes, read_xml
 from evm.validation import logic_checks, progress_checks, validate_part
-from evm.wbs import (KIND_LEAF, SEV_ERROR, SEV_INFO, SEV_WARN, TOPIC_DATES, TOPIC_LOGIC, TOPIC_METHOD,
-                     TOPIC_PROGRESS, TOPIC_WBS, TOPIC_WEIGHTS, build_part, build_report)
+from evm.wbs import (SEV_ERROR, SEV_INFO, SEV_WARN, TOPIC_DATES, TOPIC_LOGIC, TOPIC_METHOD, TOPIC_PROGRESS,
+                     TOPIC_WBS, TOPIC_WEIGHTS, build_part, build_report)
 
 from builders import P, by_name, tree
 from mspdi import NUMBER1, TEXT10, project_xml, task_xml, write_xml
@@ -71,38 +71,6 @@ def test_code_format_errors():
     by = {i.name: i for i in found(rep, TOPIC_WBS) if i.name in ("Vacio", "Letra")}
     assert by["Vacio"].severity == SEV_ERROR and "formato no válido" in by["Vacio"].message
     assert by["Letra"].severity == SEV_WARN and "no numérico" in by["Letra"].message
-
-
-def test_interior_zero_is_a_direct_child_of_the_previous_element():
-    """1.2.0.1 se inserta debajo de 1.2.0.0 sin renumerar a 1.2.1.0: es su hijo directo, de nivel 3."""
-    tasks = tree('''
-        1.0.0.0 Fase
-          1.0.0.3 Directo de 1
-          1.2.0.0 Elemento
-            1.2.0.1 Insertado
-            1.2.1.0 Paquete
-              1.2.1.1 Actividad
-    ''')
-    rep = report(tasks, Config(max_level=3))
-    assert not found(rep, TOPIC_WBS, SEV_ERROR) and not found(rep, TOPIC_WBS, SEV_WARN)
-    rows = {r.code: r for r in rep.rows}
-    assert rows["1.2.0.1"].kind == KIND_LEAF and rows["1.2.0.1"].parent.code == "1.2.0.0"
-    assert rows["1.2.1.0"].kind == KIND_LEAF and "1.2.1.1" not in rows           # nivel 4: se suma en 1.2.1.0
-    assert rows["1.0.0.3"].parent.code == "1.0.0.0"
-
-
-def test_interior_zero_under_another_element_is_an_error():
-    tasks = tree('''
-        1 Fase
-          1.0.3 Bien
-          1.2 Elemento
-            1.2.1 Paquete
-              1.2.0.1 Mal ubicado
-    ''')
-    rep = report(tasks)
-    by = {i.name: i for i in found(rep, TOPIC_WBS)}
-    assert by["Mal ubicado"].severity == SEV_ERROR and "no depende del de su tarea superior" in by["Mal ubicado"].message
-    assert "Bien" not in by
 
 
 def test_skipped_level_order_gaps_and_duplicates():

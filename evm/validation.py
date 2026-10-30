@@ -125,9 +125,10 @@ def _pattern(prefix: tuple[int, ...]) -> str:
     return ".".join(str(n) for n in prefix) + ".x"
 
 
-def _depth(sig: tuple[int, ...]) -> int:
-    """Nivel de un código: sus segmentos significativos sin los ceros intermedios ((1, 2, 0, 1) -> 3)."""
-    return 1 + sum(1 for n in sig[1:] if n)
+def _depth(sig: tuple[int, ...], ignore_interior_zeros: bool) -> int:
+    """Nivel de un código: sus segmentos significativos ((1, 2, 0, 1) -> 4) o, con ignorar_ceros_intermedios,
+    sin los ceros intermedios ((1, 2, 0, 1) -> 3)."""
+    return 1 + sum(1 for n in sig[1:] if n) if ignore_interior_zeros else len(sig)
 
 
 def _upper(sig: tuple[int, ...]) -> tuple[int, ...]:
@@ -142,14 +143,18 @@ def wbs_checks(scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
     """Códigos EDT de las tareas exportadas: formato, dependencia de su tarea superior, orden y duplicados.
 
     El código de cada tarea debe empezar por el de su tarea superior con código EDT y tener un nivel más: bajo
-    1.2.0 van 1.2.1, 1.2.2... (1.14.2 es un error). Un 0 intermedio indica un hijo directo del elemento anterior:
-    1.2.0.1 depende de 1.2, como 1.2.1.0 (sirve para insertar un elemento sin renumerar a sus hermanos). Los
+    1.2.0 van 1.2.1, 1.2.2... (1.14.2 es un error). Un 0 intermedio indica que el código depende directamente del
+    elemento anterior: 1.2.0.1 depende de 1.2 (su nivel, 4 o 3, depende de ignorar_ceros_intermedios). Los
     códigos no numéricos sin puntos (p. ej. INTERNO) y el código 0 (el proyecto) se admiten como contenedores: sus
     subtareas no se comparan con ellos.
     """
     issues: list[Issue] = []
     tasks = list(scope.tasks())
     in_scope = {t.uid for t in tasks}
+
+    def depth(s: tuple[int, ...]) -> int:
+        return _depth(s, cfg.ignore_interior_zeros)
+
     sig: dict[int, tuple[int, ...] | None] = {}        # UniqueID -> segmentos significativos (None = no numérico)
     for t in tasks:
         raw = scope.raw_code(t)
@@ -187,11 +192,11 @@ def wbs_checks(scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
         if top == (0,):                                 # 0 (o 0.0.0) = el proyecto: contenedor, como INTERNO
             top = None
         if top is None:                                 # sin tarea superior con código numérico
-            if _depth(mine) > 1:
+            if len(mine) > 1:
                 upper = ".".join(str(n) for n in _upper(mine))
                 upper = pad_code(upper, cfg.max_level) if cfg.pad_wbs else upper
                 issues.append(_issue("EDT-003", t, code_of,
-                                     f"Código de nivel {_depth(mine)} sin una tarea superior con código EDT: debería "
+                                     f"Código de nivel {depth(mine)} sin una tarea superior con código EDT: debería "
                                      f"depender de la tarea {upper}."))
             groups.setdefault(parent.uid if parent is not None else None, []).append((t, mine))
             continue
@@ -201,10 +206,10 @@ def wbs_checks(scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
         elif mine[:len(top)] != top or len(mine) <= len(top):
             issues.append(_issue("EDT-005", t, code_of,
                                  f"El código EDT no depende del de {where}: se esperaba {_pattern(top)}."))
-        elif _depth(mine) > _depth(top) + 1:
+        elif _upper(mine) != top:                       # 1.2.3.1 bajo 1.2 (1.2.0.1 bajo 1.2 es su hijo directo)
             issues.append(_issue("EDT-006", t, code_of,
-                                 f"El código EDT salta un nivel: depende de {where}, de nivel {_depth(top)}, y su "
-                                 f"código es de nivel {_depth(mine)} (se esperaba {_pattern(top)}). Si hay una "
+                                 f"El código EDT salta un nivel: depende de {where}, de nivel {depth(top)}, y su "
+                                 f"código es de nivel {depth(mine)} (se esperaba {_pattern(top)}). Si hay una "
                                  "tarea intermedia sin código EDT, se le debe asignar uno."))
         else:
             groups.setdefault(parent.uid, []).append((t, mine))

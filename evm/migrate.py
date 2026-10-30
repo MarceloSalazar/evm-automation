@@ -11,8 +11,9 @@ from evm.cost_review import SHEET_PASTE, month_offset, paste_months, read_paste,
 from evm.fields import same_name
 from evm.messages import SEV_INFO, SEV_WARN, Issue
 from evm.methods import is_undefined
-from evm.model import MonthKey
-from evm.wbs import KIND_LEAF, Report, ReportRow, fmt_money, iter_subtree, plural
+from evm.model import MonthKey, Task
+from evm.wbs import (KIND_LEAF, KIND_RESIDUAL, Report, ReportRow, fmt_money, has_interior_zero, iter_subtree,
+                     plural)
 from evm.workbook import (PCT_PREFIX, SHEET_EV, SHEET_LISTS, book_sources, clean_text, pct_sheet, role_key, row_key,
                           source_meta, split_key)
 
@@ -72,6 +73,7 @@ class PriorData:
     max_level: int | None
     methods_list: list[str]
     multi: bool = False
+    ignore_interior_zeros: bool = False     # ignorar_ceros_intermedios con que se generó el libro anterior
     # Proyecto de MS Project de cada archivo del libro anterior ({'': nombre} en un libro de un solo archivo)
     project_names: dict[str, str] = field(default_factory=dict)
     analysis: list = field(default_factory=list)     # filas de la hoja Análisis de desviaciones (analysis.Entry)
@@ -110,7 +112,7 @@ class PriorData:
 
 def prior_from_book(path, project_name: str) -> PriorData:
     """Lee EV, AC, métodos y fecha de corte de un libro generado anteriormente."""
-    from evm.update import read_book
+    from evm.update import book_ignores_interior_zeros, read_book
     book = read_book(path)
     sources = {role_key(pct_sheet(SHEET_EV), role or None): book.pct_ev[role] for role, _c in book.roles()}
     sources.update({role_key("AC", role or None): (book.ac_a if role == "A" else book.ac_b if role == "B"
@@ -147,6 +149,7 @@ def prior_from_book(path, project_name: str) -> PriorData:
     return PriorData(rows=rows, status_date=book.status_date,
                      project_name=str(book.meta.get("proyecto") or ""),
                      max_level=int(level) if level else None, methods_list=methods_list, multi=book.multi,
+                     ignore_interior_zeros=book_ignores_interior_zeros(book.meta),
                      project_names=names, analysis=analysis, review_rows=review_rows,
                      review_company=str(book.meta.get("depuracion_empresa") or ""), review_start=book.horizon.start,
                      review_legacy=review_legacy, change_log=change_log, reference=reference,
@@ -240,11 +243,28 @@ def _migrate_review(report: Report, prior: PriorData) -> list[Issue]:
     return issues
 
 
-def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Issue]:
+def _whole_branches(row: ReportRow) -> list[Task]:
+    """Tareas de una fila -D cuya rama completa forma parte de la fila: todas sus tareas de detalle están en ella."""
+    leaves = {t.uid for t in row.leaves}
+    out: list[Task] = []
+
+    def visit(t: Task) -> None:
+        for c in t.children:
+            if all(n.uid in leaves for n in iter_subtree(c) if not n.children):
+                out.extend(iter_subtree(c))
+            else:
+                visit(c)
+
+    visit(row.task)
+    return out
+
+
+def plan_migration(report: Report, prior: PriorData, max_level: int,
+                   ignore_interior_zeros: bool = False) -> list[Issue]:
     """Asigna cada fila del libro anterior a una fila del libro nuevo (sin duplicar historiales).
 
-    Mismo proyecto: por UniqueID; si la fila anterior quedó dentro de un paquete
-    nuevo (p. ej. al bajar el nivel máximo), su historial se suma a ese paquete.
+    Mismo proyecto: por UniqueID; si la fila anterior quedó dentro de un paquete o de una fila -D
+    nueva (p. ej. al bajar el nivel máximo), su historial se suma a esa fila.
     Proyecto distinto: por código EDT, una fila anterior por fila nueva.
     """
     issues: list[Issue] = []
@@ -282,6 +302,13 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
         issues.append(Issue("MIG-006", "", "",
                             f"El libro anterior usaba nivel máximo {prior.max_level} y el nuevo {max_level}. Las "
                             "filas que ahora se dividen en varias no pueden repartir su historial (ver errores)."))
+    if prior.ignore_interior_zeros != ignore_interior_zeros and any(
+            has_interior_zero(c) for c in [o.code for o in prior.rows] + [r.code for r in report.rows]):
+        old, new = ("true" if v else "false" for v in (prior.ignore_interior_zeros, ignore_interior_zeros))
+        issues.append(Issue("MIG-020", "", "",
+                            f"El libro anterior se generó con ignorar_ceros_intermedios = {old} y el nuevo con "
+                            f"{new}: cambia el nivel de los códigos con un 0 intermedio (p. ej. 1.2.0.1). Las filas "
+                            "que ahora se dividen en varias no pueden repartir su historial (ver errores)."))
 
     inputs = [r for r in report.rows if r.is_input]
     by_key = {row_key(r): r for r in inputs}
@@ -292,6 +319,9 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
     for r in inputs:
         if r.kind == KIND_LEAF:
             for n in iter_subtree(r.task):
+                contains.setdefault((r.source, n.uid), r)
+        elif r.kind == KIND_RESIDUAL:          # p. ej. un paquete que pasó a tener un nivel mayor al máximo
+            for n in _whole_branches(r):
                 contains.setdefault((r.source, n.uid), r)
 
     used_codes: set[str] = set()

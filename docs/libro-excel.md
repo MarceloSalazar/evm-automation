@@ -135,9 +135,10 @@ Qué se traslada:
 - El **BAC** ingresado, el **% ganado** de cada mes y el **AC** de cada fila, asociados por el
   ***Id. único*** de la tarea en MS Project (o por código EDT si el proyecto cambió de nombre), sin
   duplicarlos.
-- Si una tarea quedó dentro de un paquete nuevo (por ejemplo, al bajar `nivel_maximo` o al poner `No` en
-  el campo `Visible` de todas las subtareas de una tarea), su historial se suma a ese paquete: el BAC y
-  el AC se suman, y el % ganado se combina ponderado por el BAC de cada fila anterior.
+- Si una tarea quedó dentro de un paquete nuevo o de una fila `-D` (por ejemplo, al bajar `nivel_maximo`,
+  al cambiar `ignorar_ceros_intermedios` o al poner `No` en el campo `Visible` de todas las subtareas de
+  una tarea), su historial se suma a esa fila: el BAC y el AC se suman, y el % ganado se combina ponderado
+  por el BAC de cada fila anterior.
 - El **método** de la columna C se conserva solo si fue **editado en Excel**. Si el método cambió en
   MS Project, se usa el nuevo.
 - El texto de la hoja `Análisis de desviaciones`

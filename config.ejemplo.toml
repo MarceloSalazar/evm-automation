@@ -70,9 +70,18 @@ planificacion = "INTERNO"
 
 # Nivel máximo del código EDT que se exporta (2.0.0 = nivel 1, 2.1.0 = nivel 2,
 # 2.1.1 = nivel 3). Las tareas de nivel inferior se agregan (suman) en su
-# elemento de este nivel. Un 0 intermedio no cuenta: 1.2.0.1 es de nivel 3, hijo
-# de 1.2.0.0 (como 1.2.1.0).
+# elemento de este nivel. Un 0 intermedio cuenta como un nivel sin elemento:
+# 1.2.0.1 es de nivel 4, una actividad de 1.2.0.0 (ver ignorar_ceros_intermedios).
 nivel_maximo = 3
+
+# Ceros intermedios del código EDT (ver docs/calculo-pv-ev.md):
+#   false  1.2.0.1 es de nivel 4: una actividad de 1.2.0.0 sin paquete de nivel 3;
+#          con nivel_maximo = 3 se suma en la fila de 1.2.0.0 (en su fila -D
+#          "Otras tareas", si 1.2.0.0 tiene otras filas)
+#   true   1.2.0.1 es de nivel 3: un hijo directo de 1.2.0.0, como 1.2.1.0 (sirve
+#          para insertar un elemento sin renumerar a sus hermanos); tiene fila propia
+# Si se omite, false. 'actualizar' usa el valor con que se generó el libro.
+ignorar_ceros_intermedios = false
 
 # Lista EDT: archivo de texto con los códigos EDT que tienen fila en el libro,
 # uno por línea (1.0.0, 1.1.0, 1.1.1, 2.0...). Se ignoran las líneas vacías, las

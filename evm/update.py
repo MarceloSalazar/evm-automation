@@ -18,8 +18,8 @@ from evm.messages import InputError, Issue, MissingFileError
 from evm.methods import parse_method
 from evm.model import ProjectData, Task
 from evm.timeline import Horizon
-from evm.wbs import (KIND_RESIDUAL, KIND_SUMMARY, Scope, Visibility, build_tree, iter_subtree, pad_code, plural,
-                     prune_inactive, row_visibility, select_scope)
+from evm.wbs import (KIND_RESIDUAL, KIND_SUMMARY, Scope, Visibility, build_tree, has_interior_zero, iter_subtree,
+                     pad_code, plural, prune_inactive, row_visibility, select_scope)
 from evm.workbook import (COL_BAC, COL_CODE, COL_METHOD, FIRST_MONTH_COL, FMT_PCT_MONTH, LEGACY_SHEET_CURVE,
                           PCT_PREFIX, SHEET_AC, SHEET_EV, SHEET_META, SHEET_PV, SHEET_SUMMARY, STATUS_CELL, StructRow,
                           WorkbookFormatError, add_s_curve_chart, book_sources, clean_text, col, company_sheet,
@@ -416,6 +416,38 @@ def book_level(book: BookData, cfg: Config) -> int:
     return int(book.meta.get("nivel_maximo") or cfg.max_level)
 
 
+def book_ignores_interior_zeros(meta: dict) -> bool:
+    """ignorar_ceros_intermedios con que se generó el libro. Los libros anteriores no lo guardan: las versiones
+    2.3.0 a 2.4.x no contaban los ceros intermedios para el nivel (1.2.0.1 de nivel 3); las anteriores, sí."""
+    value = meta.get("ignorar_ceros_intermedios")
+    if isinstance(value, bool):
+        return value
+    try:
+        version = tuple(int(p) for p in str(meta.get("version") or "").split(".")[:3])
+    except ValueError:
+        return False
+    return version >= (2, 3, 0)
+
+
+def _interior_zero_warnings(scope: Scope, cfg: Config, visibility: Visibility, configured: bool) -> list[Issue]:
+    """Tareas con un 0 intermedio en el código que tendrían otra fila con ignorar_ceros_intermedios de la
+    configuración (configured): el libro conserva el criterio con que se generó."""
+    other = row_visibility(scope, replace(cfg, ignore_interior_zeros=configured))
+    changed = [t for t in scope.tasks() if has_interior_zero(scope.raw_code(t))
+               and other.has_row(t) != visibility.has_row(t)]
+    if not changed:
+        return []
+    codes = ", ".join(scope.raw_code(t) for t in changed[:10])
+    more = f" y {len(changed) - 10} más" if len(changed) > 10 else ""
+    used = "true" if cfg.ignore_interior_zeros else "false"
+    return [Issue("ACT-050", message=f"El libro se generó con ignorar_ceros_intermedios = {used} y la configuración "
+                                     f"indica {'true' if configured else 'false'}: "
+                                     f"{plural(len(changed), 'tarea', 'tareas')} con un 0 intermedio en el código "
+                                     f"({codes}{more}) {'tendría' if len(changed) == 1 else 'tendrían'} otra fila. "
+                                     "El libro conserva sus filas. Para aplicar la configuración se debe regenerar el "
+                                     "libro con --migrar-desde.")]
+
+
 def _match_tasks(project: ProjectData, book: BookData, cfg: Config,
                  source: str = "") -> tuple[dict[int, Task], list[Issue], Scope]:
     """Asocia cada fila del libro con la tarea de MS Project.
@@ -692,8 +724,10 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     check_sources(book.meta, list(projects))
     warnings: list[Issue] = [_tag(n, w) for n, p in projects.items() for w in p.warnings]
     warnings += _list_warnings(cfg, book)
+    configured_zeros = cfg.ignore_interior_zeros
     cfg = apply_book_settings(cfg, book.meta)
     cfg.wbs_list = book.wbs_list            # las filas del libro se decidieron con su lista (o sin lista)
+    cfg.ignore_interior_zeros = book_ignores_interior_zeros(book.meta)     # y con su nivel de los códigos
     multi = book.multi
 
     if status is None:
@@ -753,6 +787,9 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
         found, w, scope = _match_tasks(project, book, pcfg, n)
         warnings += [_tag(n, x) for x in w]
         visibility = row_visibility(scope, replace(pcfg, max_level=level))
+        if configured_zeros != cfg.ignore_interior_zeros and not visibility.listed:
+            warnings += [_tag(n, x) for x in _interior_zero_warnings(scope, replace(pcfg, max_level=level),
+                                                                     visibility, configured_zeros)]
         warnings += [_tag(n, x) for x in _visibility_warnings(book, found, scope, visibility, n)]
         warnings += [_tag(n, x) for x in _new_task_warnings(book, found, scope, visibility, n)]
         hidden[n] = (visibility.excluded_uids(), {t.uid for t in visibility.excluded})

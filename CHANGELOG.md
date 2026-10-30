@@ -18,10 +18,21 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Nuevas funciones
 
-- Ninguna.
+- **Ceros intermedios en el código EDT:** la clave nueva `[exportacion] ignorar_ceros_intermedios` decide
+  el nivel de un código como `1.2.0.1`. Por defecto (`false`) es de nivel 4, una actividad de `1.2.0.0`:
+  con `nivel_maximo = 3` se suma en la fila de `1.2.0.0` o en su fila `-D`. Con `true` es de nivel 3, un
+  elemento insertado antes de `1.2.1.0` sin renumerar a sus hermanos, como en las versiones 2.3.0 a 2.4.x
+  ([Niveles por código EDT](docs/calculo-pv-ev.md#32-niveles-por-código-edt)). **Cambia el valor por
+  defecto:** para conservar las filas de nivel 3 de esos códigos se debe indicar
+  `ignorar_ceros_intermedios = true`. El libro guarda el valor con que se generó y `actualizar` lo usa;
+  si la configuración indica otro y alguna fila cambiaría, lo informa (`ACT-050`, nuevo) y el libro
+  conserva sus filas. `--migrar-desde` informa el cambio de criterio (`MIG-020`, nuevo).
 
 ### Correcciones
 
+- `--migrar-desde` suma en la fila `-D` (*Otras tareas*) el historial de una fila anterior cuya tarea
+  quedó en esa fila (por ejemplo, un paquete que pasó a tener un nivel mayor al máximo), como lo hace con
+  un paquete (`MIG-007`); antes no se trasladaba y se informaba como error (`MIG-014`).
 - **Análisis de desviaciones:** las filas de un mismo paquete en el mes (una fila copiada a mano para otra
   causa o acción, o filas que `--migrar-desde` reunió en un paquete) se conservan todas al repetir
   `actualizar` o `analizar`; antes quedaba solo la última y se perdía el texto de las demás.

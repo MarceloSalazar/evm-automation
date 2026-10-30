@@ -219,7 +219,7 @@ def cmd_generar(args) -> int:
             from evm.migrate import plan_migration, prior_from_book
             progress.stage("migrar", "Lectura del libro anterior")
             prior = prior_from_book(args.migrar_desde, report.project.name)
-            report.issues.extend(plan_migration(report, prior, cfg.max_level))
+            report.issues.extend(plan_migration(report, prior, cfg.max_level, cfg.ignore_interior_zeros))
         silence = _silence(cfg)
         unmatched = []
         if prior is not None and prior.unmatched:
@@ -268,7 +268,7 @@ def _rows_rule(cfg) -> str:
     """Cómo se deciden las filas del libro: el nivel máximo o la lista EDT."""
     if cfg.wbs_list is not None:
         return f"Lista EDT: {plural(len(cfg.wbs_list), 'código', 'códigos')} ({Path(cfg.wbs_list_file).name})"
-    return f"Nivel máximo: {cfg.max_level}"
+    return f"Nivel máximo: {cfg.max_level}" + (" (sin los ceros intermedios)" if cfg.ignore_interior_zeros else "")
 
 
 def _print_schedule(plan) -> None:
