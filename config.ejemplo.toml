@@ -84,7 +84,9 @@ nivel_maximo = 3
 ignorar_ceros_intermedios = false
 
 # Lista EDT: archivo de texto con los códigos EDT que tienen fila en el libro,
-# uno por línea (1.0.0, 1.1.0, 1.1.1, 2.0...). Se ignoran las líneas vacías, las
+# uno por línea (1.0.0, 1.1.0, 1.1.1, 2.0.0...), con los ceros del nivel máximo
+# (nivel 3: 1.2.0; nivel 4: 1.2.0.0): los ceros finales no cuentan al buscar la
+# tarea (1.2.0 es también la tarea 1.2.0.0). Se ignoran las líneas vacías, las
 # que empiezan con # y el texto que sigue al código. Reemplaza a nivel_maximo y al
 # campo Visible para decidir las filas: las tareas que no están en la lista se
 # suman en su elemento listado más cercano (ver docs/calculo-pv-ev.md). Las rutas

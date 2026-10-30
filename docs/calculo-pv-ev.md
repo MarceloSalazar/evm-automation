@@ -140,7 +140,8 @@ planificación y ambas usan los mismos códigos EDT, `Validación` informa códi
 ### 3.2 Niveles por código EDT
 
 El nivel de cada tarea se toma de su **código EDT**, no de su posición en el esquema de MS Project: los
-ceros finales no cuentan.
+ceros finales no cuentan. Son relleno: `1.2`, `1.2.0` y `1.2.0.0` son el mismo código, y si dos tareas los
+tienen, `Validación` informa un código duplicado ([EDT-009](codigos.md#edt-009)).
 
 | Código EDT | Nivel | Fila en el libro |
 |---|---|---|
@@ -159,8 +160,8 @@ anteriores: `1.2.0.1` depende de `1.2.0.0`. Su nivel depende de `[exportacion] i
 | `true` | 3, como `1.2.1.0` | Un elemento insertado debajo de `1.2.0.0`, antes de `1.2.1.0`, sin renumerar a sus hermanos: tiene fila propia. |
 
 En los dos casos, `1.2.0.1` debajo de `1.2.1.0` es un error: su código no depende del de su tarea
-superior. `actualizar` usa el valor con que se generó el libro (los libros de las versiones 2.3.0 a 2.4.x
-no contaban los ceros intermedios); si la configuración indica otro y alguna fila cambiaría, lo informa
+superior. `actualizar` usa el valor con que se generó el libro; si la configuración indica otro y alguna
+fila cambiaría, lo informa
 ([ACT-050](codigos.md#act-050)) y el libro conserva sus filas. Para aplicar el cambio, se regenera el libro con
 `--migrar-desde`.
 
@@ -251,15 +252,16 @@ El archivo tiene un código EDT por línea:
 1.0.0
 1.1.0   Ingeniería
 1.1.1   Estudios de terreno
-2.0
+2.0.0
 2.1.0
 2.1.1
 ```
 
 - Se ignoran las líneas vacías, las que empiezan con `#` y el texto que sigue al código (por ejemplo, el
   nombre del elemento copiado desde Excel). Se admiten archivos en UTF-8, ANSI o texto Unicode de Excel.
-- Los códigos se completan con ceros como en el libro (`2.0` → `2.0.0`) y se escriben sin el prefijo de
-  la planificación (`1.1.0`, no `INTERNO.1.1.0`).
+- Los códigos se escriben con los ceros del nivel máximo (nivel 3: `1.2.0`; nivel 4: `1.2.0.0`) y sin el
+  prefijo de la planificación (`1.1.0`, no `INTERNO.1.1.0`). Los ceros finales no cuentan al buscar la
+  tarea: con nivel 3, `1.2.0` en la lista es la tarea `1.2.0.0` de MS Project, y `2.0` es `2.0.0`.
 - **La lista decide las filas** y reemplaza a `nivel_maximo` y al campo `Visible`:
   - cada código de la lista tiene su fila, aunque sea más detallado que `nivel_maximo`;
   - una tarea cuyo código no está en la lista se suma en su elemento listado más cercano: en su fila, si

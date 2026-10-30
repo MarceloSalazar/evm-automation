@@ -12,8 +12,8 @@ from evm.fields import same_name
 from evm.messages import SEV_INFO, SEV_WARN, Issue
 from evm.methods import is_undefined
 from evm.model import MonthKey, Task
-from evm.wbs import (KIND_LEAF, KIND_RESIDUAL, Report, ReportRow, fmt_money, has_interior_zero, iter_subtree,
-                     plural)
+from evm.wbs import (KIND_LEAF, KIND_RESIDUAL, Report, ReportRow, code_key, fmt_money, has_interior_zero,
+                     iter_subtree, plural)
 from evm.workbook import (PCT_PREFIX, SHEET_EV, SHEET_LISTS, book_sources, clean_text, pct_sheet, role_key, row_key,
                           source_meta, split_key)
 
@@ -312,9 +312,9 @@ def plan_migration(report: Report, prior: PriorData, max_level: int,
 
     inputs = [r for r in report.rows if r.is_input]
     by_key = {row_key(r): r for r in inputs}
-    by_code: dict[str, ReportRow] = {}
+    by_code: dict[str, ReportRow] = {}      # código sin los ceros finales (1.2.0 = 1.2.0.0) -> fila
     for r in inputs:
-        by_code.setdefault(r.code, r)
+        by_code.setdefault(code_key(r.code), r)
     contains: dict[tuple[str, int], ReportRow] = {}      # (archivo, UniqueID) -> paquete que contiene la tarea
     for r in inputs:
         if r.kind == KIND_LEAF:
@@ -335,7 +335,7 @@ def plan_migration(report: Report, prior: PriorData, max_level: int,
             elif old.uid is not None and (old.source, old.uid) in contains:
                 target, how = contains[(old.source, old.uid)], "rama"
         else:
-            cand = by_code.get(old.code)
+            cand = by_code.get(code_key(old.code))
             if cand is not None and row_key(cand) not in used_codes:
                 target, how = cand, "codigo"
                 used_codes.add(row_key(cand))

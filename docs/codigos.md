@@ -895,7 +895,7 @@ Entre tareas del mismo nivel faltan números (p. ej. 1.2.1 → 1.2.3).
 
 **Código EDT duplicado** · Error · generar (hoja Validación) y validar · se puede silenciar
 
-Varias tareas tienen el mismo código EDT: el libro no puede distinguir sus filas.
+Varias tareas tienen el mismo código EDT: el libro no puede distinguir sus filas. Los ceros finales no cuentan: 1.2, 1.2.0 y 1.2.0.0 son el mismo código.
 
 **Qué hacer:** Corregir los códigos. Si el proyecto tiene varias planificaciones (p. ej. INTERNO y CLIENTE), elegir una con planificacion.
 

@@ -1,5 +1,6 @@
-"""Códigos EDT con un 0 intermedio (1.2.0.1): de nivel 4 por defecto (actividad de 1.2) o, con [exportacion]
-ignorar_ceros_intermedios = true, de nivel 3 (hijo directo de 1.2, como 1.2.1.0)."""
+"""Ceros del código EDT. Un 0 intermedio (1.2.0.1): de nivel 4 por defecto (actividad de 1.2) o, con [exportacion]
+ignorar_ceros_intermedios = true, de nivel 3 (hijo directo de 1.2, como 1.2.1.0). Los ceros finales son relleno:
+1.2, 1.2.0 y 1.2.0.0 son el mismo código (duplicados, asociación por código en actualizar y --migrar-desde)."""
 from datetime import date
 
 import pytest
@@ -9,9 +10,10 @@ from evm.cli import main
 from evm.config import Config, ConfigError, load_config
 from evm.migrate import plan_migration, prior_from_book
 from evm.update import book_ignores_interior_zeros, read_book, run_update
-from evm.wbs import (KIND_LEAF, KIND_RESIDUAL, KIND_SUMMARY, SEV_ERROR, SEV_WARN, TOPIC_WBS, build_report, code_level,
-                     has_interior_zero)
-from evm.workbook import SHEET_META, SHEET_VALID, read_meta, write_workbook
+from evm.model import ProjectData
+from evm.wbs import (KIND_LEAF, KIND_RESIDUAL, KIND_SUMMARY, SEV_ERROR, SEV_WARN, TOPIC_WBS, build_report, code_key,
+                     code_level, has_interior_zero)
+from evm.workbook import SHEET_VALID, read_meta, write_workbook
 
 from builders import F, P, S, by_name, issues_with, report, rows_by_code, set_bac, tree
 from mspdi import project_xml, task_xml, write_xml
@@ -178,31 +180,13 @@ def test_update_keeps_the_other_tasks_row_of_a_book_that_counts_interior_zeros(t
 
 
 @pytest.mark.parametrize("meta, expected", [
-    ({"ignorar_ceros_intermedios": False, "version": "2.4.0"}, False),
-    ({"ignorar_ceros_intermedios": True, "version": "2.2.1"}, True),
-    ({"version": "2.4.0"}, True),           # 2.3.0 a 2.4.x no contaban los ceros intermedios
-    ({"version": "2.3.0"}, True),
-    ({"version": "2.2.1"}, False),
-    ({"version": "x"}, False),
+    ({"ignorar_ceros_intermedios": True, "version": "2.4.0"}, True),
+    ({"ignorar_ceros_intermedios": False}, False),
+    ({"version": "2.4.0"}, False),          # sin la clave: false (no se deduce de la versión)
     ({}, False),
 ])
-def test_criterion_of_books_without_the_key(meta, expected):
+def test_criterion_of_the_book(meta, expected):
     assert book_ignores_interior_zeros(meta) is expected
-
-
-def test_update_of_a_book_generated_with_version_2_4(tmp_path):
-    path = book(tmp_path, IGNORE)
-    wb = load_workbook(path)
-    ws = wb[SHEET_META]
-    for row in ws.iter_rows(min_row=2):
-        if row[0].value == "ignorar_ceros_intermedios":
-            ws.delete_rows(row[0].row)
-            break
-    next(r for r in ws.iter_rows(min_row=2) if r[0].value == "version")[1].value = "2.4.0"
-    wb.save(path)
-    res = run_update(P(progress(Insertado=50)), Config(), path, date(2026, 3, 31), backup=False, dry_run=True)
-    assert {r.code: r.ev_cum for r in res.rows}["1.2.0.1"] == pytest.approx(500)
-    assert "ignorar_ceros_intermedios = true" in ids(res.warnings, "ACT-050")[0].message
 
 
 # ----------------------------------------------------------------------------
@@ -253,6 +237,81 @@ def test_migration_without_interior_zeros_does_not_warn(tmp_path):
     write_workbook(build_report(P(tree(text)), IGNORE), IGNORE, old)
     rep = build_report(P(tree(text)), Config())
     assert not ids(plan_migration(rep, prior_from_book(old, "Programa"), 3), "MIG-020")
+
+
+# ----------------------------------------------------------------------------
+# Ceros finales: 1.2 = 1.2.0 = 1.2.0.0
+# ----------------------------------------------------------------------------
+@pytest.mark.parametrize("code, key", [
+    ("1.2", "1.2"), ("1.2.0", "1.2"), ("1.2.0.0", "1.2"), (" 1.2.0 ", "1.2"), ("1.0.0", "1"),
+    ("1.2.0.1", "1.2.0.1"), ("1.2.1", "1.2.1"), ("1.2.0-D", "1.2-D"), ("1.2.0.0-D", "1.2-D"), ("INTERNO", "INTERNO"),
+])
+def test_code_key(code, key):
+    assert code_key(code) == key
+
+
+@pytest.mark.parametrize("ignore", [False, True])
+def test_codes_that_differ_in_trailing_zeros_are_duplicates(ignore):
+    rep = report(tree('''
+        1 Fase
+          1.2 A
+          1.2.0.0 B
+          1.3 C
+          1.3.0 D
+          1.4.0.1 E
+          1.4.1 F
+    '''), Config(ignore_interior_zeros=ignore))
+    dup = ids(rep.issues, "EDT-009")
+    assert [(i.code, i.severity) for i in dup] == [("1.2.0", SEV_ERROR), ("1.3.0", SEV_ERROR)]
+    assert "2 tareas («A» (Id 2, 1.2.0), «B» (Id 3, 1.2.0.0))" in dup[0].message      # códigos distintos en el libro
+    assert "2 tareas («C» (Id 4), «D» (Id 5))" in dup[1].message                       # mismo código en el libro
+
+
+def other_project(tasks: list, name: str = "Otro") -> ProjectData:
+    return ProjectData(name=name, source="otro.xml", backend="xml", tasks=tasks)
+
+
+SHORT = '''
+    1 Fase
+      1.2 Elemento
+        1.2.1 Paquete
+        - Suelta
+'''
+LONG = '''
+    1.0.0.0 Fase
+      1.2.0.0 Elemento
+        1.2.1.0 Paquete
+        - Suelta
+'''
+
+
+def test_update_of_another_project_matches_codes_without_trailing_zeros(tmp_path):
+    path = tmp_path / "libro.xlsx"
+    write_workbook(build_report(P(tree(SHORT)), Config()), Config(), path)
+    set_bac(path, 1000)
+    tasks = tree(LONG)
+    by_name(tasks)["Paquete"].percent_complete = 50
+    by_name(tasks)["Suelta"].percent_complete = 100
+    res = run_update(other_project(tasks), Config(), path, date(2026, 3, 31), backup=False, dry_run=True)
+    assert ids(res.warnings, "ACT-010") and not ids(res.warnings, "ACT-013")
+    ev = {r.code: r.ev_cum for r in res.rows}
+    assert ev["1.2.1"] == pytest.approx(500) and ev["1.2.0-D"] == pytest.approx(1000)
+
+
+def test_migration_from_another_project_matches_codes_without_trailing_zeros(tmp_path):
+    old = tmp_path / "old.xlsx"
+    cfg = Config(months=12)
+    write_workbook(build_report(P(tree(SHORT)), cfg), cfg, old)
+    set_bac(old, 1000)
+    rep = build_report(other_project(tree(LONG)), cfg)
+    prior = prior_from_book(old, rep.project.name)
+    rep.issues.extend(plan_migration(rep, prior, cfg.max_level))
+    assert ids(rep.issues, "MIG-005") and not ids(rep.issues, "MIG-014")              # asociadas por código EDT
+    new = tmp_path / "new.xlsx"
+    write_workbook(rep, cfg, new, prior)
+    b = read_book(new)
+    rows = {s.code: s.row for s in b.structure}
+    assert b.bac[rows["1.2.1.0"]] == 1000 and b.bac[rows["1.2.0.0-D"]] == 1000
 
 
 # ----------------------------------------------------------------------------

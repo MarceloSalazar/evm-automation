@@ -207,6 +207,15 @@ def has_interior_zero(code: str) -> bool:
     return all(p.isdigit() for p in parts) and any(not p.strip("0") for p in parts[1:])
 
 
+def code_key(code: str) -> str:
+    """Código EDT para compararlo con otro: sin los ceros finales, que son relleno ('1.2', '1.2.0' y '1.2.0.0' ->
+    '1.2'). Los ceros intermedios cuentan ('1.2.0.1' y '1.2.1' son distintos). Una fila -D conserva el sufijo."""
+    code = (code or "").strip()
+    if code.endswith("-D"):
+        return code_key(code[:-2]) + "-D"
+    return ".".join(_code_parts(code))
+
+
 class PlanNotFound(ConfigError):
     """La planificación indicada en la configuración no existe en el archivo."""
 
@@ -355,26 +364,21 @@ def row_visibility(scope: Scope, cfg: Config, code_of=None) -> Visibility:
     return out
 
 
-def list_code(entry: str, prefix: str, cfg: Config) -> str:
-    """Código de la lista EDT como queda en el libro: sin el prefijo de la planificación y completado con ceros."""
-    code = strip_prefix(entry, prefix)
-    return pad_code(code, cfg.max_level) if cfg.pad_wbs else code
-
-
 def list_visibility(scope: Scope, cfg: Config) -> Visibility:
     """Filas según la lista EDT (lista_edt): tiene fila cada tarea cuyo código está en la lista. Las demás se suman
-    en su elemento listado más cercano. La lista reemplaza al nivel máximo y al campo Visible."""
+    en su elemento listado más cercano. La lista reemplaza al nivel máximo y al campo Visible. Los códigos se
+    comparan sin el prefijo de la planificación ni los ceros finales (1.2.0 en la lista es la tarea 1.2.0.0)."""
     def book_code(t: Task) -> str:
         raw = scope.raw_code(t)
         return pad_code(raw, cfg.max_level) if cfg.pad_wbs else raw
 
-    wanted: dict[str, list[str]] = {}           # código como en el libro -> líneas de la lista
+    wanted: dict[str, list[str]] = {}           # código sin los ceros finales -> líneas de la lista
     for entry in cfg.wbs_list or []:
-        wanted.setdefault(list_code(entry, scope.prefix, cfg), []).append(entry)
+        wanted.setdefault(code_key(strip_prefix(entry, scope.prefix)), []).append(entry)
     out = Visibility({}, [], listed=True)
     tasks = list(scope.tasks())
     for t in tasks:
-        code = book_code(t)
+        code = code_key(scope.raw_code(t))
         listed = bool(code) and code in wanted
         out.rows[t.uid] = listed
         if listed:

@@ -18,8 +18,8 @@ from evm.messages import InputError, Issue, MissingFileError
 from evm.methods import parse_method
 from evm.model import ProjectData, Task
 from evm.timeline import Horizon
-from evm.wbs import (KIND_RESIDUAL, KIND_SUMMARY, Scope, Visibility, build_tree, has_interior_zero, iter_subtree,
-                     pad_code, plural, prune_inactive, row_visibility, select_scope)
+from evm.wbs import (KIND_RESIDUAL, KIND_SUMMARY, Scope, Visibility, build_tree, code_key, has_interior_zero,
+                     iter_subtree, plural, prune_inactive, row_visibility, select_scope)
 from evm.workbook import (COL_BAC, COL_CODE, COL_METHOD, FIRST_MONTH_COL, FMT_PCT_MONTH, LEGACY_SHEET_CURVE,
                           PCT_PREFIX, SHEET_AC, SHEET_EV, SHEET_META, SHEET_PV, SHEET_SUMMARY, STATUS_CELL, StructRow,
                           WorkbookFormatError, add_s_curve_chart, book_sources, clean_text, col, company_sheet,
@@ -417,16 +417,8 @@ def book_level(book: BookData, cfg: Config) -> int:
 
 
 def book_ignores_interior_zeros(meta: dict) -> bool:
-    """ignorar_ceros_intermedios con que se generó el libro. Los libros anteriores no lo guardan: las versiones
-    2.3.0 a 2.4.x no contaban los ceros intermedios para el nivel (1.2.0.1 de nivel 3); las anteriores, sí."""
-    value = meta.get("ignorar_ceros_intermedios")
-    if isinstance(value, bool):
-        return value
-    try:
-        version = tuple(int(p) for p in str(meta.get("version") or "").split(".")[:3])
-    except ValueError:
-        return False
-    return version >= (2, 3, 0)
+    """ignorar_ceros_intermedios con que se generó el libro (los libros que no lo guardan: false)."""
+    return meta.get("ignorar_ceros_intermedios") is True
 
 
 def _interior_zero_warnings(scope: Scope, cfg: Config, visibility: Visibility, configured: bool) -> list[Issue]:
@@ -470,12 +462,11 @@ def _match_tasks(project: ProjectData, book: BookData, cfg: Config,
                                                  f"se usa esa planificación y no '{cfg.plan}'."))
     scope = select_scope(roots, plan_code)
     by_uid = {t.uid: t for t in tasks}
-    by_code: dict[str, Task] = {}
-    level = book_level(book, cfg)       # los códigos del libro se completaron con su nivel máximo
+    by_code: dict[str, Task] = {}       # código sin los ceros finales (1.2.0 = 1.2.0.0) -> tarea
     for t in scope.tasks():
         raw = scope.raw_code(t)
         if raw:
-            by_code.setdefault(clean_text(pad_code(raw, level) if cfg.pad_wbs else raw), t)
+            by_code.setdefault(code_key(clean_text(raw)), t)
     book_name = source_meta(book.meta, "proyecto", source)
     same = str(book_name or "") == clean_text(project.name)
     if not same:
@@ -505,7 +496,7 @@ def _match_tasks(project: ProjectData, book: BookData, cfg: Config,
                 continue
         else:
             code = s.code[:-2] if residual else s.code
-            task = by_code.get(code)
+            task = by_code.get(code_key(code))
             if task is None or (task.uid, residual) in used:
                 if s.is_input:
                     warnings.append(Issue("ACT-013", s.code, s.name,
@@ -948,12 +939,7 @@ def _list_warnings(cfg: Config, book: BookData) -> list[Issue]:
         return [Issue("ACT-016", message="La configuración indica lista_edt, pero el libro se generó sin lista EDT: "
                                          "se mantienen sus filas (nivel máximo y campo Visible). Para aplicar la "
                                          "lista, se debe regenerar el libro con --migrar-desde.")]
-    level = book_level(book, cfg)
-
-    def norm(codes: list[str]) -> set[str]:
-        return {pad_code(c, level) if cfg.pad_wbs else c for c in codes}
-
-    if norm(book.wbs_list) == norm(cfg.wbs_list):
+    if {code_key(c) for c in book.wbs_list} == {code_key(c) for c in cfg.wbs_list}:     # 1.2.0 = 1.2.0.0
         return []
     return [Issue("ACT-017", message="La lista EDT de la configuración cambió después de generar el libro: se usa la "
                                      "lista con la que se generó. Para aplicar los cambios, se debe regenerar el libro "

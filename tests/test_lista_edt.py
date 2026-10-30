@@ -101,6 +101,31 @@ def test_listed_codes_are_padded_like_the_book_and_planificacion_prefix_is_remov
     assert list(rows_by_code(rep)) == ["1.0.0", "1.1.0"]
 
 
+@pytest.mark.parametrize("codes, level", [
+    (["1.0.0", "1.2.0", "1.2.1"], 3),                   # con los ceros del nivel 3
+    (["1.0.0.0", "1.2.0.0", "1.2.1.0"], 4),             # con los ceros del nivel 4
+    (["1", "1.2", "1.2.1"], 3),                         # sin ceros finales
+    (["1.0.0.0.0", "1.2.0.0", "1.2.1.0.0"], 3),         # con más ceros
+])
+def test_listed_codes_match_tasks_without_trailing_zeros(codes, level):
+    """1.2, 1.2.0 y 1.2.0.0 son el mismo código: la línea de la lista coincide con su tarea; el libro muestra el
+    código de MS Project (completado con los ceros del nivel)."""
+    tasks = tree('''
+        1.0.0.0 Fase
+          1.2.0.0 Elemento
+            1.2.1.0 Paquete
+              1.2.1.1 Actividad
+    ''')
+    rep = report(tasks, listed(codes, max_level=level))
+    assert list(rows_by_code(rep)) == ["1.0.0.0", "1.2.0.0", "1.2.1.0"]
+    assert not issues_with(rep, "no existe")
+    short = report(tree('''
+        1 Fase
+          1.2 Elemento
+    '''), listed(["1.0.0.0", "1.2.0.0"], max_level=level))
+    assert list(rows_by_code(short)) == (["1.0.0", "1.2.0"] if level == 3 else ["1.0.0.0", "1.2.0.0"])
+
+
 def test_missing_codes_warn_and_no_listed_code_is_an_error():
     rep = report(tree(TASKS), listed(["1", "1.1", "7.7"]))
     assert issues_with(rep, "1 código de la lista EDT no existe en MS Project", SEV_WARN)
@@ -148,10 +173,10 @@ def test_book_keeps_its_list_and_actualizar_uses_it(tmp_path):
                      dry_run=True)
     assert any("La lista EDT de la configuración cambió" in w.message for w in res.warnings)
     assert {r.code for r in res.rows} == codes
-    # Misma lista escrita de otra forma (sin relleno): sin aviso
-    res = run_update(P(tasks), listed(["1.0.0", "1.1.0", "1.1.1", "2.0.0"]), book, datetime(2026, 2, 28).date(),
-                     backup=False, dry_run=True)
-    assert not any("lista" in w.message for w in res.warnings)
+    # Misma lista escrita de otra forma (con otra cantidad de ceros finales): sin aviso
+    for same in (["1.0.0", "1.1.0", "1.1.1", "2.0.0"], ["1.0.0.0", "1.1.0.0", "1.1.1.0", "2"]):
+        res = run_update(P(tasks), listed(same), book, datetime(2026, 2, 28).date(), backup=False, dry_run=True)
+        assert not any("lista" in w.message for w in res.warnings)
 
 
 def test_actualizar_warns_when_book_has_no_list(tmp_path):

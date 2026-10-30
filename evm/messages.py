@@ -463,7 +463,8 @@ _CODES = [
           "Entre tareas del mismo nivel faltan números (p. ej. 1.2.1 → 1.2.3).",
           "Ninguna, si es intencional (p. ej. un paquete eliminado); si no, corregir los códigos."),
     _code("EDT-009", E, "Código EDT duplicado",
-          "Varias tareas tienen el mismo código EDT: el libro no puede distinguir sus filas.",
+          "Varias tareas tienen el mismo código EDT: el libro no puede distinguir sus filas. Los ceros finales no "
+          "cuentan: 1.2, 1.2.0 y 1.2.0.0 son el mismo código.",
           "Corregir los códigos. Si el proyecto tiene varias planificaciones (p. ej. INTERNO y CLIENTE), elegir una "
           "con planificacion."),
     _code("EDT-010", (F, E), "No se encontró la planificación",

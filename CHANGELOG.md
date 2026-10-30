@@ -18,18 +18,23 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Nuevas funciones
 
-- **Ceros intermedios en el código EDT:** la clave nueva `[exportacion] ignorar_ceros_intermedios` decide
-  el nivel de un código como `1.2.0.1`. Por defecto (`false`) es de nivel 4, una actividad de `1.2.0.0`:
-  con `nivel_maximo = 3` se suma en la fila de `1.2.0.0` o en su fila `-D`. Con `true` es de nivel 3, un
-  elemento insertado antes de `1.2.1.0` sin renumerar a sus hermanos, como en las versiones 2.3.0 a 2.4.x
-  ([Niveles por código EDT](docs/calculo-pv-ev.md#32-niveles-por-código-edt)). **Cambia el valor por
-  defecto:** para conservar las filas de nivel 3 de esos códigos se debe indicar
-  `ignorar_ceros_intermedios = true`. El libro guarda el valor con que se generó y `actualizar` lo usa;
-  si la configuración indica otro y alguna fila cambiaría, lo informa (`ACT-050`, nuevo) y el libro
-  conserva sus filas. `--migrar-desde` informa el cambio de criterio (`MIG-020`, nuevo).
+- Ninguna.
 
 ### Correcciones
 
+- **Ceros intermedios en el código EDT:** un código como `1.2.0.4` es de nivel 4, una actividad de
+  `1.2.0.0`: con `nivel_maximo = 3` se suma en la fila de `1.2.0.0` o en su fila `-D`. Antes era de
+  nivel 3 y tenía fila propia. La clave nueva `[exportacion] ignorar_ceros_intermedios = true` mantiene ese
+  criterio, para insertar un elemento antes de `1.2.1.0` sin renumerar a sus hermanos
+  ([Niveles por código EDT](docs/calculo-pv-ev.md#32-niveles-por-código-edt)). El libro guarda el valor
+  con que se generó y `actualizar` lo usa; si la configuración indica otro y alguna fila cambiaría, lo
+  informa (`ACT-050`, nuevo) y el libro conserva sus filas. `--migrar-desde` informa el cambio de criterio
+  (`MIG-020`, nuevo).
+- **Ceros finales en el código EDT:** `1.2`, `1.2.0` y `1.2.0.0` son el mismo código. Dos tareas con esos
+  códigos se informan como código duplicado (`EDT-009`, error). Una línea de la lista EDT coincide con su
+  tarea aunque tenga otra cantidad de ceros finales: antes, `1.2.0` en la lista no encontraba la tarea
+  `1.2.0.0`. `actualizar` con un proyecto de otro nombre y `--migrar-desde` asocian las filas por código
+  del mismo modo.
 - `--migrar-desde` suma en la fila `-D` (*Otras tareas*) el historial de una fila anterior cuya tarea
   quedó en esa fila (por ejemplo, un paquete que pasó a tener un nivel mayor al máximo), como lo hace con
   un paquete (`MIG-007`); antes no se trasladaba y se informaba como error (`MIG-014`).

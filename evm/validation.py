@@ -22,7 +22,7 @@ from evm.messages import SEV_ERROR, SEV_INFO, SEV_WARN, TOPIC_BOOK, Issue
 from evm.percent import calendar_for
 from evm.schedule import row_schedule, working_days
 from evm.wbs import (KIND_RESIDUAL, PlanNotFound, Report, ReportPart, ReportRow, Scope, assemble_report, build_part,
-                     iter_subtree, pad_code, plural, tagged_issues, task_name)
+                     code_key, iter_subtree, pad_code, plural, tagged_issues, task_name)
 from evm.workcalendar import WorkCalendar
 
 CodeOf = Callable[[Task], str]
@@ -233,18 +233,19 @@ def wbs_checks(scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
                                 f"{under}, la numeración tiene saltos ({shown}): si no es intencional (p. ej. un "
                                 "paquete eliminado), se debe revisar el código."))
 
-    # Códigos duplicados (como quedan en el libro: con el relleno de ceros)
+    # Códigos duplicados: sin los ceros finales, que son relleno (1.2, 1.2.0 y 1.2.0.0 son el mismo código)
     by_code: dict[str, list[Task]] = {}
     for t in tasks:
         if t.uid in sig:
-            by_code.setdefault(code_of(t), []).append(t)
+            by_code.setdefault(code_key(scope.raw_code(t)), []).append(t)
     hint = "" if scope.plan is not None else (" Si el proyecto tiene varias planificaciones, se debe elegir una con "
                                               "'planificacion'.")
-    for code, same in by_code.items():
+    for same in by_code.values():
         if len(same) > 1:
-            names = ", ".join(f"«{t.name}» (Id {t.id})" for t in same[:5])
+            several = len({code_of(t) for t in same}) > 1         # 1.2 y 1.2.0.0: se muestra el código de cada una
+            names = ", ".join(f"«{t.name}» (Id {t.id}{f', {code_of(t)}' if several else ''})" for t in same[:5])
             more = f" y {len(same) - 5} más" if len(same) > 5 else ""
-            issues.append(Issue("EDT-009", code, same[0].name,
+            issues.append(Issue("EDT-009", code_of(same[0]), same[0].name,
                                 f"Código EDT duplicado: lo tienen {len(same)} tareas ({names}{more}).{hint}"))
     return bad_format[:LIMIT] + issues
 
