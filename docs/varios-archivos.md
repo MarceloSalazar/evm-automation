@@ -159,7 +159,7 @@ python evm_export.py generar --config config.toml --salida EVM_Programa.xlsx
 Ejemplo de salida con los dos archivos de ejemplo:
 
 ```text
-Exportador EVM 2.4.0
+Exportador EVM 2.4.1
 Leyendo P1: ...\ejemplos\programa_ejemplo.xml ...
 Leyendo P2: ...\ejemplos\proyecto2_ejemplo.xml ...
 Informe: Programa de ejemplo con dos proyectos

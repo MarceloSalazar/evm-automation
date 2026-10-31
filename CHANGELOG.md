@@ -18,18 +18,24 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Nuevas funciones
 
-- **Tiempo transcurrido:** la barra de progreso muestra el tiempo transcurrido además del tiempo restante
-  estimado (ETA). Al terminar, en una consola, el comando indica su duración (`Tiempo total: 1:05`). Con
-  `-v` se informa la duración de cada etapa ([Comandos](docs/comandos.md)).
+- Ninguna.
 
 ### Correcciones
 
-- **Tiempo restante estimado (ETA):** subía mientras una etapa avanzaba más lenta de lo previsto (por
-  ejemplo, la lectura de un proyecto grande con MS Project ya abierto) y después bajaba de golpe. Tampoco
-  se actualizaba durante la apertura de MS Project, la lectura del libro ni su guardado. Ahora la etapa en
-  curso se estima a su propio ritmo, y las siguientes, con el ritmo medido y el tiempo que suelen llevar,
-  que tiene en cuenta los meses del horizonte. La escritura del libro avanza según el tamaño de cada hoja,
-  y la barra se actualiza cada medio segundo.
+- Ninguna.
+
+### Otros
+
+- Ninguna.
+
+## [2.4.1] - 2026-10-31 · Ceros del código EDT, correcciones de la revisión y rendimiento
+
+### Nuevas funciones
+
+- Ninguna.
+
+### Correcciones
+
 - **Ceros intermedios en el código EDT:** un código como `1.2.0.4` es de nivel 4, una actividad de
   `1.2.0.0`: con `nivel_maximo = 3` se suma en la fila de `1.2.0.0` o en su fila `-D`. Antes era de
   nivel 3 y tenía fila propia. La clave nueva `[exportacion] ignorar_ceros_intermedios = true` mantiene ese
@@ -43,6 +49,12 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   tarea aunque tenga otra cantidad de ceros finales: antes, `1.2.0` en la lista no encontraba la tarea
   `1.2.0.0`. `actualizar` con un proyecto de otro nombre y `--migrar-desde` asocian las filas por código
   del mismo modo.
+- **Tiempo restante estimado (ETA):** subía mientras una etapa avanzaba más lenta de lo previsto (por
+  ejemplo, la lectura de un proyecto grande con MS Project ya abierto) y después bajaba de golpe. Tampoco
+  se actualizaba durante la apertura de MS Project, la lectura del libro ni su guardado. Ahora la etapa en
+  curso se estima a su propio ritmo, y las siguientes, con el ritmo medido y el tiempo que suelen llevar,
+  que tiene en cuenta los meses del horizonte. La escritura del libro avanza según el tamaño de cada hoja,
+  y la barra se actualiza cada medio segundo.
 - `--migrar-desde` suma en la fila `-D` (*Otras tareas*) el historial de una fila anterior cuya tarea
   quedó en esa fila (por ejemplo, un paquete que pasó a tener un nivel mayor al máximo), como lo hace con
   un paquete (`MIG-007`); antes no se trasladaba y se informaba como error (`MIG-014`).
@@ -99,6 +111,9 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   el guardado tarda menos de la mitad. En un proyecto grande, `generar` tarda un 32 % menos y `actualizar`
   un 26 % menos, además de la mejora anterior. Con `guardado_rapido = false` se usa el guardado normal; con
   una versión de openpyxl distinta de la probada (3.1), también.
+- **Tiempo transcurrido:** la barra de progreso muestra el tiempo transcurrido además del tiempo restante
+  estimado (ETA). Al terminar, en una consola, el comando indica su duración (`Tiempo total: 1:05`). Con
+  `-v` se informa la duración de cada etapa ([Comandos](docs/comandos.md)).
 - Documentación revisada: controles de `actualizar` y `analizar`, lista EDT en las fichas y en las filas
   `-D`, `--config` de `analizar` (`loe_maximo`), mes de inicio por defecto, ejemplo de `validar`,
   *Earned Schedule* en inglés, *Fin previsto* del libro frente al campo de MS Project, *Id. único*,
@@ -659,7 +674,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.0...HEAD
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.1...HEAD
+[2.4.1]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.2.1...v2.3.0
 [2.2.1]: https://github.com/MarceloSalazar/evm-automation/compare/v2.2.0...v2.2.1
