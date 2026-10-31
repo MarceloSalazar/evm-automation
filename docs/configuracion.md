@@ -39,6 +39,7 @@ copy config.ejemplo.toml config.toml
 | `[exportacion] metodo_por_defecto` | `"Por definir"` | Método para las filas sin método. |
 | `[exportacion] moneda` | `"EUR"` | Moneda que se muestra en el libro. Con `""` se usa el código de moneda del proyecto en MS Project. |
 | `[exportacion] decimales` | `0` | Decimales de los montos en el libro (0 a 4). |
+| `[exportacion] guardado_rapido` | `true` | Guardado rápido del libro en `generar`, `actualizar` y `analizar`: las celdas se escriben directamente, con el mismo resultado que el guardado normal y en menos de la mitad del tiempo. Con `false` se usa el guardado normal (por ejemplo, si Excel informara un problema al abrir un libro). Con otra versión de openpyxl que la probada, se usa siempre el guardado normal. |
 | `[exportacion] titulo` | vacío | Título del informe en el `Cuadro de Mando` y en `Resumen`, y del documento de `generar-fichas`. Vacío = nombre del proyecto en MS Project (con varios archivos, los nombres unidos con `+`). |
 | `[exportacion] depuracion_costes` | `false` | Agrega la hoja `PV-depuración`, donde se pega la previsión mensual del plan de costes de una empresa, las filas «(coste)» en su hoja PV y la hoja `Depuración costes` con el gráfico comparativo ([Depuración de costes](depuracion-costes.md)). El libro de entrega se genera sin depuración. |
 | `[exportacion] depuracion_empresa` | `empresa_a` | En multi-empresa, la empresa que se depura: el valor de `empresa_a` o de `empresa_b`. En un libro de una sola empresa se depura la hoja `PV`. |

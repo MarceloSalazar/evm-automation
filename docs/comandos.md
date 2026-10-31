@@ -287,7 +287,7 @@ LOE.
 |---|---|
 | `--libro` | Libro creado con `generar`, con al menos un `actualizar`. **Obligatoria.** |
 | `--sin-respaldo` | No crea la copia de respaldo del libro. |
-| `--config` | Solo se usan `[validacion] silenciar` y `loe_maximo` ([ACT-049](codigos.md#act-049)): el libro guarda los umbrales del semáforo al generarse. Sin `--config`, `loe_maximo` vale 15. |
+| `--config` | Solo se usan `[validacion] silenciar` y `loe_maximo` ([ACT-049](codigos.md#act-049)) y `[exportacion] guardado_rapido`: el libro guarda los umbrales del semáforo al generarse. Sin `--config`, `loe_maximo` vale 15 y el guardado rápido está activado. |
 | `--silenciar CODIGOS` | Igual que en `generar`. |
 
 ---

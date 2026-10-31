@@ -630,8 +630,8 @@ def build_parser() -> argparse.ArgumentParser:
     n = sub.add_parser("analizar", help="actualiza la hoja 'Análisis de desviaciones' con los valores del libro, "
                                         "sin leer MS Project (p. ej. después de cargar a mano el AC del mes)")
     n.add_argument("--libro", required=True, help="libro .xlsx generado con 'generar'")
-    n.add_argument("--config", help="archivo de configuración: solo se usan [validacion] silenciar y loe_maximo (el "
-                                    "libro guarda los umbrales del semáforo)")
+    n.add_argument("--config", help="archivo de configuración: solo se usan [validacion] silenciar y loe_maximo y "
+                                    "[exportacion] guardado_rapido (el libro guarda los umbrales del semáforo)")
     n.add_argument("--sin-respaldo", action="store_true", help="no crea copia de respaldo del libro")
     silence_option(n)
     n.set_defaults(func=cmd_analizar)

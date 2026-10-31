@@ -128,6 +128,11 @@ moneda = "EUR"
 # Decimales en los montos del libro (0 a 4).
 decimales = 0
 
+# Guardado rápido del libro (generar, actualizar y analizar): mismo resultado que el
+# guardado normal, en menos de la mitad del tiempo. false = guardado normal (por
+# ejemplo, si Excel informara un problema al abrir un libro).
+guardado_rapido = true
+
 # Título del informe (Cuadro de Mando, Resumen y documento de generar-fichas).
 # Si se omite, se usa el nombre del proyecto en MS Project (con varios archivos,
 # los nombres unidos con "+").

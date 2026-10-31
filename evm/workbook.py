@@ -1468,7 +1468,7 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     wb.properties.creator = "evm_export"
     wb.properties.title = clean_text(f"EVM - {report.title}")
     progress.stage("guardar", "Guardado del libro")
-    save_workbook(wb, path)
+    save_workbook(wb, path, fast=cfg.fast_save)
     return meta
 
 
@@ -1476,15 +1476,20 @@ def _save_error(path: Path) -> str:
     return f"No se pudo guardar '{path}'. Si el libro está abierto en Excel, se debe cerrar y volver a intentar."
 
 
-def save_workbook(wb, path: str | Path) -> None:
+def save_workbook(wb, path: str | Path, fast: bool = True) -> None:
     """Guarda el libro sin riesgo de dañarlo: escribe un archivo temporal en la misma carpeta y luego
     reemplaza el libro. Si el guardado falla (libro abierto en Excel, disco lleno, interrupción), el
-    libro anterior queda intacto y el archivo temporal se elimina."""
+    libro anterior queda intacto y el archivo temporal se elimina.
+
+    fast: guardado rápido de las celdas ([exportacion] guardado_rapido; evm/fast_save.py), con el mismo resultado.
+    """
+    from evm.fast_save import fast_cells
     path = Path(path)
     tmp = None
     try:
         buffer = io.BytesIO()
-        wb.save(buffer)                       # se arma el libro en memoria: un error no toca el disco
+        with fast_cells(fast):
+            wb.save(buffer)                   # se arma el libro en memoria: un error no toca el disco
         fd, name = tempfile.mkstemp(prefix=f"~{path.stem}.", suffix=".tmp", dir=path.parent)
         tmp = Path(name)
         with os.fdopen(fd, "wb") as fh:

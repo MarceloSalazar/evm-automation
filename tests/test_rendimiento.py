@@ -7,7 +7,10 @@
 - Calendario: el reparto de la duración entre los meses es el mismo que el día a día.
 - Lectura de MS Project (COM simulado): generar y actualizar no leen vínculos ni delimitaciones; una tarea sin
   predecesoras no recorre sus vínculos; los alias de los campos personalizados se leen una vez.
+- Guardado rápido (evm/fast_save.py, [exportacion] guardado_rapido): el archivo es el mismo, byte a byte, que con el
+  guardado de openpyxl; con la opción desactivada, o con otra versión de openpyxl, se guarda en el modo normal.
 """
+import io
 import random
 import re
 import zipfile
@@ -16,8 +19,9 @@ from datetime import date, datetime, time, timedelta
 import pytest
 from openpyxl import Workbook, load_workbook
 
+from evm import fast_save
 from evm.cli import main
-from evm.config import Config
+from evm.config import Config, load_config
 from evm.messages import EvmError
 from evm.update import read_book, run_update
 from evm.wbs import build_report
@@ -260,3 +264,120 @@ def test_generar_and_actualizar_do_not_read_links(tmp_path, monkeypatch):
     assert main(["validar", "--origen", str(path)]) == 0
     assert main(["generar-fichas", "--origen", str(path), "--salida", str(tmp_path / "f.md")]) == 0
     assert seen == [False, False, True, True]
+
+
+# ----------------------------------------------------------------------------
+# Guardado rápido
+# ----------------------------------------------------------------------------
+def saved_parts(wb, fast: bool) -> dict[str, bytes]:
+    """Partes del .xlsx guardado en memoria (sin docProps/core.xml, que lleva la hora del guardado)."""
+    buffer = io.BytesIO()
+    with fast_save.fast_cells(fast):
+        wb.save(buffer)
+    with zipfile.ZipFile(buffer) as z:
+        return {n: z.read(n) for n in z.namelist() if n != "docProps/core.xml"}
+
+
+def assert_same_file(make) -> None:
+    """make() devuelve el libro: cada modo guarda uno distinto (openpyxl modifica el libro al guardarlo, por lo que
+    un segundo guardado del mismo libro ya no es igual al primero)."""
+    normal, fast = saved_parts(make(), False), saved_parts(make(), True)
+    assert list(normal) == list(fast)
+    assert [n for n in normal if normal[n] != fast[n]] == []
+
+
+def edge_case_book() -> Workbook:
+    """Celdas de todos los tipos: las simples van por el guardado rápido y las demás, por openpyxl."""
+    from openpyxl.cell.rich_text import CellRichText, TextBlock
+    from openpyxl.cell.text import InlineFont
+    from openpyxl.comments import Comment
+    from openpyxl.worksheet.formula import ArrayFormula
+    wb = Workbook()
+    ws = wb.active
+    values = [1, 2.5, -0.1, 10 ** 20, 1e-30, 0, True, False, float("nan"), float("inf"), "texto", " inicio",
+              "fin ", "   ", "a & b < c > d", "línea 1\nlínea 2", "ñ € «»", "=SUM(A1:A2)", "=", '="x<y"&"&"',
+              datetime(2026, 1, 5, 8, 30), date(2026, 1, 1), time(8, 0), timedelta(hours=5), "#N/A"]
+    for i, v in enumerate(values, start=1):
+        ws.cell(row=i, column=1, value=v)
+        styled(ws.cell(row=i, column=2, value=v), font=FONT_BOLD, number_format=FMT_PCT_MONTH)
+    ws.cell(row=1, column=3, value="#N/A").data_type = "s"            # texto que parece un error (put_text)
+    styled(ws.cell(row=2, column=3), fill=FILL_INPUT)                  # celda vacía con estilo
+    ws["D1"] = ArrayFormula("D1:D2", "=SUM(A1:A2*B1:B2)")
+    ws["D3"] = "enlace"
+    ws["D3"].hyperlink = "https://example.com/?a=1&b=2"
+    ws["D4"] = "con nota"
+    ws["D4"].comment = Comment("Nota", "Autor")
+    ws["D5"] = CellRichText(["normal ", TextBlock(InlineFont(b=True), "negrita")])
+    return wb
+
+
+def test_fast_save_writes_the_same_file(tmp_path, book_jun):
+    assert fast_save.available()
+    assert_same_file(edge_case_book)
+    assert_same_file(lambda: load_workbook(book_jun))                  # libro del ejemplo actualizado a junio
+    for cfg in (Config(months=24, multi_enabled=True), Config(months=24, cost_review=True,
+                                                               cost_review_alignment=True)):
+        path = tmp_path / "libro.xlsx"
+        tasks = [T(1, 1, "1", "Fase", company="Ambas"), T(2, 2, "1.1", "A", company="EmpresaA"),
+                 T(3, 2, "1.2", "B", company="EmpresaB"), T(4, 2, "", "Suelta")]
+        write_workbook(build_report(P(tasks), cfg), cfg, path)
+        assert_same_file(lambda: load_workbook(path))
+
+
+def test_fast_save_is_limited_to_the_save_and_restored_after_errors():
+    from openpyxl.cell._writer import etree_write_cell
+    from openpyxl.worksheet import _writer as sheet_writer
+    with fast_save.fast_cells(True):
+        assert sheet_writer.write_cell is fast_save._write_cell
+    assert sheet_writer.write_cell is etree_write_cell
+    with fast_save.fast_cells(False):
+        assert sheet_writer.write_cell is etree_write_cell
+    with pytest.raises(RuntimeError):
+        with fast_save.fast_cells(True):
+            raise RuntimeError("guardado interrumpido")
+    assert sheet_writer.write_cell is etree_write_cell
+
+
+def test_fast_save_falls_back_with_other_openpyxl_versions_or_writers(monkeypatch):
+    import openpyxl
+    from openpyxl.cell._writer import etree_write_cell
+    from openpyxl.worksheet import _writer as sheet_writer
+    monkeypatch.setattr(openpyxl, "__version__", "3.2.0")              # versión no probada
+    assert not fast_save.available()
+    with fast_save.fast_cells(True):
+        assert sheet_writer.write_cell is etree_write_cell
+    monkeypatch.undo()
+
+    def other_writer(xf, worksheet, cell, styled=None):                # p. ej. el escritor de lxml
+        return etree_write_cell(xf, worksheet, cell, styled)
+
+    monkeypatch.setattr(sheet_writer, "write_cell", other_writer)
+    assert not fast_save.available()
+    with fast_save.fast_cells(True):
+        assert sheet_writer.write_cell is other_writer
+
+
+def test_fast_save_option(tmp_path, monkeypatch):
+    calls = []
+    original = fast_save._write_cell
+
+    def counting(*args, **kw):
+        calls.append(1)
+        return original(*args, **kw)
+
+    monkeypatch.setattr(fast_save, "_write_cell", counting)
+    xml = write_xml(tmp_path / "p.xml", project_xml([
+        task_xml(1, 1, "A", wbs="1", start=S, finish=F, baselines=[(0, S, F, 0)]),
+    ], header="<StatusDate>2026-01-30T17:00:00</StatusDate>"))
+    normal = tmp_path / "normal.toml"
+    normal.write_text("[exportacion]\nguardado_rapido = false\n", encoding="utf-8")
+    assert Config().fast_save and not load_config(normal).fast_save
+    book = tmp_path / "EVM.xlsx"
+    for argv in (["generar", "--origen", str(xml), "--salida", str(book), "--meses", "6"],
+                 ["actualizar", "--origen", str(xml), "--libro", str(book), "--sin-respaldo"],
+                 ["analizar", "--libro", str(book), "--sin-respaldo"]):
+        assert main([*argv, "--config", str(normal)]) == 0
+        assert not calls                                               # modo normal
+        assert main([*argv[:1], *argv[1:], *(["--sobrescribir"] if argv[0] == "generar" else [])]) == 0
+        assert calls                                                   # guardado rápido (por defecto)
+        calls.clear()

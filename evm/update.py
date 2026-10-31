@@ -925,7 +925,7 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
         _write_analysis(wb, book, idx, entries, found, th)
         _write_changes(wb, book, idx, status, changed, decimals)
         _refresh_charts(wb, book, idx, meta)
-        backup_path = _save(wb, book_path, backup)
+        backup_path = _save(wb, book_path, backup, cfg.fast_save)
     book.status_date = status
     return UpdateResult(status, idx, rows, warnings, backup_path, book, dry_run, deviations=found, thresholds=th,
                         schedule=plan)
@@ -973,15 +973,16 @@ def _schedule_by_key(book: BookData, plan) -> dict[str, tuple]:
     return out
 
 
-def _save(wb, book_path: Path, backup: bool) -> Path | None:
-    """Guarda el libro (fórmulas recalculadas al abrirlo) con una copia de respaldo previa, si se pide."""
+def _save(wb, book_path: Path, backup: bool, fast: bool = True) -> Path | None:
+    """Guarda el libro (fórmulas recalculadas al abrirlo) con una copia de respaldo previa, si se pide. fast:
+    guardado rápido de las celdas ([exportacion] guardado_rapido)."""
     wb.calculation = CalcProperties(fullCalcOnLoad=True)
     backup_path = None
     if backup:
         backup_path = _backup_path(book_path)
         shutil.copy2(book_path, backup_path)
     try:
-        save_workbook(wb, book_path)
+        save_workbook(wb, book_path, fast)
     except BaseException:
         if backup_path is not None:     # el libro no cambió: el respaldo no hace falta
             backup_path.unlink(missing_ok=True)
@@ -1063,7 +1064,7 @@ def run_analysis(cfg: Config, book_path: str | Path, backup: bool = True) -> Upd
     _write_changes(wb, book, idx, book.status_date, changed, decimals)
     _refresh_charts(wb, book, idx, book.meta)
     progress.stage("guardar", "Guardado del libro")
-    backup_path = _save(wb, book_path, backup)
+    backup_path = _save(wb, book_path, backup, cfg.fast_save)
     return UpdateResult(book.status_date, idx, [], warnings, backup_path, book, deviations=found, thresholds=th)
 
 

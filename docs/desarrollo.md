@@ -121,6 +121,7 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/companies.py` | Multi-empresa: parte de cada empresa en cada tarea (columnas `Empresa` y `% Reparto`, con herencia de la tarea superior). |
 | `evm/timeline.py` | Horizonte mensual y utilidades de meses. |
 | `evm/workbook.py` | Escritura del libro Excel y de sus indicadores. |
+| `evm/fast_save.py` | Guardado rápido del libro (`[exportacion] guardado_rapido`): mientras se guarda, reemplaza la función de openpyxl que escribe cada celda por una que arma su XML directamente, con el mismo resultado byte a byte. Solo con la versión de openpyxl probada (3.1.x) y su escritor estándar; si no, guardado normal. |
 | `evm/dashboard.py` | Hoja `Cuadro de Mando` y sus tres gráficos. |
 | `evm/methods.py` | Métodos de medición: interpretación del texto de la columna C y criterios de tarea comenzada y terminada. |
 | `evm/analysis.py` | Hoja `Análisis de desviaciones`: paquetes fuera de umbral, texto conservado, análisis del mes anterior incompleto y acciones vencidas. |
@@ -165,6 +166,10 @@ resultados no cambian):
   formato a las celdas que carga.
 - El libro se lee una sola vez; el libro con los valores calculados (`data_only`) se lee solo si una
   celda de ingreso tiene una fórmula.
+- El guardado rápido (`evm/fast_save.py`) depende de funciones internas de openpyxl. Al actualizar
+  openpyxl a una versión nueva, se debe comprobar que `tests/test_rendimiento.py` siga pasando (archivo
+  idéntico byte a byte con y sin guardado rápido) y agregar la versión a `TESTED_VERSIONS`; hasta
+  entonces, el programa guarda en el modo normal.
 
 ---
 

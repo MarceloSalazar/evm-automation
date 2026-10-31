@@ -86,6 +86,11 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   veces más rápido. Con `.mpp`, `generar` y `actualizar` hacen alrededor de un 30 % menos de llamadas a
   MS Project: no leen los vínculos ni las delimitaciones, que solo usan `validar` y `generar-fichas`.
   Los libros y los resultados son los mismos.
+- **Guardado rápido del libro** (clave nueva `[exportacion] guardado_rapido`, activada por defecto): las
+  celdas se escriben directamente, con el mismo archivo que el guardado normal (comprobado byte a byte), y
+  el guardado tarda menos de la mitad. En un proyecto grande, `generar` tarda un 32 % menos y `actualizar`
+  un 26 % menos, además de la mejora anterior. Con `guardado_rapido = false` se usa el guardado normal; con
+  una versión de openpyxl distinta de la probada (3.1), también.
 - Documentación revisada: controles de `actualizar` y `analizar`, lista EDT en las fichas y en las filas
   `-D`, `--config` de `analizar` (`loe_maximo`), mes de inicio por defecto, ejemplo de `validar`,
   *Earned Schedule* en inglés, *Fin previsto* del libro frente al campo de MS Project, *Id. único*,
