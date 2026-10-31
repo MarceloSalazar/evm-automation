@@ -18,10 +18,18 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Nuevas funciones
 
-- Ninguna.
+- **Tiempo transcurrido:** la barra de progreso muestra el tiempo transcurrido además del tiempo restante
+  estimado (ETA). Al terminar, en una consola, el comando indica su duración (`Tiempo total: 1:05`). Con
+  `-v` se informa la duración de cada etapa ([Comandos](docs/comandos.md)).
 
 ### Correcciones
 
+- **Tiempo restante estimado (ETA):** subía mientras una etapa avanzaba más lenta de lo previsto (por
+  ejemplo, la lectura de un proyecto grande con MS Project ya abierto) y después bajaba de golpe. Tampoco
+  se actualizaba durante la apertura de MS Project, la lectura del libro ni su guardado. Ahora la etapa en
+  curso se estima a su propio ritmo, y las siguientes, con el ritmo medido y el tiempo que suelen llevar,
+  que tiene en cuenta los meses del horizonte. La escritura del libro avanza según el tamaño de cada hoja,
+  y la barra se actualiza cada medio segundo.
 - **Ceros intermedios en el código EDT:** un código como `1.2.0.4` es de nivel 4, una actividad de
   `1.2.0.0`: con `nivel_maximo = 3` se suma en la fila de `1.2.0.0` o en su fila `-D`. Antes era de
   nivel 3 y tenía fila propia. La clave nueva `[exportacion] ignorar_ceros_intermedios = true` mantiene ese

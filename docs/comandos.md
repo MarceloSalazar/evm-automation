@@ -24,15 +24,20 @@ Para ver mensajes de diagnóstico se agrega `-v` **antes** del comando:
 `python evm_export.py -v generar ...`
 
 Todos los comandos muestran en la primera línea la versión del programa (`Exportador EVM 2.4.0`). En
-una consola, mientras trabajan, muestran también una barra de progreso con la tarea en curso, el % de esa
-tarea y del total, y el tiempo restante estimado:
+una consola, mientras trabajan, muestran también una barra de progreso con el % del total, el tiempo
+transcurrido, el tiempo restante estimado (ETA), la tarea en curso y el % de esa tarea:
 
 ```text
-[██████░░░░░░░░░░░░░░]  31 %  Lectura de MS Project: 1.234 de 3.000 tareas (41 %)  ·  ETA 0:42
+[██████░░░░░░░░░░░░░░]  31 %  Transcurrido 0:19  ·  ETA 0:42  ·  Lectura de MS Project: 1.234 de 3.000 tareas (41 %)
 ```
 
-La barra se borra al terminar. Con la salida redirigida a un archivo (por ejemplo, en un registro
-automático) no se muestra.
+El ETA se calcula con el ritmo de la tarea en curso y el tiempo que suelen llevar las siguientes (según
+los meses del horizonte). Indica *calculando...* hasta que hay datos suficientes, por ejemplo mientras se
+abre MS Project o, en `analizar`, mientras se lee el libro.
+
+La barra se borra al terminar y el comando indica su duración en la última línea
+(`Tiempo total: 1:05`). Con la salida redirigida a un archivo (por ejemplo, en un registro automático) no
+se muestran la barra ni el tiempo total. Con `-v` se informa además la duración de cada etapa.
 
 ---
 

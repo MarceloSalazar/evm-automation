@@ -1360,16 +1360,19 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     _write_lists(ws_lists, methods)
     progress.stage("escribir", "Escritura del libro")
     steps = len(data_sheets) + len(pct_sheets) + 4
+    # Avance según el tiempo de cada hoja: una de datos (fórmulas de cada fila y mes) lleva lo que 6 de '% PV' o
+    # '% EV'; las demás hojas, entre todas, lo que 4
+    cost = 6 * len(data_sheets) + len(pct_sheets) + 4
     for k, (ws, kind, role) in enumerate(data_sheets, start=1):
         _write_data_sheet(ws, kind, report, cfg, lay, generated, prior, role)
-        progress.step(k, steps, "hojas")
+        progress.step(k, steps, "hojas", 6 * k / cost)
     for k, (ws, kind, role) in enumerate(pct_sheets, start=len(data_sheets) + 1):
         _write_pct_sheet(ws, kind, report, cfg, lay, generated, prior, role)
-        progress.step(k, steps, "hojas")
+        progress.step(k, steps, "hojas", (k + 5 * len(data_sheets)) / cost)
     _write_curve(ws_curve, report, cfg, lay)
     _write_summary(ws_sum, report, cfg, lay, generated, status)
     _write_indicators(ws_ind, report, cfg, lay)
-    progress.step(steps - 2, steps, "hojas")
+    progress.step(steps - 2, steps, "hojas", (cost - 2.5) / cost)
     from evm.schedule import from_report
     write_schedule(wb, from_report(report, cfg, lay.r), [lay.r(r) for r in report.rows], lay.total_row, "generar")
     if cfg.wbs_list is not None:
@@ -1381,7 +1384,7 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     packages = dashboard.chart_packages((lay.r(r), r.code, r.level, r.kind) for r in report.rows)
     dashboard.write_chart_data(ws_charts, cfg, lay, packages)
     dashboard.write_dashboard(ws_dash, report, cfg, lay, packages, status)
-    progress.step(steps - 1, steps, "hojas")
+    progress.step(steps - 1, steps, "hojas", (cost - 1) / cost)
     analysis.write_sheet(wb, prior.analysis if prior is not None else [],
                          {row_key(r): lay.r(r) for r in report.rows if r.is_input}, lay.months,
                          Thresholds.from_config(cfg), cfg.decimals)

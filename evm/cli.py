@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+import time
 from contextlib import contextmanager
 from dataclasses import replace
 from datetime import date
@@ -69,19 +70,30 @@ def open_project(origen: str, cfg: Config, motor: str, visible: bool = False, st
 
 def _stages(files: list[tuple[str, str, Config]], motor: str, before: dict[str, float] | None = None,
             compute: float = 0.0, after: dict[str, float] | None = None) -> dict[str, float]:
-    """Etapas de la barra de progreso y su peso relativo (tiempo habitual de cada una): por archivo, apertura en
-    MS Project (COM), lectura y cálculo; antes y después, las del comando."""
+    """Etapas de la barra de progreso y su peso relativo: por archivo, apertura en MS Project (COM), lectura y
+    cálculo; antes y después, las del comando.
+
+    Peso = segundos aproximados con un proyecto de unas 2.000 tareas y 120 meses (medidos con XML; la apertura y la
+    lectura con MS Project, estimadas). Solo cuenta la proporción entre las etapas: el ETA se ajusta al ritmo real.
+    """
     stages = dict(before or {})
     for name, origin, _cfg in files:
         if _engine_for(origin, motor) == "com":
-            stages[f"abrir:{name}"] = 15.0
-            stages[f"leer:{name}"] = 40.0
-        else:
+            stages[f"abrir:{name}"] = 8.0
             stages[f"leer:{name}"] = 10.0
+        else:
+            stages[f"leer:{name}"] = 0.5
         if compute:
             stages[f"calcular:{name}"] = compute
     stages.update(after or {})
     return stages
+
+
+def _book_stages(months: int, **stages: float) -> dict[str, float]:
+    """Etapas del libro (lectura, cálculo, escritura, guardado) con su peso para 120 meses, ajustado a los meses del
+    horizonte: con 36 meses llevan la mitad del tiempo."""
+    scale = 0.3 + 0.7 * months / 120
+    return {k: v * scale for k, v in stages.items()}
 
 
 def _computing(name: str, text: str) -> None:
@@ -205,9 +217,9 @@ def cmd_generar(args) -> int:
     if salida.exists():
         check_writable(salida)                  # libro abierto en Excel: se informa antes de leer MS Project
     parts = []
-    after = {"migrar": 10.0} if args.migrar_desde else {}
-    with progress.tracking(_stages(files, args.motor, compute=10.0,
-                                   after={**after, "escribir": 20.0, "guardar": 15.0})):
+    after = {"migrar": 9.9} if args.migrar_desde else {}
+    with progress.tracking(_stages(files, args.motor, compute=0.3,
+                                   after=_book_stages(cfg.months, **after, escribir=6.5, guardar=3.8))):
         for name, origin, pcfg in files:
             progress.say(_reading(name, origin))
             with open_project(origin, pcfg, args.motor, args.visible, name=name, links=False) as project:
@@ -367,9 +379,9 @@ def cmd_analizar(args) -> int:
     _add_silence(cfg, args)
     from evm.update import book_meta, run_analysis
     from evm.workbook import check_writable
-    book_meta(args.libro)                   # libro inexistente o que no es de este programa: error con su código
+    meta = book_meta(args.libro)            # libro inexistente o que no es de este programa: error con su código
     check_writable(args.libro)
-    with progress.tracking({"libro": 40.0, "analizar": 10.0, "guardar": 40.0}):
+    with progress.tracking(_book_stages(meta["meses"], libro=9.7, analizar=0.2, guardar=4.5)):
         res = run_analysis(cfg, args.libro, backup=not args.sin_respaldo)
     print(f"Fecha de corte: {res.status_date:%d/%m/%Y} (mes {res.month_index + 1} del horizonte)")
     _print_notices(_silence(cfg).apply(res.warnings))
@@ -393,7 +405,7 @@ def cmd_actualizar(args) -> int:
         from evm.workbook import check_writable
         check_writable(args.libro)              # libro abierto en Excel: se informa antes de leer MS Project
     projects = {}
-    after = {"libro": 20.0, "calcular": 10.0} | ({} if args.simular else {"guardar": 20.0})
+    after = _book_stages(meta["meses"], libro=9.6, calcular=0.4, **({} if args.simular else {"guardar": 4.8}))
     with progress.tracking(_stages(files, args.motor, after=after)):
         for name, origin, pcfg in files:
             progress.say(_reading(name, origin))
@@ -446,7 +458,7 @@ def cmd_validar(args) -> int:
     status = parse_date(args.fecha_corte) if args.fecha_corte else None
     from evm.validation import combine, validate_part
     parts = []
-    with progress.tracking(_stages(files, args.motor, compute=10.0, after={"revisar": 5.0})):
+    with progress.tracking(_stages(files, args.motor, compute=0.2, after={"revisar": 0.1})):
         for name, origin, pcfg in files:
             progress.say(_reading(name, origin))
             with open_project(origin, pcfg, args.motor, args.visible, name=name) as project:
@@ -509,7 +521,7 @@ def cmd_generar_fichas(args) -> int:
         raise ConfigError("CFG-042", f"'{salida}' ya existe. Para reemplazarlo se debe usar --sobrescribir.")
 
     parts = []
-    with progress.tracking(_stages(files, args.motor, compute=10.0, after={"fichas": 5.0})):
+    with progress.tracking(_stages(files, args.motor, compute=0.3, after={"fichas": 0.2})):
         for name, origin, pcfg in files:
             progress.say(_reading(name, origin))
             with open_project(origin, pcfg, args.motor, args.visible, name=name) as project:
@@ -652,8 +664,12 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING,
                         format="%(levelname)s %(name)s: %(message)s")
     print(f"Exportador EVM {__version__}", flush=True)
+    started = time.monotonic()
     try:
-        return args.func(args)
+        code = args.func(args)
+        if progress.bar_was_shown():          # consola interactiva: la barra se borró al terminar
+            print(f"Tiempo total: {progress.clock_text(time.monotonic() - started)}")
+        return code
     except EvmError as exc:                 # errores previstos, con su código del catálogo (docs/codigos.md)
         if args.verbose:
             log.exception("Error")

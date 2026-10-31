@@ -40,7 +40,7 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 | `test_plazo_tendencia.py` | Plazo según el cronograma (días laborables, fin previsto, holgura y crítica de cada fila, filas resumen y total), columnas de `Indicadores EDT`, secciones del `Resumen` y del `Cuadro de Mando`, libros de versiones anteriores, tendencia (mes anterior con datos y últimos 3 meses) y recálculo de sus fórmulas con LibreOffice. |
 | `test_lista_edt.py` | Lista EDT (`lista_edt`): lectura del archivo, filas definidas por la lista, códigos sin los ceros finales, códigos faltantes, ramas sin elemento listado, lista guardada en el libro y usada por `actualizar`. |
 | `test_ceros_intermedios.py` | Ceros del código EDT. Intermedios (`ignorar_ceros_intermedios`): nivel del código, filas del libro y fila `-D`, controles de los códigos, criterio guardado en el libro y usado por `actualizar`, `--migrar-desde` y línea de comandos. Finales (`1.2` = `1.2.0` = `1.2.0.0`): duplicados y asociación por código en `actualizar` y `--migrar-desde`. |
-| `test_progreso.py` | Versión en pantalla y barra de progreso (etapas, % de la etapa y del total, ETA, consola no interactiva). |
+| `test_progreso.py` | Versión en pantalla y barra de progreso (etapas, % de la etapa y del total, tiempo transcurrido, ETA que no sube en una etapa lenta y cuenta hacia atrás en una sin conteo, refresco, tiempo total, consola no interactiva). |
 | `test_registro_cambios.py` | Controles del cierre mensual de la norma EIA-748-E: registro de cambios del BAC y de los meses ya informados (referencia, detección, hoja `Registro de cambios`, `--simular` y `--migrar-desde`), coherencia del EV y el AC, análisis de desviaciones incompleto, acciones vencidas, meses sin informe, línea base de MS Project distinta de la del libro, EAC poco realista (TCPI frente al CPI) y peso del LOE en el BAC. |
 | `test_codigos.py` | Códigos de errores y advertencias: formato y numeración del catálogo, todo mensaje con un código del catálogo, todo código usado, `docs/codigos.md` al día y silenciar (configuración, `--silenciar`, hoja `Validación` y código de salida de `validar`). |
 | `test_varios_archivos.py` | Varios archivos de MS Project (`[[proyectos]]`): el libro combinado coincide, fila por fila, con el libro de cada archivo (también en multi-empresa, con UniqueID repetidos entre archivos); errores de configuración y de la línea de comandos, fechas de estado y `--migrar-desde`. |
@@ -131,7 +131,7 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/migrate.py` | Traslado del BAC, el % ganado, el AC y los métodos al regenerar el libro (`--migrar-desde`). |
 | `evm/indicators.py` | Indicadores que se muestran en pantalla (mismos cálculos que la hoja `Resumen`), incluida la tendencia. |
 | `evm/schedule.py` | Plazo según el cronograma de MS Project: fin previsto, desvío de fin, holgura y camino crítico de cada fila y del proyecto. |
-| `evm/progress.py` | Barra de progreso de la consola (etapas de cada comando, % y ETA). |
+| `evm/progress.py` | Barra de progreso de la consola (etapas de cada comando, %, tiempo transcurrido y ETA, refresco cada medio segundo). |
 | `evm/task_cards.py` | Comando `generar-fichas`: ficha de cada elemento EDT del libro (fechas y duración de la línea base, predecesoras y sucesoras) y documento Markdown. |
 | `instalador/` | Instalador de Windows: `construir.py`, especificación de PyInstaller, script de Inno Setup y consola ([3.2](#32-instalador-de-windows)). |
 
