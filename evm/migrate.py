@@ -9,9 +9,11 @@ from evm.analysis import A_CODE, A_KEY, A_MONTH, A_NAME, A_ORIGIN, SHEET_ANALYSI
 from evm.config import ConfigError
 from evm.cost_review import SHEET_PASTE, month_offset, paste_months, read_paste, review_company, shift_rows
 from evm.fields import same_name
-from evm.model import MonthKey
 from evm.messages import SEV_INFO, SEV_WARN, Issue
-from evm.wbs import KIND_LEAF, Report, ReportRow, fmt_money, iter_subtree, plural
+from evm.methods import is_undefined
+from evm.model import MonthKey, Task
+from evm.wbs import (KIND_LEAF, KIND_RESIDUAL, Report, ReportRow, code_key, fmt_money, has_interior_zero,
+                     iter_subtree, plural)
 from evm.workbook import (PCT_PREFIX, SHEET_EV, SHEET_LISTS, book_sources, clean_text, pct_sheet, role_key, row_key,
                           source_meta, split_key)
 
@@ -71,6 +73,7 @@ class PriorData:
     max_level: int | None
     methods_list: list[str]
     multi: bool = False
+    ignore_interior_zeros: bool = False     # ignorar_ceros_intermedios con que se generó el libro anterior
     # Proyecto de MS Project de cada archivo del libro anterior ({'': nombre} en un libro de un solo archivo)
     project_names: dict[str, str] = field(default_factory=dict)
     analysis: list = field(default_factory=list)     # filas de la hoja Análisis de desviaciones (analysis.Entry)
@@ -92,6 +95,8 @@ class PriorData:
     # después de plan_migration)
     change_log: list[list] = field(default_factory=list)
     reference: changes.Reference | None = None
+    # Celdas del libro anterior con un valor escrito sobre la fórmula (subtotales, TOTAL, suma de empresas)
+    overwritten: list[str] = field(default_factory=list)
 
     def values_for(self, key: str, kind: str) -> dict[MonthKey, float]:
         return self.values.get(key, {}).get(kind, {})
@@ -107,7 +112,7 @@ class PriorData:
 
 def prior_from_book(path, project_name: str) -> PriorData:
     """Lee EV, AC, métodos y fecha de corte de un libro generado anteriormente."""
-    from evm.update import read_book
+    from evm.update import book_ignores_interior_zeros, read_book
     book = read_book(path)
     sources = {role_key(pct_sheet(SHEET_EV), role or None): book.pct_ev[role] for role, _c in book.roles()}
     sources.update({role_key("AC", role or None): (book.ac_a if role == "A" else book.ac_b if role == "B"
@@ -144,9 +149,11 @@ def prior_from_book(path, project_name: str) -> PriorData:
     return PriorData(rows=rows, status_date=book.status_date,
                      project_name=str(book.meta.get("proyecto") or ""),
                      max_level=int(level) if level else None, methods_list=methods_list, multi=book.multi,
+                     ignore_interior_zeros=book_ignores_interior_zeros(book.meta),
                      project_names=names, analysis=analysis, review_rows=review_rows,
                      review_company=str(book.meta.get("depuracion_empresa") or ""), review_start=book.horizon.start,
-                     review_legacy=review_legacy, change_log=change_log, reference=reference)
+                     review_legacy=review_legacy, change_log=change_log, reference=reference,
+                     overwritten=list(book.formula_values))
 
 
 def _migrate_analysis(prior: PriorData, key_map: dict[str, str]) -> list[Issue]:
@@ -236,11 +243,28 @@ def _migrate_review(report: Report, prior: PriorData) -> list[Issue]:
     return issues
 
 
-def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Issue]:
+def _whole_branches(row: ReportRow) -> list[Task]:
+    """Tareas de una fila -D cuya rama completa forma parte de la fila: todas sus tareas de detalle están en ella."""
+    leaves = {t.uid for t in row.leaves}
+    out: list[Task] = []
+
+    def visit(t: Task) -> None:
+        for c in t.children:
+            if all(n.uid in leaves for n in iter_subtree(c) if not n.children):
+                out.extend(iter_subtree(c))
+            else:
+                visit(c)
+
+    visit(row.task)
+    return out
+
+
+def plan_migration(report: Report, prior: PriorData, max_level: int,
+                   ignore_interior_zeros: bool = False) -> list[Issue]:
     """Asigna cada fila del libro anterior a una fila del libro nuevo (sin duplicar historiales).
 
-    Mismo proyecto: por UniqueID; si la fila anterior quedó dentro de un paquete
-    nuevo (p. ej. al bajar el nivel máximo), su historial se suma a ese paquete.
+    Mismo proyecto: por UniqueID; si la fila anterior quedó dentro de un paquete o de una fila -D
+    nueva (p. ej. al bajar el nivel máximo), su historial se suma a esa fila.
     Proyecto distinto: por código EDT, una fila anterior por fila nueva.
     """
     issues: list[Issue] = []
@@ -278,16 +302,26 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
         issues.append(Issue("MIG-006", "", "",
                             f"El libro anterior usaba nivel máximo {prior.max_level} y el nuevo {max_level}. Las "
                             "filas que ahora se dividen en varias no pueden repartir su historial (ver errores)."))
+    if prior.ignore_interior_zeros != ignore_interior_zeros and any(
+            has_interior_zero(c) for c in [o.code for o in prior.rows] + [r.code for r in report.rows]):
+        old, new = ("true" if v else "false" for v in (prior.ignore_interior_zeros, ignore_interior_zeros))
+        issues.append(Issue("MIG-020", "", "",
+                            f"El libro anterior se generó con ignorar_ceros_intermedios = {old} y el nuevo con "
+                            f"{new}: cambia el nivel de los códigos con un 0 intermedio (p. ej. 1.2.0.1). Las filas "
+                            "que ahora se dividen en varias no pueden repartir su historial (ver errores)."))
 
     inputs = [r for r in report.rows if r.is_input]
     by_key = {row_key(r): r for r in inputs}
-    by_code: dict[str, ReportRow] = {}
+    by_code: dict[str, ReportRow] = {}      # código sin los ceros finales (1.2.0 = 1.2.0.0) -> fila
     for r in inputs:
-        by_code.setdefault(r.code, r)
+        by_code.setdefault(code_key(r.code), r)
     contains: dict[tuple[str, int], ReportRow] = {}      # (archivo, UniqueID) -> paquete que contiene la tarea
     for r in inputs:
         if r.kind == KIND_LEAF:
             for n in iter_subtree(r.task):
+                contains.setdefault((r.source, n.uid), r)
+        elif r.kind == KIND_RESIDUAL:          # p. ej. un paquete que pasó a tener un nivel mayor al máximo
+            for n in _whole_branches(r):
                 contains.setdefault((r.source, n.uid), r)
 
     used_codes: set[str] = set()
@@ -301,7 +335,7 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
             elif old.uid is not None and (old.source, old.uid) in contains:
                 target, how = contains[(old.source, old.uid)], "rama"
         else:
-            cand = by_code.get(old.code)
+            cand = by_code.get(code_key(old.code))
             if cand is not None and row_key(cand) not in used_codes:
                 target, how = cand, "codigo"
                 used_codes.add(row_key(cand))
@@ -380,9 +414,7 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
                             + (" (el libro anterior no indica si se editaron en Excel o cambiaron en MS Project; "
                                "se recomienda revisarlos)." if legacy else ", editados en Excel.")))
         # Recalcular el aviso de filas sin método
-        undefined = sum(1 for r in inputs
-                        if (prior.methods.get(row_key(r)) or r.method).strip().lower() in ("", "por definir",
-                                                                                          "a definir"))
+        undefined = sum(1 for r in inputs if is_undefined(prior.methods.get(row_key(r)) or r.method))
         report.issues[:] = [i for i in report.issues if i.id != "MET-005"]
         if undefined:
             issues.append(Issue("MET-005", "", "", f"{plural(undefined, 'fila', 'filas')} sin método de medición "
@@ -400,6 +432,13 @@ def plan_migration(report: Report, prior: PriorData, max_level: int) -> list[Iss
                                               "libro anterior."))
     issues += _migrate_changes(prior, key_map, sources)
     issues += _migrate_review(report, prior)
+    if prior.overwritten:
+        shown = ", ".join(prior.overwritten[:8])
+        more = f" y {len(prior.overwritten) - 8} más" if len(prior.overwritten) > 8 else ""
+        issues.append(Issue("MIG-019", "", "",
+                            f"El libro anterior tiene valores escritos sobre celdas con fórmula (subtotales, fila "
+                            f"TOTAL o suma de las empresas) que no se trasladan: {shown}{more}. Si son el AC o el BAC "
+                            "de un paquete, se deben cargar en sus filas de ingreso del libro nuevo."))
     for old in prior.unmatched:
         bac = f"BAC {fmt_money(sum(old.bac.values()))}, "
         issues.append(Issue("MIG-014", old.code, old.name,

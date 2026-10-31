@@ -253,10 +253,12 @@ def test_calendar_fallbacks_use_standard_week(read, calendars, uid):
     (5, {"Period": 1, "MonthItem": 4, "MonthPosition": 4}),     # mensual: último lunes de cada mes
     (8, {}),
 ], ids=["anual relativa", "mensual relativa", "tipo 8"])
-def test_relative_exceptions_are_applied_or_reported(read, kind, fields):
+def test_relative_exceptions_are_reported(read, kind, fields):
+    """Las excepciones relativas (p. ej. 'último lunes de mayo') no se aplican: se informan (LEC-018)."""
     exc = exception_xml(date(2026, 5, 25), date(2026, 5, 25), kind=kind, Occurrences=1, **fields)
     p = read(project_xml(simple_tasks(), calendars=[calendar_xml(1, exceptions=[exc])], calendar_uid=1))
-    assert not p.calendar.is_working_day(date(2026, 5, 25)) or any("excepci" in w.message.lower() for w in p.warnings)
+    assert p.calendar.is_working_day(date(2026, 5, 25))
+    assert [w.id for w in p.warnings if "excepci" in w.message.lower()] == ["LEC-018"]
 
 
 def test_unreadable_exception_warning_names_calendar_and_exception(read):

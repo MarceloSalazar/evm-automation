@@ -104,6 +104,9 @@ class Config:
     # [exportacion]
     plan: str = ""                        # código EDT de la planificación (p. ej. INTERNO); "" = todas
     max_level: int = 3
+    # ignorar_ceros_intermedios: un 0 intermedio no cuenta para el nivel (1.2.0.1 es de nivel 3, como 1.2.1.0);
+    # False = el nivel es la posición del último segmento (1.2.0.1 es de nivel 4, actividad de 1.2)
+    ignore_interior_zeros: bool = False
     baseline: int | None = None           # 0 = Línea base; 1..10 = Línea base N; None = la del proyecto
     pad_wbs: bool = True                  # "1" -> "1.0.0", "1.2" -> "1.2.0"
     # lista_edt: archivo con los códigos EDT que tienen fila en el libro (reemplaza a max_level y al campo Visible
@@ -111,11 +114,12 @@ class Config:
     wbs_list_file: str = ""
     wbs_list: list[str] | None = None
     include_inactive: bool = False
-    distribution: str = "habiles"         # tareas sin datos mensuales: "habiles" | "calendario"
+    distribution: str = "habiles"         # reparto de la duración de las tareas: "habiles" | "calendario"
     holidays: set[date] = field(default_factory=set)
     default_method: str = "Por definir"
     currency: str = "EUR"                 # "" = código de moneda del proyecto en MS Project
     decimals: int = 0
+    fast_save: bool = True                # guardado_rapido: las celdas se escriben como texto al guardar el libro
     # Depuración de costes: filas «(coste)» con la previsión de una empresa, pegada
     # en la hoja PV-depuración, para alinear las tareas e hitos de MS Project con esa previsión
     cost_review: bool = False             # depuracion_costes
@@ -386,13 +390,18 @@ def load_config(path: str | Path | None) -> Config:
     cfg.description_field = _get(campos, "descripcion", cfg.description_field, str).strip()
 
     hor = _section(data, "horizonte")
-    start = _get(hor, "mes_inicio", "", str).strip()
-    cfg.start_month = parse_month(start) if start else None
+    start = hor.get("mes_inicio")
+    if isinstance(start, date):                 # fecha TOML sin comillas (mes_inicio = 2026-01-01)
+        cfg.start_month = date(start.year, start.month, 1)
+    else:
+        start = _get(hor, "mes_inicio", "", str).strip()
+        cfg.start_month = parse_month(start) if start else None
     cfg.months = _get(hor, "meses", cfg.months, int)
 
     exp = _section(data, "exportacion")
     cfg.plan = _get(exp, "planificacion", cfg.plan, str).strip()
     cfg.max_level = _get(exp, "nivel_maximo", cfg.max_level, int)
+    cfg.ignore_interior_zeros = _get(exp, "ignorar_ceros_intermedios", cfg.ignore_interior_zeros, bool)
     if exp.get("linea_base") not in (None, ""):
         cfg.baseline = _get(exp, "linea_base", 0, int)
     cfg.pad_wbs = _get(exp, "rellenar_edt", cfg.pad_wbs, bool)
@@ -411,6 +420,7 @@ def load_config(path: str | Path | None) -> Config:
     cfg.default_method = _get(exp, "metodo_por_defecto", cfg.default_method, str).strip()
     cfg.currency = _get(exp, "moneda", cfg.currency, str).strip()
     cfg.decimals = _get(exp, "decimales", cfg.decimals, int)
+    cfg.fast_save = _get(exp, "guardado_rapido", cfg.fast_save, bool)
     cfg.title = _get(exp, "titulo", cfg.title, str).strip()
     cfg.cost_review = _get(exp, "depuracion_costes", cfg.cost_review, bool)
     cfg.cost_review_company = _get(exp, "depuracion_empresa", cfg.cost_review_company, str).strip()

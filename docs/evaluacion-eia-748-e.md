@@ -288,9 +288,9 @@ responsables.
 
 ### Guía 17 · Generar las variaciones de cronograma y de costo
 
-- **Qué exige:** **al menos cada mes**, la SV, la CV y el VAC por cuenta de control y en los niveles
+- **Qué exige:** **al menos cada mes**, el SV, el CV y el VAC por cuenta de control y en los niveles
   superiores, con AC conciliable con la contabilidad.
-- **Qué hace el programa:** el libro calcula el PV, el EV y el AC de cada mes, y la SV, la CV, los
+- **Qué hace el programa:** el libro calcula el PV, el EV y el AC de cada mes, y el SV, el CV, los
   índices, el EAC y el VAC del proyecto ([Cuadro de Mando](cuadro-de-mando.md)) y de cada elemento EDT
   ([Indicadores EDT](libro-excel.md#indicadores-edt)). Avisa si la fecha de corte no es fin de mes
   (`ACT-018`) y si quedan meses sin % ganado cargado entre dos cierres (`ACT-046`).
@@ -327,7 +327,7 @@ responsables.
 - **Qué exige:** resumir los datos y las variaciones por la EDT (u OBS), con el TCPI y estimaciones
   independientes del EAC.
 - **Qué hace el programa:** las filas resumen y el proyecto suman sus filas; el `Cuadro de Mando`
-  muestra el TCPI, tres métodos de EAC, el Cronograma Ganado, la tendencia de los índices y el plazo
+  muestra el TCPI, tres métodos de EAC, el Earned Schedule, la tendencia de los índices y el plazo
   según MS Project. En multi-empresa, los valores de cada empresa.
 
 ### Guía 22 · Implementar acciones de gestión

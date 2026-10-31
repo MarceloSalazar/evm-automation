@@ -79,7 +79,7 @@ cálculo:
 
 | Paso | Qué se necesita |
 |---|---|
-| Código EDT | Cada fila del libro es un elemento EDT hasta el nivel máximo, o el detalle que indique el campo `Visible` de cada tarea ([sección 3](#3-filas-del-libro)). |
+| Código EDT | Cada fila del libro es un elemento EDT hasta el nivel máximo, con el detalle que indique el campo `Visible` de cada tarea, o un código de la lista EDT ([sección 3](#3-filas-del-libro)). |
 | Línea base | Guardada (*Proyecto > Establecer línea base*): el % planificado usa sus **fechas**. |
 | Tareas de detalle | Su **duración** define su peso dentro del paquete: conviene que las tareas representen el trabajo del paquete. Una tarea larga de poco valor pesa más que una corta de mucho valor. |
 | Hitos | Con el campo `Peso hito` (*Número1*), que se indica en `[campos] peso_hito`: el % del BAC del paquete que se planifica en el mes del hito ([sección 4](#4--planificado-peso-de-cada-tarea)). Cómo cuenta en el % ganado depende del método ([sección 6](#6--ganado-métodos-de-medición)). |
@@ -140,7 +140,8 @@ planificación y ambas usan los mismos códigos EDT, `Validación` informa códi
 ### 3.2 Niveles por código EDT
 
 El nivel de cada tarea se toma de su **código EDT**, no de su posición en el esquema de MS Project: los
-ceros finales no cuentan.
+ceros finales no cuentan. Son relleno: `1.2`, `1.2.0` y `1.2.0.0` son el mismo código, y si dos tareas los
+tienen, `Validación` informa un código duplicado ([EDT-009](codigos.md#edt-009)).
 
 | Código EDT | Nivel | Fila en el libro |
 |---|---|---|
@@ -148,12 +149,21 @@ ceros finales no cuentan.
 | `2.1.0` | 2 | Subtotal o fila de ingreso si no tiene hijos. |
 | `2.1.1` | 3 | Fila de ingreso: paquete de trabajo. |
 | `2.1.1.1` | 4 | Sin fila propia: forma parte de `2.1.1`. |
-| `2.1.0.1` | 3 | Fila de ingreso: hijo directo de `2.1.0`, como `2.1.1` (0 intermedio). |
+| `2.1.0.1` | 4 | Sin fila propia: actividad de `2.1.0` (0 intermedio), se suma en su fila. |
 
-Un **0 intermedio** permite insertar un elemento sin renumerar a sus hermanos: debajo de `1.2.0.0`,
-`1.2.0.1` se inserta antes de `1.2.1.0` y es su hermano. Los ceros intermedios no cuentan para el nivel,
-igual que los finales. `1.2.0.1` debajo de `1.2.1.0` sigue siendo un error: su código no depende del de
-su tarea superior.
+Un **0 intermedio** indica que el código depende directamente del elemento formado por los segmentos
+anteriores: `1.2.0.1` depende de `1.2.0.0`. Su nivel depende de `[exportacion] ignorar_ceros_intermedios`:
+
+| `ignorar_ceros_intermedios` | Nivel de `1.2.0.1` | Uso |
+|---|---|---|
+| `false` (por defecto) | 4, como `1.2.1.1` | Una actividad de `1.2.0.0` sin paquete de nivel 3. Con `nivel_maximo = 3` se suma en la fila de `1.2.0.0` o, si `1.2.0.0` tiene otras filas (como `1.2.1.0`), en su fila `1.2.0.0-D` (*Otras tareas*). |
+| `true` | 3, como `1.2.1.0` | Un elemento insertado debajo de `1.2.0.0`, antes de `1.2.1.0`, sin renumerar a sus hermanos: tiene fila propia. |
+
+En los dos casos, `1.2.0.1` debajo de `1.2.1.0` es un error: su código no depende del de su tarea
+superior. `actualizar` usa el valor con que se generó el libro; si la configuración indica otro y alguna
+fila cambiaría, lo informa
+([ACT-050](codigos.md#act-050)) y el libro conserva sus filas. Para aplicar el cambio, se regenera el libro con
+`--migrar-desde`.
 
 - Tienen fila propia las tareas con código EDT hasta el nivel máximo (`nivel_maximo`, 3 por defecto).
 - El % planificado y el % ganado de una fila de nivel 3 se calculan con todas las tareas de detalle que
@@ -242,15 +252,16 @@ El archivo tiene un código EDT por línea:
 1.0.0
 1.1.0   Ingeniería
 1.1.1   Estudios de terreno
-2.0
+2.0.0
 2.1.0
 2.1.1
 ```
 
 - Se ignoran las líneas vacías, las que empiezan con `#` y el texto que sigue al código (por ejemplo, el
   nombre del elemento copiado desde Excel). Se admiten archivos en UTF-8, ANSI o texto Unicode de Excel.
-- Los códigos se completan con ceros como en el libro (`2.0` → `2.0.0`) y se escriben sin el prefijo de
-  la planificación (`1.1.0`, no `INTERNO.1.1.0`).
+- Los códigos se escriben con los ceros del nivel máximo (nivel 3: `1.2.0`; nivel 4: `1.2.0.0`) y sin el
+  prefijo de la planificación (`1.1.0`, no `INTERNO.1.1.0`). Los ceros finales no cuentan al buscar la
+  tarea: con nivel 3, `1.2.0` en la lista es la tarea `1.2.0.0` de MS Project, y `2.0` es `2.0.0`.
 - **La lista decide las filas** y reemplaza a `nivel_maximo` y al campo `Visible`:
   - cada código de la lista tiene su fila, aunque sea más detallado que `nivel_maximo`;
   - una tarea cuyo código no está en la lista se suma en su elemento listado más cercano: en su fila, si
@@ -278,8 +289,8 @@ elemento:
 - dentro de un paquete de nivel 3, del propio paquete;
 - directamente bajo una fila resumen (de nivel 1 o 2, o de nivel 3 que pasa a ser subtotal por un
   `Sí`), de la fila `<código>-D Otras tareas de «tarea»`, que tiene su propio BAC. Esa fila reúne
-  también las tareas con código más detallado que `nivel_maximo` que dependen directamente de la fila
-  resumen.
+  también las tareas con código más detallado que `nivel_maximo` (o, con `lista_edt`, las que no están
+  en la lista) que dependen directamente de la fila resumen.
 
 Si no dependen de ningún elemento EDT (por ejemplo, un hito suelto bajo la planificación), se omiten y
 se informan en `Validación`. Un hito sin peso no forma una fila `-D` por sí solo.
@@ -651,11 +662,12 @@ comportamiento esperado de ese método.
 | Control | Qué indica |
 |---|---|
 | Filas con % ganado y sin BAC | Su EV no se puede valorar hasta ingresar el BAC. Si ninguna fila tiene BAC, los indicadores quedan en 0. |
-| Fila cuya tarea ya no existe o está inactiva | La tarea se eliminó, se desactivó o cambió de UniqueID en MS Project: la fila se omite y se conservan los valores ya cargados. Si cambió la EDT, se debe regenerar el libro con `--migrar-desde` ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). |
+| Fila cuya tarea ya no existe o está inactiva | La tarea se eliminó, se desactivó o cambió de *Id. único* en MS Project: la fila se omite y se conservan los valores ya cargados. Si cambió la EDT, se debe regenerar el libro con `--migrar-desde` ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). |
 | Tarea con código EDT sin fila en el libro | Paquetes con código EDT agregados en MS Project después de generar el libro: su avance no se incluye en el % ganado. Se debe regenerar el libro con `--migrar-desde`. |
 | Campo `Visible` distinto de las filas del libro | `Visible` cambió después de generar el libro: el libro conserva sus filas y su % planificado hasta regenerarlo; el % ganado usa el valor actual ([sección 3.3](#33-campo-visible-más-o-menos-detalle-en-cada-rama)). |
 | Libro de otro proyecto | Si el nombre del proyecto no coincide con el del libro, las filas se asocian por código EDT y se recomienda verificar los resultados. |
 | Planificación distinta | `actualizar` usa siempre la planificación con la que se generó el libro. |
+| `ignorar_ceros_intermedios` distinto del libro | Algunas tareas con un 0 intermedio en el código tendrían otra fila: el libro conserva sus filas hasta regenerarlo con `--migrar-desde` ([ACT-050](codigos.md#act-050); [sección 3.2](#32-niveles-por-código-edt)). |
 | Celdas convertidas | Celdas de ingreso con texto o fórmulas que se reemplazaron por su valor numérico. |
 | Celdas sin la fórmula del libro | Subtotales, fila TOTAL o suma de las empresas que perdieron su fórmula (por ejemplo, porque se escribió un valor encima): se informan para restaurarlas. |
 | Cambios del BAC o de meses ya informados | El BAC de una fila, o el % ganado o el AC de un mes anterior al mes de corte, cambiaron desde la ejecución anterior: se agregan a la hoja `Registro de cambios` para indicar el motivo ([El libro Excel](libro-excel.md#registro-de-cambios)). |

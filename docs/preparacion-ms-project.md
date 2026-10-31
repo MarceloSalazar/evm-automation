@@ -83,8 +83,11 @@ Recomendaciones:
 - El código de cada tarea empieza por el de su tarea superior y tiene un nivel más: bajo `1.2.0` van
   `1.2.1`, `1.2.2`... `validar` y la hoja `Validación` informan los códigos que no lo cumplen (por
   ejemplo `1.14.2` bajo `1.2.0`), los niveles salteados, el orden y los duplicados.
-- Para insertar un elemento sin renumerar a sus hermanos se puede usar un 0 intermedio: debajo de
-  `1.2.0.0`, `1.2.0.1` va antes de `1.2.1.0` y es de su mismo nivel.
+- Un 0 intermedio indica que el código depende directamente del elemento anterior: debajo de `1.2.0.0`,
+  `1.2.0.1` es una actividad de nivel 4 (sin paquete de nivel 3). Con
+  `[exportacion] ignorar_ceros_intermedios = true` es de nivel 3, como `1.2.1.0`: sirve para insertar un
+  elemento antes de `1.2.1.0` sin renumerar a sus hermanos
+  ([Niveles por código EDT](calculo-pv-ev.md#32-niveles-por-código-edt)).
 - Si las filas del libro deben seguir una EDT acordada, se pueden indicar en un archivo con
   `[exportacion] lista_edt`, sin marcar el campo `Visible` en el cronograma
   ([Lista EDT](calculo-pv-ev.md#34-lista-edt-filas-definidas-en-un-archivo)).
@@ -236,7 +239,7 @@ no se usan los calendarios de recursos ni de tareas
   restricciones innecesarias y con duraciones acotadas es la base de un PV confiable. Las guías de
   evaluación de cronogramas listadas en [Recursos externos](recursos-externos.md) (por ejemplo, la del
   GAO) describen los controles habituales. `validar` revisa 12 de los 14 puntos de la evaluación DCMA:
-  lógica, adelantos y posiciones, delimitaciones, holgura, duración, fechas no válidas, tareas
-  incumplidas, CPLI y BEI ([Evaluación DCMA de 14 puntos](evaluacion-dcma.md)). Para que MS Project
+  lógica, adelantos, posiciones, tipos de vínculo, delimitaciones, holgura, duración, fechas no
+  válidas, tareas incumplidas, CPLI y BEI ([Evaluación DCMA de 14 puntos](evaluacion-dcma.md)). Para que MS Project
   muestre la holgura frente a la fecha de fin comprometida, se recomienda ponerla como **fecha límite**
   del hito de fin, en lugar de una delimitación.

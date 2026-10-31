@@ -48,7 +48,8 @@ descripcion = ""
 
 [horizonte]
 # Primer mes del horizonte (mes 1), formato "AAAA-MM".
-# Vacío o sin la clave = mes en que comienza la línea base del proyecto.
+# Vacío o sin la clave = primer mes con % planificado (en general, el mes en que
+# comienza la línea base del proyecto).
 mes_inicio = "2026-01"
 
 # Cantidad de meses (columnas mensuales). 120 = 10 años.
@@ -69,12 +70,23 @@ planificacion = "INTERNO"
 
 # Nivel máximo del código EDT que se exporta (2.0.0 = nivel 1, 2.1.0 = nivel 2,
 # 2.1.1 = nivel 3). Las tareas de nivel inferior se agregan (suman) en su
-# elemento de este nivel. Un 0 intermedio no cuenta: 1.2.0.1 es de nivel 3, hijo
-# de 1.2.0.0 (como 1.2.1.0).
+# elemento de este nivel. Un 0 intermedio cuenta como un nivel sin elemento:
+# 1.2.0.1 es de nivel 4, una actividad de 1.2.0.0 (ver ignorar_ceros_intermedios).
 nivel_maximo = 3
 
+# Ceros intermedios del código EDT (ver docs/calculo-pv-ev.md):
+#   false  1.2.0.1 es de nivel 4: una actividad de 1.2.0.0 sin paquete de nivel 3;
+#          con nivel_maximo = 3 se suma en la fila de 1.2.0.0 (en su fila -D
+#          "Otras tareas", si 1.2.0.0 tiene otras filas)
+#   true   1.2.0.1 es de nivel 3: un hijo directo de 1.2.0.0, como 1.2.1.0 (sirve
+#          para insertar un elemento sin renumerar a sus hermanos); tiene fila propia
+# Si se omite, false. 'actualizar' usa el valor con que se generó el libro.
+ignorar_ceros_intermedios = false
+
 # Lista EDT: archivo de texto con los códigos EDT que tienen fila en el libro,
-# uno por línea (1.0.0, 1.1.0, 1.1.1, 2.0...). Se ignoran las líneas vacías, las
+# uno por línea (1.0.0, 1.1.0, 1.1.1, 2.0.0...), con los ceros del nivel máximo
+# (nivel 3: 1.2.0; nivel 4: 1.2.0.0): los ceros finales no cuentan al buscar la
+# tarea (1.2.0 es también la tarea 1.2.0.0). Se ignoran las líneas vacías, las
 # que empiezan con # y el texto que sigue al código. Reemplaza a nivel_maximo y al
 # campo Visible para decidir las filas: las tareas que no están en la lista se
 # suman en su elemento listado más cercano (ver docs/calculo-pv-ev.md). Las rutas
@@ -116,9 +128,14 @@ moneda = "EUR"
 # Decimales en los montos del libro (0 a 4).
 decimales = 0
 
+# Guardado rápido del libro (generar, actualizar y analizar): mismo resultado que el
+# guardado normal, en menos de la mitad del tiempo. false = guardado normal (por
+# ejemplo, si Excel informara un problema al abrir un libro).
+guardado_rapido = true
+
 # Título del informe (Cuadro de Mando, Resumen y documento de generar-fichas).
-# Si se omite, se usa el nombre
-# del proyecto en MS Project (con varios archivos, los nombres unidos con "+").
+# Si se omite, se usa el nombre del proyecto en MS Project (con varios archivos,
+# los nombres unidos con "+").
 # titulo = "Programa de ejemplo"
 
 # Depuración de costes (ver docs/depuracion-costes.md).
@@ -133,7 +150,7 @@ depuracion_costes = false
 
 # Empresa que se depura en multi-empresa: el valor de empresa_a o empresa_b.
 # Vacío o sin la clave = empresa_a.
-depuracion_empresa = "EmpresaA"
+# depuracion_empresa = "EmpresaB"
 
 # Indicador de alineamiento en las filas «(coste)»: diferencia de BAC y diferencia
 # máxima acumulada entre las dos curvas, en % del BAC, y resaltado de los meses en
@@ -220,8 +237,9 @@ reparto_por_defecto = 50
 # Varios archivos de MS Project en un mismo libro (ver docs/varios-archivos.md).
 # Sin secciones [[proyectos]], el archivo se indica con --origen (un solo archivo).
 # Con ellas, 'validar', 'generar', 'actualizar' y 'generar-fichas' leen todos los
-# archivos y no se indica --origen. Los códigos EDT no se deben repetir entre archivos (por ejemplo,
-# 1.0.0 a 8.0.0 en un archivo y 9.0.0 en otro). Una sección por archivo:
+# archivos y no se indica --origen. Los códigos EDT no se deben repetir entre
+# archivos (por ejemplo, 1.0.0 a 8.0.0 en un archivo y 9.0.0 en otro). Una sección
+# por archivo:
 #   nombre        nombre corto y fijo del archivo en el libro (no se debe cambiar)
 #   origen        archivo .mpp o .xml; las rutas relativas se toman desde la
 #                 carpeta de este archivo de configuración

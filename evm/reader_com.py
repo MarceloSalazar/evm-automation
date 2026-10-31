@@ -89,6 +89,9 @@ def _number(v) -> float | None:
 def _predecessors(t, uid: int) -> list[Link]:
     """Vínculos con las predecesoras de la tarea (TaskDependencies tiene también los de sus sucesoras)."""
     links: list[Link] = []
+    # Cada lectura es una llamada a MS Project: una tarea sin predecesoras (texto vacío) no recorre sus vínculos
+    if _get(t, "UniqueIDPredecessors") == "":
+        return links
     deps = _get(t, "TaskDependencies")
     if deps is None:
         return links
@@ -124,6 +127,7 @@ class ComSession:
         self._prev_active = None            # proyecto activo antes de empezar (si ya había uno abierto)
         self._saved_app_props: dict[str, object] = {}
         self._opened_names: set[str] = set()    # proyectos que abrió FileOpenEx (el archivo, el fondo de recursos...)
+        self._aliases: list[tuple[str, str]] | None = None     # [(alias, 'Text10')] de los campos personalizados
 
     # -- conexión -------------------------------------------------------------
     def __enter__(self) -> "ComSession":
@@ -325,14 +329,9 @@ class ComSession:
         parsed = parse_custom_name(name)
         if parsed:
             return ("attr", f"{parsed[0]}{parsed[1]}")
-        for kind, table in (("Text", TASK_TEXT_IDS), ("Number", TASK_NUMBER_IDS)):
-            for idx, fid in table.items():
-                try:
-                    alias = self.app.CustomFieldGetName(fid)
-                except Exception:
-                    continue
-                if alias and same_name(str(alias), name):
-                    return ("attr", f"{kind}{idx}")
+        for alias, attr in self._custom_aliases():
+            if same_name(alias, name):
+                return ("attr", attr)
         if is_spanish_wbs_name(name):
             return ("attr", "WBS")
         if is_notes_name(name):
@@ -341,6 +340,21 @@ class ComSession:
             return ("fid", int(self.app.FieldNameToFieldConstant(name, 0)))
         except Exception:
             return None
+
+    def _custom_aliases(self) -> list[tuple[str, str]]:
+        """Alias de los campos Texto1..30 y Número1..20, en ese orden: se leen una vez (cada campo configurado
+        los recorre)."""
+        if self._aliases is None:
+            self._aliases = []
+            for kind, table in (("Text", TASK_TEXT_IDS), ("Number", TASK_NUMBER_IDS)):
+                for idx, fid in table.items():
+                    try:
+                        alias = self.app.CustomFieldGetName(fid)
+                    except Exception:
+                        continue
+                    if alias:
+                        self._aliases.append((str(alias), f"{kind}{idx}"))
+        return self._aliases
 
     @staticmethod
     def _field_value(t, ref) -> object:
@@ -366,7 +380,9 @@ class ComSession:
             except Exception:
                 continue
 
-    def read_project(self, cfg: Config, status_date: date | None = None) -> ProjectData:
+    def read_project(self, cfg: Config, status_date: date | None = None, links: bool = True) -> ProjectData:
+        """links: lee los vínculos y las delimitaciones de las tareas (solo los usan validar y generar-fichas; son
+        varias llamadas a MS Project por tarea)."""
         p = self.project
         self._activate()
         if status_date is not None:
@@ -442,7 +458,7 @@ class ComSession:
             visible = self._field_value(t, visible_ref)
             description = self._field_value(t, description_ref)
             task = Task(
-                uid=uid, id=int(_get(t, "ID", 0) or 0), name=str(_get(t, "Name", "") or ""),
+                uid=uid, id=int(_get(t, "ID", 0) or 0), name=str(_get(t, "Name", "") or "").strip(),
                 outline_level=int(_get(t, "OutlineLevel", 1) or 1),
                 outline_number=str(_get(t, "OutlineNumber", "") or ""),
                 wbs=str(wbs or "").strip(),          # sin código EDT => la tarea no tiene fila propia
@@ -457,8 +473,10 @@ class ComSession:
                 actual_start=_dt(_get(t, "ActualStart")), actual_finish=_dt(_get(t, "ActualFinish")),
                 duration=_number(_get(t, "Duration")), estimated=bool(_get(t, "Estimated", False)),
                 manual=bool(_get(t, "Manual", False)),
-                constraint_type=int(_number(_get(t, "ConstraintType", CONSTRAINT_ASAP)) or CONSTRAINT_ASAP),
-                constraint_date=_dt(_get(t, "ConstraintDate")), predecessors=_predecessors(t, uid),
+                constraint_type=(int(_number(_get(t, "ConstraintType", CONSTRAINT_ASAP)) or CONSTRAINT_ASAP)
+                                 if links else CONSTRAINT_ASAP),
+                constraint_date=_dt(_get(t, "ConstraintDate")) if links else None,
+                predecessors=_predecessors(t, uid) if links else [],
                 method=str(self._field_value(t, method_ref) or "").strip(),
                 milestone_weight=None if weight in (None, "") else parse_number(weight),
                 company=str(company or "").strip(),
@@ -481,7 +499,7 @@ class ComSession:
         any_baseline = any_baseline or saved is not None
 
         summary = _get(p, "ProjectSummaryTask")
-        title = str(_get(summary, "Name", "") or "") if summary is not None else ""
+        title = str(_get(summary, "Name", "") or "").strip() if summary is not None else ""
         status = _dt(_get(p, "StatusDate"))
         hours = _number(_get(p, "HoursPerDay"))
         project = ProjectData(

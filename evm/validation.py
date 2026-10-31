@@ -22,7 +22,7 @@ from evm.messages import SEV_ERROR, SEV_INFO, SEV_WARN, TOPIC_BOOK, Issue
 from evm.percent import calendar_for
 from evm.schedule import row_schedule, working_days
 from evm.wbs import (KIND_RESIDUAL, PlanNotFound, Report, ReportPart, ReportRow, Scope, assemble_report, build_part,
-                     iter_subtree, pad_code, plural, tagged_issues, task_name)
+                     code_key, iter_subtree, pad_code, plural, tagged_issues, task_name)
 from evm.workcalendar import WorkCalendar
 
 CodeOf = Callable[[Task], str]
@@ -125,9 +125,10 @@ def _pattern(prefix: tuple[int, ...]) -> str:
     return ".".join(str(n) for n in prefix) + ".x"
 
 
-def _depth(sig: tuple[int, ...]) -> int:
-    """Nivel de un código: sus segmentos significativos sin los ceros intermedios ((1, 2, 0, 1) -> 3)."""
-    return 1 + sum(1 for n in sig[1:] if n)
+def _depth(sig: tuple[int, ...], ignore_interior_zeros: bool) -> int:
+    """Nivel de un código: sus segmentos significativos ((1, 2, 0, 1) -> 4) o, con ignorar_ceros_intermedios,
+    sin los ceros intermedios ((1, 2, 0, 1) -> 3)."""
+    return 1 + sum(1 for n in sig[1:] if n) if ignore_interior_zeros else len(sig)
 
 
 def _upper(sig: tuple[int, ...]) -> tuple[int, ...]:
@@ -142,14 +143,18 @@ def wbs_checks(scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
     """Códigos EDT de las tareas exportadas: formato, dependencia de su tarea superior, orden y duplicados.
 
     El código de cada tarea debe empezar por el de su tarea superior con código EDT y tener un nivel más: bajo
-    1.2.0 van 1.2.1, 1.2.2... (1.14.2 es un error). Un 0 intermedio indica un hijo directo del elemento anterior:
-    1.2.0.1 depende de 1.2, como 1.2.1.0 (sirve para insertar un elemento sin renumerar a sus hermanos). Los
+    1.2.0 van 1.2.1, 1.2.2... (1.14.2 es un error). Un 0 intermedio indica que el código depende directamente del
+    elemento anterior: 1.2.0.1 depende de 1.2 (su nivel, 4 o 3, depende de ignorar_ceros_intermedios). Los
     códigos no numéricos sin puntos (p. ej. INTERNO) y el código 0 (el proyecto) se admiten como contenedores: sus
     subtareas no se comparan con ellos.
     """
     issues: list[Issue] = []
     tasks = list(scope.tasks())
     in_scope = {t.uid for t in tasks}
+
+    def depth(s: tuple[int, ...]) -> int:
+        return _depth(s, cfg.ignore_interior_zeros)
+
     sig: dict[int, tuple[int, ...] | None] = {}        # UniqueID -> segmentos significativos (None = no numérico)
     for t in tasks:
         raw = scope.raw_code(t)
@@ -187,11 +192,11 @@ def wbs_checks(scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
         if top == (0,):                                 # 0 (o 0.0.0) = el proyecto: contenedor, como INTERNO
             top = None
         if top is None:                                 # sin tarea superior con código numérico
-            if _depth(mine) > 1:
+            if len(mine) > 1:
                 upper = ".".join(str(n) for n in _upper(mine))
                 upper = pad_code(upper, cfg.max_level) if cfg.pad_wbs else upper
                 issues.append(_issue("EDT-003", t, code_of,
-                                     f"Código de nivel {_depth(mine)} sin una tarea superior con código EDT: debería "
+                                     f"Código de nivel {depth(mine)} sin una tarea superior con código EDT: debería "
                                      f"depender de la tarea {upper}."))
             groups.setdefault(parent.uid if parent is not None else None, []).append((t, mine))
             continue
@@ -201,10 +206,10 @@ def wbs_checks(scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
         elif mine[:len(top)] != top or len(mine) <= len(top):
             issues.append(_issue("EDT-005", t, code_of,
                                  f"El código EDT no depende del de {where}: se esperaba {_pattern(top)}."))
-        elif _depth(mine) > _depth(top) + 1:
+        elif _upper(mine) != top:                       # 1.2.3.1 bajo 1.2 (1.2.0.1 bajo 1.2 es su hijo directo)
             issues.append(_issue("EDT-006", t, code_of,
-                                 f"El código EDT salta un nivel: depende de {where}, de nivel {_depth(top)}, y su "
-                                 f"código es de nivel {_depth(mine)} (se esperaba {_pattern(top)}). Si hay una "
+                                 f"El código EDT salta un nivel: depende de {where}, de nivel {depth(top)}, y su "
+                                 f"código es de nivel {depth(mine)} (se esperaba {_pattern(top)}). Si hay una "
                                  "tarea intermedia sin código EDT, se le debe asignar uno."))
         else:
             groups.setdefault(parent.uid, []).append((t, mine))
@@ -228,20 +233,39 @@ def wbs_checks(scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
                                 f"{under}, la numeración tiene saltos ({shown}): si no es intencional (p. ej. un "
                                 "paquete eliminado), se debe revisar el código."))
 
-    # Códigos duplicados (como quedan en el libro: con el relleno de ceros)
+    # Códigos duplicados: sin los ceros finales, que son relleno (1.2, 1.2.0 y 1.2.0.0 son el mismo código)
     by_code: dict[str, list[Task]] = {}
     for t in tasks:
         if t.uid in sig:
-            by_code.setdefault(code_of(t), []).append(t)
+            by_code.setdefault(code_key(scope.raw_code(t)), []).append(t)
     hint = "" if scope.plan is not None else (" Si el proyecto tiene varias planificaciones, se debe elegir una con "
                                               "'planificacion'.")
-    for code, same in by_code.items():
+    for same in by_code.values():
         if len(same) > 1:
-            names = ", ".join(f"«{t.name}» (Id {t.id})" for t in same[:5])
+            several = len({code_of(t) for t in same}) > 1         # 1.2 y 1.2.0.0: se muestra el código de cada una
+            names = ", ".join(f"«{t.name}» (Id {t.id}{f', {code_of(t)}' if several else ''})" for t in same[:5])
             more = f" y {len(same) - 5} más" if len(same) > 5 else ""
-            issues.append(Issue("EDT-009", code, same[0].name,
+            issues.append(Issue("EDT-009", code_of(same[0]), same[0].name,
                                 f"Código EDT duplicado: lo tienen {len(same)} tareas ({names}{more}).{hint}"))
-    return bad_format[:LIMIT] + issues
+    return _capped(bad_format + issues)
+
+
+def _capped(found: list[Issue]) -> list[Issue]:
+    """Hasta LIMIT observaciones de cada código, en su orden; si hay más, una línea final con el mismo código indica
+    cuántas no se muestran (un archivo con todos los códigos EDT mal llenaría la hoja Validación)."""
+    count: dict[str, int] = {}
+    out: list[Issue] = []
+    for i in found:
+        count[i.id] = count.get(i.id, 0) + 1
+        if count[i.id] <= LIMIT:
+            out.append(i)
+    for i in found:
+        n = count.pop(i.id, 0) - LIMIT
+        if n > 0:
+            out.append(Issue(i.id, "", "", f"Y {plural(n, 'observación más', 'observaciones más')} con este código: "
+                                           f"se muestran las primeras {LIMIT}. Se deben corregir las mostradas y "
+                                           "volver a ejecutar validar.", i.severity))
+    return out
 
 
 # ----------------------------------------------------------------------------
@@ -287,9 +311,10 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
                                 "manualmente sin fechas)."))
         if t.milestone and _positive_duration(t):
             dates.append(_issue("FEC-004", t, code_of,
-                                "Está marcada como hito y tiene duración: su % planificado va entero al mes de su "
-                                "fecha de fin. Si no es un hito, se debe quitar la marca de hito en MS Project "
-                                "(Información de la tarea > Avanzado)."))
+                                "Está marcada como hito y tiene duración: se calcula como hito, sin su duración "
+                                "(sin Peso hito no pesa en el % planificado; con Peso hito, pesa entero en el mes "
+                                "de su fecha de fin). Si no es un hito, se debe quitar la marca de hito en MS "
+                                "Project (Información de la tarea > Avanzado)."))
         elif not t.milestone and _zero_duration(t):
             dates.append(_issue("FEC-005", t, code_of,
                                 "Duración 0 y no está marcada como hito: no pesa en el % planificado de su fila "
@@ -411,7 +436,8 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
 # ----------------------------------------------------------------------------
 def _out_of_sequence(project: ProjectData, leaves: list[Task], code_of: CodeOf) -> list[Issue]:
     """Avance que el vínculo con la predecesora todavía no permite: la sucesora comenzó (FC y CC) o terminó (FF y CF)
-    y su predecesora no terminó (FC y FF) o no comenzó (CC y CF). Las predecesoras resumen no se revisan (LOG-010)."""
+    y su predecesora no terminó (FC y FF) o no comenzó (CC y CF). Las predecesoras resumen no se revisan (LOG-010), ni
+    los vínculos con adelanto, que permiten ese avance (LOG-006)."""
     by_uid = {t.uid: t for t in project.tasks}
     found: list[Issue] = []
     tasks: set[int] = set()
@@ -421,7 +447,7 @@ def _out_of_sequence(project: ProjectData, leaves: list[Task], code_of: CodeOf) 
         for link in t.predecessors:
             p = by_uid.get(link.uid)
             rule = SEQUENCE.get(link.kind)
-            if p is None or rule is None or p.children or not p.active:
+            if p is None or rule is None or p.children or not p.active or link.lag < 0:
                 continue
             kind, own_done, pred_done = rule
             if own_done and not is_complete(t):
@@ -644,7 +670,8 @@ def logic_checks(project: ProjectData, scope: Scope, code_of: CodeOf,
                     found.append(_issue("LOG-005", t, code_of, "Sin sucesoras."))
             issues += found[:LIMIT]
 
-        own = [(t, link) for t in tasks for link in t.predecessors]
+        # Las métricas DCMA cuentan los vínculos de las tareas de detalle (los de las resumen, LOG-010)
+        own = [(t, link) for t in detail for link in t.predecessors]
         found = []
         for t, link in own:
             if link.lag < 0:
@@ -676,7 +703,7 @@ def logic_checks(project: ProjectData, scope: Scope, code_of: CodeOf,
                 issues.append(_issue("LOG-010", t, code_of,
                                      "Tarea resumen con vínculos: se recomienda vincular sus tareas de detalle."))
 
-    hard = [t for t in tasks if t.constraint_type in HARD_CONSTRAINTS and not is_complete(t)]
+    hard = [t for t in detail if t.constraint_type in HARD_CONSTRAINTS and not is_complete(t)]
     if hard:
         share = _pct(len(hard), len(open_tasks) or len(tasks))
         issues.append(Issue("LOG-011", "", "",

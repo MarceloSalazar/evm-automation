@@ -99,7 +99,7 @@ python evm_export.py generar --origen ejemplos\programa_ejemplo.xml --config con
 ```
 
 ```text
-Exportador EVM 2.4.0
+Exportador EVM 2.4.1
 Leyendo ejemplos\programa_ejemplo.xml ...
 Proyecto: Programa de ejemplo EVM
   Planificación: INTERNO

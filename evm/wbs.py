@@ -12,6 +12,7 @@ from evm.fields import fmt_number
 from evm.messages import (SEV_ERROR, SEV_INFO, SEV_WARN, TOPIC_BOOK, TOPIC_COMPANY, TOPIC_DATES,  # noqa: F401
                           TOPIC_LOGIC, TOPIC_METHOD, TOPIC_PROGRESS, TOPIC_READ, TOPIC_VISIBLE, TOPIC_WBS,
                           TOPIC_WEIGHTS, TOPICS, Issue)
+from evm.methods import is_undefined
 from evm.model import MonthKey, ProjectData, Task
 from evm.timeline import Horizon, first_of_month
 
@@ -172,10 +173,6 @@ def task_name(task: Task, code_of) -> str:
     return task.name if code_of(task) else f"{task.name} (Id {task.id})"
 
 
-def tolerance(amount: float) -> float:
-    return max(0.5, abs(amount) * 1e-7)
-
-
 def fmt_money(v: float) -> str:
     return fmt_number(v)
 
@@ -183,18 +180,40 @@ def fmt_money(v: float) -> str:
 # ----------------------------------------------------------------------------
 # Códigos EDT y planificación
 # ----------------------------------------------------------------------------
-def code_level(code: str) -> int:
-    """Nivel de un código EDT: cantidad de segmentos sin contar los ceros finales ni los intermedios.
-
-    '2.0.0' -> 1, '2.1.0' -> 2, '2.1.1' -> 3, '2.1.1.4' -> 4, 'INTERNO' -> 1. Un 0 intermedio indica un hijo
-    directo del elemento anterior: '1.2.0.1' -> 3 (hijo de 1.2, como 1.2.1.0).
-    """
+def _code_parts(code: str) -> list[str]:
+    """Segmentos de un código EDT sin los ceros finales (relleno): '1.2.0.1.0' -> ['1', '2', '0', '1']."""
     parts = [p.strip() for p in (code or "").strip().split(".")]
     while len(parts) > 1 and not parts[-1].strip("0"):
         parts.pop()
-    if all(p.isdigit() for p in parts):
+    return parts
+
+
+def code_level(code: str, ignore_interior_zeros: bool = False) -> int:
+    """Nivel de un código EDT: cantidad de segmentos sin contar los ceros finales.
+
+    '2.0.0' -> 1, '2.1.0' -> 2, '2.1.1' -> 3, '2.1.1.4' -> 4, 'INTERNO' -> 1. Un 0 intermedio cuenta como un
+    nivel sin elemento: '1.2.0.1' -> 4 (actividad de 1.2). Con ignore_interior_zeros ([exportacion]
+    ignorar_ceros_intermedios) tampoco cuentan los ceros intermedios: '1.2.0.1' -> 3 (hijo de 1.2, como 1.2.1.0).
+    """
+    parts = _code_parts(code)
+    if ignore_interior_zeros and all(p.isdigit() for p in parts):
         return 1 + sum(1 for p in parts[1:] if p.strip("0"))
     return len(parts)
+
+
+def has_interior_zero(code: str) -> bool:
+    """El código EDT numérico tiene un 0 intermedio (su nivel depende de ignorar_ceros_intermedios)."""
+    parts = _code_parts(code)
+    return all(p.isdigit() for p in parts) and any(not p.strip("0") for p in parts[1:])
+
+
+def code_key(code: str) -> str:
+    """Código EDT para compararlo con otro: sin los ceros finales, que son relleno ('1.2', '1.2.0' y '1.2.0.0' ->
+    '1.2'). Los ceros intermedios cuentan ('1.2.0.1' y '1.2.1' son distintos). Una fila -D conserva el sufijo."""
+    code = (code or "").strip()
+    if code.endswith("-D"):
+        return code_key(code[:-2]) + "-D"
+    return ".".join(_code_parts(code))
 
 
 class PlanNotFound(ConfigError):
@@ -327,8 +346,9 @@ def row_visibility(scope: Scope, cfg: Config, code_of=None) -> Visibility:
                 out.issues.append(Issue("VIS-004", code_of(t), t.name,
                                         "Visible = Sí en una tarea sin código EDT: no puede tener fila propia; se "
                                         "suma en su fila superior."))
-            has_row = bool(raw) and inner is None and (value is True or code_level(raw) <= cfg.max_level)
-            if has_row and code_level(raw) > cfg.max_level:
+            level = code_level(raw, cfg.ignore_interior_zeros)
+            has_row = bool(raw) and inner is None and (value is True or level <= cfg.max_level)
+            if has_row and level > cfg.max_level:
                 out.shown += 1
             out.rows[t.uid] = has_row
             walk(t.children, t, inner)
@@ -344,26 +364,21 @@ def row_visibility(scope: Scope, cfg: Config, code_of=None) -> Visibility:
     return out
 
 
-def list_code(entry: str, prefix: str, cfg: Config) -> str:
-    """Código de la lista EDT como queda en el libro: sin el prefijo de la planificación y completado con ceros."""
-    code = strip_prefix(entry, prefix)
-    return pad_code(code, cfg.max_level) if cfg.pad_wbs else code
-
-
 def list_visibility(scope: Scope, cfg: Config) -> Visibility:
     """Filas según la lista EDT (lista_edt): tiene fila cada tarea cuyo código está en la lista. Las demás se suman
-    en su elemento listado más cercano. La lista reemplaza al nivel máximo y al campo Visible."""
+    en su elemento listado más cercano. La lista reemplaza al nivel máximo y al campo Visible. Los códigos se
+    comparan sin el prefijo de la planificación ni los ceros finales (1.2.0 en la lista es la tarea 1.2.0.0)."""
     def book_code(t: Task) -> str:
         raw = scope.raw_code(t)
         return pad_code(raw, cfg.max_level) if cfg.pad_wbs else raw
 
-    wanted: dict[str, list[str]] = {}           # código como en el libro -> líneas de la lista
+    wanted: dict[str, list[str]] = {}           # código sin los ceros finales -> líneas de la lista
     for entry in cfg.wbs_list or []:
-        wanted.setdefault(list_code(entry, scope.prefix, cfg), []).append(entry)
+        wanted.setdefault(code_key(strip_prefix(entry, scope.prefix)), []).append(entry)
     out = Visibility({}, [], listed=True)
     tasks = list(scope.tasks())
     for t in tasks:
-        code = book_code(t)
+        code = code_key(scope.raw_code(t))
         listed = bool(code) and code in wanted
         out.rows[t.uid] = listed
         if listed:
@@ -597,9 +612,9 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
         row_tasks, loose_full, loose_own = gather(t)
         # En el nivel máximo la fila suma toda su rama, salvo que una tarea de la rama tenga Visible = Sí
         is_leaf_row = not row_tasks or (not visibility.listed
-                                        and code_level(scope.raw_code(t)) >= cfg.max_level
-                                        and not any(code_level(scope.raw_code(c)) > cfg.max_level
-                                                    for c in row_tasks))
+                                        and code_level(scope.raw_code(t), cfg.ignore_interior_zeros) >= cfg.max_level
+                                        and not any(code_level(scope.raw_code(c), cfg.ignore_interior_zeros)
+                                                    > cfg.max_level for c in row_tasks))
         row = ReportRow(code=code_of(t), name=t.name, level=(parent.level + 1) if parent else 1,
                         kind=KIND_LEAF if is_leaf_row else KIND_SUMMARY, task=t,
                         start=s, finish=f, parent=parent)
@@ -623,9 +638,12 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
         loose = [n for b in loose_full for n in iter_subtree(b) if not n.children]
         aggregated += sum(1 for b in loose_full for _ in iter_subtree(b)) + len(loose_own)
         if any(_has_weight(n) for n in loose):
+            # Fechas de la línea base de sus propias tareas (no las de toda la tarea resumen)
+            starts = [n.baseline_start for n in loose if n.baseline_start]
+            finishes = [n.baseline_finish for n in loose if n.baseline_finish]
             res = ReportRow(code=f"{row.code}-D", name=f"Otras tareas de «{t.name}»",
-                            level=row.level + 1, kind=KIND_RESIDUAL, task=t,
-                            method=cfg.default_method, start=s, finish=f, parent=row)
+                            level=row.level + 1, kind=KIND_RESIDUAL, task=t, method=cfg.default_method,
+                            start=min(starts) if starts else s, finish=max(finishes) if finishes else f, parent=row)
             res.leaves = loose
             rows.append(res)
             row.children.append(res)
@@ -868,7 +886,7 @@ def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:
                            "% EV), que se calculan con la duración de la línea base de las tareas y el peso de los "
                            "hitos. Se debe ingresar el BAC de cada fila en las celdas amarillas de la columna D de "
                            f"{'las hojas' if cfg.multi_enabled else 'la hoja'} {sheets}."))
-    undefined = [r for r in rows if r.is_input and r.method.strip().lower() in ("", "por definir", "a definir")]
+    undefined = [r for r in rows if r.is_input and is_undefined(r.method)]
     if undefined:
         issues.append(Issue("MET-005", "", "",
                             f"{plural(len(undefined), 'fila', 'filas')} sin método de medición definido "

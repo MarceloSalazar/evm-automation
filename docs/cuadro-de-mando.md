@@ -20,7 +20,7 @@ Las imágenes de este documento corresponden al [proyecto de ejemplo](ejemplo-pa
 4. [Tendencia y plazo](#4-tendencia-y-plazo)
 5. [Gráficos](#5-gráficos)
 6. [Hoja Resumen: fórmulas de los indicadores](#6-hoja-resumen-fórmulas-de-los-indicadores)
-7. [Cronograma Ganado (Earned Schedule)](#7-cronograma-ganado-earned-schedule)
+7. [Earned Schedule (cronograma ganado)](#7-earned-schedule-cronograma-ganado)
 8. [Cómo leer los indicadores](#8-cómo-leer-los-indicadores)
 
 ---
@@ -148,7 +148,7 @@ no cambian con el mes de reporte):
 | Fin previsto · MS Project | Fin de la última tarea según el cronograma vigente, con la fecha de estado de la lectura. |
 | Desvío de fin | Días laborables entre los dos: > 0 = atraso. |
 | Paquetes críticos | Paquetes con alguna tarea crítica sin terminar y, debajo, cuántos tienen el fin atrasado. |
-| Término estimado · SPI(t) | Estimación estadística del [Cronograma Ganado](#7-cronograma-ganado-earned-schedule) a la fecha de corte, para compararla con la previsión del cronograma. |
+| Término estimado · SPI(t) | Estimación estadística del [Earned Schedule](#7-earned-schedule-cronograma-ganado) a la fecha de corte, para compararla con la previsión del cronograma. |
 
 ![Tendencia y plazo en el Cuadro de Mando](img/excel/cdm-tendencia-plazo.png)
 
@@ -225,12 +225,12 @@ parámetros de la exportación y los indicadores del proyecto, todos acumulados 
 
 ---
 
-## 7. Cronograma Ganado (Earned Schedule)
+## 7. Earned Schedule (cronograma ganado)
 
 El SPI compara valores, no tiempos, y al final de un proyecto atrasado tiende a 1 (al terminar, EV =
-PV = BAC). El **Cronograma Ganado** mide el atraso en meses:
+PV = BAC). El **Earned Schedule** mide el atraso en meses:
 
-- **ES** (cronograma ganado): momento del plan en que el PV acumulado era igual al EV actual.
+- **ES** (*Earned Schedule*): momento del plan en que el PV acumulado era igual al EV actual.
 - **AT** (tiempo real): meses transcurridos hasta la fecha de corte.
 - **SV(t) = ES − AT**: meses de adelanto (> 0) o atraso (< 0).
 - **SPI(t) = ES / AT**: eficiencia de cronograma en tiempo; a diferencia del SPI, no converge a 1.

@@ -28,7 +28,7 @@ El BAC de cada fila se ingresa en la hoja `PV`, el PV y el EV son el BAC × el %
 | Hoja | Contenido |
 |---|---|
 | **Cuadro de Mando** | Tablero del mes de reporte: valores acumulados, desviaciones, índices con semáforo, pronósticos y tres gráficos. Ver [Cuadro de Mando e indicadores](cuadro-de-mando.md). |
-| **Resumen** | Fecha de corte (celda amarilla `B5`, con nombre `FechaCorte`), parámetros de la exportación e indicadores del proyecto a la fecha de corte, incluidos el Cronograma Ganado, la tendencia (últimos 3 meses y mes anterior) y el plazo según el cronograma de MS Project. |
+| **Resumen** | Fecha de corte (celda amarilla `B5`, con nombre `FechaCorte`), parámetros de la exportación e indicadores del proyecto a la fecha de corte, incluidos el Earned Schedule, la tendencia (últimos 3 meses y mes anterior) y el plazo según el cronograma de MS Project. |
 | **PV** | Valor planificado: columnas A–F con la EDT y el BAC, y una columna por mes. El BAC se ingresa en la columna D (celdas amarillas) y cada mes es el BAC × el % planificado. |
 | **% PV** | % planificado de cada mes, que calcula `generar`. |
 | **EV** | Valor ganado de cada mes: el BAC × el % ganado. |
@@ -39,7 +39,7 @@ El BAC de cada fila se ingresa en la hoja `PV`, el PV y el EV son el BAC × el %
 | **Indicadores EDT** | Indicadores de cada elemento de la EDT a la fecha de corte y su plazo según el cronograma de MS Project (fin previsto, desvío de fin, holgura y camino crítico). |
 | **Análisis de desviaciones** | Paquetes fuera de umbral de cada mes, con causa, impacto, acción correctiva, responsable y fecha ([Análisis de desviaciones](analisis-desviaciones.md)). |
 | **Registro de cambios** | Cambios del BAC y de los valores de meses ya informados (% ganado y AC) que detectan `actualizar` y `analizar`, con columnas amarillas para el motivo y el número de cambio aprobado ([Registro de cambios](#registro-de-cambios)). |
-| **Validación** | Advertencias de la exportación ([Validaciones](validaciones-y-problemas.md#1-validaciones)). |
+| **Validación** | Observaciones de la exportación (errores, advertencias e informativas) con su código ([Validaciones](validaciones-y-problemas.md#1-validaciones)). |
 | **Listas** | Métodos de medición del desplegable de la columna C y su regla de cálculo. |
 | **Depuración costes** y **PV-depuración** | Solo con `depuracion_costes = true`: gráfico comparativo y previsión pegada del plan de costes de una empresa; la hoja PV de esa empresa lleva una fila «(coste)» debajo de cada fila, y en las demás hojas esas filas quedan vacías y ocultas ([Depuración de costes](depuracion-costes.md)). |
 | `_graficos`, `_estructura`, `_meta`, `_registro` (y `_depuracion`, `_lista_edt`) | Hojas ocultas con los datos de los gráficos, los datos que usan `actualizar` y `--migrar-desde`, la referencia del registro de cambios (los valores de la última ejecución), con depuración de costes, la asignación de la previsión pegada y, con `lista_edt`, la lista EDT con que se generó el libro. **No se deben modificar.** |
@@ -133,11 +133,12 @@ flowchart LR
 Qué se traslada:
 
 - El **BAC** ingresado, el **% ganado** de cada mes y el **AC** de cada fila, asociados por el
-  **UniqueID** de la tarea en MS Project (o por código EDT si el proyecto cambió de nombre), sin
+  ***Id. único*** de la tarea en MS Project (o por código EDT si el proyecto cambió de nombre), sin
   duplicarlos.
-- Si una tarea quedó dentro de un paquete nuevo (por ejemplo, al bajar `nivel_maximo` o al poner `No` en
-  el campo `Visible` de todas las subtareas de una tarea), su historial se suma a ese paquete: el BAC y
-  el AC se suman, y el % ganado se combina ponderado por el BAC de cada fila anterior.
+- Si una tarea quedó dentro de un paquete nuevo o de una fila `-D` (por ejemplo, al bajar `nivel_maximo`,
+  al cambiar `ignorar_ceros_intermedios` o al poner `No` en el campo `Visible` de todas las subtareas de
+  una tarea), su historial se suma a esa fila: el BAC y el AC se suman, y el % ganado se combina ponderado
+  por el BAC de cada fila anterior.
 - El **método** de la columna C se conserva solo si fue **editado en Excel**. Si el método cambió en
   MS Project, se usa el nuevo.
 - El texto de la hoja `Análisis de desviaciones`
@@ -154,7 +155,7 @@ se dividieron en varias y tareas eliminadas. Tampoco se admite migrar entre un l
 y uno multi-empresa, ni desde un libro de versiones anteriores
 ([sección 6](#6-libros-de-versiones-anteriores)).
 
-Con varios archivos de MS Project, cada fila se asocia por el nombre del archivo y el UniqueID de la
+Con varios archivos de MS Project, cada fila se asocia por el nombre del archivo y el *Id. único* de la
 tarea; al agregar o quitar archivos, o al pasar de un solo archivo a varios, se aplica lo indicado en
 [Varios archivos](varios-archivos.md#7-cambios-de-línea-base-y-de-archivos).
 
@@ -190,7 +191,7 @@ tareas de detalle de cada fila, las mismas del % ganado:
 | Columna | Contenido |
 |---|---|
 | Fin línea base | Fin de la última tarea según la línea base. |
-| Fin previsto | Fin de la última tarea según el cronograma vigente (fin real si terminó). |
+| Fin previsto | Fin de la última tarea según el cronograma vigente (campo *Fin*; fin real si terminó). No es el campo *Fin previsto* de MS Project en español, que es el de la línea base. |
 | Desvío fin (días lab.) | Días laborables entre los dos: > 0 = atraso. Con XML se cuentan con el calendario del proyecto; con `.mpp`, de lunes a viernes con los `feriados` de la configuración. |
 | Holgura (días lab.) | Menor holgura total de las tareas sin terminar, como la calcula MS Project. Negativa: la fecha de fin del proyecto está comprometida. |
 | Crítica | `Sí` si alguna tarea sin terminar es crítica en MS Project, `No`, o `Terminado`. |
@@ -246,7 +247,7 @@ ejecución siguiente, comparan el libro con esos valores:
 
 Advertencias y observaciones de la exportación, con su severidad (`Info`, `Advertencia`, `Error`), su
 código (columna B, explicado en [Códigos de errores y advertencias](codigos.md)), el código EDT, la tarea
-afectada y el tema (columna F, para filtrar). Ver [Validaciones](validaciones-y-problemas.md#1-validaciones). El comando `validar` muestra en pantalla las
+afectada, el detalle y el tema (columna F, para filtrar). Ver [Validaciones](validaciones-y-problemas.md#1-validaciones). El comando `validar` muestra en pantalla las
 mismas observaciones, y además las del avance y la lógica del cronograma, sin crear el libro.
 
 ![Hoja Validación](img/excel/validacion.png)

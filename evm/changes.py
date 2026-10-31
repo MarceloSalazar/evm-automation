@@ -161,7 +161,6 @@ def detect(book, ref: Reference | None, idx: int) -> list[Change]:
     if ref is None:
         return []
     last = first_of_month(ref.cutoff)               # último mes informado
-    current = book.horizon.month_start(idx)         # mes de corte de esta ejecución
     out: list[Change] = []
     for s in book.input_rows:
         for role, company in book.roles():
@@ -169,23 +168,33 @@ def detect(book, ref: Reference | None, idx: int) -> list[Change]:
             if r is None:
                 continue
             bac = book.bac_role[role][s.row]
-            if abs(bac - r.bac) > EPS_MONEY:
+            # El primer BAC de una fila (la referencia no tenía) no es un cambio: se carga después del primer
+            # 'actualizar' (ACT-022)
+            if abs(r.bac) > EPS_MONEY and abs(bac - r.bac) > EPS_MONEY:
                 pv, ev = book.pct_pv[role][s.row], book.pct_ev[role][s.row]
                 affected = sum(1 for i in range(min(idx, len(pv)))
                                if abs(pv[i]) > EPS_PCT or abs(ev[i] or 0.0) > EPS_PCT)
                 out.append(Change(s.key, s.code, s.name, company, DATA_BAC, None, r.bac, bac, affected))
             for data, old_series, new_series, eps in ((DATA_EV, r.ev, book.pct_ev[role][s.row], EPS_PCT),
                                                       (DATA_AC, r.ac, book.ac_of(role)[s.row], EPS_MONEY)):
-                for j, old in enumerate(old_series):
-                    month = add_months(ref.start, j)
-                    if month >= current:
-                        break
-                    i = book.horizon.index(month)
-                    new = (new_series[i] or 0.0) if 0 <= i < len(new_series) else 0.0
+                for i, old in _by_book_month(old_series, ref.start, idx, book.horizon):
+                    month = book.horizon.month_start(i)
+                    new = (new_series[i] or 0.0) if i < len(new_series) else 0.0
                     if abs(new - old) <= eps or (abs(old) <= eps and month == last):
                         continue
                     out.append(Change(s.key, s.code, s.name, company, data, month, old, new))
     return out
+
+
+def _by_book_month(series: list[float], start: date, idx: int, horizon) -> list[tuple[int, float]]:
+    """Valores de la referencia por mes del horizonte del libro, de los meses anteriores al mes de corte (idx). Los
+    meses anteriores al mes 1 (o posteriores al último) se suman en el mes 1 (o en el último), como hace
+    --migrar-desde con el historial cuando cambia el horizonte (MIG-011 y MIG-012)."""
+    out: dict[int, float] = {}
+    for j, value in enumerate(series):
+        i = min(max(horizon.index(add_months(start, j)), 0), horizon.months - 1)
+        out[i] = out.get(i, 0.0) + value
+    return sorted((i, v) for i, v in out.items() if i < idx)
 
 
 def first_reference() -> Issue:

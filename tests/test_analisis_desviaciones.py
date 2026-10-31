@@ -20,15 +20,6 @@ JUNE_COUNT = 13         # paquetes fuera de 0,95 a 1,05 en junio de 2027 (8 por 
 STATUS = {"jun": date(2027, 6, 30), "jul": date(2027, 7, 31)}
 
 
-@pytest.fixture()
-def book(tmp_path, example_files, generator):
-    out = tmp_path / "EVM.xlsx"
-    assert main(["generar", "--origen", str(example_files["base"]), "--config", str(example_files["config"]),
-                 "--salida", str(out)]) == 0
-    generator.fill_book(out)                        # BAC de cada fila, que se ingresa a mano
-    return out
-
-
 def update(book, example_files, month, *extra, ac: bool = True) -> None:
     """'actualizar' del mes; antes, el AC del mes (del ERP), que se carga a mano en la hoja AC."""
     if ac:
@@ -113,8 +104,8 @@ def test_update_lists_packages_out_of_threshold(book, example_files, capsys):
     assert len(entries(book)) == n
 
 
-def test_text_is_kept_and_copied_to_the_next_month(book, example_files):
-    update(book, example_files, "jun")
+def test_text_is_kept_and_copied_to_the_next_month(book_jun, example_files):
+    book = book_jun                                 # actualizado a junio
     write_cells(book, {("2.2.1", A_CAUSE): "Planos del proveedor atrasados", ("2.2.1", A_OWNER): "Ingeniería",
                        ("2.2.1", A_ACTION): "Reforzar el equipo de detalle"})
     wb = load_workbook(book)                    # fila agregada a mano (sin clave): se conserva
@@ -166,8 +157,8 @@ def test_analizar_after_loading_ac_by_hand(book, example_files, capsys):
     assert {e.code for e in entries(book)} == expected(book, JUN)
 
 
-def test_text_kept_when_back_within_threshold(book, example_files):
-    update(book, example_files, "jun")
+def test_text_kept_when_back_within_threshold(book_jun, example_files):
+    book = book_jun                                 # actualizado a junio
     write_cells(book, {("2.1.3", A_CAUSE): "Retraso en la topografía"})
     # 2.1.3 y 2.1.4 vuelven al rango verde (EV y AC acumulados iguales al PV); solo 2.1.3 tiene texto
     b = read_book(book)
@@ -210,8 +201,8 @@ def test_old_book_gets_the_sheet(book, example_files):
     assert {e.code for e in entries(book)} == expected(book, JUN)
 
 
-def test_migrate_keeps_the_analysis(book, example_files, tmp_path):
-    update(book, example_files, "jun")
+def test_migrate_keeps_the_analysis(book_jun, example_files, tmp_path):
+    book = book_jun                                 # actualizado a junio
     write_cells(book, {("2.2.1", A_CAUSE): "Planos atrasados", ("1.2.2", A_CAUSE): "Licitación desierta"})
     wb = load_workbook(book)                    # 1.2.2: clave inexistente en el libro nuevo
     ws = wb[SHEET_ANALYSIS]
@@ -231,8 +222,8 @@ def test_migrate_keeps_the_analysis(book, example_files, tmp_path):
     assert any("ya no tiene fila en el libro nuevo" in d for d in details)
 
 
-def test_values_recalculate(book, example_files, recalc):
-    update(book, example_files, "jun")
+def test_values_recalculate(book_jun, recalc):
+    book = book_jun                                 # actualizado a junio
     out = load_workbook(recalc(book), data_only=True)
     ws, ind = out[SHEET_ANALYSIS], out["Indicadores EDT"]
     by_code = {ind.cell(r, 1).value: r for r in range(FIRST_ROW, ind.max_row + 1)}

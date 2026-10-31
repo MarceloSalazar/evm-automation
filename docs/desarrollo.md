@@ -23,7 +23,8 @@ Información para quien modifica el programa o la documentación.
 ```powershell
 python -m pip install -r requirements-dev.txt
 python -m pytest                          # todas las pruebas
-python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffice (más rápido)
+python -m pytest -n 4 --dist loadfile     # en paralelo, en 4 procesos (pytest-xdist): unas 2,5 veces más rápido
+python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffice
 ```
 
 | Archivo de pruebas | Contenido |
@@ -37,12 +38,17 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 | `test_validar.py` | Comando `validar` y controles del archivo: códigos EDT (dependencia de la tarea superior, formato, orden, duplicados), fechas y duración, pesos, método frente a la duración, empresas, avance a la fecha de estado y fuera de secuencia, lógica del cronograma y evaluación DCMA (holgura, duración, tareas incumplidas, CPLI y BEI), lectura de duración, vínculos y delimitaciones (XML y COM) y columna `Tema` de la hoja `Validación`. |
 | `test_fichas_tareas.py` | Comando `generar-fichas`: fichas de los elementos del libro, vínculos trasladados al elemento con ficha (internos, repetidos y con tareas sin ficha), fechas y duración de la línea base, documento Markdown, varios archivos y lectura de la duración de la línea base, las horas por día y la descripción (XML y COM). |
 | `test_plazo_tendencia.py` | Plazo según el cronograma (días laborables, fin previsto, holgura y crítica de cada fila, filas resumen y total), columnas de `Indicadores EDT`, secciones del `Resumen` y del `Cuadro de Mando`, libros de versiones anteriores, tendencia (mes anterior con datos y últimos 3 meses) y recálculo de sus fórmulas con LibreOffice. |
-| `test_lista_edt.py` | Lista EDT (`lista_edt`): lectura del archivo, filas definidas por la lista, códigos faltantes, ramas sin elemento listado, lista guardada en el libro y usada por `actualizar`. |
-| `test_progreso.py` | Versión en pantalla y barra de progreso (etapas, % de la etapa y del total, ETA, consola no interactiva). |
+| `test_lista_edt.py` | Lista EDT (`lista_edt`): lectura del archivo, filas definidas por la lista, códigos sin los ceros finales, códigos faltantes, ramas sin elemento listado, lista guardada en el libro y usada por `actualizar`. |
+| `test_ceros_intermedios.py` | Ceros del código EDT. Intermedios (`ignorar_ceros_intermedios`): nivel del código, filas del libro y fila `-D`, controles de los códigos, criterio guardado en el libro y usado por `actualizar`, `--migrar-desde` y línea de comandos. Finales (`1.2` = `1.2.0` = `1.2.0.0`): duplicados y asociación por código en `actualizar` y `--migrar-desde`. |
+| `test_progreso.py` | Versión en pantalla y barra de progreso (etapas, % de la etapa y del total, tiempo transcurrido, ETA que no sube en una etapa lenta y cuenta hacia atrás en una sin conteo, refresco, tiempo total, consola no interactiva). |
 | `test_registro_cambios.py` | Controles del cierre mensual de la norma EIA-748-E: registro de cambios del BAC y de los meses ya informados (referencia, detección, hoja `Registro de cambios`, `--simular` y `--migrar-desde`), coherencia del EV y el AC, análisis de desviaciones incompleto, acciones vencidas, meses sin informe, línea base de MS Project distinta de la del libro, EAC poco realista (TCPI frente al CPI) y peso del LOE en el BAC. |
 | `test_codigos.py` | Códigos de errores y advertencias: formato y numeración del catálogo, todo mensaje con un código del catálogo, todo código usado, `docs/codigos.md` al día y silenciar (configuración, `--silenciar`, hoja `Validación` y código de salida de `validar`). |
 | `test_varios_archivos.py` | Varios archivos de MS Project (`[[proyectos]]`): el libro combinado coincide, fila por fila, con el libro de cada archivo (también en multi-empresa, con UniqueID repetidos entre archivos); errores de configuración y de la línea de comandos, fechas de estado y `--migrar-desde`. |
-| Resto | Casos del programa de ejemplo, Cuadro de Mando, semáforo, multi-empresa, planificación, campo `Visible`, depuración de costes, calendario y lector COM simulado. |
+| `test_rendimiento.py` | Optimizaciones de la lectura de MS Project y de la escritura del libro: mismos estilos que openpyxl, celdas vacías de las hojas `% PV` y `% EV`, una sola lectura del libro, reparto por meses del calendario y lecturas de MS Project (vínculos y alias de los campos, solo cuando hacen falta). |
+| `test_review_fixes.py` | Regresiones de los problemas detectados en las revisiones del código: migración, `actualizar` y `analizar`, análisis de desviaciones, registro de cambios, mensajes y errores de la línea de comandos. |
+| `test_workbook_update.py` | Libro del proyecto de ejemplo: disposición de las hojas, ciclo de `actualizar`, respaldo, meses posteriores cargados, `--migrar-desde` y recálculo de las fórmulas con LibreOffice. |
+| `test_report_xml.py`, `test_timeline_methods.py` | Lectura del XML de ejemplo, filas EDT y % planificado; calendario, horizonte, fechas, redondeo, métodos de medición e indicadores. |
+| Resto | Cuadro de Mando, semáforo, multi-empresa, planificación, campo `Visible`, depuración de costes, calendario y lector COM simulado. |
 
 - **LibreOffice:** si está instalado, las pruebas marcadas `libreoffice` recalculan las fórmulas del
   libro y las comparan con el cálculo en Python. Se usa un perfil propio de LibreOffice, por lo que
@@ -50,6 +56,13 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 - **Proyectos aleatorios:** la cantidad de proyectos (y de árboles EDT aleatorios) se aumenta con la
   variable de entorno `EVM_SEMILLAS`, por ejemplo `$env:EVM_SEMILLAS = 50` antes de `python -m pytest`.
   Cada caso indica su semilla, de modo que un fallo se puede repetir.
+- **Libros compartidos:** generar y actualizar un libro es lo más lento de las pruebas, por eso los libros
+  que muchas pruebas necesitan iguales se arman una sola vez y cada prueba recibe una copia en su
+  carpeta. En `conftest.py`: `book` (libro del proyecto de ejemplo con el BAC de cada fila), `book_jun`
+  (el mismo, con el AC de junio de 2027 cargado y actualizado a esa fecha) y `example_template` (sin
+  BAC). Los archivos de pruebas tienen las suyas (`multi_book`, el libro de umbrales propios de
+  `test_semaforo.py`, `books` de `test_varios_archivos.py`). Una prueba que revisa la salida de
+  `generar` o de `actualizar` ejecuta ese comando ella misma.
 - **Problemas conocidos:** las pruebas marcadas `xfail` documentan problemas detectados que aún no se
   corrigieron; aparecen como `xfailed` y no hacen fallar la ejecución. Cuando se corrige el problema,
   la prueba aparece como fallida (`XPASS(strict)`) para que se quite la marca.
@@ -108,6 +121,7 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/companies.py` | Multi-empresa: parte de cada empresa en cada tarea (columnas `Empresa` y `% Reparto`, con herencia de la tarea superior). |
 | `evm/timeline.py` | Horizonte mensual y utilidades de meses. |
 | `evm/workbook.py` | Escritura del libro Excel y de sus indicadores. |
+| `evm/fast_save.py` | Guardado rápido del libro (`[exportacion] guardado_rapido`): mientras se guarda, reemplaza la función de openpyxl que escribe cada celda por una que arma su XML directamente, con el mismo resultado byte a byte. Solo con la versión de openpyxl probada (3.1.x) y su escritor estándar; si no, guardado normal. |
 | `evm/dashboard.py` | Hoja `Cuadro de Mando` y sus tres gráficos. |
 | `evm/methods.py` | Métodos de medición: interpretación del texto de la columna C y criterios de tarea comenzada y terminada. |
 | `evm/analysis.py` | Hoja `Análisis de desviaciones`: paquetes fuera de umbral, texto conservado, análisis del mes anterior incompleto y acciones vencidas. |
@@ -117,7 +131,7 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/migrate.py` | Traslado del BAC, el % ganado, el AC y los métodos al regenerar el libro (`--migrar-desde`). |
 | `evm/indicators.py` | Indicadores que se muestran en pantalla (mismos cálculos que la hoja `Resumen`), incluida la tendencia. |
 | `evm/schedule.py` | Plazo según el cronograma de MS Project: fin previsto, desvío de fin, holgura y camino crítico de cada fila y del proyecto. |
-| `evm/progress.py` | Barra de progreso de la consola (etapas de cada comando, % y ETA). |
+| `evm/progress.py` | Barra de progreso de la consola (etapas de cada comando, %, tiempo transcurrido y ETA, refresco cada medio segundo). |
 | `evm/task_cards.py` | Comando `generar-fichas`: ficha de cada elemento EDT del libro (fechas y duración de la línea base, predecesoras y sucesoras) y documento Markdown. |
 | `instalador/` | Instalador de Windows: `construir.py`, especificación de PyInstaller, script de Inno Setup y consola ([3.2](#32-instalador-de-windows)). |
 
@@ -135,6 +149,27 @@ flowchart LR
     U --> WB
     CLI --> MI["migrate.py"]
 ```
+
+**Rendimiento.** Con proyectos grandes, el tiempo se va en la lectura de MS Project y en leer y guardar
+el libro, que tiene cientos de miles de celdas (120 meses por fila en cada hoja mensual). Al modificar el
+código se deben mantener estas pautas (las pruebas de `test_rendimiento.py` comprueban que los
+resultados no cambian):
+
+- Con `.mpp`, cada propiedad de una tarea que se lee es una llamada a MS Project, en otro proceso: se
+  leen solo los datos que usa el comando (por ejemplo, `generar` y `actualizar` no leen los vínculos ni
+  las delimitaciones: `links=False`).
+- Los estilos de las celdas de las hojas grandes se asignan con `workbook.styled(celda, font=...,
+  fill=...)`: openpyxl calcula el hash del objeto de estilo en cada asignación (`celda.font = ...`), y
+  `styled` lo calcula una vez por libro. Los objetos de estilo se crean una sola vez (constantes del
+  módulo o `workbook.indent(nivel)`), no uno por celda.
+- No se escriben celdas vacías solo para darles formato: en las hojas `% PV` y `% EV`, `actualizar` da
+  formato a las celdas que carga.
+- El libro se lee una sola vez; el libro con los valores calculados (`data_only`) se lee solo si una
+  celda de ingreso tiene una fórmula.
+- El guardado rápido (`evm/fast_save.py`) depende de funciones internas de openpyxl. Al actualizar
+  openpyxl a una versión nueva, se debe comprobar que `tests/test_rendimiento.py` siga pasando (archivo
+  idéntico byte a byte con y sin guardado rápido) y agregar la versión a `TESTED_VERSIONS`; hasta
+  entonces, el programa guarda en el modo normal.
 
 ---
 
@@ -291,7 +326,7 @@ consultan para entender un mensaje y para silenciar los códigos que ya revisaro
 3. **Usar el código en el programa**:
    - observación (consola y hoja `Validación`): `Issue("FEC-013", codigo_edt, nombre, mensaje)`; la
      severidad y el tema se toman del catálogo (los códigos de severidad variable la indican);
-   - error que detiene el programa: `raise ConfigError("CFG-050", mensaje)`, o la clase de
+   - error que detiene el programa: `raise ConfigError("CFG-052", mensaje)`, o la clase de
      `evm/messages.py` que corresponda (`InputError`, `MissingFileError`, `SaveError`...). No se
      lanzan `ValueError` ni `RuntimeError` con un mensaje para el usuario.
 4. **Regenerar el documento**: `python docs\herramientas\codigos.py` (con `--comprobar` solo se

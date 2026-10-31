@@ -65,15 +65,6 @@ def field_id(kind: str, idx: int) -> int | None:
     return (TASK_TEXT_IDS if kind == "Text" else TASK_NUMBER_IDS).get(idx)
 
 
-def kind_of_field_id(fid: int) -> tuple[str, int] | None:
-    for k, v in TASK_TEXT_IDS.items():
-        if v == fid:
-            return "Text", k
-    for k, v in TASK_NUMBER_IDS.items():
-        if v == fid:
-            return "Number", k
-    return None
-
 
 def same_name(a: str, b: str) -> bool:
     return _norm(a) == _norm(b)

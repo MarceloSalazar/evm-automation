@@ -102,7 +102,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 
 | Área | Nombre | Tema en la hoja Validación | Dónde aparecen | Códigos |
 |---|---|---|---|---|
-| [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 50 |
+| [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 51 |
 | [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 22 |
 | [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 22 |
 | [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 10 |
@@ -113,9 +113,9 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [AVA](#49-ava--avance-a-la-fecha-de-estado) | Avance a la fecha de estado | Avance a la fecha de estado | validar | 17 |
 | [LOG](#410-log--lógica-del-cronograma) | Lógica del cronograma | Lógica del cronograma | validar | 16 |
 | [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar y generar `--migrar-desde` (lectura del libro) | 15 |
-| [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 18 |
+| [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 20 |
 | [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 8 |
-| [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 49 |
+| [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 50 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
 | [SIS](#416-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
 
@@ -179,6 +179,7 @@ Archivo de configuración, opciones de la línea de comandos, horizonte y códig
 | [CFG-048](#cfg-048) | Advertencia | Código que no se puede silenciar |
 | [CFG-049](#cfg-049) | Info | Observaciones silenciadas |
 | [CFG-050](#cfg-050) | Error (detiene el programa) | loe_maximo fuera de rango |
+| [CFG-051](#cfg-051) | Error (detiene el programa) | No existe la carpeta de salida |
 
 #### CFG-001
 
@@ -580,6 +581,14 @@ Resumen de las observaciones que no se muestran por `[validacion] silenciar` o `
 
 **Qué hacer:** Indicar un % entre 0 y 100 (por defecto 15; 0 = no se controla).
 
+#### CFG-051
+
+**No existe la carpeta de salida** · Error (detiene el programa) · generar y generar-fichas · no se puede silenciar
+
+La carpeta del archivo indicado en `--salida` no existe.
+
+**Qué hacer:** Crear la carpeta o indicar otra ruta en `--salida`.
+
 ---
 
 ### 4.2 LEC · Lectura de MS Project
@@ -886,7 +895,7 @@ Entre tareas del mismo nivel faltan números (p. ej. 1.2.1 → 1.2.3).
 
 **Código EDT duplicado** · Error · generar (hoja Validación) y validar · se puede silenciar
 
-Varias tareas tienen el mismo código EDT: el libro no puede distinguir sus filas.
+Varias tareas tienen el mismo código EDT: el libro no puede distinguir sus filas. Los ceros finales no cuentan: 1.2, 1.2.0 y 1.2.0.0 son el mismo código.
 
 **Qué hacer:** Corregir los códigos. Si el proyecto tiene varias planificaciones (p. ej. INTERNO y CLIENTE), elegir una con planificacion.
 
@@ -1142,7 +1151,7 @@ La tarea no tiene fechas en el programa actual (p. ej. una tarea programada manu
 
 **Hito con duración** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-La tarea está marcada como hito y tiene duración: su % planificado va entero al mes de su fecha de fin.
+La tarea está marcada como hito y tiene duración: se calcula como hito, sin su duración (sin Peso hito no pesa en el % planificado; con Peso hito, pesa entero en el mes de su fecha de fin).
 
 **Qué hacer:** Si no es un hito, quitar la marca de hito (Información de la tarea > Avanzado).
 
@@ -1575,7 +1584,7 @@ Resumen de [AVA-017](#ava-017): tareas con avance que su vínculo con la predece
 
 **Tarea con avance fuera de secuencia** · Advertencia · validar · se puede silenciar
 
-Detalle de [AVA-016](#ava-016): la tarea tiene avance y su predecesora no terminó (vínculo fin a comienzo o fin a fin) o no comenzó (comienzo a comienzo o comienzo a fin).
+Detalle de [AVA-016](#ava-016): la tarea tiene avance y su predecesora no terminó (vínculo fin a comienzo o fin a fin) o no comenzó (comienzo a comienzo o comienzo a fin). Los vínculos con adelanto no se revisan ([LOG-006](#log-006)).
 
 **Qué hacer:** Corregir el avance de la tarea o de su predecesora, o el vínculo.
 
@@ -1902,6 +1911,8 @@ Traslado del BAC, el % ganado, el AC y los métodos de un libro anterior.
 | [MIG-016](#mig-016) | Info | Análisis de desviaciones trasladado |
 | [MIG-017](#mig-017) | Advertencia | Filas sin trasladar |
 | [MIG-018](#mig-018) | Info | Registro de cambios trasladado |
+| [MIG-019](#mig-019) | Error | Valores escritos sobre fórmulas sin trasladar |
+| [MIG-020](#mig-020) | Advertencia | Ceros intermedios con otro criterio |
 
 #### MIG-001
 
@@ -1955,7 +1966,7 @@ Las filas que ahora se dividen en varias no pueden repartir su historial.
 
 **Historial sumado en el paquete** · Info · generar `--migrar-desde` (hoja Validación) · se puede silenciar
 
-El historial de una fila anterior que quedó dentro de un paquete nuevo se sumó en ese paquete.
+El historial de una fila anterior que quedó dentro de un paquete nuevo, o de una fila -D (Otras tareas), se sumó en esa fila.
 
 **Qué hacer:** Ninguna.
 
@@ -2046,6 +2057,22 @@ Resumen en la consola de las filas con historial que no se pudieron trasladar (v
 Se trasladaron las filas de la hoja Registro de cambios y la referencia de los valores informados, con la que actualizar detecta los cambios siguientes.
 
 **Qué hacer:** Ninguna.
+
+#### MIG-019
+
+**Valores escritos sobre fórmulas sin trasladar** · Error · generar `--migrar-desde` · se puede silenciar
+
+El libro anterior tiene valores escritos sobre celdas que deben tener fórmula (subtotales, fila TOTAL o suma de las empresas; ver [ACT-024](#act-024)). El libro nuevo tiene la fórmula en esas celdas: los valores no se trasladan.
+
+**Qué hacer:** Revisar esas celdas en el libro anterior: si son el AC o el BAC de un paquete, cargarlos en sus filas de ingreso del libro nuevo.
+
+#### MIG-020
+
+**Ceros intermedios con otro criterio** · Advertencia · generar `--migrar-desde` (hoja Validación) · se puede silenciar
+
+El libro anterior y el nuevo se generaron con distinto ignorar_ceros_intermedios: los códigos con un 0 intermedio (p. ej. 1.2.0.1) cambian de nivel. Las filas que ahora se dividen en varias no pueden repartir su historial.
+
+**Qué hacer:** Cargar a mano el historial de las filas que informa [MIG-014](#mig-014).
 
 ---
 
@@ -2185,6 +2212,7 @@ Carga del % ganado del mes: fecha de corte, filas del libro, BAC y observaciones
 | [ACT-047](#act-047) | Advertencia | Línea base de MS Project distinta de la del libro |
 | [ACT-048](#act-048) | Advertencia | EAC poco realista |
 | [ACT-049](#act-049) | Advertencia | Mucho BAC en filas LOE |
+| [ACT-050](#act-050) | Advertencia | Ceros intermedios con otro criterio que el libro |
 
 #### ACT-001
 
@@ -2577,6 +2605,14 @@ El TCPI(BAC) supera al CPI en más de 0,10, o el AC ya alcanzó el BAC con traba
 El % del BAC total en filas con método LOE supera `[validacion] loe_maximo`: su EV es igual a su PV y acerca el SPI a 1 aunque el trabajo medible se atrase. La norma EIA-748-E pide mantener el LOE al mínimo.
 
 **Qué hacer:** Medir con hitos o % completado el trabajo que lo permita, o ajustar loe_maximo si el contrato lo admite.
+
+#### ACT-050
+
+**Ceros intermedios con otro criterio que el libro** · Advertencia · actualizar · se puede silenciar
+
+ignorar_ceros_intermedios de la configuración no coincide con el del libro, y algunas tareas con un 0 intermedio en el código (p. ej. 1.2.0.1) tendrían otra fila: el libro conserva sus filas.
+
+**Qué hacer:** Para aplicar la configuración, regenerar el libro con `--migrar-desde`; si no, indicar en la configuración el valor con que se generó el libro.
 
 ---
 

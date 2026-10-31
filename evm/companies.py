@@ -17,10 +17,6 @@ from evm.config import Config
 from evm.fields import same_name
 from evm.model import Task
 
-# Claves de las series por empresa (hojas EV-A, AC-B, etc.): A y B por rol, no por nombre.
-ROLE_A, ROLE_B = "A", "B"
-
-
 def _split_value(task: Task, cfg: Config) -> tuple[float, bool]:
     """Proporción de A para una tarea "Ambas" y si el valor de % Reparto era inválido."""
     v = task.split_a
@@ -87,8 +83,3 @@ def resolve_shares(roots: list[Task], cfg: Config) -> tuple[dict[int, float], di
     for r in roots:
         visit(r, inherited_from_ancestors(r))
     return shares, notes
-
-
-# ----------------------------------------------------------------------------
-# Valor ganado y costo real por empresa
-# ----------------------------------------------------------------------------

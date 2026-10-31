@@ -28,6 +28,109 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - Ninguna.
 
+## [2.4.1] - 2026-10-31 · Ceros del código EDT, correcciones de la revisión y rendimiento
+
+### Nuevas funciones
+
+- Ninguna.
+
+### Correcciones
+
+- **Ceros intermedios en el código EDT:** un código como `1.2.0.4` es de nivel 4, una actividad de
+  `1.2.0.0`: con `nivel_maximo = 3` se suma en la fila de `1.2.0.0` o en su fila `-D`. Antes era de
+  nivel 3 y tenía fila propia. La clave nueva `[exportacion] ignorar_ceros_intermedios = true` mantiene ese
+  criterio, para insertar un elemento antes de `1.2.1.0` sin renumerar a sus hermanos
+  ([Niveles por código EDT](docs/calculo-pv-ev.md#32-niveles-por-código-edt)). El libro guarda el valor
+  con que se generó y `actualizar` lo usa; si la configuración indica otro y alguna fila cambiaría, lo
+  informa (`ACT-050`, nuevo) y el libro conserva sus filas. `--migrar-desde` informa el cambio de criterio
+  (`MIG-020`, nuevo).
+- **Ceros finales en el código EDT:** `1.2`, `1.2.0` y `1.2.0.0` son el mismo código. Dos tareas con esos
+  códigos se informan como código duplicado (`EDT-009`, error). Una línea de la lista EDT coincide con su
+  tarea aunque tenga otra cantidad de ceros finales: antes, `1.2.0` en la lista no encontraba la tarea
+  `1.2.0.0`. `actualizar` con un proyecto de otro nombre y `--migrar-desde` asocian las filas por código
+  del mismo modo.
+- **Tiempo restante estimado (ETA):** subía mientras una etapa avanzaba más lenta de lo previsto (por
+  ejemplo, la lectura de un proyecto grande con MS Project ya abierto) y después bajaba de golpe. Tampoco
+  se actualizaba durante la apertura de MS Project, la lectura del libro ni su guardado. Ahora la etapa en
+  curso se estima a su propio ritmo, y las siguientes, con el ritmo medido y el tiempo que suelen llevar,
+  que tiene en cuenta los meses del horizonte. La escritura del libro avanza según el tamaño de cada hoja,
+  y la barra se actualiza cada medio segundo.
+- `--migrar-desde` suma en la fila `-D` (*Otras tareas*) el historial de una fila anterior cuya tarea
+  quedó en esa fila (por ejemplo, un paquete que pasó a tener un nivel mayor al máximo), como lo hace con
+  un paquete (`MIG-007`); antes no se trasladaba y se informaba como error (`MIG-014`).
+- **Análisis de desviaciones:** las filas de un mismo paquete en el mes (una fila copiada a mano para otra
+  causa o acción, o filas que `--migrar-desde` reunió en un paquete) se conservan todas al repetir
+  `actualizar` o `analizar`; antes quedaba solo la última y se perdía el texto de las demás.
+- **Análisis de desviaciones:** la hoja se vuelve a crear en cada `actualizar` y `analizar`, sin el filtro
+  de Excel anterior (sus criterios ocultaban las filas nuevas), filas ocultas ni celdas combinadas.
+- `--migrar-desde` informa como error (`MIG-019`, nuevo) los valores escritos a mano sobre celdas que deben
+  tener fórmula (subtotales, fila TOTAL o suma de las empresas), que no se trasladan.
+- **Registro de cambios:** el primer BAC de una fila, cargado después del primer `actualizar`, ya no se
+  registra como cambio retroactivo (`ACT-036`). Después de un `--migrar-desde` que cambia el mes 1 del
+  horizonte, los meses anteriores se comparan acumulados en el mes 1, como el historial, y no se
+  registran cambios falsos (`ACT-037`).
+- `generar` y `generar-fichas` comprueban al principio que exista la carpeta de `--salida` (`CFG-051`,
+  nuevo), antes de leer MS Project.
+- `analizar` con un `--libro` que no existe o que no es un libro de Excel informa el error con su código
+  (`LIB-002`, `LIB-004`) y termina con el código de salida 2.
+- `actualizar --simular`: `ACT-025` indica que las celdas *se reemplazarán* (no se modifican).
+- `MET-005` cuenta como filas sin método los mismos textos que el cálculo del % ganado (`Pendiente`, `-`,
+  `n/a`, además de `Por definir` y vacío).
+- Fila `-D` (otras tareas): sus fechas de inicio y fin son las de sus propias tareas, no las de toda la
+  tarea resumen. Se evita un `MET-004` sin motivo.
+- `validar`: los vínculos con adelanto no se informan como avance fuera de secuencia (`AVA-016` y
+  `AVA-017`); las métricas DCMA de delimitaciones (`LOG-011`, `LOG-012`) y de vínculos (`LOG-006` a
+  `LOG-009`) cuentan solo las tareas de detalle, como indica la [evaluación DCMA](docs/evaluacion-dcma.md).
+- `FEC-004` describe el cálculo real de una tarea marcada como hito que tiene duración: sin `Peso hito` no
+  pesa en el % planificado.
+- XML: la línea base guardada solo en la tarea resumen del proyecto o en tareas externas no cuenta para
+  decidir si el proyecto tiene línea base, igual que con `.mpp`.
+- `.mpp`: los nombres del proyecto y de las tareas se leen sin espacios al principio ni al final, igual que
+  con XML (un libro generado con XML y actualizado con `.mpp` asocia las filas por *Id. único*).
+- Plazo según MS Project: una tarea con fin real y % completado menor que 100 (`AVA-005`) se trata como
+  pendiente, con el mismo criterio que el % ganado.
+- `mes_inicio` admite una fecha TOML sin comillas (`mes_inicio = 2026-01-01`).
+- Hoja `Validación` y `validar`: las observaciones de los códigos EDT (`EDT-001` a `EDT-009`) se limitan a 200
+  por código, con una línea final que indica cuántas no se muestran (antes, `EDT-003` a `EDT-009` no tenían
+  límite y un archivo con todos los códigos mal podía dar miles de líneas).
+- En la consola de `generar`, las observaciones informativas se limitan a 15, como las advertencias; el
+  resto está en la hoja `Validación`.
+
+### Otros
+
+- **Rendimiento:** `generar`, `actualizar`, `analizar` y `--migrar-desde` tardan entre un 35 % y un 45 %
+  menos en un proyecto grande (unas 3.000 tareas y 570 filas en el libro) y alrededor de un 30 % menos en
+  el ciclo del proyecto de ejemplo: los estilos de las celdas se calculan una vez por libro, el libro se
+  lee una sola vez (antes, dos), las celdas vacías de las filas de ingreso de las hojas `% PV` y `% EV` no llevan
+  formato (`actualizar` lo da a las que carga) y el reparto de la duración entre los meses es cuatro
+  veces más rápido. Con `.mpp`, `generar` y `actualizar` hacen alrededor de un 30 % menos de llamadas a
+  MS Project: no leen los vínculos ni las delimitaciones, que solo usan `validar` y `generar-fichas`.
+  Los libros y los resultados son los mismos.
+- **Guardado rápido del libro** (clave nueva `[exportacion] guardado_rapido`, activada por defecto): las
+  celdas se escriben directamente, con el mismo archivo que el guardado normal (comprobado byte a byte), y
+  el guardado tarda menos de la mitad. En un proyecto grande, `generar` tarda un 32 % menos y `actualizar`
+  un 26 % menos, además de la mejora anterior. Con `guardado_rapido = false` se usa el guardado normal; con
+  una versión de openpyxl distinta de la probada (3.1), también.
+- **Tiempo transcurrido:** la barra de progreso muestra el tiempo transcurrido además del tiempo restante
+  estimado (ETA). Al terminar, en una consola, el comando indica su duración (`Tiempo total: 1:05`). Con
+  `-v` se informa la duración de cada etapa ([Comandos](docs/comandos.md)).
+- Documentación revisada: controles de `actualizar` y `analizar`, lista EDT en las fichas y en las filas
+  `-D`, `--config` de `analizar` (`loe_maximo`), mes de inicio por defecto, ejemplo de `validar`,
+  *Earned Schedule* en inglés, *Fin previsto* del libro frente al campo de MS Project, *Id. único*,
+  plantillas de tickets y `config.ejemplo.toml` (`depuracion_empresa` comentada, como el resto de los
+  valores que no son los del programa).
+- Presentación para el equipo de proyecto revisada: orden del cierre mensual (fecha de estado, avance,
+  reprogramación y `validar`), salida de `generar` igual a la del programa, aviso del LOE en `actualizar` y
+  `analizar`, plazo según el cronograma en el análisis de desviaciones, `validar` en el control de cambios,
+  textos y figuras corregidos.
+- Pruebas nuevas de las optimizaciones (mismos estilos, celdas de %, lectura del libro, calendario y
+  llamadas a MS Project) y de cada corrección. Las pruebas se pueden ejecutar en paralelo con
+  `python -m pytest -n 4 --dist loadfile` (`pytest-xdist`, en `requirements-dev.txt`): unos 3,5 minutos en
+  lugar de unos 9. `pytest.ini` exige marcas declaradas y `xfail` estrictos.
+- Pruebas más rápidas en serie: los libros del proyecto de ejemplo (con BAC y actualizado a junio de 2027),
+  el multi-empresa, el de umbrales propios y los de varios archivos se arman una sola vez y cada prueba usa
+  una copia.
+
 ## [2.4.0] - 2026-10-30 · Códigos de mensajes, evaluación DCMA y controles de la norma EIA-748-E
 
 ### Nuevas funciones
@@ -129,6 +232,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   [Desarrollo](docs/desarrollo.md#5-códigos-de-errores-y-advertencias): catálogo en `evm/messages.py`,
   `docs/codigos.md` generado con `docs/herramientas/codigos.py` y pruebas que comprueban que todo mensaje
   tenga un código del catálogo y que el documento esté al día.
+- Instalador de Windows de esta versión.
+- Portada de la presentación con la versión 2.4.0.
 
 ## [2.3.0] - 2026-10-26 · Plazo según MS Project, tendencia de los índices y lista EDT
 
@@ -569,7 +674,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.0...HEAD
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.1...HEAD
+[2.4.1]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.2.1...v2.3.0
 [2.2.1]: https://github.com/MarceloSalazar/evm-automation/compare/v2.2.0...v2.2.1

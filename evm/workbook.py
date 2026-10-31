@@ -8,6 +8,7 @@ import tempfile
 from copy import copy
 from dataclasses import dataclass
 from datetime import date, datetime
+from functools import lru_cache
 from pathlib import Path
 
 from openpyxl import Workbook
@@ -16,6 +17,7 @@ from openpyxl.cell.cell import ERROR_CODES, ILLEGAL_CHARACTERS_RE
 from openpyxl.chart.axis import DateAxis
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.styles.cell_style import StyleArray
 from openpyxl.utils import get_column_letter
 from openpyxl.utils.datetime import from_excel
 from openpyxl.workbook.defined_name import DefinedName
@@ -99,13 +101,59 @@ FONT_TITLE = Font(bold=True, size=14, color=DARK)
 FONT_BOLD = Font(bold=True)
 FONT_NOTE = Font(italic=True, size=9, color="595959")
 FONT_ITALIC = Font(italic=True)
+FONT_COST = Font(italic=True, color=COLOR_COST)
+FONT_COST_BOLD = Font(italic=True, bold=True, color=COLOR_COST)
 THIN = Side(style="thin", color="BFBFBF")
 BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
+BORDER_TOTAL = Border(top=Side(style="medium", color=DARK))
+ALIGN_CENTER = Alignment(horizontal="center")
+ALIGN_RIGHT = Alignment(horizontal="right")
+ALIGN_HEADER = Alignment(horizontal="center", vertical="center", wrap_text=True)
+ALIGN_MONTH = Alignment(horizontal="center", vertical="center")
 FMT_DATE = "dd/mm/yyyy"
 FMT_MONTH = "mmm-yyyy"
 FMT_RATIO = "0.00"
 FMT_PCT = "0.0%"
 FMT_PCT_MONTH = '0.0%;-0.0%;""'      # % del mes sin mostrar los meses en 0
+
+# Campo del StyleArray de openpyxl que guarda cada estilo de una celda
+_STYLE_FIELDS = {"font": "fontId", "fill": "fillId", "border": "borderId", "alignment": "alignmentId",
+                 "protection": "protectionId", "number_format": "numFmtId"}
+
+
+def styled(cell, **styles):
+    """Asigna estilos a la celda (font, fill, border, alignment, protection, number_format; None = no se asigna) y
+    la devuelve.
+
+    Equivale a `cell.font = ...`, pero openpyxl calcula el hash del objeto de estilo en cada asignación, lo que en
+    las hojas mensuales (cientos de miles de celdas) es buena parte del tiempo de escritura: aquí el índice de
+    cada objeto en el libro se calcula la primera vez y se reutiliza en las celdas siguientes.
+    """
+    wb = cell.parent.parent
+    ids = wb.__dict__.get("_evm_style_ids")
+    if ids is None:
+        ids = wb.__dict__["_evm_style_ids"] = {}
+    for attr, value in styles.items():
+        if value is None:
+            continue
+        key = (attr, value if isinstance(value, str) else id(value))
+        found = ids.get(key)
+        if found is None:
+            setattr(cell, attr, value)
+            field = _STYLE_FIELDS[attr]
+            # Se guarda también el objeto: mientras exista, su id no se reutiliza para otro estilo
+            ids[key] = (field, getattr(cell._style, field), value)
+        else:
+            if cell._style is None:          # celda sin estilos (openpyxl crea el StyleArray al asignar el primero)
+                cell._style = StyleArray()
+            setattr(cell._style, found[0], found[1])
+    return cell
+
+
+@lru_cache(maxsize=None)
+def indent(level: int) -> Alignment:
+    """Sangría del nombre de una fila de nivel `level` (un objeto por nivel, para styled)."""
+    return Alignment(indent=max(0, level - 1))
 
 # Regla de cálculo de cada método (el avance se pondera por la duración de las tareas y el peso de los hitos)
 METHOD_HELP = {
@@ -218,12 +266,21 @@ def _sum_formula(letter: str, rows: list[int], block: tuple[int, int] | None = N
 
 def _header(ws, row: int, labels: list[tuple[int, str]], height: float = 30) -> None:
     for c, text in labels:
-        cell = ws.cell(row=row, column=c, value=text)
-        cell.fill = FILL_HEADER
-        cell.font = FONT_HEADER
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        cell.border = BORDER
+        styled(ws.cell(row=row, column=c, value=text), fill=FILL_HEADER, font=FONT_HEADER, alignment=ALIGN_HEADER,
+               border=BORDER)
     ws.row_dimensions[row].height = height
+
+
+def _month_header(ws, lay: "_Layout") -> None:
+    """Filas 3 y 4 de las hojas mensuales: número de mes y fecha de cada mes."""
+    ws.cell(row=MONTHNUM_ROW, column=COL_FINISH, value="Mes N°").font = FONT_BOLD
+    ws.cell(row=MONTHNUM_ROW, column=COL_FINISH).alignment = ALIGN_RIGHT
+    for i in range(lay.months):
+        styled(ws.cell(row=MONTHNUM_ROW, column=lay.first_col + i, value=i + 1), alignment=ALIGN_CENTER,
+               font=FONT_BOLD)
+    for i, d in enumerate(lay.month_dates):
+        styled(ws.cell(row=HEADER_ROW, column=lay.first_col + i, value=d), number_format=FMT_MONTH,
+               fill=FILL_HEADER, font=FONT_HEADER, alignment=ALIGN_MONTH, border=BORDER)
 
 
 def _naive(d):
@@ -362,25 +419,13 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
     put_text(ws, INFO_ROW, 1, _info_line(report, cfg, generated)).font = FONT_NOTE
 
     # Fila 3: número de mes; fila 4: encabezados y fecha de cada mes
-    ws.cell(row=MONTHNUM_ROW, column=COL_FINISH, value="Mes N°").font = FONT_BOLD
-    ws.cell(row=MONTHNUM_ROW, column=COL_FINISH).alignment = Alignment(horizontal="right")
-    for i in range(lay.months):
-        c = ws.cell(row=MONTHNUM_ROW, column=lay.first_col + i, value=i + 1)
-        c.alignment = Alignment(horizontal="center")
-        c.font = FONT_BOLD
     _header(ws, HEADER_ROW, [
         (COL_CODE, "Código EDT"), (COL_NAME, "Actividad"), (COL_METHOD, "Método de medición"),
         (COL_BAC, "BAC (Presupuesto)" + (f" {company}" if company else "")),
         (COL_START, "Fecha inicio Plan (PV)"), (COL_FINISH, "Fecha fin Plan (PV)"),
         (lay.total_col, "Total horizonte"),
     ])
-    for i, d in enumerate(lay.month_dates):
-        c = ws.cell(row=HEADER_ROW, column=lay.first_col + i, value=d)
-        c.number_format = FMT_MONTH
-        c.fill = FILL_HEADER
-        c.font = FONT_HEADER
-        c.alignment = Alignment(horizontal="center", vertical="center")
-        c.border = BORDER
+    _month_header(ws, lay)
 
     def sum_of_companies(letter: str, r: int) -> str:
         return (f"='{company_sheet(kind, report.company_a)}'!{letter}{r}"
@@ -389,8 +434,7 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
     for row in report.rows:
         r = lay.r(row)
         put_text(ws, r, COL_CODE, row.code)
-        name = put_text(ws, r, COL_NAME, row.name)
-        name.alignment = Alignment(indent=max(0, row.level - 1))
+        styled(put_text(ws, r, COL_NAME, row.name), alignment=indent(row.level))
 
         # Columnas C a F
         if is_pv and role is None:
@@ -435,31 +479,25 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
                     i = report.horizon.index(k)
                     if 0 <= i < lay.months:
                         ws.cell(row=r, column=lay.first_col + i, value=round(v, 2))
-            if input_sheet:
-                for i in range(lay.months):
-                    ws.cell(row=r, column=lay.first_col + i).fill = FILL_INPUT
         else:
             refs_rows = [lay.r(c) for c in row.children]
             for i in range(lay.months):
                 L = col(lay.first_col + i)
                 ws.cell(row=r, column=lay.first_col + i,
                         value=_sum_formula(L, refs_rows, lay.block(row), lay.review))
-        for i in range(lay.months):
-            ws.cell(row=r, column=lay.first_col + i).number_format = month_money
         tot = ws.cell(row=r, column=lay.total_col,
                       value=f"=SUM({col(lay.first_col)}{r}:{col(lay.last_col)}{r})")
         tot.number_format = money
 
-        # Estilo por nivel
+        # Estilo por nivel (en la hoja AC, los meses de las filas de ingreso son celdas amarillas)
         font = FONT_BOLD if row.kind == KIND_SUMMARY else (FONT_ITALIC if row.kind == KIND_RESIDUAL else None)
         fill = FILL_L1 if (row.kind == KIND_SUMMARY and row.level == 1) else (
             FILL_L2 if row.kind == KIND_SUMMARY else None)
-        for c_ in range(1, lay.total_col + 1):
-            cell = ws.cell(row=r, column=c_)
-            if font:
-                cell.font = font
-            if fill and not (row.is_input and input_sheet and c_ >= lay.first_col):
-                cell.fill = fill
+        month_fill = FILL_INPUT if row.is_input and input_sheet else fill
+        for i in range(lay.months):
+            styled(ws.cell(row=r, column=lay.first_col + i), number_format=month_money, font=font, fill=month_fill)
+        for c_ in (*range(1, lay.first_col), lay.total_col):
+            styled(ws.cell(row=r, column=c_), font=font, fill=fill)
         ws.row_dimensions[r].outline_level = min(7, max(0, row.level - 1))
         if review_sheet:
             _write_cost_row(ws, report, cfg, lay, row, r + 1)
@@ -482,10 +520,7 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
     ws.cell(row=tr, column=lay.total_col,
             value=f"=SUM({col(lay.first_col)}{tr}:{col(lay.last_col)}{tr})").number_format = money
     for c_ in range(1, lay.total_col + 1):
-        cell = ws.cell(row=tr, column=c_)
-        cell.fill = FILL_TOTAL
-        cell.font = FONT_BOLD
-        cell.border = Border(top=Side(style="medium", color=DARK))
+        styled(ws.cell(row=tr, column=c_), fill=FILL_TOTAL, font=FONT_BOLD, border=BORDER_TOTAL)
     if review_sheet:
         _write_cost_row(ws, report, cfg, lay, None, tr + 1, total + (f" - {company}" if company else ""))
 
@@ -545,7 +580,7 @@ def _write_cost_row(ws, report: Report, cfg: Config, lay: _Layout, row: ReportRo
         block = (FIRST_ROW + 1, lay.last_row)
     else:
         put_text(ws, c, COL_CODE, row.code)
-        put_text(ws, c, COL_NAME, row.name + COST_SUFFIX).alignment = Alignment(indent=max(0, row.level - 1))
+        styled(put_text(ws, c, COL_NAME, row.name + COST_SUFFIX), alignment=indent(row.level))
         children = [lay.r(x) + 1 for x in row.children]
         a, b = lay.block(row)
         block = (a + 1, b)
@@ -558,11 +593,9 @@ def _write_cost_row(ws, report: Report, cfg: Config, lay: _Layout, row: ReportRo
     span = f"{col(lay.first_col)}{c}:{col(lay.last_col)}{c}"
     ws.cell(row=c, column=COL_BAC, value=f"=SUM({span})").number_format = money
     ws.cell(row=c, column=lay.total_col, value=f"=SUM({span})").number_format = money
-    font = Font(italic=True, bold=row is None or row.kind == KIND_SUMMARY, color=COLOR_COST)
+    font = FONT_COST_BOLD if row is None or row.kind == KIND_SUMMARY else FONT_COST
     for c_ in range(1, lay.total_col + 1):
-        cell = ws.cell(row=c, column=c_)
-        cell.fill = FILL_COST
-        cell.font = font
+        styled(ws.cell(row=c, column=c_), fill=FILL_COST, font=font)
     ws.row_dimensions[c].outline_level = cost_outline(report)
     if cfg.cost_review_alignment:
         cost_review.alignment_cells(ws, cfg, lay, r, c)
@@ -586,31 +619,19 @@ def _write_pct_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
                  "  -  valor DEL MES (no acumulado) que 'actualizar' calcula desde MS Project")
     ws.cell(row=TITLE_ROW, column=1, value=title).font = FONT_TITLE
     put_text(ws, INFO_ROW, 1, _info_line(report, cfg, generated)).font = FONT_NOTE
-    ws.cell(row=MONTHNUM_ROW, column=COL_FINISH, value="Mes N°").font = FONT_BOLD
-    ws.cell(row=MONTHNUM_ROW, column=COL_FINISH).alignment = Alignment(horizontal="right")
-    for i in range(lay.months):
-        c = ws.cell(row=MONTHNUM_ROW, column=lay.first_col + i, value=i + 1)
-        c.alignment = Alignment(horizontal="center")
-        c.font = FONT_BOLD
     _header(ws, HEADER_ROW, [
         (COL_CODE, "Código EDT"), (COL_NAME, "Actividad"), (COL_METHOD, "Método de medición"),
         (COL_BAC, "BAC (Presupuesto)" + (f" {company}" if company else "")),
         (COL_START, "Fecha inicio Plan (PV)"), (COL_FINISH, "Fecha fin Plan (PV)"),
         (lay.total_col, "Total horizonte" if is_pv else "% ganado acumulado"),
     ])
-    for i, d in enumerate(lay.month_dates):
-        c = ws.cell(row=HEADER_ROW, column=lay.first_col + i, value=d)
-        c.number_format = FMT_MONTH
-        c.fill = FILL_HEADER
-        c.font = FONT_HEADER
-        c.alignment = Alignment(horizontal="center", vertical="center")
-        c.border = BORDER
+    _month_header(ws, lay)
     money = money_format(cfg.decimals)
     series = role_key(pct_sheet(kind), role)            # serie para --migrar-desde ('% EV-A')
     for row in report.rows:
         r = lay.r(row)
         put_text(ws, r, COL_CODE, row.code)
-        put_text(ws, r, COL_NAME, row.name).alignment = Alignment(indent=max(0, row.level - 1))
+        styled(put_text(ws, r, COL_NAME, row.name), alignment=indent(row.level))
         for c_ in (COL_METHOD, COL_START, COL_FINISH):
             ref = f"'{SHEET_PV}'!{col(c_)}{r}"
             ws.cell(row=r, column=c_, value=f'=IF({ref}="","",{ref})')
@@ -618,34 +639,35 @@ def _write_pct_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
         ws.cell(row=r, column=COL_BAC, value=f'=IF({ref}="","",{ref})').number_format = money
         ws.cell(row=r, column=COL_START).number_format = FMT_DATE
         ws.cell(row=r, column=COL_FINISH).number_format = FMT_DATE
+        filled = range(lay.months)          # meses con valor (en las filas de ingreso, los que tienen %)
         if row.is_input:
+            values = {}
             if is_pv:
-                for i, v in enumerate(row.pct_vec.get(role or "", [])):
-                    if abs(v) > 1e-12:
-                        ws.cell(row=r, column=lay.first_col + i, value=v)
+                values = {i: v for i, v in enumerate(row.pct_vec.get(role or "", [])) if abs(v) > 1e-12}
             elif prior is not None:
                 for k, v in prior.values_for(row_key(row), series).items():
                     i = report.horizon.index(k)
                     if 0 <= i < lay.months:
-                        ws.cell(row=r, column=lay.first_col + i, value=v)
+                        values[i] = v
+            for i, v in values.items():
+                ws.cell(row=r, column=lay.first_col + i, value=v)
+            filled = values
         else:
             for i in range(lay.months):
                 L = col(lay.first_col + i)
                 ws.cell(row=r, column=lay.first_col + i,
                         value=f"=IFERROR('{amount}'!{L}{r}/'{amount}'!$D{r},\"\")")
-        for i in range(lay.months):
-            ws.cell(row=r, column=lay.first_col + i).number_format = FMT_PCT_MONTH
         ws.cell(row=r, column=lay.total_col,
                 value=f"=SUM({col(lay.first_col)}{r}:{col(lay.last_col)}{r})").number_format = FMT_PCT
         font = FONT_BOLD if row.kind == KIND_SUMMARY else (FONT_ITALIC if row.kind == KIND_RESIDUAL else None)
         fill = FILL_L1 if (row.kind == KIND_SUMMARY and row.level == 1) else (
             FILL_L2 if row.kind == KIND_SUMMARY else None)
-        for c_ in range(1, lay.total_col + 1):
-            cell = ws.cell(row=r, column=c_)
-            if font:
-                cell.font = font
-            if fill:
-                cell.fill = fill
+        # Las celdas vacías de las filas de ingreso no llevan formato (el libro es más liviano y se lee y se guarda
+        # más rápido): 'actualizar' da formato a las que carga. Las filas en negrita o cursiva, todo el horizonte.
+        for i in (range(lay.months) if font or fill else filled):
+            styled(ws.cell(row=r, column=lay.first_col + i), number_format=FMT_PCT_MONTH, font=font, fill=fill)
+        for c_ in (*range(1, lay.first_col), lay.total_col):
+            styled(ws.cell(row=r, column=c_), font=font, fill=fill)
         ws.row_dimensions[r].outline_level = min(7, max(0, row.level - 1))
         if lay.review:
             ws.row_dimensions[r + 1].hidden = True
@@ -663,10 +685,7 @@ def _write_pct_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
     ws.cell(row=tr, column=lay.total_col,
             value=f"=SUM({col(lay.first_col)}{tr}:{col(lay.last_col)}{tr})").number_format = FMT_PCT
     for c_ in range(1, lay.total_col + 1):
-        cell = ws.cell(row=tr, column=c_)
-        cell.fill = FILL_TOTAL
-        cell.font = FONT_BOLD
-        cell.border = Border(top=Side(style="medium", color=DARK))
+        styled(ws.cell(row=tr, column=c_), fill=FILL_TOTAL, font=FONT_BOLD, border=BORDER_TOTAL)
     if is_pv:
         # Filas de ingreso cuyo % planificado no suma 100 % (p. ej. tareas sin fechas o fuera del horizonte),
         # por bloques de filas de ingreso consecutivas
@@ -1043,9 +1062,8 @@ def write_schedule(wb, summary, rows: list[int], total_row: int, command: str) -
             for c_, v in values.items():
                 cell = ws.cell(row=r, column=c_, value=v)
                 cell._style = copy(model._style)
-                cell.number_format = {I_BL_FINISH: FMT_DATE, I_FINISH: FMT_DATE, I_VARIANCE: FMT_DAYS,
-                                      I_SLACK: FMT_SLACK}.get(c_, "General")
-                cell.alignment = Alignment(horizontal="center")
+                styled(cell, number_format={I_BL_FINISH: FMT_DATE, I_FINISH: FMT_DATE, I_VARIANCE: FMT_DAYS,
+                                            I_SLACK: FMT_SLACK}.get(c_, "General"), alignment=ALIGN_CENTER)
         _replace_schedule_rules(ws, total_row)
         for c_, w in {I_BL_FINISH: 12, I_FINISH: 12, I_VARIANCE: 11, I_SLACK: 11, I_CRITICAL: 10}.items():
             ws.column_dimensions[col(c_)].width = w
@@ -1208,14 +1226,12 @@ def _write_indicators(ws, report: Report, cfg: Config, lay: _Layout) -> None:
                 cell.number_format = FMT_PCT
         if row is None:
             for c_ in range(1, 17):
-                ws.cell(row=r, column=c_).font = FONT_BOLD
-                ws.cell(row=r, column=c_).fill = FILL_TOTAL
+                styled(ws.cell(row=r, column=c_), font=FONT_BOLD, fill=FILL_TOTAL)
         else:
-            ws.cell(row=r, column=2).alignment = Alignment(indent=max(0, row.level - 1))
+            styled(ws.cell(row=r, column=2), alignment=indent(row.level))
             if row.kind == KIND_SUMMARY:
                 for c_ in range(1, 17):
-                    ws.cell(row=r, column=c_).font = FONT_BOLD
-                    ws.cell(row=r, column=c_).fill = FILL_L1 if row.level == 1 else FILL_L2
+                    styled(ws.cell(row=r, column=c_), font=FONT_BOLD, fill=FILL_L1 if row.level == 1 else FILL_L2)
             ws.row_dimensions[r].outline_level = min(7, max(0, row.level - 1))
             if lay.review:
                 ws.row_dimensions[r + 1].hidden = True
@@ -1344,16 +1360,19 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     _write_lists(ws_lists, methods)
     progress.stage("escribir", "Escritura del libro")
     steps = len(data_sheets) + len(pct_sheets) + 4
+    # Avance según el tiempo de cada hoja: una de datos (fórmulas de cada fila y mes) lleva lo que 6 de '% PV' o
+    # '% EV'; las demás hojas, entre todas, lo que 4
+    cost = 6 * len(data_sheets) + len(pct_sheets) + 4
     for k, (ws, kind, role) in enumerate(data_sheets, start=1):
         _write_data_sheet(ws, kind, report, cfg, lay, generated, prior, role)
-        progress.step(k, steps, "hojas")
+        progress.step(k, steps, "hojas", 6 * k / cost)
     for k, (ws, kind, role) in enumerate(pct_sheets, start=len(data_sheets) + 1):
         _write_pct_sheet(ws, kind, report, cfg, lay, generated, prior, role)
-        progress.step(k, steps, "hojas")
+        progress.step(k, steps, "hojas", (k + 5 * len(data_sheets)) / cost)
     _write_curve(ws_curve, report, cfg, lay)
     _write_summary(ws_sum, report, cfg, lay, generated, status)
     _write_indicators(ws_ind, report, cfg, lay)
-    progress.step(steps - 2, steps, "hojas")
+    progress.step(steps - 2, steps, "hojas", (cost - 2.5) / cost)
     from evm.schedule import from_report
     write_schedule(wb, from_report(report, cfg, lay.r), [lay.r(r) for r in report.rows], lay.total_row, "generar")
     if cfg.wbs_list is not None:
@@ -1365,7 +1384,7 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     packages = dashboard.chart_packages((lay.r(r), r.code, r.level, r.kind) for r in report.rows)
     dashboard.write_chart_data(ws_charts, cfg, lay, packages)
     dashboard.write_dashboard(ws_dash, report, cfg, lay, packages, status)
-    progress.step(steps - 1, steps, "hojas")
+    progress.step(steps - 1, steps, "hojas", (cost - 1) / cost)
     analysis.write_sheet(wb, prior.analysis if prior is not None else [],
                          {row_key(r): lay.r(r) for r in report.rows if r.is_input}, lay.months,
                          Thresholds.from_config(cfg), cfg.decimals)
@@ -1411,6 +1430,7 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
         "primera_fila": FIRST_ROW,
         "fila_total": lay.total_row,
         "nivel_maximo": cfg.max_level,
+        "ignorar_ceros_intermedios": cfg.ignore_interior_zeros,
         "decimales": cfg.decimals,
         **Thresholds.from_config(cfg).meta(),
         "generado": generated.replace(microsecond=0),
@@ -1451,7 +1471,7 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     wb.properties.creator = "evm_export"
     wb.properties.title = clean_text(f"EVM - {report.title}")
     progress.stage("guardar", "Guardado del libro")
-    save_workbook(wb, path)
+    save_workbook(wb, path, fast=cfg.fast_save)
     return meta
 
 
@@ -1459,15 +1479,20 @@ def _save_error(path: Path) -> str:
     return f"No se pudo guardar '{path}'. Si el libro está abierto en Excel, se debe cerrar y volver a intentar."
 
 
-def save_workbook(wb, path: str | Path) -> None:
+def save_workbook(wb, path: str | Path, fast: bool = True) -> None:
     """Guarda el libro sin riesgo de dañarlo: escribe un archivo temporal en la misma carpeta y luego
     reemplaza el libro. Si el guardado falla (libro abierto en Excel, disco lleno, interrupción), el
-    libro anterior queda intacto y el archivo temporal se elimina."""
+    libro anterior queda intacto y el archivo temporal se elimina.
+
+    fast: guardado rápido de las celdas ([exportacion] guardado_rapido; evm/fast_save.py), con el mismo resultado.
+    """
+    from evm.fast_save import fast_cells
     path = Path(path)
     tmp = None
     try:
         buffer = io.BytesIO()
-        wb.save(buffer)                       # se arma el libro en memoria: un error no toca el disco
+        with fast_cells(fast):
+            wb.save(buffer)                   # se arma el libro en memoria: un error no toca el disco
         fd, name = tempfile.mkstemp(prefix=f"~{path.stem}.", suffix=".tmp", dir=path.parent)
         tmp = Path(name)
         with os.fdopen(fd, "wb") as fh:

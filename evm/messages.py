@@ -354,6 +354,9 @@ _CODES = [
     _code("CFG-050", F, "loe_maximo fuera de rango",
           "[validacion] loe_maximo no es un % entre 0 y 100.",
           "Indicar un % entre 0 y 100 (por defecto 15; 0 = no se controla)."),
+    _code("CFG-051", F, "No existe la carpeta de salida",
+          "La carpeta del archivo indicado en --salida no existe.",
+          "Crear la carpeta o indicar otra ruta en --salida.", "generar y generar-fichas"),
 
     # --- LEC: lectura de MS Project -----------------------------------------------------------------------------
     _code("LEC-001", F, "No existe el archivo de origen",
@@ -460,7 +463,8 @@ _CODES = [
           "Entre tareas del mismo nivel faltan números (p. ej. 1.2.1 → 1.2.3).",
           "Ninguna, si es intencional (p. ej. un paquete eliminado); si no, corregir los códigos."),
     _code("EDT-009", E, "Código EDT duplicado",
-          "Varias tareas tienen el mismo código EDT: el libro no puede distinguir sus filas.",
+          "Varias tareas tienen el mismo código EDT: el libro no puede distinguir sus filas. Los ceros finales no "
+          "cuentan: 1.2, 1.2.0 y 1.2.0.0 son el mismo código.",
           "Corregir los códigos. Si el proyecto tiene varias planificaciones (p. ej. INTERNO y CLIENTE), elegir una "
           "con planificacion."),
     _code("EDT-010", (F, E), "No se encontró la planificación",
@@ -561,7 +565,8 @@ _CODES = [
           "La tarea no tiene fechas en el programa actual (p. ej. una tarea programada manualmente sin fechas).",
           "Indicar sus fechas o su duración."),
     _code("FEC-004", W, "Hito con duración",
-          "La tarea está marcada como hito y tiene duración: su % planificado va entero al mes de su fecha de fin.",
+          "La tarea está marcada como hito y tiene duración: se calcula como hito, sin su duración (sin Peso hito no "
+          "pesa en el % planificado; con Peso hito, pesa entero en el mes de su fecha de fin).",
           "Si no es un hito, quitar la marca de hito (Información de la tarea > Avanzado)."),
     _code("FEC-005", W, "Duración 0 sin marca de hito",
           "La tarea dura 0 y no es un hito: no pesa en el % planificado de su fila.",
@@ -725,7 +730,8 @@ _CODES = [
           "Corregir el avance registrado o el vínculo, si ya no representa la secuencia real del trabajo."),
     _code("AVA-017", W, "Tarea con avance fuera de secuencia",
           "Detalle de AVA-016: la tarea tiene avance y su predecesora no terminó (vínculo fin a comienzo o fin a "
-          "fin) o no comenzó (comienzo a comienzo o comienzo a fin).",
+          "fin) o no comenzó (comienzo a comienzo o comienzo a fin). Los vínculos con adelanto no se revisan "
+          "(LOG-006).",
           "Corregir el avance de la tarea o de su predecesora, o el vínculo."),
 
     # --- LOG: lógica del cronograma (validar) ---------------------------------------------------------------------
@@ -858,7 +864,8 @@ _CODES = [
           "Las filas que ahora se dividen en varias no pueden repartir su historial.",
           "Cargar a mano el historial de las filas que informa MIG-014."),
     _code("MIG-007", I, "Historial sumado en el paquete",
-          "El historial de una fila anterior que quedó dentro de un paquete nuevo se sumó en ese paquete.",
+          "El historial de una fila anterior que quedó dentro de un paquete nuevo, o de una fila -D (Otras tareas), "
+          "se sumó en esa fila.",
           "Ninguna."),
     _code("MIG-008", W, "Historial asociado por código EDT",
           "La fila recibió el historial de una fila anterior con otro nombre, asociada por código EDT.",
@@ -894,6 +901,17 @@ _CODES = [
           "Se trasladaron las filas de la hoja Registro de cambios y la referencia de los valores informados, con "
           "la que actualizar detecta los cambios siguientes.",
           "Ninguna."),
+    _code("MIG-019", E, "Valores escritos sobre fórmulas sin trasladar",
+          "El libro anterior tiene valores escritos sobre celdas que deben tener fórmula (subtotales, fila TOTAL o "
+          "suma de las empresas; ver ACT-024). El libro nuevo tiene la fórmula en esas celdas: los valores no se "
+          "trasladan.",
+          "Revisar esas celdas en el libro anterior: si son el AC o el BAC de un paquete, cargarlos en sus filas de "
+          "ingreso del libro nuevo.", "generar --migrar-desde"),
+    _code("MIG-020", W, "Ceros intermedios con otro criterio",
+          "El libro anterior y el nuevo se generaron con distinto ignorar_ceros_intermedios: los códigos con un 0 "
+          "intermedio (p. ej. 1.2.0.1) cambian de nivel. Las filas que ahora se dividen en varias no pueden repartir "
+          "su historial.",
+          "Cargar a mano el historial de las filas que informa MIG-014."),
 
     # --- DEP: depuración de costes ------------------------------------------------------------------------------
     _code("DEP-001", I, "Depuración de costes activa",
@@ -1101,6 +1119,11 @@ _CODES = [
           "el SPI a 1 aunque el trabajo medible se atrase. La norma EIA-748-E pide mantener el LOE al mínimo.",
           "Medir con hitos o % completado el trabajo que lo permita, o ajustar loe_maximo si el contrato lo admite.",
           W_AN),
+    _code("ACT-050", W, "Ceros intermedios con otro criterio que el libro",
+          "ignorar_ceros_intermedios de la configuración no coincide con el del libro, y algunas tareas con un 0 "
+          "intermedio en el código (p. ej. 1.2.0.1) tendrían otra fila: el libro conserva sus filas.",
+          "Para aplicar la configuración, regenerar el libro con --migrar-desde; si no, indicar en la configuración "
+          "el valor con que se generó el libro."),
 
     # --- FIC: fichas de tareas ----------------------------------------------------------------------------------
     _code("FIC-001", W, "No hay fichas",

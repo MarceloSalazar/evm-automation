@@ -213,7 +213,7 @@ flowchart TD
   líneas base: Para todas las tareas de resumen*
   ([Preparación en MS Project](preparacion-ms-project.md#6-línea-base)).
 - **No** se recomienda volver a guardar la línea base de todo el proyecto cada mes: el PV pasaría a
-  coincidir con el avance real y la SV dejaría de tener sentido.
+  coincidir con el avance real y el SV dejaría de tener sentido.
 - Si se guarda la línea base en MS Project y no se genera el libro nuevo, `actualizar` lo avisa
   ([ACT-047](codigos.md#act-047)): el libro sigue con el PV de la línea base anterior. Si el cambio no
   estaba aprobado, se restaura la línea base en MS Project (por ejemplo, desde la copia en *Línea base N*).

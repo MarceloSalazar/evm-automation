@@ -17,7 +17,7 @@ from evm.config import Config
 from evm.fields import (builtin_kind, field_id, fmt_number, is_notes_name, is_spanish_wbs_name, parse_custom_name,
                         parse_number, same_name)
 from evm.messages import EvmError, Issue
-from evm.model import Link, ProjectData, Task, use_current_schedule
+from evm.model import CONSTRAINT_ASAP, Link, ProjectData, Task, use_current_schedule
 from evm.workcalendar import WorkCalendar, calendar_from_xml
 
 log = logging.getLogger(__name__)
@@ -126,7 +126,9 @@ def _resolve(name: str, defs: dict[int, tuple[str, str]]) -> tuple[str, object] 
     return None
 
 
-def read_xml(path: str | Path, cfg: Config) -> ProjectData:
+def read_xml(path: str | Path, cfg: Config, links: bool = True) -> ProjectData:
+    """links: lee los vínculos y las delimitaciones de las tareas (solo los usan validar y generar-fichas; como con
+    COM, donde son varias llamadas a MS Project por tarea)."""
     path = Path(path)
     try:
         tree = ET.parse(path)
@@ -237,13 +239,8 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
             kind, key = ref
             return r.text(el, key) if kind == "elem" else ext.get(key, "")
 
-        bl = next((b for b in el.findall(r.q("Baseline")) if r.text(b, "Number") == str(n)), None)
-        bl_start = r.date(bl, "Start") if bl is not None else None
-        bl_finish = r.date(bl, "Finish") if bl is not None else None
-        bl_duration = duration_minutes(r.text(bl, "Duration")) if bl is not None else None
-        has_bl = bl_start is not None or bl_finish is not None
-        any_baseline = any_baseline or has_bl
-
+        # La tarea resumen del proyecto y las externas no son tareas del proyecto (COM no las lee): su línea base
+        # no cuenta para saber si el proyecto tiene línea base
         if uid == 0:                    # tarea resumen del proyecto
             # Mismo nombre que entrega COM (ProjectSummaryTask.Name), para reconocer el proyecto
             title = r.text(el, "Name")
@@ -252,13 +249,20 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
             skipped_external += 1
             continue
 
+        bl = next((b for b in el.findall(r.q("Baseline")) if r.text(b, "Number") == str(n)), None)
+        bl_start = r.date(bl, "Start") if bl is not None else None
+        bl_finish = r.date(bl, "Finish") if bl is not None else None
+        bl_duration = duration_minutes(r.text(bl, "Duration")) if bl is not None else None
+        has_bl = bl_start is not None or bl_finish is not None
+        any_baseline = any_baseline or has_bl
+
         weight = None
         if weight_ref is not None:
             weight = parse_number(value_of(weight_ref))
         company = value_of(company_ref).strip() if company_ref is not None else ""
         split_a = parse_number(value_of(split_ref)) if split_ref is not None else None
-        links = [Link(r.integer(lk, "PredecessorUID", -1), r.integer(lk, "Type", 1), r.num(lk, "LinkLag"))
-                 for lk in el.findall(r.q("PredecessorLink"))]
+        predecessors = [Link(r.integer(lk, "PredecessorUID", -1), r.integer(lk, "Type", 1), r.num(lk, "LinkLag"))
+                        for lk in el.findall(r.q("PredecessorLink"))] if links else []
 
         task = Task(
             uid=uid, id=tid, name=r.text(el, "Name"), outline_level=level,
@@ -274,8 +278,8 @@ def read_xml(path: str | Path, cfg: Config) -> ProjectData:
             physical_percent_complete=r.num(el, "PhysicalPercentComplete"),
             actual_start=r.date(el, "ActualStart"), actual_finish=r.date(el, "ActualFinish"),
             duration=duration_minutes(r.text(el, "Duration")), estimated=r.flag(el, "Estimated"),
-            manual=r.flag(el, "Manual"), constraint_type=r.integer(el, "ConstraintType"),
-            constraint_date=r.date(el, "ConstraintDate"), predecessors=links,
+            manual=r.flag(el, "Manual"), constraint_type=r.integer(el, "ConstraintType") if links else CONSTRAINT_ASAP,
+            constraint_date=r.date(el, "ConstraintDate") if links else None, predecessors=predecessors,
             method=value_of(method_ref).strip(), milestone_weight=weight,
             company=company, split_a=split_a, visible=value_of(visible_ref).strip(),
             description=value_of(description_ref).strip(),

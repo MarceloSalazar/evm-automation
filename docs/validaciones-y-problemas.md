@@ -26,7 +26,9 @@ revisadas se pueden silenciar con `[validacion] silenciar` o `--silenciar`
 ([Silenciar observaciones](codigos.md#2-silenciar-observaciones)). La columna `Tema` agrupa las
 observaciones (*Estructura y códigos EDT*, *Fechas y duración*, *Hitos y pesos*, *Método de medición*,
 *Empresas*...) y permite filtrarlas. Las tareas sin código EDT se identifican por su Id de MS Project
-(por ejemplo, `Hito: bases aprobadas (Id 17)`).
+(por ejemplo, `Hito: bases aprobadas (Id 17)`). Cada control muestra hasta 200 tareas; en los códigos
+EDT (`EDT-001` a `EDT-009`), si hay más, una última línea con el mismo código indica cuántas no se
+muestran (por ejemplo, cuando todos los códigos de un archivo tienen el mismo error).
 
 El comando [`validar`](comandos.md#validar-revisa-el-archivo-de-ms-project) muestra las mismas
 observaciones en pantalla, agrupadas por tema, **sin crear el libro**, y agrega los controles del
@@ -41,10 +43,10 @@ cronograma de las secciones [1.2](#12-avance-a-la-fecha-de-estado-validar) y
 | Observación | Qué revisar |
 |---|---|
 | Código EDT que no depende del de su tarea superior (`Error`): bajo `1.2.0` solo van `1.2.1`, `1.2.2`...; `1.14.2` o `1.0.0` son errores | Corregir el código en MS Project. La tarea superior es la tarea resumen con código EDT más cercana. |
-| Código EDT con formato no válido (`Error`: segmentos vacíos como `1..2`) o no numérico (`Advertencia`: `1.2.A`) | Los códigos son números separados por un punto. Los ceros finales son relleno (`1.2.0`); un 0 intermedio indica un hijo directo del elemento anterior (`1.2.0.1` debajo de `1.2.0.0`, antes de `1.2.1.0`). Los códigos sin puntos como `INTERNO` se admiten como planificaciones. |
+| Código EDT con formato no válido (`Error`: segmentos vacíos como `1..2`) o no numérico (`Advertencia`: `1.2.A`) | Los códigos son números separados por un punto. Los ceros finales son relleno (`1.2.0`); un 0 intermedio indica que el código depende directamente del elemento anterior (`1.2.0.1` debajo de `1.2.0.0`; su nivel depende de `ignorar_ceros_intermedios`). Los códigos sin puntos como `INTERNO` se admiten como planificaciones. |
 | Código EDT que salta un nivel (`1.2.3.1` directamente bajo `1.2.0`) o de nivel 2 o más sin tarea superior con código | Asignar código a la tarea intermedia o corregir el código. |
 | Códigos EDT fuera de orden (`1.2.3` antes que `1.2.2`) y saltos en la numeración (`Info`: después de `1.2.2` sigue `1.2.14`) | Revisar si el código tiene un error de escritura. Un salto puede ser intencional (por ejemplo, un paquete eliminado). |
-| Códigos EDT duplicados (`Error`) | Por ejemplo, si no se eligió una planificación y ambas usan los mismos códigos. Se revisan todas las tareas exportadas, también las de nivel mayor al máximo. |
+| Códigos EDT duplicados (`Error`) | Por ejemplo, si no se eligió una planificación y ambas usan los mismos códigos. Los ceros finales no cuentan: `1.2`, `1.2.0` y `1.2.0.0` son el mismo código. Se revisan todas las tareas exportadas, también las de nivel mayor al máximo. |
 | Fin anterior al comienzo (`Error`), en la línea base (*Fin previsto* y *Comienzo previsto*) o en el programa actual (*Fin* y *Comienzo*); tarea sin *Comienzo* o sin *Fin* | Corregir las fechas en MS Project (las tareas programadas manualmente pueden quedar sin fechas). |
 | Hito con duración; tarea con duración 0 que no está marcada como hito | Un hito pone todo su % planificado en el mes de su fecha de fin; una tarea con duración 0 que no es hito no pesa en el % planificado. Corregir la marca de hito (*Información de la tarea > Avanzado*) o la duración. Se revisa si MS Project informa la duración (siempre con `.mpp` y con el XML que guarda MS Project). |
 | Duraciones estimadas (`Advertencia`; con `?`, por ejemplo `5 días?`) y tareas programadas manualmente (`Advertencia`) | Confirmar la duración: define el % planificado. Las tareas manuales no se reprograman cuando cambian sus predecesoras. |
@@ -76,11 +78,12 @@ cronograma de las secciones [1.2](#12-avance-a-la-fecha-de-estado-validar) y
 | Varios archivos: observaciones precedidas por el nombre del archivo (`[P1]`, `[P2]`) y monedas distintas | Revisar cada archivo; si las monedas difieren, indicar `moneda` en `[exportacion]` ([Varios archivos](varios-archivos.md#8-validaciones-y-controles)). |
 
 `actualizar` informa sus controles en pantalla: filas con % ganado y sin BAC, filas cuya tarea ya no
-existe o está inactiva, tareas con código EDT sin fila en el libro, cambios del campo `Visible`, celdas
-sin la fórmula del libro, cambios del BAC y de meses ya informados (que agrega a la hoja `Registro de
-cambios`), EV y AC incoherentes, análisis del mes anterior incompleto, acciones vencidas y meses sin
-informe ([Cálculo del PV y el EV](calculo-pv-ev.md#14-controles-y-validaciones)). `analizar` informa los
-mismos controles del libro.
+existe o está inactiva, tareas con código EDT sin fila en el libro, cambios del campo `Visible` o de la
+lista EDT, celdas sin la fórmula del libro, cambios del BAC y de meses ya informados (que agrega a la hoja
+`Registro de cambios`), EV y AC incoherentes, análisis del mes anterior incompleto, acciones vencidas,
+meses sin informe, línea base de MS Project distinta de la del libro, EAC poco realista y peso del LOE en
+el BAC ([Cálculo del PV y el EV](calculo-pv-ev.md#14-controles-y-validaciones)). `analizar` informa los
+mismos controles del libro, salvo la comparación con la línea base de MS Project.
 
 Las observaciones de `--migrar-desde` y los recordatorios del BAC y de la depuración de costes solo
 aparecen en la hoja `Validación` de `generar`.
@@ -144,7 +147,7 @@ puntos no revisa está en [Evaluación DCMA de 14 puntos](evaluacion-dcma.md).
   No se usan los calendarios de recursos ni de tareas. Con XML se ignoran las excepciones recurrentes
   relativas (por ejemplo, "primer lunes del mes" o "último viernes de marzo"), que se informan en
   `Validación`.
-- Si la curva PV no alcanza el BAC dentro del horizonte, la duración planificada y el Cronograma Ganado
+- Si la curva PV no alcanza el BAC dentro del horizonte, la duración planificada y el Earned Schedule
   quedan vacíos; en ese caso se debe aumentar `meses`.
 - Dentro de una fila, el % planificado sigue la duración de las tareas, no su valor: una tarea larga de
   poco valor pesa más que una corta de mucho valor. El total de la fila es siempre el BAC ingresado.
@@ -194,7 +197,8 @@ puntos no revisa está en [Evaluación DCMA de 14 puntos](evaluacion-dcma.md).
 | `--migrar-desde no se admite entre un libro de una sola empresa y uno multi-empresa` | Se debe generar el libro nuevo sin `--migrar-desde` y cargar a mano el historial que se necesite. |
 | `No se encontró el campo de empresa ...` | Se debe revisar `campo_empresa` en `[multiempresa]`: nombre del campo (`Text3`) o su alias en MS Project. |
 | `No se encontró el campo de descripción ...` | Se debe revisar `descripcion` en `[campos]`: `"Notas"` para las notas de la tarea, o el nombre del campo (`Text20`) o su alias en MS Project. Las fichas se crean sin descripción. |
-| `generar-fichas`: una ficha no muestra un vínculo que sí está en MS Project | Los vínculos entre tareas del mismo elemento EDT y los vínculos con tareas sin ficha (otra planificación, inactivas, con `Visible = No` u otro proyecto) no se muestran; la consola indica cuántos vínculos se omitieron ([Comandos](comandos.md#generar-fichas-fichas-de-tareas-para-el-cliente)). |
+| `generar-fichas`: una ficha no muestra un vínculo que sí está en MS Project | Los vínculos entre tareas del mismo elemento EDT y los vínculos con tareas sin ficha (otra planificación, inactivas, con `Visible = No`, fuera de la lista EDT u otro proyecto) no se muestran; la consola indica cuántos vínculos se omitieron ([Comandos](comandos.md#generar-fichas-fichas-de-tareas-para-el-cliente)). |
+| Excel informa que el libro tiene contenido que no puede leer, o no lo abre | Se debe recuperar el libro desde su respaldo (`actualizar` y `analizar` lo crean antes de guardar), indicar `guardado_rapido = false` en `[exportacion]` ([Configuración](configuracion.md#claves)), volver a ejecutar el comando e informar el problema. |
 | Los indicadores aparecen vacíos al abrir el libro | El libro se abrió en vista protegida o en una vista previa: se debe habilitar la edición para que Excel calcule las fórmulas. |
 | `El código EDT ... está en los archivos ... y ...` | Varios archivos: cada código EDT debe estar en un solo archivo. Se deben corregir los códigos EDT o la planificación de cada archivo en `[[proyectos]]` ([Varios archivos](varios-archivos.md#3-preparación-en-ms-project)). |
 | `Los archivos tienen fechas de estado distintas ...` | Se debe definir la misma fecha de estado en todos los archivos o indicar `--fecha-corte`. |

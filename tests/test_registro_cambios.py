@@ -208,15 +208,6 @@ def test_reference_follows_the_calendar_month():
 # ----------------------------------------------------------------------------
 # Comandos con el proyecto de ejemplo
 # ----------------------------------------------------------------------------
-@pytest.fixture()
-def book(tmp_path, example_files, generator):
-    out = tmp_path / "EVM.xlsx"
-    assert main(["generar", "--origen", str(example_files["base"]), "--config", str(example_files["config"]),
-                 "--salida", str(out)]) == 0
-    generator.fill_book(out)
-    return out
-
-
 def update(book, example_files, month: str, *extra, ac: bool = True) -> int:
     import generar_ejemplo
     status = {"jun": date(2027, 6, 30), "jul": date(2027, 7, 31)}[month]
@@ -295,8 +286,8 @@ def test_closed_month_changes_are_logged(book, example_files, capsys):
         "AC", date(2027, 6, 1), 123_456)
 
 
-def test_migrate_keeps_the_log_and_the_reference(book, example_files, tmp_path, capsys):
-    assert update(book, example_files, "jun") == 0
+def test_migrate_keeps_the_log_and_the_reference(book_jun, example_files, tmp_path, capsys):
+    book = book_jun                                 # actualizado a junio
     bac = read_book(book).bac[next(s.row for s in read_book(book).input_rows if s.code == "2.2.1")]
     set_cell(book, "PV", "2.2.1", COL_BAC, bac + 1000)
     assert update(book, example_files, "jul") == 0
@@ -317,8 +308,8 @@ def test_migrate_keeps_the_log_and_the_reference(book, example_files, tmp_path, 
     assert not any(code in out for code in ("ACT-036", "ACT-037", "ACT-038"))
 
 
-def test_incomplete_analysis_and_overdue_action(book, example_files, capsys):
-    assert update(book, example_files, "jun") == 0
+def test_incomplete_analysis_and_overdue_action(book_jun, example_files, capsys):
+    book = book_jun                                 # actualizado a junio
     wb = load_workbook(book)
     ws = wb[SHEET_ANALYSIS]
     rows = {ws.cell(r, 2).value: r for r in range(analysis.FIRST, ws.max_row + 1)}
@@ -334,9 +325,8 @@ def test_incomplete_analysis_and_overdue_action(book, example_files, capsys):
     assert "[!] ACT-045 2.2.1" in out and "(15/07/2027)" in out
 
 
-def test_month_gap_when_a_month_is_skipped(book, example_files, capsys):
-    assert update(book, example_files, "jun") == 0
-    capsys.readouterr()
+def test_month_gap_when_a_month_is_skipped(book_jun, example_files, capsys):
+    book = book_jun                                 # actualizado a junio
     assert main(["actualizar", "--origen", str(example_files["jul"]), "--config", str(example_files["config"]),
                  "--libro", str(book), "--sin-respaldo", "--fecha-corte", "2027-08-31"]) == 0
     out = capsys.readouterr().out

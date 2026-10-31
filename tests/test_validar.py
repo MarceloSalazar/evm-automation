@@ -10,10 +10,10 @@ from evm.config import Config, ConfigError, load_config
 from evm.model import CONSTRAINT_MSO, LINK_FF, LINK_FS, LINK_SF, LINK_SS, Link
 from evm.reader_xml import duration_minutes, read_xml
 from evm.validation import logic_checks, progress_checks, validate_part
-from evm.wbs import (KIND_LEAF, SEV_ERROR, SEV_INFO, SEV_WARN, TOPIC_DATES, TOPIC_LOGIC, TOPIC_METHOD,
-                     TOPIC_PROGRESS, TOPIC_WBS, TOPIC_WEIGHTS, build_part, build_report)
+from evm.wbs import (SEV_ERROR, SEV_INFO, SEV_WARN, TOPIC_DATES, TOPIC_LOGIC, TOPIC_METHOD, TOPIC_PROGRESS,
+                     TOPIC_WBS, TOPIC_WEIGHTS, build_part, build_report)
 
-from builders import P, by_name, tree
+from builders import P, T, by_name, tree
 from mspdi import NUMBER1, TEXT10, project_xml, task_xml, write_xml
 
 S, F = datetime(2026, 1, 5, 8), datetime(2026, 3, 27, 17)
@@ -71,38 +71,6 @@ def test_code_format_errors():
     by = {i.name: i for i in found(rep, TOPIC_WBS) if i.name in ("Vacio", "Letra")}
     assert by["Vacio"].severity == SEV_ERROR and "formato no válido" in by["Vacio"].message
     assert by["Letra"].severity == SEV_WARN and "no numérico" in by["Letra"].message
-
-
-def test_interior_zero_is_a_direct_child_of_the_previous_element():
-    """1.2.0.1 se inserta debajo de 1.2.0.0 sin renumerar a 1.2.1.0: es su hijo directo, de nivel 3."""
-    tasks = tree('''
-        1.0.0.0 Fase
-          1.0.0.3 Directo de 1
-          1.2.0.0 Elemento
-            1.2.0.1 Insertado
-            1.2.1.0 Paquete
-              1.2.1.1 Actividad
-    ''')
-    rep = report(tasks, Config(max_level=3))
-    assert not found(rep, TOPIC_WBS, SEV_ERROR) and not found(rep, TOPIC_WBS, SEV_WARN)
-    rows = {r.code: r for r in rep.rows}
-    assert rows["1.2.0.1"].kind == KIND_LEAF and rows["1.2.0.1"].parent.code == "1.2.0.0"
-    assert rows["1.2.1.0"].kind == KIND_LEAF and "1.2.1.1" not in rows           # nivel 4: se suma en 1.2.1.0
-    assert rows["1.0.0.3"].parent.code == "1.0.0.0"
-
-
-def test_interior_zero_under_another_element_is_an_error():
-    tasks = tree('''
-        1 Fase
-          1.0.3 Bien
-          1.2 Elemento
-            1.2.1 Paquete
-              1.2.0.1 Mal ubicado
-    ''')
-    rep = report(tasks)
-    by = {i.name: i for i in found(rep, TOPIC_WBS)}
-    assert by["Mal ubicado"].severity == SEV_ERROR and "no depende del de su tarea superior" in by["Mal ubicado"].message
-    assert "Bien" not in by
 
 
 def test_skipped_level_order_gaps_and_duplicates():
@@ -739,3 +707,47 @@ def test_generar_writes_topic_and_new_checks(tmp_path):
     assert ("Error", "EDT-005", "1.14.2", "Mal") == rows[[r[2] for r in rows].index("1.14.2")][:4]
     assert {r[5] for r in rows} >= {TOPIC_WBS}
     assert not [r for r in rows if r[5] in (TOPIC_PROGRESS, TOPIC_LOGIC)]     # solo en validar
+
+
+def test_lead_allows_progress_before_the_predecessor_finishes():
+    tasks = tree('''
+        1 Fase
+          1.1 Comenzada
+          1.2 Con adelanto
+    ''')
+    t = by_name(tasks)
+    t["Comenzada"].actual_start, t["Comenzada"].percent_complete = S, 40
+    t["Con adelanto"].actual_start, t["Con adelanto"].percent_complete = S, 10
+    t["Con adelanto"].predecessors = [Link(t["Comenzada"].uid, LINK_FS, -4800)]
+    assert not [i for i in progress(tasks, None) if i.id in ("AVA-016", "AVA-017")]
+    assert [i.id for i in logic(tasks) if i.id == "LOG-006"] == ["LOG-006"]       # el adelanto se informa aparte
+
+
+def test_dcma_metrics_count_detail_tasks_only():
+    tasks = tree('''
+        1 Fase
+          1.1 A
+          1.2 B
+    ''')
+    t = by_name(tasks)
+    t["Fase"].constraint_type = CONSTRAINT_MSO                  # delimitación en la tarea resumen
+    t["B"].predecessors = [Link(t["A"].uid, LINK_FS)]
+    t["Fase"].predecessors = [Link(t["A"].uid, LINK_SS)]        # vínculo de la resumen: LOG-010
+    issues = logic(tasks)
+    ids = [i.id for i in issues]
+    assert "LOG-011" not in ids and "LOG-012" not in ids
+    assert "LOG-009" not in ids                                 # el vínculo CC de la resumen no cuenta
+    assert [i.name for i in issues if i.id == "LOG-010"] == ["Fase"]
+
+
+def test_wbs_code_issues_are_capped_per_code(monkeypatch):
+    import evm.validation as validation
+    monkeypatch.setattr(validation, "LIMIT", 3)
+    tasks = [T(1, 1, "1", "Fase")] + [T(i, 2, f"2.{i}", f"Mala {i}") for i in range(2, 9)]     # 7 × EDT-005
+    tasks += [T(20, 1, "5", "Otra"), T(21, 2, "5.1", "A"), T(22, 2, "5.1", "B")]                # 1 × EDT-009
+    issues = build_report(P(tasks), Config()).issues
+    edt5 = [i for i in issues if i.id == "EDT-005"]
+    assert [i.name for i in edt5] == ["Mala 2", "Mala 3", "Mala 4", ""]
+    assert edt5[-1].message.startswith("Y 4 observaciones más con este código: se muestran las primeras 3.")
+    assert edt5[-1].severity == SEV_ERROR
+    assert len([i for i in issues if i.id == "EDT-009"]) == 1                # sin exceso: sin línea de resumen

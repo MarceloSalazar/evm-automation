@@ -1,5 +1,6 @@
 """Semáforo de SPI y CPI: umbrales inferiores y superiores (configuración, hojas, gráficos y análisis)."""
 import re
+import shutil
 import zipfile
 from datetime import date
 
@@ -20,14 +21,24 @@ def config(tmp_path, text: str, name: str = "c.toml"):
     return path
 
 
-@pytest.fixture()
-def book(tmp_path, example_files, generator):
-    """Libro del ejemplo con umbrales propios (0,85 / 0,90 / 1,10 / 1,20), con el BAC del ejemplo."""
+@pytest.fixture(scope="module")
+def custom_template(tmp_path_factory, example_files, generator):
+    """Libro del ejemplo con umbrales propios (0,85 / 0,90 / 1,10 / 1,20), con el BAC del ejemplo (una vez)."""
+    folder = tmp_path_factory.mktemp("umbrales")
     text = example_files["config"].read_text(encoding="utf-8") + "\n" + CUSTOM
-    cfg = config(tmp_path, text, "propio.toml")
-    out = tmp_path / "EVM.xlsx"
+    cfg = config(folder, text, "propio.toml")
+    out = folder / "EVM.xlsx"
     assert main(["generar", "--origen", str(example_files["base"]), "--config", str(cfg), "--salida", str(out)]) == 0
     generator.fill_book(out)
+    return out
+
+
+@pytest.fixture()
+def book(tmp_path, custom_template):
+    """Copia del libro, con su configuración al lado (propio.toml)."""
+    out = tmp_path / "EVM.xlsx"
+    shutil.copy(custom_template, out)
+    shutil.copy(custom_template.parent / "propio.toml", tmp_path / "propio.toml")
     return out
 
 
