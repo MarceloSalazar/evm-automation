@@ -36,8 +36,9 @@ def P(tasks, name="Programa", status=None, **kw):
 
 
 def make_book(path, project, cfg=None, prior=None, bac=None):
-    """Genera el libro e ingresa el BAC de las filas indicadas ({código: BAC})."""
-    cfg = cfg or Config()
+    """Genera el libro e ingresa el BAC de las filas indicadas ({código: BAC}). Por defecto, con 24 meses: los
+    proyectos de estas pruebas duran pocos meses y un libro más chico se genera y se lee más rápido."""
+    cfg = cfg or Config(months=24)
     rep = build_report(project, cfg)
     if prior is not None:
         rep.issues.extend(plan_migration(rep, prior, cfg.max_level))

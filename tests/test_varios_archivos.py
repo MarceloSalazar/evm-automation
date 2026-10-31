@@ -78,10 +78,15 @@ def by_code(path) -> dict:
     return out
 
 
+def variant(extra: str) -> str:
+    """Sufijo de los archivos de configuración de una variante (cada una con los suyos: no se pisan)."""
+    return "_multi" if extra else ""
+
+
 def single_books(xml, tmp_path, extra: str = "", months=("jun", "jul")):
     """Libros de cada proyecto por separado (un solo archivo), con los mismos meses cargados."""
-    cfg1 = write_config(xml, "solo1.toml", [], extra)
-    cfg2 = write_config(xml, "solo2.toml", [], extra, COMMON.replace('"INTERNO"', '""'))
+    cfg1 = write_config(xml, f"solo1{variant(extra)}.toml", [], extra)
+    cfg2 = write_config(xml, f"solo2{variant(extra)}.toml", [], extra, COMMON.replace('"INTERNO"', '""'))
     books = []
     for project, cfg in ((1, cfg1), (2, cfg2)):
         book = tmp_path / f"solo{project}.xlsx"
@@ -93,12 +98,31 @@ def single_books(xml, tmp_path, extra: str = "", months=("jun", "jul")):
 
 
 def combined_book(xml, tmp_path, extra: str = "", months=("jun", "jul"), name="EVM.xlsx"):
-    cfg = write_config(xml, "varios.toml", extra=extra)
+    cfg = write_config(xml, f"varios{variant(extra)}.toml", extra=extra)
     book = tmp_path / name
     generate(cfg, book)
     for m in months:
         update(cfg, book, m, "--origen", f"P1={xml[(1, m)]}", "--origen", f"P2={xml[(2, m)]}")
     return cfg, book
+
+
+@pytest.fixture(scope="module")
+def books(xml, tmp_path_factory):
+    """Libros que varias pruebas solo leen (o usan en --migrar-desde): se arman una vez por módulo.
+
+    books("varios", extra, meses) devuelve (configuración, libro) de combined_book; books("solo", ...), los dos libros
+    de single_books. Las pruebas no los modifican.
+    """
+    cache: dict = {}
+
+    def get(kind: str, extra: str = "", months=("jun", "jul")):
+        key = (kind, extra, months)
+        if key not in cache:
+            folder = tmp_path_factory.mktemp(f"libros_{kind}")
+            cache[key] = (combined_book if kind == "varios" else single_books)(xml, folder, extra, months)
+        return cache[key]
+
+    return get
 
 
 # ----------------------------------------------------------------------------
@@ -168,19 +192,19 @@ def test_generate_combines_files(xml, tmp_path, capsys):
     assert any(d.startswith("[P2] ") for d in details)
 
 
-def test_combined_equals_separate_books(xml, tmp_path):
+def test_combined_equals_separate_books(books):
     """El libro combinado tiene, fila por fila, los mismos BAC, PV, EV y AC que el libro de cada archivo."""
-    p1, p2 = (by_code(b) for b in single_books(xml, tmp_path))
+    p1, p2 = (by_code(b) for b in books("solo"))
     assert not set(p1) & set(p2)
-    _cfg, book = combined_book(xml, tmp_path)
+    _cfg, book = books("varios")
     assert by_code(book) == {**p1, **p2}
     assert read_book(book).status_date == date(2027, 7, 31)
 
 
-def test_combined_multicompany_equals_separate_books(xml, tmp_path):
+def test_combined_multicompany_equals_separate_books(books):
     """Multi-empresa: la parte de cada empresa se calcula con las tareas de cada archivo (UniqueID repetidos)."""
-    p1, p2 = (by_code(b) for b in single_books(xml, tmp_path, MULTI_COMPANY, months=("jun",)))
-    _cfg, book = combined_book(xml, tmp_path, MULTI_COMPANY, months=("jun",))
+    p1, p2 = (by_code(b) for b in books("solo", MULTI_COMPANY, months=("jun",)))
+    _cfg, book = books("varios", MULTI_COMPANY, months=("jun",))
     combined = by_code(book)
     assert combined == {**p1, **p2}
     assert any(v[4] != v[0] for v in combined.values())    # hay filas repartidas entre empresas
@@ -285,10 +309,10 @@ def test_update_status_dates(xml, tmp_path, capsys):
     assert read_book(book).status_date == date(2027, 6, 30)
 
 
-def test_update_analysis_of_deviations(xml, tmp_path):
+def test_update_analysis_of_deviations(books):
     """La hoja Análisis de desviaciones asocia cada paquete con su archivo (UniqueID repetidos)."""
     from evm.analysis import A_BAC, SHEET_ANALYSIS, read_entries
-    _cfg, book = combined_book(xml, tmp_path, months=("jun",))
+    _cfg, book = books("varios", months=("jun",))
     b = read_book(book)
     rows = {s.key: (s.code, s.row) for s in b.input_rows}
     ws = load_workbook(book)[SHEET_ANALYSIS]
@@ -299,8 +323,8 @@ def test_update_analysis_of_deviations(xml, tmp_path):
         assert e.code == code and ws.cell(i, A_BAC).value == f"='PV'!$D${data_row}"
 
 
-def test_update_indicators_recalculate(xml, tmp_path, recalc):
-    _cfg, book = combined_book(xml, tmp_path, months=("jun",))
+def test_update_indicators_recalculate(books, recalc):
+    _cfg, book = books("varios", months=("jun",))
     out = load_workbook(recalc(book), data_only=True)
     errors = [(ws.title, c.coordinate, c.value) for ws in out.worksheets for row in ws.iter_rows() for c in row
               if isinstance(c.value, str) and c.value.startswith("#") and c.value != "#N/A"]
@@ -318,8 +342,8 @@ def validation(book) -> list[tuple]:
     return [r for r in load_workbook(book)["Validación"].iter_rows(min_row=4, values_only=True) if r[0]]
 
 
-def test_migrate_combined_book_keeps_history(xml, tmp_path):
-    cfg, book = combined_book(xml, tmp_path)
+def test_migrate_combined_book_keeps_history(books, tmp_path):
+    cfg, book = books("varios")
     new = tmp_path / "EVM_LB2.xlsx"
     generate(cfg, new, "--migrar-desde", str(book))
     assert by_code(new) == by_code(book)
@@ -330,9 +354,9 @@ def test_migrate_combined_book_keeps_history(xml, tmp_path):
     assert read_book(new).status_date == date(2027, 7, 31)
 
 
-def test_migrate_without_one_file(xml, tmp_path):
+def test_migrate_without_one_file(xml, books, tmp_path):
     """Si se quita un archivo, su historial no se traslada y se informa como error."""
-    _cfg, book = combined_book(xml, tmp_path, months=("jun",))
+    _cfg, book = books("varios", months=("jun",))
     only_p1 = write_config(xml, "solo_p1.toml", [("P1", "p1_base.xml", "")])
     new = tmp_path / "EVM_P1.xlsx"
     generate(only_p1, new, "--migrar-desde", str(book))

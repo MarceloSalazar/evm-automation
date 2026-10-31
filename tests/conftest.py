@@ -1,4 +1,6 @@
+import contextlib
 import importlib.util
+import io
 import shutil
 import subprocess
 import sys
@@ -37,6 +39,61 @@ def example_files(tmp_path_factory, generator):
                    '[exportacion]\nplanificacion = "INTERNO"\n', encoding="utf-8")
     files["config"] = cfg
     return files
+
+
+@pytest.fixture(scope="session")
+def example_template(tmp_path_factory, example_files):
+    """Libro del proyecto de ejemplo, sin BAC, generado una sola vez: las pruebas usan una copia."""
+    out = tmp_path_factory.mktemp("plantilla") / "EVM.xlsx"
+    quiet_main(["generar", "--origen", str(example_files["base"]), "--config", str(example_files["config"]),
+                "--salida", str(out)])
+    return out
+
+
+@pytest.fixture(scope="session")
+def example_bac_template(tmp_path_factory, example_template, generator):
+    """El mismo libro con el BAC de cada fila del ejemplo (se ingresa a mano)."""
+    out = tmp_path_factory.mktemp("plantilla_bac") / "EVM.xlsx"
+    shutil.copy(example_template, out)
+    generator.fill_book(out)
+    return out
+
+
+@pytest.fixture(scope="session")
+def example_jun_template(tmp_path_factory, example_bac_template, example_files, generator):
+    """El libro del ejemplo después del cierre de junio de 2027: AC de junio cargado a mano y 'actualizar'."""
+    out = tmp_path_factory.mktemp("plantilla_jun") / "EVM.xlsx"
+    shutil.copy(example_bac_template, out)
+    generator.fill_book(out, date(2027, 6, 30))
+    quiet_main(["actualizar", "--origen", str(example_files["jun"]), "--config", str(example_files["config"]),
+                "--libro", str(out), "--sin-respaldo"])
+    return out
+
+
+@pytest.fixture()
+def book(tmp_path, example_bac_template):
+    """Copia, en la carpeta de la prueba, del libro del ejemplo con el BAC de cada fila."""
+    out = tmp_path / "EVM.xlsx"
+    shutil.copy(example_bac_template, out)
+    return out
+
+
+@pytest.fixture()
+def book_jun(tmp_path, example_jun_template):
+    """Copia, en la carpeta de la prueba, del libro del ejemplo actualizado a junio de 2027."""
+    out = tmp_path / "EVM.xlsx"
+    shutil.copy(example_jun_template, out)
+    return out
+
+
+def quiet_main(argv: list[str]) -> None:
+    """Ejecuta un comando para armar una plantilla, sin mostrar su salida: la plantilla se arma durante la primera
+    prueba que la usa, y su salida no debe aparecer en la de esa prueba (capsys)."""
+    from evm.cli import main
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+        code = main(argv)
+    assert code == 0, out.getvalue()
 
 
 def find_soffice():

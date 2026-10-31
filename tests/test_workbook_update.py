@@ -10,15 +10,6 @@ from evm.update import book_totals, read_book, run_update
 from evm.workbook import FIRST_MONTH_COL, FIRST_ROW, HEADER_ROW
 
 
-@pytest.fixture()
-def book(tmp_path, example_files, generator):
-    out = tmp_path / "EVM.xlsx"
-    assert main(["generar", "--origen", str(example_files["base"]), "--config", str(example_files["config"]),
-                 "--salida", str(out)]) == 0
-    generator.fill_book(out)                        # BAC de cada fila, que se ingresa a mano
-    return out
-
-
 def load_ac(book, status: date) -> None:
     """AC del mes del ejemplo (del ERP), que se carga a mano en la hoja AC."""
     import generar_ejemplo

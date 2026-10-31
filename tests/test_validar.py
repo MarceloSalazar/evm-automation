@@ -13,7 +13,7 @@ from evm.validation import logic_checks, progress_checks, validate_part
 from evm.wbs import (SEV_ERROR, SEV_INFO, SEV_WARN, TOPIC_DATES, TOPIC_LOGIC, TOPIC_METHOD, TOPIC_PROGRESS,
                      TOPIC_WBS, TOPIC_WEIGHTS, build_part, build_report)
 
-from builders import P, by_name, tree
+from builders import P, T, by_name, tree
 from mspdi import NUMBER1, TEXT10, project_xml, task_xml, write_xml
 
 S, F = datetime(2026, 1, 5, 8), datetime(2026, 3, 27, 17)
@@ -738,3 +738,16 @@ def test_dcma_metrics_count_detail_tasks_only():
     assert "LOG-011" not in ids and "LOG-012" not in ids
     assert "LOG-009" not in ids                                 # el vínculo CC de la resumen no cuenta
     assert [i.name for i in issues if i.id == "LOG-010"] == ["Fase"]
+
+
+def test_wbs_code_issues_are_capped_per_code(monkeypatch):
+    import evm.validation as validation
+    monkeypatch.setattr(validation, "LIMIT", 3)
+    tasks = [T(1, 1, "1", "Fase")] + [T(i, 2, f"2.{i}", f"Mala {i}") for i in range(2, 9)]     # 7 × EDT-005
+    tasks += [T(20, 1, "5", "Otra"), T(21, 2, "5.1", "A"), T(22, 2, "5.1", "B")]                # 1 × EDT-009
+    issues = build_report(P(tasks), Config()).issues
+    edt5 = [i for i in issues if i.id == "EDT-005"]
+    assert [i.name for i in edt5] == ["Mala 2", "Mala 3", "Mala 4", ""]
+    assert edt5[-1].message.startswith("Y 4 observaciones más con este código: se muestran las primeras 3.")
+    assert edt5[-1].severity == SEV_ERROR
+    assert len([i for i in issues if i.id == "EDT-009"]) == 1                # sin exceso: sin línea de resumen

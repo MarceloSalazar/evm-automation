@@ -1,4 +1,5 @@
 """Multi-empresa: % planificado y % ganado de cada empresa, con su BAC y su AC en el libro."""
+import shutil
 from datetime import date
 from pathlib import Path
 
@@ -63,13 +64,24 @@ def task(uid, name, company="", split=None, parent=None, **kw):
     return t
 
 
-@pytest.fixture()
-def multi_book(tmp_path, example_files, generator):
-    cfg_path = multi_config(tmp_path, example_files)
-    out = tmp_path / "EVM_multi.xlsx"
+@pytest.fixture(scope="module")
+def multi_template(tmp_path_factory, example_files, generator):
+    """Libro multi-empresa del ejemplo con el BAC de cada empresa, generado una vez por módulo, y su configuración
+    (las pruebas no la modifican)."""
+    folder = tmp_path_factory.mktemp("multi")
+    cfg_path = multi_config(folder, example_files)
+    out = folder / "EVM_multi.xlsx"
     assert main(["generar", "--origen", str(example_files["base"]), "--config", str(cfg_path),
                  "--salida", str(out)]) == 0
     generator.fill_book(out)                        # BAC de cada empresa, que se ingresa a mano
+    return out, cfg_path
+
+
+@pytest.fixture()
+def multi_book(tmp_path, multi_template):
+    template, cfg_path = multi_template
+    out = tmp_path / "EVM_multi.xlsx"
+    shutil.copy(template, out)
     return out, cfg_path
 
 

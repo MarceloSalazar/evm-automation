@@ -120,15 +120,6 @@ def small_book(tmp_path, small_template):
     return path
 
 
-@pytest.fixture(scope="session")
-def example_template(tmp_path_factory, example_files):
-    """Libro del proyecto de ejemplo generado una sola vez (se copia en cada prueba)."""
-    out = tmp_path_factory.mktemp("plantilla") / "EVM.xlsx"
-    assert main(["generar", "--origen", str(example_files["base"]), "--config", str(example_files["config"]),
-                 "--salida", str(out)]) == 0
-    return out
-
-
 @pytest.fixture()
 def example_book(tmp_path, example_template):
     path = tmp_path / "EVM.xlsx"

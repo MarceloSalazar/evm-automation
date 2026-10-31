@@ -56,6 +56,13 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 - **Proyectos aleatorios:** la cantidad de proyectos (y de árboles EDT aleatorios) se aumenta con la
   variable de entorno `EVM_SEMILLAS`, por ejemplo `$env:EVM_SEMILLAS = 50` antes de `python -m pytest`.
   Cada caso indica su semilla, de modo que un fallo se puede repetir.
+- **Libros compartidos:** generar y actualizar un libro es lo más lento de las pruebas, por eso los libros
+  que muchas pruebas necesitan iguales se arman una sola vez y cada prueba recibe una copia en su
+  carpeta. En `conftest.py`: `book` (libro del proyecto de ejemplo con el BAC de cada fila), `book_jun`
+  (el mismo, con el AC de junio de 2027 cargado y actualizado a esa fecha) y `example_template` (sin
+  BAC). Los archivos de pruebas tienen las suyas (`multi_book`, el libro de umbrales propios de
+  `test_semaforo.py`, `books` de `test_varios_archivos.py`). Una prueba que revisa la salida de
+  `generar` o de `actualizar` ejecuta ese comando ella misma.
 - **Problemas conocidos:** las pruebas marcadas `xfail` documentan problemas detectados que aún no se
   corrigieron; aparecen como `xfailed` y no hacen fallar la ejecución. Cuando se corrige el problema,
   la prueba aparece como fallida (`XPASS(strict)`) para que se quite la marca.

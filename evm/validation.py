@@ -247,7 +247,25 @@ def wbs_checks(scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
             more = f" y {len(same) - 5} más" if len(same) > 5 else ""
             issues.append(Issue("EDT-009", code_of(same[0]), same[0].name,
                                 f"Código EDT duplicado: lo tienen {len(same)} tareas ({names}{more}).{hint}"))
-    return bad_format[:LIMIT] + issues
+    return _capped(bad_format + issues)
+
+
+def _capped(found: list[Issue]) -> list[Issue]:
+    """Hasta LIMIT observaciones de cada código, en su orden; si hay más, una línea final con el mismo código indica
+    cuántas no se muestran (un archivo con todos los códigos EDT mal llenaría la hoja Validación)."""
+    count: dict[str, int] = {}
+    out: list[Issue] = []
+    for i in found:
+        count[i.id] = count.get(i.id, 0) + 1
+        if count[i.id] <= LIMIT:
+            out.append(i)
+    for i in found:
+        n = count.pop(i.id, 0) - LIMIT
+        if n > 0:
+            out.append(Issue(i.id, "", "", f"Y {plural(n, 'observación más', 'observaciones más')} con este código: "
+                                           f"se muestran las primeras {LIMIT}. Se deben corregir las mostradas y "
+                                           "volver a ejecutar validar.", i.severity))
+    return out
 
 
 # ----------------------------------------------------------------------------

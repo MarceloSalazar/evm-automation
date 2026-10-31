@@ -26,7 +26,9 @@ revisadas se pueden silenciar con `[validacion] silenciar` o `--silenciar`
 ([Silenciar observaciones](codigos.md#2-silenciar-observaciones)). La columna `Tema` agrupa las
 observaciones (*Estructura y códigos EDT*, *Fechas y duración*, *Hitos y pesos*, *Método de medición*,
 *Empresas*...) y permite filtrarlas. Las tareas sin código EDT se identifican por su Id de MS Project
-(por ejemplo, `Hito: bases aprobadas (Id 17)`).
+(por ejemplo, `Hito: bases aprobadas (Id 17)`). Cada control muestra hasta 200 tareas; en los códigos
+EDT (`EDT-001` a `EDT-009`), si hay más, una última línea con el mismo código indica cuántas no se
+muestran (por ejemplo, cuando todos los códigos de un archivo tienen el mismo error).
 
 El comando [`validar`](comandos.md#validar-revisa-el-archivo-de-ms-project) muestra las mismas
 observaciones en pantalla, agrupadas por tema, **sin crear el libro**, y agrega los controles del

@@ -70,6 +70,9 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - Plazo según MS Project: una tarea con fin real y % completado menor que 100 (`AVA-005`) se trata como
   pendiente, con el mismo criterio que el % ganado.
 - `mes_inicio` admite una fecha TOML sin comillas (`mes_inicio = 2026-01-01`).
+- Hoja `Validación` y `validar`: las observaciones de los códigos EDT (`EDT-001` a `EDT-009`) se limitan a 200
+  por código, con una línea final que indica cuántas no se muestran (antes, `EDT-003` a `EDT-009` no tenían
+  límite y un archivo con todos los códigos mal podía dar miles de líneas).
 - En la consola de `generar`, las observaciones informativas se limitan a 15, como las advertencias; el
   resto está en la hoja `Validación`.
 
@@ -96,6 +99,9 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   llamadas a MS Project) y de cada corrección. Las pruebas se pueden ejecutar en paralelo con
   `python -m pytest -n 4 --dist loadfile` (`pytest-xdist`, en `requirements-dev.txt`): unos 3,5 minutos en
   lugar de unos 9. `pytest.ini` exige marcas declaradas y `xfail` estrictos.
+- Pruebas más rápidas en serie: los libros del proyecto de ejemplo (con BAC y actualizado a junio de 2027),
+  el multi-empresa, el de umbrales propios y los de varios archivos se arman una sola vez y cada prueba usa
+  una copia.
 
 ## [2.4.0] - 2026-10-30 · Códigos de mensajes, evaluación DCMA y controles de la norma EIA-748-E
 

@@ -20,15 +20,6 @@ CARDS = {"bac": "B10", "pv": "G10", "ev": "L10", "ac": "Q10", "cv": "B15", "sv":
 TABLE_FIRST = dashboard.chart_rows()[2] + 1
 
 
-@pytest.fixture()
-def book(tmp_path, example_files, generator):
-    out = tmp_path / "EVM.xlsx"
-    assert main(["generar", "--origen", str(example_files["base"]), "--config", str(example_files["config"]),
-                 "--salida", str(out)]) == 0
-    generator.fill_book(out)                        # BAC de cada fila, que se ingresa a mano
-    return out
-
-
 def charts(path):
     """XML de los gráficos del libro, en el orden de la hoja (evolución EVM, índices, CPI-SPI)."""
     with zipfile.ZipFile(path) as z:
