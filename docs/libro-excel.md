@@ -70,6 +70,12 @@ Las **celdas amarillas** son de ingreso: el BAC de la hoja `PV` y el AC del mes 
 multi-empresa, los de las hojas de cada empresa). Las hojas `% PV` y `% EV` las calcula el programa desde
 MS Project.
 
+El **color de fondo** de cada fila depende del nivel de su código EDT, sea un subtotal o un paquete de
+trabajo: azul oscuro el nivel 1, azul claro el nivel 2 y sin fondo los niveles siguientes y las filas
+`-D`. Así, `2.7.0` y `2.8.0` tienen el mismo color aunque de una cuelguen actividades con fila propia y
+de la otra no. Los subtotales van en **negrita**. Las celdas amarillas conservan su color. El mismo
+criterio se usa en las hojas `% PV`, `% EV`, `EV`, `AC` e `Indicadores EDT`.
+
 Los valores mensuales son el **valor del mes**, no el acumulado.
 
 ![Hoja AC del proyecto de ejemplo](img/excel/ac.png)

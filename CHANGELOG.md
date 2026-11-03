@@ -22,7 +22,15 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Correcciones
 
-- Ninguna.
+- **Color de las filas según el nivel EDT:** el fondo de una fila depende del nivel de su código EDT,
+  sea un subtotal o un paquete de trabajo: azul oscuro el nivel 1, azul claro el nivel 2 y sin fondo los
+  niveles siguientes y las filas `-D`. Antes dependía de lo que colgaba por debajo: `2.7.1`, con
+  actividades con fila propia, tenía fondo azul y `2.8.1`, sin ellas, no tenía fondo; y una fila cuya
+  tarea superior no tenía fila en el libro (por ejemplo, por la lista EDT) pasaba al azul oscuro del
+  nivel 1. La negrita sigue solo en los subtotales. Se aplica a las hojas `PV`, `% PV`, `EV`, `% EV`,
+  `AC` (y las de cada empresa) e `Indicadores EDT`, y a la tabla por elemento EDT del Cuadro de Mando
+  ([El libro Excel](docs/libro-excel.md)). Los libros ya generados conservan sus colores; el cambio se ve
+  en los libros que se generan de nuevo.
 
 ### Otros
 

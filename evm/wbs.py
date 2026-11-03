@@ -31,6 +31,9 @@ class ReportRow:
     method: str = ""
     start: datetime | None = None
     finish: datetime | None = None
+    # Nivel del código EDT (code_level), que decide el color de la fila: al menos uno más que el de la fila
+    # superior (los hijos de una planificación como INTERNO, con códigos desde 1.0.0, son de nivel 2); 0 en las -D
+    wbs_level: int = 0
     parent: "ReportRow | None" = field(default=None, repr=False)
     children: list["ReportRow"] = field(default_factory=list, repr=False)
     vector: list[float] = field(default_factory=list, repr=False)    # % planificado del mes (todas las empresas)
@@ -615,9 +618,10 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
                                         and code_level(scope.raw_code(t), cfg.ignore_interior_zeros) >= cfg.max_level
                                         and not any(code_level(scope.raw_code(c), cfg.ignore_interior_zeros)
                                                     > cfg.max_level for c in row_tasks))
+        wbs_level = max(code_level(scope.raw_code(t), cfg.ignore_interior_zeros), parent.wbs_level + 1 if parent else 1)
         row = ReportRow(code=code_of(t), name=t.name, level=(parent.level + 1) if parent else 1,
                         kind=KIND_LEAF if is_leaf_row else KIND_SUMMARY, task=t,
-                        start=s, finish=f, parent=parent)
+                        start=s, finish=f, wbs_level=wbs_level, parent=parent)
         rows.append(row)
         if parent:
             parent.children.append(row)

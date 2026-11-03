@@ -70,9 +70,9 @@ def test_styles_survive_saving(tmp_path):
 # ----------------------------------------------------------------------------
 # Hojas de % y lectura del libro
 # ----------------------------------------------------------------------------
-def small_book(tmp_path, cfg=None):
-    tasks = [T(1, 1, "1", "Fase"), T(2, 2, "1.1", "A", method="% Completado"),
-             T(3, 2, "1.2", "B", method="% Completado", bs=datetime(2026, 2, 2, 8))]
+def small_book(tmp_path, cfg=None, tasks=None):
+    tasks = tasks or [T(1, 1, "1", "Fase"), T(2, 2, "1.1", "A", method="% Completado"),
+                      T(3, 2, "1.2", "B", method="% Completado", bs=datetime(2026, 2, 2, 8))]
     cfg = cfg or Config(months=12)
     path = tmp_path / "EVM.xlsx"
     write_workbook(build_report(P(tasks), cfg), cfg, path)
@@ -81,16 +81,19 @@ def small_book(tmp_path, cfg=None):
 
 
 def test_empty_percent_cells_have_no_format_and_update_formats_what_it_loads(tmp_path):
-    path, tasks, cfg = small_book(tmp_path)
+    # Filas de ingreso de nivel 3, sin fondo (las de nivel 1 y 2 llevan el fondo de su nivel en todo el horizonte)
+    path, tasks, cfg = small_book(tmp_path, tasks=[
+        T(1, 1, "1", "Fase"), T(2, 2, "1.1", "Entregable"), T(3, 3, "1.1.1", "A", method="% Completado"),
+        T(4, 3, "1.1.2", "B", method="% Completado", bs=datetime(2026, 2, 2, 8))])
     wb = load_workbook(path)
     rows = {s.code: s.row for s in read_structure(wb)}
     pv, ev = wb["% PV"], wb["% EV"]
-    r = rows["1.1.0"]
+    r = rows["1.1.1"]
     assert pv.cell(r, FIRST_MONTH_COL).number_format == FMT_PCT_MONTH          # mes con % planificado
     assert pv.cell(r, FIRST_MONTH_COL + 5).number_format == "General"          # mes sin %: celda vacía
     assert ev.cell(r, FIRST_MONTH_COL).number_format == "General"
     assert ev.cell(rows["1.0.0"], FIRST_MONTH_COL + 5).number_format == FMT_PCT_MONTH   # subtotal: fórmula
-    tasks[1].percent_complete = 40
+    tasks[2].percent_complete = 40
     run_update(P(tasks), cfg, path, date(2026, 1, 31), backup=False)
     cell = load_workbook(path)["% EV"].cell(r, FIRST_MONTH_COL)
     assert cell.value == pytest.approx(0.4) and cell.number_format == FMT_PCT_MONTH

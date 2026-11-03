@@ -155,6 +155,12 @@ def indent(level: int) -> Alignment:
     """Sangría del nombre de una fila de nivel `level` (un objeto por nivel, para styled)."""
     return Alignment(indent=max(0, level - 1))
 
+
+def row_fill(row: ReportRow) -> PatternFill | None:
+    """Fondo de una fila según el nivel de su código EDT, sea fila resumen o de ingreso: nivel 1, azul oscuro;
+    nivel 2, azul claro; los niveles siguientes y las filas -D (wbs_level 0), sin fondo."""
+    return FILL_L1 if row.wbs_level == 1 else (FILL_L2 if row.wbs_level == 2 else None)
+
 # Regla de cálculo de cada método (el avance se pondera por la duración de las tareas y el peso de los hitos)
 METHOD_HELP = {
     "Por definir": "Aún no se asignó método. Para calcular el % ganado se usa % completado.",
@@ -489,15 +495,16 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
                       value=f"=SUM({col(lay.first_col)}{r}:{col(lay.last_col)}{r})")
         tot.number_format = money
 
-        # Estilo por nivel (en la hoja AC, los meses de las filas de ingreso son celdas amarillas)
+        # Estilo por nivel; las celdas amarillas de ingreso (el BAC de la hoja PV y los meses de la hoja AC)
+        # conservan su color
         font = FONT_BOLD if row.kind == KIND_SUMMARY else (FONT_ITALIC if row.kind == KIND_RESIDUAL else None)
-        fill = FILL_L1 if (row.kind == KIND_SUMMARY and row.level == 1) else (
-            FILL_L2 if row.kind == KIND_SUMMARY else None)
+        fill = row_fill(row)
         month_fill = FILL_INPUT if row.is_input and input_sheet else fill
         for i in range(lay.months):
             styled(ws.cell(row=r, column=lay.first_col + i), number_format=month_money, font=font, fill=month_fill)
         for c_ in (*range(1, lay.first_col), lay.total_col):
-            styled(ws.cell(row=r, column=c_), font=font, fill=fill)
+            input_bac = c_ == COL_BAC and bac_input and row.is_input
+            styled(ws.cell(row=r, column=c_), font=font, fill=None if input_bac else fill)
         ws.row_dimensions[r].outline_level = min(7, max(0, row.level - 1))
         if review_sheet:
             _write_cost_row(ws, report, cfg, lay, row, r + 1)
@@ -660,10 +667,10 @@ def _write_pct_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
         ws.cell(row=r, column=lay.total_col,
                 value=f"=SUM({col(lay.first_col)}{r}:{col(lay.last_col)}{r})").number_format = FMT_PCT
         font = FONT_BOLD if row.kind == KIND_SUMMARY else (FONT_ITALIC if row.kind == KIND_RESIDUAL else None)
-        fill = FILL_L1 if (row.kind == KIND_SUMMARY and row.level == 1) else (
-            FILL_L2 if row.kind == KIND_SUMMARY else None)
+        fill = row_fill(row)
         # Las celdas vacías de las filas de ingreso no llevan formato (el libro es más liviano y se lee y se guarda
-        # más rápido): 'actualizar' da formato a las que carga. Las filas en negrita o cursiva, todo el horizonte.
+        # más rápido): 'actualizar' da formato a las que carga. Las filas con fondo, negrita o cursiva, todo el
+        # horizonte.
         for i in (range(lay.months) if font or fill else filled):
             styled(ws.cell(row=r, column=lay.first_col + i), number_format=FMT_PCT_MONTH, font=font, fill=fill)
         for c_ in (*range(1, lay.first_col), lay.total_col):
@@ -1229,9 +1236,10 @@ def _write_indicators(ws, report: Report, cfg: Config, lay: _Layout) -> None:
                 styled(ws.cell(row=r, column=c_), font=FONT_BOLD, fill=FILL_TOTAL)
         else:
             styled(ws.cell(row=r, column=2), alignment=indent(row.level))
-            if row.kind == KIND_SUMMARY:
+            font, fill = (FONT_BOLD if row.kind == KIND_SUMMARY else None), row_fill(row)
+            if font or fill:
                 for c_ in range(1, 17):
-                    styled(ws.cell(row=r, column=c_), font=FONT_BOLD, fill=FILL_L1 if row.level == 1 else FILL_L2)
+                    styled(ws.cell(row=r, column=c_), font=font, fill=fill)
             ws.row_dimensions[r].outline_level = min(7, max(0, row.level - 1))
             if lay.review:
                 ws.row_dimensions[r + 1].hidden = True
