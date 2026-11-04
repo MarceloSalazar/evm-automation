@@ -48,8 +48,11 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --config config
 ```
 
 Lee el archivo de MS Project con la configuración, igual que `generar`, y muestra en pantalla las
-observaciones agrupadas por tema. **No crea ni modifica ningún archivo.** Revisa lo mismo que la hoja
-`Validación` de `generar`:
+observaciones agrupadas por tema. **No crea ni modifica ningún archivo.** En cada tema van primero los
+errores y, en cada severidad, las observaciones generales, las de las filas EDT (las filas de las hojas
+`PV`, `EV` y `AC`), las de las tareas de detalle y las de fuera del libro
+([alcance](validaciones-y-problemas.md#1-validaciones)). Revisa lo mismo que la hoja `Validación` de
+`generar`:
 
 - los códigos EDT: que el código de cada tarea dependa del de su tarea superior (bajo `1.2.0` van
   `1.2.1`, `1.2.2`...; `1.14.2` es un error), su formato, los niveles salteados, el orden y los
@@ -78,7 +81,7 @@ Con estos controles, `validar` revisa 12 de los 14 puntos de la
 |---|---|
 | `--origen`, `--config`, `--motor`, `--planificacion`, `--linea-base`, `--nivel-max`, `--visible`, `--silenciar` | Igual que en `generar`. Con varios archivos (`[[proyectos]]`) se revisan todos. Los errores silenciados no cuentan para el código de salida. |
 | `--fecha-corte AAAA-MM-DD` | Fecha de corte (fecha de estado) con la que se revisa el avance. Por defecto, la fecha de estado de cada archivo. Sin fecha de estado, solo se revisan la coherencia de las fechas reales y el avance fuera de secuencia. |
-| `--todas` | Muestra todas las observaciones. Por defecto, hasta 20 por tema. |
+| `--todas` | Muestra todas las observaciones, una por tarea. Por defecto, hasta 20 líneas por tema, con las de las tareas de detalle y fuera del libro agrupadas por código y fila del libro. |
 
 Si la planificación indicada no existe, o si dos archivos de `[[proyectos]]` tienen el mismo código
 EDT (casos en los que `generar` se detiene), `validar` lo informa como error y revisa lo que puede. El
@@ -123,13 +126,24 @@ Lógica del cronograma: 1 advertencia
   [!] LOG-001 El cronograma no tiene vínculos entre tareas: las fechas no se recalculan cuando cambian las duraciones o el avance. Se recomienda vincular las tareas (cada tarea con al menos una predecesora y una sucesora).
 
 Resultado: 9 advertencias, 5 informativas.
+  Por alcance: generales: 3 advertencias, 5 informativas; en filas EDT: 6 advertencias.
 No se creó ni se modificó ningún archivo.
 ```
 
 Cada línea indica la severidad (`[X]` error, `[!]` advertencia, `[i]` informativa), el código de la
 observación (por ejemplo `MET-004`, explicado en [Códigos de errores y advertencias](codigos.md)), el
 código EDT y el nombre de la tarea (las tareas sin código EDT, con su Id de MS Project) y la observación.
-Las observaciones que ya se revisaron se pueden ocultar con `--silenciar` o con `[validacion] silenciar`
+Una tarea de detalle indica la fila del libro en que se suma, y las observaciones de las tareas de
+detalle de una misma fila se muestran en una sola línea, con `--todas` para verlas una por una:
+
+```text
+  [!] FEC-007 Duración estimada: 12 tareas de detalle de la fila 2.7.1 (2.7.1.1, 2.7.1.3, ... y 2 más). Una por tarea con --todas.
+  [!] FEC-007 2.7.1.3 Montaje (detalle de 2.7.1): Duración estimada («?»).      (con --todas)
+```
+
+La línea *Por alcance* del resultado indica cuántas observaciones son generales, de filas EDT, de tareas
+de detalle y de fuera del libro. Las observaciones que ya se revisaron se pueden ocultar con
+`--silenciar` o con `[validacion] silenciar`
 ([Silenciar observaciones](codigos.md#2-silenciar-observaciones)).
 
 ---
@@ -174,6 +188,7 @@ Proyecto: Programa de ejemplo EVM
   [i] MET-005 1 fila sin método de medición definido (columna C).
   [!] MET-004 1.2.1 Licitación de ingeniería: Método 0/100 en un paquete de 3,6 meses (línea base), más de 1: el EV queda en 0 hasta que termina. Se recomienda dividir el paquete o usar un método de avance (% completado, hitos ponderados). Umbral: [validacion] meses_0_100.
   ...
+  Por alcance: generales: 5 informativas; en filas EDT: 6 advertencias.
 Libro generado: ...\EVM_Ejemplo.xlsx
 ```
 

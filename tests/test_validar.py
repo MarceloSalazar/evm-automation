@@ -13,7 +13,7 @@ from evm.validation import logic_checks, progress_checks, validate_part
 from evm.wbs import (SEV_ERROR, SEV_INFO, SEV_WARN, TOPIC_DATES, TOPIC_LOGIC, TOPIC_METHOD, TOPIC_PROGRESS,
                      TOPIC_WBS, TOPIC_WEIGHTS, build_part, build_report)
 
-from builders import P, T, by_name, tree
+from builders import P, T, by_name, tree, validation_rows
 from mspdi import NUMBER1, TEXT10, project_xml, task_xml, write_xml
 
 S, F = datetime(2026, 1, 5, 8), datetime(2026, 3, 27, 17)
@@ -701,12 +701,11 @@ def test_generar_writes_topic_and_new_checks(tmp_path):
     path = problem_xml(tmp_path)
     out = tmp_path / "libro.xlsx"
     assert main(["generar", "--origen", str(path), "--salida", str(out)]) == 0
-    ws = load_workbook(out)["Validación"]
-    assert [ws.cell(row=3, column=c).value for c in (2, 6)] == ["Código", "Tema"]
-    rows = [r for r in ws.iter_rows(min_row=4, values_only=True) if r[0]]
-    assert ("Error", "EDT-005", "1.14.2", "Mal") == rows[[r[2] for r in rows].index("1.14.2")][:4]
-    assert {r[5] for r in rows} >= {TOPIC_WBS}
-    assert not [r for r in rows if r[5] in (TOPIC_PROGRESS, TOPIC_LOGIC)]     # solo en validar
+    rows = validation_rows(out)
+    found = rows[[r["edt"] for r in rows].index("1.14.2")]
+    assert (found["severidad"], found["codigo"], found["tarea"]) == ("Error", "EDT-005", "Mal")
+    assert {r["tema"] for r in rows} >= {TOPIC_WBS}
+    assert not [r for r in rows if r["tema"] in (TOPIC_PROGRESS, TOPIC_LOGIC)]     # solo en validar
 
 
 def test_lead_allows_progress_before_the_predecessor_finishes():

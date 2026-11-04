@@ -101,7 +101,7 @@ def _label(t: Task, code_of: CodeOf) -> str:
 
 
 def _issue(id: str, t: Task, code_of: CodeOf, message: str) -> Issue:
-    return Issue(id, code_of(t), task_name(t, code_of), message)
+    return Issue(id, code_of(t), task_name(t, code_of), message, uid=t.uid)
 
 
 # ----------------------------------------------------------------------------
@@ -231,7 +231,8 @@ def wbs_checks(scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
             issues.append(Issue("EDT-008", code_of(parent) if parent is not None else "",
                                 parent.name if parent is not None else "",
                                 f"{under}, la numeración tiene saltos ({shown}): si no es intencional (p. ej. un "
-                                "paquete eliminado), se debe revisar el código."))
+                                "paquete eliminado), se debe revisar el código.",
+                                uid=parent.uid if parent is not None else None))
 
     # Códigos duplicados: sin los ceros finales, que son relleno (1.2, 1.2.0 y 1.2.0.0 son el mismo código)
     by_code: dict[str, list[Task]] = {}
@@ -246,7 +247,8 @@ def wbs_checks(scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
             names = ", ".join(f"«{t.name}» (Id {t.id}{f', {code_of(t)}' if several else ''})" for t in same[:5])
             more = f" y {len(same) - 5} más" if len(same) > 5 else ""
             issues.append(Issue("EDT-009", code_of(same[0]), same[0].name,
-                                f"Código EDT duplicado: lo tienen {len(same)} tareas ({names}{more}).{hint}"))
+                                f"Código EDT duplicado: lo tienen {len(same)} tareas ({names}{more}).{hint}",
+                                uid=same[0].uid))
     return _capped(bad_format + issues)
 
 

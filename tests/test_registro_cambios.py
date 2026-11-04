@@ -16,6 +16,8 @@ from evm.update import BookData, read_book
 from evm.wbs import KIND_LEAF
 from evm.workbook import COL_BAC, FIRST_MONTH_COL, StructRow
 
+from builders import validation_rows
+
 START = date(2027, 1, 1)
 
 
@@ -300,7 +302,7 @@ def test_migrate_keeps_the_log_and_the_reference(book_jun, example_files, tmp_pa
                  "--salida", str(new), "--migrar-desde", str(book)]) == 0
     (row,) = log_rows(new)
     assert row[changes.L_REASON - 1] == "Cambio de alcance aprobado" and row[changes.L_KEY - 1]
-    details = [r[4] for r in load_workbook(new)["Validación"].iter_rows(min_row=4, values_only=True) if r[4]]
+    details = [r["detalle"] for r in validation_rows(new) if r["detalle"]]
     assert any(d.startswith("Registro de cambios trasladado: 1 fila de la hoja y la referencia de") for d in details)
     capsys.readouterr()
     assert update(new, example_files, "jul", ac=False) == 0

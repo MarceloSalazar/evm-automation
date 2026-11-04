@@ -42,6 +42,8 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 | `test_ceros_intermedios.py` | Ceros del código EDT. Intermedios (`ignorar_ceros_intermedios`): nivel del código, filas del libro y fila `-D`, controles de los códigos, criterio guardado en el libro y usado por `actualizar`, `--migrar-desde` y línea de comandos. Finales (`1.2` = `1.2.0` = `1.2.0.0`): duplicados y asociación por código en `actualizar` y `--migrar-desde`. |
 | `test_progreso.py` | Versión en pantalla y barra de progreso (etapas, % de la etapa y del total, tiempo transcurrido, ETA que no sube en una etapa lenta y cuenta hacia atrás en una sin conteo, refresco, tiempo total, consola no interactiva). |
 | `test_registro_cambios.py` | Controles del cierre mensual de la norma EIA-748-E: registro de cambios del BAC y de los meses ya informados (referencia, detección, hoja `Registro de cambios`, `--simular` y `--migrar-desde`), coherencia del EV y el AC, análisis de desviaciones incompleto, acciones vencidas, meses sin informe, línea base de MS Project distinta de la del libro, EAC poco realista (TCPI frente al CPI) y peso del LOE en el BAC. |
+| `test_validacion_alcance.py` | Alcance de las observaciones (fila EDT, tarea de detalle, fuera del libro o general) y su fila del libro, por UniqueID o por código EDT; orden por prioridad, agrupación de las de detalle, hojas `Validación` y `Validación detalle` y consola de `generar` y `validar` (con y sin `--todas`). |
+| `test_color_filas.py` | Color de fondo de las filas según el nivel del código EDT (hojas mensuales, `Indicadores EDT` y tabla del `Cuadro de Mando`), con la lista EDT y con una planificación. |
 | `test_codigos.py` | Códigos de errores y advertencias: formato y numeración del catálogo, todo mensaje con un código del catálogo, todo código usado, `docs/codigos.md` al día y silenciar (configuración, `--silenciar`, hoja `Validación` y código de salida de `validar`). |
 | `test_varios_archivos.py` | Varios archivos de MS Project (`[[proyectos]]`): el libro combinado coincide, fila por fila, con el libro de cada archivo (también en multi-empresa, con UniqueID repetidos entre archivos); errores de configuración y de la línea de comandos, fechas de estado y `--migrar-desde`. |
 | `test_rendimiento.py` | Optimizaciones de la lectura de MS Project y de la escritura del libro: mismos estilos que openpyxl, celdas vacías de las hojas `% PV` y `% EV`, una sola lectura del libro, reparto por meses del calendario y lecturas de MS Project (vínculos y alias de los campos, solo cuando hacen falta). |
@@ -325,7 +327,10 @@ consultan para entender un mensaje y para silenciar los códigos que ya revisaro
    del área, los comandos en que aparece.
 3. **Usar el código en el programa**:
    - observación (consola y hoja `Validación`): `Issue("FEC-013", codigo_edt, nombre, mensaje)`; la
-     severidad y el tema se toman del catálogo (los códigos de severidad variable la indican);
+     severidad y el tema se toman del catálogo (los códigos de severidad variable la indican). Si la
+     observación es de una tarea, se indica su UniqueID (`uid=t.uid`, como hace `_issue` en
+     `evm/validation.py`): con él se asigna el alcance (fila EDT, tarea de detalle o fuera del libro) y la
+     fila del libro, también en las tareas sin código EDT. Sin `uid`, se busca la tarea por su código EDT;
    - error que detiene el programa: `raise ConfigError("CFG-052", mensaje)`, o la clase de
      `evm/messages.py` que corresponda (`InputError`, `MissingFileError`, `SaveError`...). No se
      lanzan `ValueError` ni `RuntimeError` con un mensaje para el usuario.

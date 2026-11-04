@@ -20,9 +20,10 @@ from pathlib import Path
 from evm import __version__, progress
 from evm.config import Config, ConfigError, load_config, parse_date, parse_month
 from evm.fields import fmt_number
-from evm.messages import (SEV_ERROR, SEV_INFO, SEV_WARN, SUMMARY_ID, EvmError, Issue, MissingFileError, Silence,
+from evm.messages import (SEV_ERROR, SEV_INFO, SEV_WARN, SUMMARY_ID, TARGET_DETAIL, TARGET_GENERAL, TARGET_OUT,
+                          TARGET_ROW, TARGETS, EvmError, Issue, MissingFileError, Silence, by_priority, grouped,
                           parse_silence)
-from evm.wbs import assemble_report, build_part, fmt_money, plural
+from evm.wbs import assemble_report, build_part, fmt_money, located, plural
 
 log = logging.getLogger("evm")
 
@@ -170,20 +171,40 @@ def _reading(name: str, origin: str) -> str:
 MARKS = {SEV_ERROR: "[X]", SEV_WARN: "[!]", SEV_INFO: "[i]"}
 
 
+# Alcance de las observaciones en el resumen de la consola
+TARGET_LABELS = {TARGET_GENERAL: "generales", TARGET_ROW: "en filas EDT", TARGET_DETAIL: "en tareas de detalle",
+                 TARGET_OUT: "fuera del libro"}
+
+
 def _issue_line(i: Issue) -> str:
-    """'  [!] FEC-003 1.2.3 Montaje: mensaje' (el código de la observación, la fila o tarea y el mensaje)."""
-    where = f"{i.code} {i.name}".strip()
+    """'  [!] FEC-003 1.2.3 Montaje: mensaje' (el código de la observación, la fila o tarea y el mensaje). Una tarea
+    de detalle indica su fila del libro ('2.7.1.3 Montaje (detalle de 2.7.1)'); una línea agrupada, solo el
+    mensaje."""
+    where = "" if i.tasks else f"{i.code} {i.name}".strip()
+    if where and i.target == TARGET_DETAIL and i.row:
+        where += f" (detalle de {i.row})"
+    elif where and i.target == TARGET_OUT:
+        where += " (fuera del libro)"
     return f"  {MARKS.get(i.severity, '[!]')} {i.id} {where + ': ' if where else ''}{i.message}"
 
 
+def _targets_text(issues: list[Issue]) -> str:
+    """'en filas EDT: 2 errores, 3 advertencias; en tareas de detalle: 40 advertencias' (los alcances que tienen
+    observaciones, en el orden de prioridad)."""
+    found = {t: [i for i in issues if (i.target or TARGET_GENERAL) == t] for t in TARGETS}
+    return "; ".join(f"{TARGET_LABELS[t]}: {_count_text(v)}" for t, v in found.items() if v)
+
+
 def _print_issues(issues: list[Issue], limit: int = 15) -> None:
-    serious = [i for i in issues if i.severity != SEV_INFO]
-    infos = [i for i in issues if i.severity == SEV_INFO]
+    """Las informativas y después las demás, por prioridad (severidad y alcance), con las de las tareas de detalle y
+    fuera del libro agrupadas por código y fila del libro."""
+    lines = by_priority(grouped(issues, "Una por tarea en la hoja 'Validación detalle'."))
+    serious = [i for i in lines if i.severity != SEV_INFO]
+    infos = [i for i in lines if i.severity == SEV_INFO]
     for i in infos[:limit]:
         print(_issue_line(i))
     if len(infos) > limit:
         print(f"  ... y {len(infos) - limit} informativas más (ver hoja 'Validación').")
-    serious.sort(key=lambda i: i.severity != SEV_ERROR)
     for i in serious[:limit]:
         print(_issue_line(i))
     if len(serious) > limit:
@@ -259,7 +280,10 @@ def cmd_generar(args) -> int:
     print(f"  Horizonte: {report.horizon.start:%m/%Y} a {report.horizon.end:%m/%Y} ({report.horizon.months} meses)")
     sheets = (f"PV-{report.company_a} y PV-{report.company_b}" if report.multi else "PV")
     print(f"  BAC: se debe ingresar el BAC de cada fila en la columna D de {sheets} (celdas amarillas).")
-    _print_issues(report.issues)
+    issues = located(report.rows, report.issues)
+    _print_issues(issues)
+    if any(i.severity != SEV_INFO for i in issues):
+        print(f"  Por alcance: {_targets_text(issues)}.")
     if prior is not None:
         print(f"Migración desde {args.migrar_desde}: {prior.matched} filas con historial trasladado.")
         for i in unmatched:
@@ -434,22 +458,23 @@ def _count_text(issues) -> str:
 
 
 def _print_validation(issues, limit: int | None) -> None:
-    """Observaciones agrupadas por tema (el tema Libro, solo si tiene observaciones)."""
+    """Observaciones agrupadas por tema (el tema Libro, solo si tiene observaciones), por prioridad: severidad y
+    alcance. Con límite (sin --todas), las de las tareas de detalle y fuera del libro van en una línea por código y
+    fila del libro."""
     from evm.messages import TOPIC_BOOK, TOPICS
-    order = {SEV_ERROR: 0, SEV_WARN: 1, SEV_INFO: 2}
     for topic in TOPICS:
         # El resumen de las observaciones silenciadas va primero: no queda fuera del límite
-        found = sorted((i for i in issues if i.topic == topic),
-                       key=lambda i: (i.id != SUMMARY_ID, order.get(i.severity, 1)))
+        found = sorted(by_priority([i for i in issues if i.topic == topic]), key=lambda i: i.id != SUMMARY_ID)
         if not found and topic == TOPIC_BOOK:
             continue
         print()
         print(f"{topic}: {_count_text(found)}")
-        shown = found if limit is None else found[:limit]
+        lines = found if limit is None else grouped(found, "Una por tarea con --todas.")
+        shown = lines if limit is None else lines[:limit]
         for i in shown:
             print(_issue_line(i))
-        if len(found) > len(shown):
-            print(f"  ... y {len(found) - len(shown)} más (--todas para verlas todas).")
+        if len(lines) > len(shown):
+            print(f"  ... y {len(lines) - len(shown)} más (--todas para verlas todas).")
 
 
 def cmd_validar(args) -> int:
@@ -488,6 +513,7 @@ def cmd_validar(args) -> int:
         plan = f"Planificación: {parts[0].source.plan}  |  " if parts[0].source.plan else ""
         print(f"  {plan}{project.baseline_label}  |  {when(project)}")
     rows = report.rows if report else [r for p in parts for r in p.rows]
+    issues = located(rows, issues)
     leaves = sum(1 for r in rows if r.is_input)
     print(f"  Tareas revisadas: {reviewed}  |  Filas EDT: {len(rows)} ({leaves} de ingreso)  |  "
           f"{_rows_rule(cfg)}")
@@ -495,6 +521,8 @@ def cmd_validar(args) -> int:
     errors = sum(1 for i in issues if i.severity == SEV_ERROR)
     print()
     print(f"Resultado: {_count_text(issues)}.")
+    if issues:
+        print(f"  Por alcance: {_targets_text(issues)}.")
     if errors:
         print("Se deben corregir los errores en MS Project antes de generar o actualizar el libro.")
     print("No se creó ni se modificó ningún archivo.")
@@ -627,8 +655,9 @@ def build_parser() -> argparse.ArgumentParser:
     common_source(v)
     v.add_argument("--fecha-corte", help="fecha de estado para revisar el avance, AAAA-MM-DD (por defecto la fecha de "
                                          "estado del proyecto)")
-    v.add_argument("--todas", action="store_true", help="muestra todas las observaciones (por defecto, hasta 20 "
-                                                        "por tema)")
+    v.add_argument("--todas", action="store_true", help="muestra todas las observaciones, una por tarea (por "
+                                                        "defecto, hasta 20 líneas por tema, con las de las tareas de "
+                                                        "detalle agrupadas por fila del libro)")
     v.set_defaults(func=cmd_validar)
 
     f = sub.add_parser("generar-fichas", help="crea un documento Markdown (.md) con la ficha de cada tarea "

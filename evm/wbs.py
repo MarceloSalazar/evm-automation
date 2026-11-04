@@ -9,9 +9,9 @@ from datetime import date, datetime
 from evm import progress
 from evm.config import Config, ConfigError
 from evm.fields import fmt_number
-from evm.messages import (SEV_ERROR, SEV_INFO, SEV_WARN, TOPIC_BOOK, TOPIC_COMPANY, TOPIC_DATES,  # noqa: F401
-                          TOPIC_LOGIC, TOPIC_METHOD, TOPIC_PROGRESS, TOPIC_READ, TOPIC_VISIBLE, TOPIC_WBS,
-                          TOPIC_WEIGHTS, TOPICS, Issue)
+from evm.messages import (SEV_ERROR, SEV_INFO, SEV_WARN, TARGET_DETAIL, TARGET_GENERAL,  # noqa: F401
+                          TARGET_OUT, TARGET_ROW, TOPIC_BOOK, TOPIC_COMPANY, TOPIC_DATES, TOPIC_LOGIC, TOPIC_METHOD,
+                          TOPIC_PROGRESS, TOPIC_READ, TOPIC_VISIBLE, TOPIC_WBS, TOPIC_WEIGHTS, TOPICS, Issue)
 from evm.methods import is_undefined
 from evm.model import MonthKey, ProjectData, Task
 from evm.timeline import Horizon, first_of_month
@@ -312,7 +312,7 @@ def row_visibility(scope: Scope, cfg: Config, code_of=None) -> Visibility:
             if not valid:
                 out.issues.append(Issue("VIS-001", code_of(t), t.name,
                                         f"Visible = '{t.visible}' no se reconoce (se admite Sí o No): se usa el "
-                                        "nivel máximo."))
+                                        "nivel máximo.", uid=t.uid))
 
     def hidden(t: Task) -> bool:
         return values.get(t.uid) is False
@@ -328,7 +328,7 @@ def row_visibility(scope: Scope, cfg: Config, code_of=None) -> Visibility:
             if n is not t and values.get(n.uid) is True:
                 out.issues.append(Issue("VIS-002", code_of(n), n.name,
                                         f"Visible = Sí, pero depende de {label(t)}, con Visible = No: queda fuera "
-                                        "del cálculo con esa rama."))
+                                        "del cálculo con esa rama.", uid=n.uid))
 
     def walk(group: list[Task], parent: Task | None, hidden_by: Task | None) -> None:
         every = bool(group) and all(hidden(t) for t in group)
@@ -344,11 +344,11 @@ def row_visibility(scope: Scope, cfg: Config, code_of=None) -> Visibility:
             if value is True and hidden_by is not None:
                 out.issues.append(Issue("VIS-003", code_of(t), t.name,
                                         f"Visible = Sí, pero depende de {label(hidden_by)}, con Visible = No: se "
-                                        "suma con su rama."))
+                                        "suma con su rama.", uid=t.uid))
             elif value is True and not raw:
                 out.issues.append(Issue("VIS-004", code_of(t), t.name,
                                         "Visible = Sí en una tarea sin código EDT: no puede tener fila propia; se "
-                                        "suma en su fila superior."))
+                                        "suma en su fila superior.", uid=t.uid))
             level = code_level(raw, cfg.ignore_interior_zeros)
             has_row = bool(raw) and inner is None and (value is True or level <= cfg.max_level)
             if has_row and level > cfg.max_level:
@@ -483,10 +483,10 @@ def _percent_curves(project: ProjectData, cfg: Config, rows: list[ReportRow], co
                             "actualizar la línea base de esas tareas."))
         for x in current[:200]:
             issues.append(Issue("FEC-011", code_of(x.task), task_name(x.task, code_of),
-                                "Sin fechas de línea base: se usaron sus fechas actuales."))
+                                "Sin fechas de línea base: se usaron sus fechas actuales.", uid=x.task.uid))
     for x in undated[:200]:
         issues.append(Issue("FEC-012", code_of(x.task), task_name(x.task, code_of),
-                            "Sin fechas de línea base ni fechas actuales: no aporta % planificado."))
+                            "Sin fechas de línea base ni fechas actuales: no aporta % planificado.", uid=x.task.uid))
     for company, codes in alone.items():
         shown = ", ".join(codes[:10]) + (f" y {len(codes) - 10} más" if len(codes) > 10 else "")
         issues.append(Issue("EMP-002", "", "",
@@ -687,16 +687,17 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
             for t in top_missing[:50]:
                 issues.append(Issue("EMP-004", code_of(t), task_name(t, code_of),
                                     f"Sin empresa: se trata como '{cfg.company_both}'"
-                                    + (" (incluye sus subtareas sin empresa)." if t.children else ".")))
+                                    + (" (incluye sus subtareas sin empresa)." if t.children else "."), uid=t.uid))
         for t in notes["desconocida"][:50]:
             issues.append(Issue("EMP-005", code_of(t), task_name(t, code_of),
                                 f"Empresa '{t.company}' no reconocida (se esperaba '{cfg.company_a}', "
-                                f"'{cfg.company_b}' o '{cfg.company_both}'): se trata como '{cfg.company_both}'."))
+                                f"'{cfg.company_b}' o '{cfg.company_both}'): se trata como '{cfg.company_both}'.",
+                                uid=t.uid))
         for t in notes["reparto"][:50]:
             issues.append(Issue("EMP-006", code_of(t), task_name(t, code_of),
                                 f"'{cfg.split_field}' = {fmt_number(t.split_a, trim=True)} fuera de rango (debe ser "
                                 "mayor que 0 y como máximo 100): se usa "
-                                f"{fmt_number(cfg.split_default, trim=True)} %."))
+                                f"{fmt_number(cfg.split_default, trim=True)} %.", uid=t.uid))
 
     # --- Controles del archivo ------------------------------------------------
     checks: list[Issue] = []
@@ -741,12 +742,12 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
                             f"{'queda' if n == 1 else 'quedan'} fuera del PV, el EV y el AC ({names}{more}): "
                             f"{detail}."))
         for t in visibility.excluded[:200]:
-            checks.append(Issue("VIS-008", code_of(t), t.name, "Visible = No: fuera del PV, el EV y el AC."))
+            checks.append(Issue("VIS-008", code_of(t), t.name, "Visible = No: fuera del PV, el EV y el AC.", uid=t.uid))
     for t in visibility.represented:
         checks.append(Issue("VIS-009", code_of(t), t.name,
                             "Todas sus subtareas tienen Visible = No: "
                             + ("la fila es el paquete de trabajo, con toda su rama." if included(t)
-                               else "se suman con la tarea en su fila superior.")))
+                               else "se suman con la tarea en su fila superior."), uid=t.uid))
     if visibility.shown:
         checks.append(Issue("VIS-010", "", "",
                             f"{plural(visibility.shown, 'tarea tiene', 'tareas tienen')} Visible = Sí y fila propia "
@@ -800,12 +801,82 @@ def _block(row: ReportRow):
         yield from _block(c)
 
 
+def locate_issues(part: ReportPart, issues: list[Issue]) -> list[Issue]:
+    """Las observaciones de un archivo con su alcance y la fila del libro de su tarea: Fila EDT (la tarea es una fila
+    de las hojas PV, EV y AC), Detalle (se suma en una fila: de nivel mayor al máximo, fuera de la lista EDT o sin
+    código, también en la fila -D), Fuera del libro (no forma parte de ninguna fila: omitida, inactiva, con Visible =
+    No o de otra planificación) y General (sin tarea). La tarea se busca por su UniqueID o, si la observación no lo
+    indica, por su código EDT."""
+    where: dict[int, tuple[str, str]] = {}          # UniqueID -> (alcance, fila del libro)
+    for row in part.rows:
+        if row.kind == KIND_RESIDUAL:
+            for n in row.leaves:
+                where.setdefault(n.uid, (TARGET_DETAIL, row.code))
+            continue
+        where[row.task.uid] = (TARGET_ROW, row.code)
+        if row.kind == KIND_LEAF:
+            for n in iter_subtree(row.task):
+                where.setdefault(n.uid, (TARGET_DETAIL, row.code))
+    exported = list(part.scope.tasks()) if part.scope is not None else []
+    in_scope = {t.uid for t in exported}
+    tasks = {t.uid: t for t in part.source.project.tasks}
+    code_of = part.code_of or (lambda t: t.wbs or "")
+    by_code: dict[str, Task] = {}
+    for t in exported:
+        if code_of(t):
+            by_code.setdefault(code_key(code_of(t)), t)
+    row_codes = {code_key(r.code): r.code for r in part.rows}
+
+    def of_task(t: Task) -> tuple[str, str]:
+        if t.uid in where:
+            return where[t.uid]
+        if t.uid in in_scope:           # sin fila propia, de una tarea resumen (p. ej. sin peso y sin fila -D)
+            p = t.parent
+            while p is not None:
+                if where.get(p.uid, ("",))[0] == TARGET_ROW:
+                    return TARGET_DETAIL, where[p.uid][1]
+                p = p.parent
+        return TARGET_OUT, ""
+
+    out = []
+    for i in issues:
+        if i.target:
+            out.append(i)
+            continue
+        key = code_key(i.code) if i.code else ""
+        if i.uid is not None and i.uid in tasks:
+            target, row = of_task(tasks[i.uid])
+        elif key in row_codes:
+            target, row = TARGET_ROW, row_codes[key]
+        elif key in by_code:
+            target, row = of_task(by_code[key])
+        else:
+            target, row = TARGET_GENERAL, ""
+        out.append(replace(i, target=target, row=row))
+    return out
+
+
+def located(rows: list[ReportRow], issues: list[Issue]) -> list[Issue]:
+    """Las observaciones con alcance. Las que no lo tienen (las del libro, la depuración de costes y --migrar-desde)
+    son de una fila EDT si su código EDT es una fila del libro, y generales si no."""
+    codes = {code_key(r.code): r.code for r in rows}
+    out = []
+    for i in issues:
+        key = code_key(i.code) if i.code else ""
+        if not i.target:
+            i = replace(i, target=TARGET_ROW, row=codes[key]) if key in codes else replace(i, target=TARGET_GENERAL)
+        out.append(i)
+    return out
+
+
 def tagged_issues(part: ReportPart, issues: list[Issue]) -> list[Issue]:
-    """Con varios archivos, cada observación indica el archivo: '[P2] ...'."""
+    """Las observaciones de un archivo con su alcance (locate_issues). Con varios archivos, cada observación indica
+    el archivo: '[P2] ...'."""
+    issues = locate_issues(part, issues)
     name = part.source.name
     if not name:
-        return list(issues)
-    return [replace(i, message=f"[{name}] {i.message}") for i in issues]
+        return issues
+    return [replace(i, message=f"[{name}] {i.message}", file=name) for i in issues]
 
 
 def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:

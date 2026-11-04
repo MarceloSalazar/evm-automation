@@ -30,8 +30,23 @@ observaciones (*Estructura y códigos EDT*, *Fechas y duración*, *Hitos y pesos
 EDT (`EDT-001` a `EDT-009`), si hay más, una última línea con el mismo código indica cuántas no se
 muestran (por ejemplo, cuando todos los códigos de un archivo tienen el mismo error).
 
+Para **priorizar**, cada observación indica su **alcance** y la **fila del libro** de su tarea:
+
+| Alcance | Cuándo | Prioridad |
+|---|---|---|
+| `General` | Sin tarea: el proyecto, la configuración o el libro (por ejemplo, el resumen de un control). | Revisar primero. |
+| `Fila EDT` | La tarea es una fila de las hojas `PV`, `EV` y `AC` (paquete de trabajo o tarea resumen). | Resolver primero: afecta a lo que muestra el libro. |
+| `Detalle` | La tarea se suma en una fila: de nivel mayor al máximo, fuera de la lista EDT o sin código EDT (también las de la fila `-D`). La columna `Fila del libro` indica en qué fila. | Después, por fila del libro. |
+| `Fuera del libro` | La tarea no forma parte de ninguna fila (sin elemento EDT superior o con `Visible = No`). | Al final: no afecta al PV ni al EV. |
+
+La hoja `Validación` ordena las observaciones por severidad y, en cada severidad, por alcance, con un
+resumen de las cantidades arriba. Las de las tareas de detalle y de fuera del libro se agrupan en una
+línea por código y fila del libro, con la cantidad de tareas y sus códigos; la hoja **Validación
+detalle** las tiene todas, una por tarea ([El libro Excel](libro-excel.md#validación)).
+
 El comando [`validar`](comandos.md#validar-revisa-el-archivo-de-ms-project) muestra las mismas
-observaciones en pantalla, agrupadas por tema, **sin crear el libro**, y agrega los controles del
+observaciones en pantalla, agrupadas por tema y con el mismo orden y la misma agrupación de las tareas de
+detalle (`--todas` las muestra una por una), **sin crear el libro**, y agrega los controles del
 cronograma de las secciones [1.2](#12-avance-a-la-fecha-de-estado-validar) y
 [1.3](#13-lógica-del-cronograma-validar). Se recomienda ejecutarlo antes de `generar` y antes de cada
 `actualizar`.

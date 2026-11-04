@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 SEV_FATAL = "Error fatal"       # detiene el programa: no es una observación de la hoja Validación
 SEV_ERROR = "Error"
@@ -37,6 +37,15 @@ TOPICS = [TOPIC_READ, TOPIC_WBS, TOPIC_VISIBLE, TOPIC_DATES, TOPIC_WEIGHTS, TOPI
 
 ID_PATTERN = re.compile(r"[A-Z]{3}-\d{3}")
 
+# Alcance de una observación: a qué parte del libro se refiere. La hoja Validación y la consola las ordenan así,
+# para resolver primero las de las filas que muestran las hojas PV, EV y AC
+TARGET_GENERAL = "General"          # sin tarea: el proyecto, la configuración o el libro
+TARGET_ROW = "Fila EDT"             # una fila de las hojas PV, EV y AC (paquete de trabajo o tarea resumen)
+TARGET_DETAIL = "Detalle"           # tarea que se suma en una fila (nivel mayor, fuera de la lista EDT o sin código)
+TARGET_OUT = "Fuera del libro"      # tarea que no está en ninguna fila (omitida, inactiva o con Visible = No)
+TARGETS = [TARGET_GENERAL, TARGET_ROW, TARGET_DETAIL, TARGET_OUT]
+SEVERITIES = [SEV_ERROR, SEV_WARN, SEV_INFO]
+
 
 # ----------------------------------------------------------------------------
 # Observaciones y errores con código
@@ -51,6 +60,11 @@ class Issue:
     message: str = ""
     severity: str = ""          # Error, Advertencia o Info (los códigos de severidad variable la indican)
     topic: str = ""
+    uid: int | None = None      # UniqueID de la tarea de la observación (None = sin tarea o se busca por su código)
+    target: str = ""            # alcance (TARGETS); "" = sin asignar (lo asignan wbs.locate_issues y wbs.located)
+    row: str = ""               # código EDT de la fila del libro de la tarea: la suya o la fila que la suma
+    file: str = ""              # varios archivos ([[proyectos]]): nombre del archivo de la observación
+    tasks: int = 0              # línea agrupada (grouped): cantidad de observaciones que reúne
 
     def __post_init__(self) -> None:
         entry = CATALOG.get(self.id)
@@ -59,6 +73,47 @@ class Issue:
         if not self.topic:
             area = AREAS.get(self.id[:3])
             self.topic = area.topic if area else TOPIC_BOOK
+
+
+def by_priority(issues: list[Issue]) -> list[Issue]:
+    """Las observaciones por severidad (los errores primero) y, en cada severidad, por alcance (TARGETS: general,
+    filas EDT, tareas de detalle y fuera del libro); las del mismo grupo, en su orden."""
+    severity = {s: k for k, s in enumerate(SEVERITIES)}
+    target = {t: k for k, t in enumerate(TARGETS)}
+    return sorted(issues, key=lambda i: (severity.get(i.severity, 1), target.get(i.target or TARGET_GENERAL, 0)))
+
+
+def grouped(issues: list[Issue], hint: str) -> list[Issue]:
+    """Las observaciones de las tareas de detalle y de las que están fuera del libro, en una línea por código y fila
+    del libro con la cantidad de tareas (si son dos o más); las demás, sin cambios. Cada línea va en el lugar de la
+    primera observación de su grupo; hint indica dónde se ven una por una."""
+    groups: dict[tuple, list[Issue]] = {}
+    order: list = []
+    for i in issues:
+        if i.target in (TARGET_DETAIL, TARGET_OUT):
+            key = (i.id, i.severity, i.target, i.row, i.file)
+            if key not in groups:
+                groups[key] = []
+                order.append(key)
+            groups[key].append(i)
+        else:
+            order.append(i)
+    out: list[Issue] = []
+    for x in order:
+        found = [x] if isinstance(x, Issue) else groups[x]
+        if len(found) == 1:
+            out.append(found[0])
+            continue
+        first, n = found[0], len(found)
+        entry = CATALOG.get(first.id)
+        names = [i.code or i.name for i in found]
+        shown = ", ".join(names[:10]) + (f" y {n - 10} más" if n > 10 else "")
+        where = f"de detalle de la fila {first.row}" if first.target == TARGET_DETAIL else "fuera del libro"
+        tag = f"[{first.file}] " if first.file else ""
+        out.append(replace(first, code="", name=f"{n} tareas", uid=None, tasks=n,
+                           message=f"{tag}{entry.title if entry else first.id}: {n} tareas {where} ({shown}). "
+                                   f"{hint}"))
+    return out
 
 
 class EvmError(Exception):

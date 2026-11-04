@@ -23,13 +23,15 @@ from openpyxl.utils.datetime import from_excel
 from openpyxl.workbook.defined_name import DefinedName
 from openpyxl.workbook.properties import CalcProperties
 from openpyxl.worksheet.datavalidation import DataValidation
+from openpyxl.worksheet.hyperlink import Hyperlink
 from openpyxl.worksheet.properties import Outline
 
 from evm import __version__, progress
 from evm.config import MODE_PERCENT, Config
 from evm.fields import fmt_number
-from evm.messages import SEV_INFO, SEV_WARN, EvmError, SaveError
-from evm.wbs import KIND_LEAF, KIND_RESIDUAL, KIND_SUMMARY, Report, ReportRow
+from evm.messages import (SEV_ERROR, SEV_INFO, SEV_WARN, TARGET_ROW, TARGETS, EvmError, Issue, SaveError, by_priority,
+                          grouped)
+from evm.wbs import KIND_LEAF, KIND_RESIDUAL, KIND_SUMMARY, Report, ReportRow, located
 
 # ----------------------------------------------------------------------------
 # Disposición del libro (no modificar: el comando "actualizar" depende de ella)
@@ -42,6 +44,7 @@ SHEET_CURVE = "Evolución mensual"
 LEGACY_SHEET_CURVE = "Curva S"      # libros generados con versiones anteriores a la 1.3.0
 SHEET_IND = "Indicadores EDT"
 SHEET_VALID = "Validación"
+SHEET_VALID_DETAIL = "Validación detalle"     # todas las observaciones, una por tarea (desde la 2.5.0)
 SHEET_LISTS = "Listas"
 SHEET_STRUCT = "_estructura"
 SHEET_META = "_meta"
@@ -78,6 +81,12 @@ ROW_PLAN, ROW_PLAN_STATUS, ROW_BL_FINISH, ROW_FINISH, ROW_VARIANCE, ROW_CRITICAL
 I_BL_FINISH, I_FINISH, I_VARIANCE, I_SLACK, I_CRITICAL = 17, 18, 19, 20, 21
 LAST_IND_COL = 16                   # última columna de indicadores (% Gastado)
 FMT_DAYS = '+0;-0;0'
+
+# Hojas Validación y Validación detalle: columnas de cada observación y fila de sus encabezados (en la hoja
+# Validación, encima de la lista va el resumen por severidad y alcance)
+V_SEVERITY, V_ID, V_TARGET, V_ROW, V_CODE, V_NAME, V_DETAIL, V_TOPIC = range(1, 9)
+VALID_HEADER_ROW = 11
+DETAIL_HEADER_ROW = 3
 FMT_SLACK = '0.0'
 
 # ----------------------------------------------------------------------------
@@ -100,6 +109,7 @@ FONT_HEADER = Font(bold=True, color="FFFFFF")
 FONT_TITLE = Font(bold=True, size=14, color=DARK)
 FONT_BOLD = Font(bold=True)
 FONT_NOTE = Font(italic=True, size=9, color="595959")
+FONT_LINK = Font(color="0563C1", underline="single")
 FONT_ITALIC = Font(italic=True)
 FONT_COST = Font(italic=True, color=COLOR_COST)
 FONT_COST_BOLD = Font(italic=True, bold=True, color=COLOR_COST)
@@ -1254,26 +1264,76 @@ def _write_indicators(ws, report: Report, cfg: Config, lay: _Layout) -> None:
     ws.sheet_format.outlineLevelRow = min(7, max([r.level - 1 for r in report.rows] + [0]))
 
 
-def _write_validation(ws, report: Report) -> None:
-    """Hoja Validación: una fila por observación, con su código (docs/codigos.md explica cada uno)."""
+def _write_validation(ws, ws_detail, report: Report, lay: _Layout) -> None:
+    """Hojas Validación y Validación detalle (docs/codigos.md explica cada código).
+
+    Las observaciones van por prioridad: por severidad y, en cada una, las generales, las de las filas EDT (las filas
+    de las hojas PV, EV y AC), las de las tareas de detalle (se suman en una fila) y las de las tareas fuera del
+    libro. En la hoja Validación, debajo del resumen por severidad y alcance, las de detalle y fuera del libro se
+    agrupan por código y fila del libro; la hoja Validación detalle las tiene todas, una por tarea.
+    """
+    issues = by_priority(located(report.rows, report.issues))
+    rows = {r.code: lay.r(r) for r in report.rows}
     ws.cell(row=1, column=1, value="Validación de la exportación").font = FONT_TITLE
-    ws.cell(row=2, column=1, value="Cada código se explica en docs/codigos.md; con [validacion] silenciar (o "
+    ws.cell(row=2, column=1, value="Primero los errores. En cada severidad: las observaciones generales, las de las "
+                                   "filas EDT (las de las hojas PV, EV y AC) y las de las tareas de detalle (se suman "
+                                   "en una fila) y fuera del libro, agrupadas por fila del libro: una por tarea en la "
+                                   f"hoja {SHEET_VALID_DETAIL}.").font = FONT_NOTE
+    ws.cell(row=3, column=1, value="Cada código se explica en docs/codigos.md; con [validacion] silenciar (o "
                                    "--silenciar) se ocultan las observaciones de un código.").font = FONT_NOTE
-    _header(ws, 3, [(1, "Severidad"), (2, "Código"), (3, "Código EDT"), (4, "Tarea"), (5, "Detalle"), (6, "Tema")])
-    if not report.issues:
-        ws.cell(row=4, column=1, value="OK")
-        ws.cell(row=4, column=5, value="No se encontraron observaciones.")
+    _write_counts(ws, 5, issues)
+    _write_issue_list(ws, VALID_HEADER_ROW, grouped(issues, f"Una por tarea en la hoja {SHEET_VALID_DETAIL}."), rows)
+
+    ws_detail.cell(row=1, column=1, value="Validación de la exportación: todas las observaciones").font = FONT_TITLE
+    ws_detail.cell(row=2, column=1, value=f"Una fila por observación, en el orden de la hoja {SHEET_VALID}. Con el "
+                                          "filtro de los encabezados se eligen la severidad, el alcance o la fila del "
+                                          "libro.").font = FONT_NOTE
+    _write_issue_list(ws_detail, DETAIL_HEADER_ROW, issues, rows)
+
+
+def _write_counts(ws, row: int, issues: list[Issue]) -> None:
+    """Resumen de la hoja Validación: cantidad de observaciones por severidad (filas) y alcance (columnas)."""
+    _header(ws, row, list(enumerate(["Observaciones", *TARGETS, "Total"], start=1)))
+    labels = ((SEV_ERROR, "Errores", FILL_RED), (SEV_WARN, "Advertencias", FILL_YELLOW),
+              (SEV_INFO, "Informativas", None), (None, "Total", FILL_TOTAL))
+    for k, (severity, label, fill) in enumerate(labels, start=row + 1):
+        found = [i for i in issues if severity is None or i.severity == severity]
+        total = severity is None
+        styled(ws.cell(row=k, column=1, value=label), font=FONT_BOLD if total else None, fill=fill, border=BORDER)
+        for c_, n in enumerate([sum(1 for i in found if i.target == t) for t in TARGETS] + [len(found)], start=2):
+            styled(ws.cell(row=k, column=c_, value=n), number_format='0;-0;"-"', alignment=ALIGN_CENTER,
+                   font=FONT_BOLD if total else None, fill=FILL_TOTAL if total else None, border=BORDER)
+
+
+def _write_issue_list(ws, header: int, issues: list[Issue], rows: dict[str, int]) -> None:
+    """Lista de observaciones desde la fila `header` (encabezados, con filtro). La fila del libro enlaza con su fila
+    de la hoja PV."""
+    _header(ws, header, [(V_SEVERITY, "Severidad"), (V_ID, "Código"), (V_TARGET, "Alcance"),
+                         (V_ROW, "Fila del libro"), (V_CODE, "Código EDT"), (V_NAME, "Tarea"), (V_DETAIL, "Detalle"),
+                         (V_TOPIC, "Tema")])
+    first = header + 1
+    if not issues:
+        ws.cell(row=first, column=V_SEVERITY, value="OK")
+        ws.cell(row=first, column=V_DETAIL, value="No se encontraron observaciones.")
     top = Alignment(vertical="top")
-    for i, issue in enumerate(report.issues, start=4):
-        ws.cell(row=i, column=1, value=issue.severity).alignment = top
-        for c_, v in ((2, issue.id), (3, issue.code), (4, issue.name), (6, issue.topic)):
-            put_text(ws, i, c_, v).alignment = top
-        put_text(ws, i, 5, issue.message).alignment = Alignment(wrap_text=True, vertical="top")
+    for r, issue in enumerate(issues, start=first):
+        ws.cell(row=r, column=V_SEVERITY, value=issue.severity).alignment = top
+        for c_, v in ((V_ID, issue.id), (V_TARGET, issue.target), (V_ROW, issue.row), (V_CODE, issue.code),
+                      (V_NAME, issue.name), (V_TOPIC, issue.topic)):
+            put_text(ws, r, c_, v).alignment = top
+        put_text(ws, r, V_DETAIL, issue.message).alignment = Alignment(wrap_text=True, vertical="top")
         if issue.severity != SEV_INFO:
-            ws.cell(row=i, column=1).fill = FILL_YELLOW if issue.severity == SEV_WARN else FILL_RED
-    for c_, w in {1: 13, 2: 10, 3: 14, 4: 40, 5: 110, 6: 26}.items():
+            ws.cell(row=r, column=V_SEVERITY).fill = FILL_YELLOW if issue.severity == SEV_WARN else FILL_RED
+        if issue.target == TARGET_ROW:
+            ws.cell(row=r, column=V_TARGET).font = FONT_BOLD
+        if issue.row in rows:
+            link = ws.cell(row=r, column=V_ROW)
+            link.hyperlink = Hyperlink(ref=link.coordinate, location=f"'{SHEET_PV}'!A{rows[issue.row]}")
+            link.font = FONT_LINK
+    for c_, w in {V_SEVERITY: 13, V_ID: 10, V_TARGET: 15, V_ROW: 14, V_CODE: 14, V_NAME: 40, V_DETAIL: 110,
+                  V_TOPIC: 26}.items():
         ws.column_dimensions[col(c_)].width = w
-    ws.auto_filter.ref = f"A3:F{max(4, 3 + len(report.issues))}"
+    ws.auto_filter.ref = f"A{header}:{col(V_TOPIC)}{max(first, header + len(issues))}"
 
 
 def _append_texts(ws, values: list) -> None:
@@ -1346,6 +1406,7 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     ws_curve = wb.create_sheet(SHEET_CURVE)
     ws_ind = wb.create_sheet(SHEET_IND)
     ws_val = wb.create_sheet(SHEET_VALID)
+    ws_val_detail = wb.create_sheet(SHEET_VALID_DETAIL)
     ws_lists = wb.create_sheet(SHEET_LISTS)
     ws_charts = wb.create_sheet(dashboard.SHEET_CHARTDATA)
     ws_struct = wb.create_sheet(SHEET_STRUCT)
@@ -1387,7 +1448,7 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
         ws_list = wb.create_sheet(SHEET_WBS_LIST)
         ws_list.sheet_state = "hidden"
         write_wbs_list(ws_list, cfg.wbs_list)
-    _write_validation(ws_val, report)
+    _write_validation(ws_val, ws_val_detail, report, lay)
     _write_structure(ws_struct, report, lay)
     packages = dashboard.chart_packages((lay.r(r), r.code, r.level, r.kind) for r in report.rows)
     dashboard.write_chart_data(ws_charts, cfg, lay, packages)

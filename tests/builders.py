@@ -82,6 +82,21 @@ def issues_with(rep: Report, text: str, severity: str | None = None) -> list:
     return [i for i in rep.issues if text in i.message and (severity is None or i.severity == severity)]
 
 
+VALID_KEYS = ("severidad", "codigo", "alcance", "fila", "edt", "tarea", "detalle", "tema")
+
+
+def validation_rows(book, grouped: bool = False) -> list[dict]:
+    """Observaciones de la hoja Validación detalle (todas, una por tarea) o, con grouped, de la hoja Validación (las
+    de detalle agrupadas por fila), como {clave de VALID_KEYS: valor}."""
+    from openpyxl import load_workbook
+
+    from evm.workbook import DETAIL_HEADER_ROW, SHEET_VALID, SHEET_VALID_DETAIL, VALID_HEADER_ROW
+    ws = load_workbook(book)[SHEET_VALID if grouped else SHEET_VALID_DETAIL]
+    header = VALID_HEADER_ROW if grouped else DETAIL_HEADER_ROW
+    return [dict(zip(VALID_KEYS, r)) for r in ws.iter_rows(min_row=header + 1, max_col=len(VALID_KEYS),
+                                                           values_only=True) if r[0]]
+
+
 BAC = 1_000_000.0      # BAC de cada fila en earned_after_update: el EV acumulado / BAC es el % ganado
 
 

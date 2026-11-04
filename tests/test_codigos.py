@@ -7,13 +7,13 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
-from openpyxl import load_workbook
 
 from evm.cli import main
 from evm.config import ConfigError, load_config
 from evm.messages import (AREAS, CATALOG, ID_PATTERN, SEV_ERROR, SEV_FATAL, SEV_INFO, SEV_WARN, TOPIC_DATES, Issue,
                           parse_silence)
 
+from builders import validation_rows
 from mspdi import project_xml, task_xml, write_xml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -191,12 +191,13 @@ def test_generar_writes_codes_and_hides_silenced_issues_in_the_validation_sheet(
     assert main(["generar", "--origen", str(path), "--config", str(cfg), "--salida", str(out_path)]) == 0
     out = capsys.readouterr().out
     assert "[i] LIB-001 El PV y el EV de cada fila" in out and "EDT-005 1.14.2" not in out
-    rows = [r for r in load_workbook(out_path)["Validación"].iter_rows(min_row=4, values_only=True) if r[0]]
-    ids = [r[1] for r in rows]
+    rows = validation_rows(out_path)
+    ids = [r["codigo"] for r in rows]
     assert "EDT-005" not in ids and "LIB-001" in ids
-    assert ("Advertencia", "CFG-048") == rows[ids.index("CFG-048")][:2]
+    assert rows[ids.index("CFG-048")]["severidad"] == "Advertencia"
     summary = rows[ids.index("CFG-049")]
-    assert summary[0] == "Info" and "1 observación silenciada" in summary[4] and "EDT-005 (1)" in summary[4]
+    assert summary["severidad"] == "Info" and "1 observación silenciada" in summary["detalle"]
+    assert "EDT-005 (1)" in summary["detalle"]
 
 
 def test_fatal_errors_show_their_code(tmp_path, capsys):

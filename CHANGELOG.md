@@ -18,7 +18,18 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Nuevas funciones
 
-- Ninguna.
+- **Observaciones por prioridad (alcance y fila del libro):** cada observación de la hoja `Validación`
+  y de la consola indica su alcance: `General` (el proyecto, la configuración o el libro), `Fila EDT`
+  (una fila de las hojas `PV`, `EV` y `AC`), `Detalle` (tarea que se suma en una fila: de nivel mayor al
+  máximo, fuera de la lista EDT o sin código EDT) o `Fuera del libro` (tarea omitida o con
+  `Visible = No`), y la fila del libro donde se ve o se suma la tarea, con un enlace a esa fila de la
+  hoja `PV`. Las observaciones van primero por severidad y, en cada una, por alcance, para resolver
+  primero las de las filas EDT; arriba, un resumen con las cantidades por severidad y alcance. Las de
+  las tareas de detalle y de fuera del libro se agrupan en una línea por código y fila del libro, con la
+  cantidad de tareas y sus códigos; la hoja nueva `Validación detalle` las tiene todas, una por tarea
+  ([El libro Excel](docs/libro-excel.md#validación)). `validar` y `generar` muestran en pantalla el
+  mismo orden y la misma agrupación, con una línea *Por alcance* en el resultado; `validar --todas`
+  muestra las observaciones una por una, con la fila del libro de cada tarea de detalle.
 
 ### Correcciones
 

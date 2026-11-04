@@ -39,7 +39,8 @@ El BAC de cada fila se ingresa en la hoja `PV`, el PV y el EV son el BAC × el %
 | **Indicadores EDT** | Indicadores de cada elemento de la EDT a la fecha de corte y su plazo según el cronograma de MS Project (fin previsto, desvío de fin, holgura y camino crítico). |
 | **Análisis de desviaciones** | Paquetes fuera de umbral de cada mes, con causa, impacto, acción correctiva, responsable y fecha ([Análisis de desviaciones](analisis-desviaciones.md)). |
 | **Registro de cambios** | Cambios del BAC y de los valores de meses ya informados (% ganado y AC) que detectan `actualizar` y `analizar`, con columnas amarillas para el motivo y el número de cambio aprobado ([Registro de cambios](#registro-de-cambios)). |
-| **Validación** | Observaciones de la exportación (errores, advertencias e informativas) con su código ([Validaciones](validaciones-y-problemas.md#1-validaciones)). |
+| **Validación** | Observaciones de la exportación (errores, advertencias e informativas) con su código, por prioridad: primero las generales y las de las filas EDT; las de las tareas de detalle, agrupadas por fila ([Validaciones](validaciones-y-problemas.md#1-validaciones)). |
+| **Validación detalle** | Todas las observaciones, una por tarea, en el mismo orden. |
 | **Listas** | Métodos de medición del desplegable de la columna C y su regla de cálculo. |
 | **Depuración costes** y **PV-depuración** | Solo con `depuracion_costes = true`: gráfico comparativo y previsión pegada del plan de costes de una empresa; la hoja PV de esa empresa lleva una fila «(coste)» debajo de cada fila, y en las demás hojas esas filas quedan vacías y ocultas ([Depuración de costes](depuracion-costes.md)). |
 | `_graficos`, `_estructura`, `_meta`, `_registro` (y `_depuracion`, `_lista_edt`) | Hojas ocultas con los datos de los gráficos, los datos que usan `actualizar` y `--migrar-desde`, la referencia del registro de cambios (los valores de la última ejecución), con depuración de costes, la asignación de la previsión pegada y, con `lista_edt`, la lista EDT con que se generó el libro. **No se deben modificar.** |
@@ -251,10 +252,29 @@ ejecución siguiente, comparan el libro con esos valores:
 
 ### Validación
 
-Advertencias y observaciones de la exportación, con su severidad (`Info`, `Advertencia`, `Error`), su
-código (columna B, explicado en [Códigos de errores y advertencias](codigos.md)), el código EDT, la tarea
-afectada, el detalle y el tema (columna F, para filtrar). Ver [Validaciones](validaciones-y-problemas.md#1-validaciones). El comando `validar` muestra en pantalla las
-mismas observaciones, y además las del avance y la lógica del cronograma, sin crear el libro.
+Advertencias y observaciones de la exportación. Arriba, un resumen con la cantidad de observaciones por
+severidad y por alcance; debajo, la lista, con estas columnas:
+
+| Columna | Contenido |
+|---|---|
+| Severidad | `Error`, `Advertencia` o `Info`. |
+| Código | Código de la observación, explicado en [Códigos de errores y advertencias](codigos.md). |
+| Alcance | `General` (el proyecto, la configuración o el libro), `Fila EDT` (una fila de las hojas `PV`, `EV` y `AC`: paquete de trabajo o tarea resumen), `Detalle` (tarea que se suma en una fila: de nivel mayor al máximo, fuera de la lista EDT o sin código EDT, también en la fila `-D`) o `Fuera del libro` (tarea que no forma parte de ninguna fila: omitida o con `Visible = No`). |
+| Fila del libro | Código de la fila donde se ve o se suma la tarea, con un enlace a esa fila de la hoja `PV`. |
+| Código EDT, Tarea | Código y nombre de la tarea (las tareas sin código, con su Id de MS Project). |
+| Detalle | La observación. |
+| Tema | Grupo de la observación (*Fechas y duración*, *Método de medición*...), para filtrar. |
+
+Las observaciones van **por prioridad**: primero los errores, después las advertencias y las
+informativas; en cada severidad, las generales, las de las filas EDT, las de las tareas de detalle y las
+de fuera del libro. Conviene resolver primero las de las filas EDT, que son las que muestran las hojas
+mensuales. Las de las tareas de detalle y de fuera del libro se **agrupan** en una línea por código y
+fila del libro (por ejemplo, *Duración estimada: 12 tareas de detalle de la fila 2.7.1 (2.7.1.1,
+2.7.1.3...)*); la hoja **Validación detalle** tiene todas las observaciones, una por tarea, en el mismo
+orden y con las mismas columnas. Ver [Validaciones](validaciones-y-problemas.md#1-validaciones).
+
+El comando `validar` muestra en pantalla las mismas observaciones, con el mismo criterio, y además las
+del avance y la lógica del cronograma, sin crear el libro.
 
 ![Hoja Validación](img/excel/validacion.png)
 
@@ -274,9 +294,10 @@ del `Análisis de desviaciones`. Las secciones de tendencia y de plazo del `Cuad
 regenerar el libro con `--migrar-desde`.
 
 Los libros generados con versiones anteriores a la 2.4.0 reciben la hoja `Registro de cambios` en la primera
-ejecución de `actualizar` o `analizar`, que solo guarda la referencia ([ACT-038](codigos.md#act-038)). La hoja
-`Validación` la escribe `generar`: conserva sus columnas anteriores, sin la columna `Código`, hasta regenerar el
-libro con `--migrar-desde`.
+ejecución de `actualizar` o `analizar`, que solo guarda la referencia ([ACT-038](codigos.md#act-038)). Las hojas
+`Validación` y `Validación detalle` las escribe `generar`: un libro anterior a la 2.5.0 conserva su hoja
+`Validación` (sin el resumen, el alcance ni la fila del libro, y antes de la 2.4.0 sin la columna `Código`) hasta
+regenerarlo con `--migrar-desde`.
 
 Los libros generados con versiones 1.x del programa, que calculaban el PV y el EV con los costos
 de MS Project, no se pueden usar: `actualizar`, `analizar` y `--migrar-desde` se detienen sin
