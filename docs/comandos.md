@@ -2,11 +2,13 @@
 
 [Inicio](../README.md) › [Documentación](README.md) › Comandos y opciones
 
-El programa tiene cinco comandos: `validar` (revisa el archivo de MS Project sin crear ningún
+El programa tiene seis comandos: `validar` (revisa el archivo de MS Project sin crear ningún
 archivo), `generar` (crea el libro con el % planificado de cada mes), `actualizar` (carga el % ganado
-de un mes), `analizar` (actualiza la hoja `Análisis de desviaciones` sin leer MS Project) y
-`generar-fichas` (crea un documento con la ficha de cada tarea para el cliente). El BAC y el AC se
-ingresan a mano en el libro ([Cálculo del PV y el EV](calculo-pv-ev.md)). La ayuda se obtiene con:
+de un mes), `analizar` (actualiza la hoja `Análisis de desviaciones` sin leer MS Project),
+`generar-fichas` (crea un documento con la ficha de cada tarea para el cliente) y `procesar-costes`
+(lleva el reparto mensual del plan de costes de una empresa al % planificado, en un libro con
+[depuración de costes](depuracion-costes.md)). El BAC y el AC se ingresan a mano en el libro
+([Cálculo del PV y el EV](calculo-pv-ev.md)). La ayuda se obtiene con:
 
 ```powershell
 python evm_export.py --help
@@ -15,6 +17,7 @@ python evm_export.py generar --help
 python evm_export.py actualizar --help
 python evm_export.py analizar --help
 python evm_export.py generar-fichas --help
+python evm_export.py procesar-costes --help
 ```
 
 Con el [instalador de Windows](../README.md#opción-1-instalador-para-windows-sin-python), el programa se
@@ -165,7 +168,7 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 | `--linea-base N` | 0 = Línea base, 1..10 = Línea base N. Por defecto, la que el proyecto usa para el valor acumulado. Con varios archivos no se admite: se indica en cada `[[proyectos]]`. |
 | `--nivel-max N` | Nivel máximo del código EDT. Por defecto, `nivel_maximo` de la configuración (3). Con `lista_edt`, las filas las decide la lista y el nivel solo se usa para completar los códigos con ceros ([Lista EDT](calculo-pv-ev.md#34-lista-edt-filas-definidas-en-un-archivo)). |
 | `--motor auto\|com\|xml` | Forma de lectura. `auto` decide por la extensión. |
-| `--migrar-desde libro.xlsx` | Copia al libro nuevo el BAC ingresado, el % ganado y el AC ya cargados, los métodos editados en la columna C, el análisis de desviaciones y la fecha de corte de un libro anterior ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). Con depuración de costes, también la previsión pegada en `PV-depuración` ([Depuración de costes](depuracion-costes.md#8-ciclo-de-ajuste)). |
+| `--migrar-desde libro.xlsx` | Copia al libro nuevo el BAC ingresado, el % ganado y el AC ya cargados, los métodos editados en la columna C, el análisis de desviaciones y la fecha de corte de un libro anterior ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). Con depuración de costes, también la previsión pegada en `PV-depuración` ([Depuración de costes](depuracion-costes.md#9-ciclo-de-ajuste)), y siempre el % planificado de las filas procesadas con `procesar-costes`. |
 | `--sobrescribir` | Reemplaza el libro de salida si ya existe. |
 | `--visible` | Muestra la ventana de MS Project mientras se lee (solo COM). No tiene relación con el campo `Visible`. |
 | `--silenciar CODIGOS` | Códigos de las observaciones que no se muestran, separados por comas (`LOG-004,FEC-007`, o `MET-004:1.2.1` para una sola fila); se puede repetir y se suma a `[validacion] silenciar` ([Silenciar observaciones](codigos.md#2-silenciar-observaciones)). |
@@ -312,6 +315,56 @@ LOE.
 
 ---
 
+## `procesar-costes`: PV con el reparto del plan de costes
+
+```powershell
+python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx
+```
+
+En un libro generado con `depuracion_costes = true`, lee el plan de costes pegado en la hoja
+`PV-depuración` y lleva su reparto mensual al **% planificado** de cada fila de la empresa que se
+depura (hoja `% PV-EmpresaA`, o `% PV` en un libro de una sola empresa), **sin leer MS Project**:
+
+- Cada línea del plan se asigna a una fila del libro por su **EDT cliente**, con las mismas reglas
+  que la columna `Asignado a` de la hoja ([reglas](depuracion-costes.md#42-cómo-se-asigna-cada-línea)).
+- El % planificado de cada mes es el importe del mes dividido por el **EAC** de la fila (la suma de
+  sus líneas). El PV sigue siendo el BAC × el %: si el BAC de la fila coincide con su EAC, el PV de
+  cada mes es el importe del plan; si no, el plan da el reparto en el tiempo y el total es el BAC.
+- Las filas sin líneas en el plan conservan su % planificado (de MS Project o de un procesado
+  anterior), y la otra empresa no cambia.
+- Las filas procesadas conservan ese % al regenerar el libro con `--migrar-desde`, también en el libro
+  de entrega sin depuración, y `actualizar` no lo compara con la línea base de MS Project
+  ([Depuración de costes](depuracion-costes.md#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes)).
+
+Muestra las filas procesadas con su EAC y las observaciones: líneas sin fila del libro, importes
+después del horizonte, filas sin líneas en el plan e importes guardados como texto
+([DEP-012 a DEP-018](codigos.md#413-dep--depuración-de-costes)).
+
+```text
+Exportador EVM 2.4.1
+Hoja: PV-EmpresaA  |  Plan de costes: 19 líneas, 12 se suman (sin subtotales)  |  Total: 366
+Reparto del plan de costes en 4 de 5 filas de ingreso, 363 dentro del horizonte:
+  1.1.0        Dirección                                         EAC            157
+  1.2.1        Licitación                                        EAC             60
+  1.2.2        Obras                                             EAC             96
+  2.1.0        Básica                                            EAC             50
+  [!] DEP-014 1 línea de la hoja PV-depuración sin fila del libro, por 3,00: Componente sin EDT cliente encima (fila 8): sin EDT cliente encima. Su importe no forma parte del % planificado.
+  [i] DEP-016 Filas de ingreso de la hoja PV-EmpresaA sin líneas en el plan de costes (1): 1.0.0-D. Conservan su % planificado (de MS Project o de un procesado anterior).
+El PV de cada mes es el BAC × el % planificado (hoja '% PV-EmpresaA'): en las filas cuyo BAC coincide con el EAC, es el importe del plan de costes.
+Respaldo: C:\Programa\EVM_Depuracion.respaldo-20261106-101500.xlsx
+Libro actualizado: C:\Programa\EVM_Depuracion.xlsx
+```
+
+| Opción | Descripción |
+|---|---|
+| `--libro` | Libro generado con `depuracion_costes = true`, con el plan de costes pegado en la hoja `PV-depuración`. **Obligatoria.** |
+| `--simular` | Muestra el resultado sin modificar el libro. |
+| `--sin-respaldo` | No crea la copia de respaldo del libro. |
+| `--config` | Solo se usan `[validacion] silenciar` y `[exportacion] guardado_rapido`. |
+| `--silenciar CODIGOS` | Igual que en `generar`. |
+
+---
+
 ## `generar-fichas`: fichas de tareas para el cliente
 
 ```powershell
@@ -430,6 +483,9 @@ python evm_export.py generar-fichas --origen Programa.mpp --config config.toml -
 
 # Nueva línea base: libro nuevo conservando el historial
 python evm_export.py generar --origen Programa.mpp --config config.toml --salida EVM_Programa_LB2.xlsx --migrar-desde EVM_Programa.xlsx
+
+# PV de una empresa con el reparto de su plan de costes (pegado en la hoja PV-depuración)
+python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx
 
 # Varios archivos de MS Project ([[proyectos]] en la configuración): sin --origen
 python evm_export.py generar --config config.toml --salida EVM_Programa.xlsx

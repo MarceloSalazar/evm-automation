@@ -7,15 +7,16 @@ from datetime import date
 from evm import changes
 from evm.analysis import A_CODE, A_KEY, A_MONTH, A_NAME, A_ORIGIN, SHEET_ANALYSIS, TEXT_COLS, read_entries
 from evm.config import ConfigError
-from evm.cost_review import SHEET_PASTE, month_offset, paste_months, read_paste, review_company, shift_rows
+from evm.cost_review import (FORMAT_CURRENT, FORMAT_LEGACY, FORMAT_NO_EAC, SHEET_PASTE, month_offset, paste_months,
+                             read_paste, review_company, shift_rows)
 from evm.fields import same_name
 from evm.messages import SEV_INFO, SEV_WARN, Issue
 from evm.methods import is_undefined
 from evm.model import MonthKey, Task
 from evm.wbs import (KIND_LEAF, KIND_RESIDUAL, Report, ReportRow, code_key, fmt_money, has_interior_zero,
                      iter_subtree, plural)
-from evm.workbook import (PCT_PREFIX, SHEET_EV, SHEET_LISTS, book_sources, clean_text, pct_sheet, role_key, row_key,
-                          source_meta, split_key)
+from evm.workbook import (PCT_PREFIX, SHEET_EV, SHEET_LISTS, SHEET_PV, book_sources, clean_text, pct_sheet, role_key,
+                          row_key, source_meta, split_key)
 
 
 @dataclass
@@ -32,6 +33,8 @@ class PriorRow:
     origin_method: str | None = None     # método al generarse el libro (None: libro antiguo)
     source: str = ""                     # varios archivos: nombre del archivo de la fila
     bac: dict[str, float] = field(default_factory=dict)     # BAC ingresado ("" o "A" y "B")
+    # % planificado con el reparto del plan de costes (procesar-costes), por empresa ("" o "A" y "B")
+    plan_pv: dict[str, dict[MonthKey, float]] = field(default_factory=dict)
 
     @property
     def method_edited(self) -> bool:
@@ -44,9 +47,10 @@ class PriorRow:
 
     @property
     def has_values(self) -> bool:
-        """True si tiene algún valor distinto de 0 (los meses cargados con 0 también se trasladan) o un BAC
-        ingresado."""
-        return any(v for data in self.series.values() for v in data.values()) or any(self.bac.values())
+        """True si tiene algún valor distinto de 0 (los meses cargados con 0 también se trasladan), un BAC ingresado
+        o el reparto del plan de costes."""
+        return (any(v for data in self.series.values() for v in data.values()) or any(self.bac.values())
+                or bool(self.plan_pv))
 
     def total(self, kind: str) -> float:
         """Suma de las series de EV o de AC (el EV es el BAC × el % ganado)."""
@@ -83,13 +87,15 @@ class PriorData:
     matched: int = 0
     unmatched: list[PriorRow] = field(default_factory=list)
     bac: dict[str, dict[str, float]] = field(default_factory=dict)    # clave nueva -> BAC
+    # Clave nueva -> empresa -> % planificado del plan de costes que se conserva (meses del horizonte nuevo)
+    plan_pv: dict[str, dict[str, dict[MonthKey, float]]] = field(default_factory=dict)
     # Depuración de costes: líneas de la hoja PV-depuración (en el formato actual), empresa que se depuraba ('' =
-    # libro de una sola empresa), mes 1 del horizonte, si la hoja tenía el formato anterior a las columnas de EDT
-    # interna y si se trasladan al libro nuevo (lo decide plan_migration)
+    # libro de una sola empresa), mes 1 del horizonte, formato que tenía la hoja (cost_review.paste_format) y si se
+    # trasladan al libro nuevo (lo decide plan_migration)
     review_rows: list[list] = field(default_factory=list)
     review_company: str = ""
     review_start: date | None = None
-    review_legacy: bool = False
+    review_format: str = FORMAT_CURRENT
     review_keep: bool = False
     # Registro de cambios: filas de la hoja y referencia de la última ejecución (con las claves del libro nuevo
     # después de plan_migration)
@@ -105,6 +111,10 @@ class PriorData:
         """BAC ingresado en el libro anterior para la fila nueva (None si no tenía)."""
         value = self.bac.get(key, {}).get(role)
         return value if value else None
+
+    def plan_pv_for(self, key: str, role: str) -> dict[MonthKey, float]:
+        """% planificado del plan de costes que conserva la fila nueva ({} si se calcula con MS Project)."""
+        return self.plan_pv.get(key, {}).get(role, {})
 
     def method_for(self, key: str) -> str | None:
         return self.methods.get(key)
@@ -124,11 +134,13 @@ def prior_from_book(path, project_name: str) -> PriorData:
         series = {k: {book.horizon.key(i): v for i, v in enumerate(src[s.row]) if v is not None}
                   for k, src in sources.items()}
         bac = {role: book.bac_role[role][s.row] for role, _c in book.roles()}
+        plan = {role: {book.horizon.key(i): v for i, v in enumerate(book.pct_pv[role][s.row]) if v}
+                for role in s.plan_pv if role in book.pct_pv}
         rows.append(PriorRow(
             key=s.key, code=s.code, name=s.name, uid=int(uid_text) if uid_text.isdigit() else None,
             residual=residual, series={k: v for k, v in series.items() if v},
             method=book.method[s.row], origin_method=s.origin_method, source=source,
-            bac={k: v for k, v in bac.items() if v}))
+            bac={k: v for k, v in bac.items() if v}, plan_pv={k: v for k, v in plan.items() if v}))
     methods_list = []
     from openpyxl import load_workbook
     wb = load_workbook(path, read_only=True)
@@ -139,8 +151,8 @@ def prior_from_book(path, project_name: str) -> PriorData:
             if len(value.strip()) <= 60:
                 methods_list.append(value.strip())
     analysis = read_entries(wb[SHEET_ANALYSIS]) if SHEET_ANALYSIS in wb.sheetnames else []
-    review_rows, review_legacy = (read_paste(wb[SHEET_PASTE], book.horizon.months) if SHEET_PASTE in wb.sheetnames
-                                  else ([], False))
+    review_rows, review_format = (read_paste(wb[SHEET_PASTE], book.horizon.months) if SHEET_PASTE in wb.sheetnames
+                                  else ([], FORMAT_CURRENT))
     change_log = changes.read_rows(wb[changes.SHEET_LOG]) if changes.SHEET_LOG in wb.sheetnames else []
     reference = changes.read_reference(wb)
     wb.close()
@@ -152,7 +164,7 @@ def prior_from_book(path, project_name: str) -> PriorData:
                      ignore_interior_zeros=book_ignores_interior_zeros(book.meta),
                      project_names=names, analysis=analysis, review_rows=review_rows,
                      review_company=str(book.meta.get("depuracion_empresa") or ""), review_start=book.horizon.start,
-                     review_legacy=review_legacy, change_log=change_log, reference=reference,
+                     review_format=review_format, change_log=change_log, reference=reference,
                      overwritten=list(book.formula_values))
 
 
@@ -227,10 +239,15 @@ def _migrate_review(report: Report, prior: PriorData) -> list[Issue]:
                       "de nuevo.")]
     prior.review_keep = True
     issues = [Issue("DEP-006", "", "", f"Se conservó el contenido de la hoja {SHEET_PASTE} ({lines}).")]
-    if prior.review_legacy:
+    if prior.review_format == FORMAT_LEGACY:
         issues.append(Issue("DEP-007", "", "", f"La hoja {SHEET_PASTE} del libro anterior tenía el formato sin EDT "
                                               "interna: los códigos numéricos quedaron como EDT cliente y los demás "
-                                              "(p. ej. XRF01), como EDT interna."))
+                                              "(p. ej. XRF01), como EDT interna, y se agregó la columna EAC con la "
+                                              "suma de los meses de cada línea."))
+    elif prior.review_format == FORMAT_NO_EAC:
+        issues.append(Issue("DEP-009", "", "", f"La hoja {SHEET_PASTE} del libro anterior no tenía la columna EAC: se "
+                                              "agregó con la suma de los meses de cada línea, y los meses empiezan "
+                                              "en la columna G."))
     offset = month_offset(prior.review_start, report.horizon.start) if prior.review_start else 0
     if offset:
         prior.review_rows, lost = shift_rows(prior.review_rows, offset, paste_months(report.horizon.months))
@@ -349,6 +366,8 @@ def plan_migration(report: Report, prior: PriorData, max_level: int,
 
     horizon = report.horizon
     clamped = early = 0.0
+    plan_cut: set[str] = set()          # filas con meses del plan de costes posteriores al horizonte nuevo
+    plan_merged: list[ReportRow] = []   # filas nuevas que reúnen varias anteriores con el plan de costes
     for key, lst in sources.items():
         target = by_key[key]
         merged: dict[str, dict[MonthKey, float]] = {}
@@ -395,6 +414,24 @@ def plan_migration(report: Report, prior: PriorData, max_level: int,
                                         "combinar. Se debe revisar la hoja % EV de esta fila."))
         if any(merged_bac.values()):
             prior.bac[key] = merged_bac
+        # Reparto del plan de costes (procesar-costes): se conserva si la fila nueva corresponde a una sola fila
+        # anterior. Lo anterior al horizonte nuevo se suma en el mes 1 (como en 'generar') y lo posterior se pierde.
+        if several and any(old.plan_pv for old, _how in lst):
+            plan_merged.append(target)
+        elif not several and lst[0][0].plan_pv:
+            kept: dict[str, dict[MonthKey, float]] = {}
+            for role, data in lst[0][0].plan_pv.items():
+                dest = kept.setdefault(role, {})
+                for k, v in data.items():
+                    i = horizon.index(k)
+                    if i >= horizon.months:
+                        plan_cut.add(key)
+                        continue
+                    nk = horizon.key(max(i, 0))
+                    dest[nk] = dest.get(nk, 0.0) + v
+            kept = {role: data for role, data in kept.items() if data}
+            if kept:
+                prior.plan_pv[key] = kept
         if any(merged.values()):
             prior.values[key] = merged
             if any(v for data in merged.values() for v in data.values()):
@@ -430,6 +467,7 @@ def plan_migration(report: Report, prior: PriorData, max_level: int,
     if prior.bac:
         issues.append(Issue("MIG-013", "", "", f"Se conservó el BAC de {plural(len(prior.bac), 'fila', 'filas')} del "
                                               "libro anterior."))
+    issues += _plan_issues(report, prior, plan_cut, plan_merged)
     issues += _migrate_changes(prior, key_map, sources)
     issues += _migrate_review(report, prior)
     if prior.overwritten:
@@ -441,8 +479,33 @@ def plan_migration(report: Report, prior: PriorData, max_level: int,
                             "de un paquete, se deben cargar en sus filas de ingreso del libro nuevo."))
     for old in prior.unmatched:
         bac = f"BAC {fmt_money(sum(old.bac.values()))}, "
+        plan = " y reparto del plan de costes" if old.plan_pv else ""
         issues.append(Issue("MIG-014", old.code, old.name,
                             f"No se pudo trasladar su historial ({bac}EV {fmt_money(old.total('EV'))}, AC "
-                            f"{fmt_money(old.total('AC'))}): la tarea no existe en el proyecto nuevo o se dividió "
-                            "en varias filas. Se debe cargar a mano en las filas que correspondan."))
+                            f"{fmt_money(old.total('AC'))}{plan}): la tarea no existe en el proyecto nuevo o se "
+                            "dividió en varias filas. Se debe cargar a mano en las filas que correspondan."))
+    return issues
+
+
+def _plan_issues(report: Report, prior: PriorData, cut: set[str], merged: list[ReportRow]) -> list[Issue]:
+    """Observaciones del reparto del plan de costes (procesar-costes) que se conserva en el libro nuevo."""
+    issues: list[Issue] = []
+    if prior.plan_pv:
+        companies = {"A": report.company_a, "B": report.company_b}
+        sheets = []
+        for role in ("", "A", "B"):
+            n = sum(1 for roles in prior.plan_pv.values() if role in roles)
+            if n:
+                sheets.append(f"{plural(n, 'fila', 'filas')} de la hoja {pct_sheet(SHEET_PV, companies.get(role, ''))}")
+        text = (f"Se conservó el reparto del plan de costes (procesar-costes) en {' y '.join(sheets)}: su % "
+                "planificado no se calcula con MS Project.")
+        if cut:
+            text += (f" En {plural(len(cut), 'fila', 'filas')} quedaron meses después del horizonte del libro nuevo: "
+                     "su % planificado no suma 100 %.")
+        issues.append(Issue("DEP-010", "", "", text, SEV_WARN if cut else SEV_INFO))
+    for row in merged:
+        issues.append(Issue("DEP-011", row.code, row.name,
+                            "Reúne varias filas del libro anterior con el reparto del plan de costes: su % planificado "
+                            "se calcula con MS Project. Para usar el plan de costes se debe ejecutar procesar-costes "
+                            "en un libro con depuración de costes."))
     return issues

@@ -30,6 +30,24 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   ([El libro Excel](docs/libro-excel.md#validación)). `validar` y `generar` muestran en pantalla el
   mismo orden y la misma agrupación, con una línea *Por alcance* en el resultado; `validar --todas`
   muestra las observaciones una por una, con la fila del libro de cada tarea de detalle.
+- **Plan de costes en tres niveles en `PV-depuración`:** la hoja sigue el formato del plan de costes de
+  la empresa: A `EDT cliente`, B `Actividad EDT`, C `EDT interna`, D `Actividad interna / componente de
+  coste`, E `BAC`, F `EAC` (nueva) y los meses desde la columna G. Las líneas con solo la columna D son
+  **componentes de coste** de la EDT interna de arriba: la EDT interna con componentes es un subtotal y
+  se suman sus componentes, en la EDT cliente. Antes la EDT interna y sus componentes se sumaban los
+  dos. El BAC y el EAC de las líneas ya no se comparan (se quitó la observación `BAC distinto de la suma
+  de los meses`) y los controles de la hoja pasan a la columna F
+  ([Depuración de costes](docs/depuracion-costes.md#4-hoja-pv-depuración-la-previsión-pegada)).
+  `--migrar-desde` pasa al formato nuevo la hoja de los libros de la versión 2.4 (`DEP-009`, nuevo).
+- **Comando `procesar-costes`:** lleva el reparto mensual del plan de costes pegado en `PV-depuración`
+  al % planificado de la empresa que se depura: en cada fila, el importe del mes dividido por el EAC de
+  sus líneas, asignadas por la EDT cliente. El PV sigue siendo el BAC × el %: con el BAC igual al EAC,
+  es el importe del plan. Las filas sin líneas conservan el % de MS Project. Las filas procesadas
+  conservan ese % al regenerar el libro con `--migrar-desde`, también en el libro de entrega sin
+  depuración (`DEP-010` y `DEP-011`, nuevos), y `actualizar` no lo compara con la línea base de MS
+  Project (`ACT-047`). Observaciones del comando: `DEP-012` a `DEP-018`, nuevos
+  ([Depuración de costes](docs/depuracion-costes.md#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes),
+  [Comandos](docs/comandos.md#procesar-costes-pv-con-el-reparto-del-plan-de-costes)).
 
 ### Correcciones
 

@@ -665,10 +665,13 @@ def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares:
 def _baseline_drift(book: BookData, s: StructRow, planned: dict[str, list[float]],
                     idx: int) -> tuple[float, float] | None:
     """PV acumulado de la fila a la fecha de corte con el % planificado de MS Project y con el del libro, si el %
-    planificado acumulado de algún mes difiere (None si coinciden)."""
+    planificado acumulado de algún mes difiere (None si coinciden). El % planificado con el reparto del plan de costes
+    (procesar-costes) no se compara: no sale de la línea base."""
     now = book_pv = 0.0
     differs = False
     for role, _company in book.roles():
+        if role in s.plan_pv:
+            continue
         new, old = planned.get(role, []), book.pct_pv[role][s.row]
         cum_new = cum_old = 0.0
         for i in range(len(old)):
@@ -874,12 +877,7 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
             "aquí: se deben restaurar esas fórmulas (por ejemplo, copiándolas de una celda vecina de la "
             "misma fila) o recuperar el libro desde un respaldo.")))
 
-    if book.fixable:
-        cells = ", ".join(f"{sh}!{col(c)}{r}" for sh, r, c, _v, _why in book.fixable[:8])
-        more = f" y {len(book.fixable) - 8} más" if len(book.fixable) > 8 else ""
-        verb = "reemplazarán" if dry_run else "reemplazaron"
-        warnings.append(Issue("ACT-025", message=f"Se {verb} por su valor numérico celdas de ingreso con texto o "
-                                                 f"fórmulas: {cells}{more}."))
+    warnings += fixable_warning(book, dry_run)
 
     # Valores en memoria (también en simulación, para mostrar los indicadores resultantes)
     pct_roles = {pct_sheet(SHEET_EV, company): role for role, company in book.roles()}
@@ -1021,6 +1019,18 @@ def _write_changes(wb, book: BookData, idx: int, status: date, changed: list, de
     changes.write_reference(wb, changes.reference_from_book(book, idx, status))
 
 
+def fixable_warning(book: BookData, dry_run: bool = False) -> list[Issue]:
+    """ACT-025: celdas de ingreso con texto o fórmulas que se reemplazan por su valor numérico (read_book con
+    allow_fix; _write_fixable las escribe)."""
+    if not book.fixable:
+        return []
+    cells = ", ".join(f"{sh}!{col(c)}{r}" for sh, r, c, _v, _why in book.fixable[:8])
+    more = f" y {len(book.fixable) - 8} más" if len(book.fixable) > 8 else ""
+    verb = "reemplazarán" if dry_run else "reemplazaron"
+    return [Issue("ACT-025", message=f"Se {verb} por su valor numérico celdas de ingreso con texto o fórmulas: "
+                                     f"{cells}{more}.")]
+
+
 def run_analysis(cfg: Config, book_path: str | Path, backup: bool = True) -> UpdateResult:
     """Comando 'analizar': actualiza la hoja Análisis de desviaciones con los valores del libro, sin leer MS
     Project (por ejemplo, después de cargar a mano el AC del mes)."""
@@ -1037,13 +1047,8 @@ def run_analysis(cfg: Config, book_path: str | Path, backup: bool = True) -> Upd
     if not 0 <= idx < book.horizon.months:
         raise InputError("ACT-006",
                          f"La fecha de corte {book.status_date:%d/%m/%Y} está fuera del horizonte del libro.")
-    warnings: list[Issue] = []
-    if book.fixable:
-        cells = ", ".join(f"{sh}!{col(c)}{r}" for sh, r, c, _v, _why in book.fixable[:8])
-        more = f" y {len(book.fixable) - 8} más" if len(book.fixable) > 8 else ""
-        warnings.append(Issue("ACT-025", message=f"Se reemplazaron por su valor numérico celdas de ingreso con texto "
-                                                 f"o fórmulas: {cells}{more}."))
-        _write_fixable(wb, book)
+    warnings = fixable_warning(book)
+    _write_fixable(wb, book)
     decimals = int(book.meta.get("decimales") or 0)
     reference = changes.read_reference(wb)
     changed = changes.detect(book, reference, idx)

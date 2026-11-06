@@ -112,9 +112,9 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [EMP](#48-emp--empresas) | Empresas | Empresas | generar (hoja Validación) y validar | 6 |
 | [AVA](#49-ava--avance-a-la-fecha-de-estado) | Avance a la fecha de estado | Avance a la fecha de estado | validar | 17 |
 | [LOG](#410-log--lógica-del-cronograma) | Lógica del cronograma | Lógica del cronograma | validar | 16 |
-| [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar y generar `--migrar-desde` (lectura del libro) | 15 |
+| [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) | 15 |
 | [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 20 |
-| [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 8 |
+| [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 18 |
 | [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 50 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
 | [SIS](#416-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
@@ -1775,7 +1775,7 @@ Recordatorio: el PV y el EV de cada fila son el BAC × el % planificado y el % g
 
 #### LIB-002
 
-**No existe el libro** · Error (detiene el programa) · actualizar, analizar y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
+**No existe el libro** · Error (detiene el programa) · actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
 
 El libro indicado (`--libro` o `--migrar-desde`) no existe en esa ruta.
 
@@ -1783,7 +1783,7 @@ El libro indicado (`--libro` o `--migrar-desde`) no existe en esa ruta.
 
 #### LIB-003
 
-**El libro no es .xlsx** · Error (detiene el programa) · actualizar, analizar y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
+**El libro no es .xlsx** · Error (detiene el programa) · actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
 
 El archivo indicado no es un libro .xlsx.
 
@@ -1791,7 +1791,7 @@ El archivo indicado no es un libro .xlsx.
 
 #### LIB-004
 
-**No se pudo abrir el libro** · Error (detiene el programa) · actualizar, analizar y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
+**No se pudo abrir el libro** · Error (detiene el programa) · actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
 
 El archivo no se puede abrir como libro de Excel (dañado, cifrado o de otro formato).
 
@@ -1799,7 +1799,7 @@ El archivo no se puede abrir como libro de Excel (dañado, cifrado o de otro for
 
 #### LIB-005
 
-**El libro no fue generado por este programa** · Error (detiene el programa) · actualizar, analizar y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
+**El libro no fue generado por este programa** · Error (detiene el programa) · actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
 
 Faltan las hojas ocultas `_meta` y `_estructura`.
 
@@ -1807,7 +1807,7 @@ Faltan las hojas ocultas `_meta` y `_estructura`.
 
 #### LIB-006
 
-**Falta un dato de la hoja `_meta`** · Error (detiene el programa) · actualizar, analizar y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
+**Falta un dato de la hoja `_meta`** · Error (detiene el programa) · actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
 
 La hoja oculta `_meta` del libro no tiene un dato necesario.
 
@@ -1815,7 +1815,7 @@ La hoja oculta `_meta` del libro no tiene un dato necesario.
 
 #### LIB-007
 
-**Dato de la hoja `_meta` no válido** · Error (detiene el programa) · actualizar, analizar y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
+**Dato de la hoja `_meta` no válido** · Error (detiene el programa) · actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
 
 Un dato de la hoja oculta `_meta` fue modificado.
 
@@ -1823,7 +1823,7 @@ Un dato de la hoja oculta `_meta` fue modificado.
 
 #### LIB-008
 
-**Hoja `_estructura` no válida** · Error (detiene el programa) · actualizar, analizar y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
+**Hoja `_estructura` no válida** · Error (detiene el programa) · actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
 
 La hoja oculta `_estructura` fue modificada.
 
@@ -1831,7 +1831,7 @@ La hoja oculta `_estructura` fue modificada.
 
 #### LIB-009
 
-**Libro de una versión anterior** · Error (detiene el programa) · actualizar, analizar y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
+**Libro de una versión anterior** · Error (detiene el programa) · actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
 
 El libro se generó con la versión 1.x, que calculaba el PV y el EV con los costos de MS Project.
 
@@ -1839,7 +1839,7 @@ El libro se generó con la versión 1.x, que calculaba el PV y el EV con los cos
 
 #### LIB-010
 
-**Falta una hoja del libro** · Error (detiene el programa) · actualizar, analizar y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
+**Falta una hoja del libro** · Error (detiene el programa) · actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
 
 Una hoja que el programa lee o escribe se eliminó o se cambió de nombre.
 
@@ -1847,7 +1847,7 @@ Una hoja que el programa lee o escribe se eliminó o se cambió de nombre.
 
 #### LIB-011
 
-**Filas del libro movidas** · Error (detiene el programa) · actualizar, analizar y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
+**Filas del libro movidas** · Error (detiene el programa) · actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
 
 Una hoja mensual no tiene las filas con las que se generó el libro: se insertaron, eliminaron u ordenaron filas. actualizar ubica cada fila por su posición.
 
@@ -1855,7 +1855,7 @@ Una hoja mensual no tiene las filas con las que se generó el libro: se insertar
 
 #### LIB-012
 
-**Fórmula sin valor calculado** · Error (detiene el programa) · actualizar, analizar y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
+**Fórmula sin valor calculado** · Error (detiene el programa) · actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
 
 Una celda de ingreso tiene una fórmula que Excel no calculó (el libro se guardó sin calcular).
 
@@ -1863,7 +1863,7 @@ Una celda de ingreso tiene una fórmula que Excel no calculó (el libro se guard
 
 #### LIB-013
 
-**Valor no numérico** · Error (detiene el programa) · actualizar, analizar y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
+**Valor no numérico** · Error (detiene el programa) · actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
 
 Una celda de ingreso tiene un texto o un valor que no es un número.
 
@@ -1871,7 +1871,7 @@ Una celda de ingreso tiene un texto o un valor que no es un número.
 
 #### LIB-014
 
-**Número guardado como texto** · Error (detiene el programa) · actualizar, analizar y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
+**Número guardado como texto** · Error (detiene el programa) · actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
 
 Una celda tiene un número guardado como texto: Excel no lo suma.
 
@@ -2078,7 +2078,7 @@ El libro anterior y el nuevo se generaron con distinto ignorar_ceros_intermedios
 
 ### 4.13 DEP · Depuración de costes
 
-Hoja PV-depuración y su traslado con `--migrar-desde`.
+Hoja PV-depuración, su traslado con `--migrar-desde` y el reparto del plan de costes (procesar-costes).
 
 | Código | Severidad | Descripción |
 |---|---|---|
@@ -2090,6 +2090,16 @@ Hoja PV-depuración y su traslado con `--migrar-desde`.
 | [DEP-006](#dep-006) | Info | Previsión trasladada |
 | [DEP-007](#dep-007) | Info | Previsión pasada al formato con EDT interna |
 | [DEP-008](#dep-008) | Advertencia o Info | Meses de la previsión desplazados |
+| [DEP-009](#dep-009) | Info | Previsión pasada al formato con la columna EAC |
+| [DEP-010](#dep-010) | Info o Advertencia | Reparto del plan de costes conservado |
+| [DEP-011](#dep-011) | Advertencia | Reparto del plan de costes no combinado |
+| [DEP-012](#dep-012) | Error (detiene el programa) | Libro sin depuración de costes |
+| [DEP-013](#dep-013) | Error (detiene el programa) | Plan de costes sin líneas asignadas |
+| [DEP-014](#dep-014) | Advertencia | Líneas del plan de costes sin fila del libro |
+| [DEP-015](#dep-015) | Advertencia | Plan de costes después del horizonte |
+| [DEP-016](#dep-016) | Info | Filas sin líneas en el plan de costes |
+| [DEP-017](#dep-017) | Advertencia | Filas cuyo plan de costes suma 0 |
+| [DEP-018](#dep-018) | Advertencia | Importes del plan de costes que no se suman |
 
 #### DEP-001
 
@@ -2143,7 +2153,7 @@ Se conservó el contenido de la hoja PV-depuración.
 
 **Previsión pasada al formato con EDT interna** · Info · generar con depuracion_costes (hoja Validación) · se puede silenciar
 
-La hoja PV-depuración del libro anterior no tenía las columnas de EDT interna: los códigos numéricos quedaron como EDT cliente y los demás, como EDT interna.
+La hoja PV-depuración del libro anterior no tenía las columnas de EDT interna: los códigos numéricos quedaron como EDT cliente y los demás, como EDT interna, y se agregó la columna EAC.
 
 **Qué hacer:** Revisar la hoja PV-depuración.
 
@@ -2154,6 +2164,86 @@ La hoja PV-depuración del libro anterior no tenía las columnas de EDT interna:
 Cambió el mes 1 del horizonte: los meses de la hoja PV-depuración se desplazaron para conservar su fecha. Es una advertencia si quedaron importes fuera de las columnas.
 
 **Qué hacer:** Revisar los importes que quedaron fuera, si los hay.
+
+#### DEP-009
+
+**Previsión pasada al formato con la columna EAC** · Info · generar con depuracion_costes (hoja Validación) · se puede silenciar
+
+La hoja PV-depuración del libro anterior (versión 2.4) no tenía la columna EAC: se agregó con la suma de los meses de cada línea, y los meses empiezan en la columna G.
+
+**Qué hacer:** Ninguna.
+
+#### DEP-010
+
+**Reparto del plan de costes conservado** · Info o Advertencia · generar `--migrar-desde` (hoja Validación) · se puede silenciar
+
+Las filas procesadas con procesar-costes conservan en el libro nuevo el % planificado del plan de costes, en lugar del que resulta de MS Project. Es una advertencia si quedaron meses después del horizonte del libro nuevo: el % planificado de esas filas no suma 100 %.
+
+**Qué hacer:** Ninguna. Si el plan de costes cambió, ejecutar procesar-costes en un libro con depuración de costes.
+
+#### DEP-011
+
+**Reparto del plan de costes no combinado** · Advertencia · generar `--migrar-desde` (hoja Validación) · se puede silenciar
+
+La fila nueva reúne varias filas del libro anterior con el reparto del plan de costes (p. ej. al bajar el nivel máximo): su % planificado se calcula con MS Project.
+
+**Qué hacer:** Ejecutar procesar-costes en un libro con depuración de costes.
+
+#### DEP-012
+
+**Libro sin depuración de costes** · Error (detiene el programa) · procesar-costes · no se puede silenciar
+
+procesar-costes necesita un libro generado con depuracion_costes = true, con el plan de costes pegado en la hoja PV-depuración.
+
+**Qué hacer:** Generar el libro con depuracion_costes = true (y `--migrar-desde` para conservar el BAC).
+
+#### DEP-013
+
+**Plan de costes sin líneas asignadas** · Error (detiene el programa) · procesar-costes · no se puede silenciar
+
+Ninguna línea de la hoja PV-depuración se asigna a una fila de ingreso del libro: la hoja está vacía o sus códigos no son los del libro.
+
+**Qué hacer:** Pegar el plan de costes desde la celda A8 y revisar la columna 'Asignado a'.
+
+#### DEP-014
+
+**Líneas del plan de costes sin fila del libro** · Advertencia · procesar-costes · se puede silenciar
+
+Líneas que se suman pero no tienen fila en el libro (código inexistente, resumen sin fila propia o sin EDT cliente encima): su importe no forma parte del % planificado.
+
+**Qué hacer:** Corregir los códigos en el plan de costes, o agregar las filas al libro (p. ej. con lista_edt).
+
+#### DEP-015
+
+**Plan de costes después del horizonte** · Advertencia · procesar-costes · se puede silenciar
+
+El plan de costes tiene importes en meses posteriores al horizonte del libro: no forman parte del % planificado, que en esas filas no suma 100 %.
+
+**Qué hacer:** Ampliar el horizonte del libro (meses) o revisar el plan de costes.
+
+#### DEP-016
+
+**Filas sin líneas en el plan de costes** · Info · procesar-costes · se puede silenciar
+
+Filas de ingreso de la empresa sin líneas en el plan de costes: conservan su % planificado, de MS Project o de un procesado anterior.
+
+**Qué hacer:** Ninguna, si la empresa no tiene costes en esas filas.
+
+#### DEP-017
+
+**Filas cuyo plan de costes suma 0** · Advertencia · procesar-costes · se puede silenciar
+
+Las líneas asignadas a la fila suman 0: no hay reparto que aplicar y la fila conserva su % planificado.
+
+**Qué hacer:** Revisar los importes de esas filas en el plan de costes.
+
+#### DEP-018
+
+**Importes del plan de costes que no se suman** · Advertencia · procesar-costes · se puede silenciar
+
+Importes guardados como texto, o celdas con fórmula sin valor calculado (el plan se pegó sin pegado especial > valores y el libro no se guardó en Excel).
+
+**Qué hacer:** Pegar el plan de costes con pegado especial > valores.
 
 ---
 
@@ -2408,7 +2498,7 @@ Subtotales, la fila TOTAL o la suma de las empresas tienen un valor en lugar de 
 
 #### ACT-025
 
-**Celdas de ingreso convertidas en número** · Advertencia · actualizar y analizar · se puede silenciar
+**Celdas de ingreso convertidas en número** · Advertencia · actualizar, analizar y procesar-costes · se puede silenciar
 
 Celdas de ingreso con un número guardado como texto o con una fórmula se reemplazaron por su valor.
 

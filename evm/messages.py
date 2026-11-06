@@ -151,9 +151,10 @@ W_GV = "generar (hoja Validación) y validar"
 W_G = "generar (hoja Validación)"
 W_V = "validar"
 W_OUT = "generar y generar-fichas"
-W_BOOK = "actualizar, analizar y generar --migrar-desde (lectura del libro)"
+W_BOOK = "actualizar, analizar, procesar-costes y generar --migrar-desde (lectura del libro)"
 W_MIG = "generar --migrar-desde (hoja Validación)"
 W_REVIEW = "generar con depuracion_costes (hoja Validación)"
+W_PROC = "procesar-costes"
 W_ACT = "actualizar"
 W_AN = "actualizar y analizar"
 W_ROW = "actualizar (observaciones por fila)"
@@ -197,7 +198,7 @@ AREAS = {a.prefix: a for a in [
     Area("MIG", "Migración (--migrar-desde)", TOPIC_BOOK, W_MIG,
          "Traslado del BAC, el % ganado, el AC y los métodos de un libro anterior."),
     Area("DEP", "Depuración de costes", TOPIC_BOOK, W_REVIEW,
-         "Hoja PV-depuración y su traslado con --migrar-desde."),
+         "Hoja PV-depuración, su traslado con --migrar-desde y el reparto del plan de costes (procesar-costes)."),
     Area("ACT", "Actualizar y analizar", TOPIC_BOOK, W_ACT,
          "Carga del % ganado del mes: fecha de corte, filas del libro, BAC y observaciones por fila."),
     Area("FIC", "Fichas de tareas", TOPIC_BOOK, W_FIC,
@@ -991,12 +992,53 @@ _CODES = [
           "Ninguna."),
     _code("DEP-007", I, "Previsión pasada al formato con EDT interna",
           "La hoja PV-depuración del libro anterior no tenía las columnas de EDT interna: los códigos numéricos "
-          "quedaron como EDT cliente y los demás, como EDT interna.",
+          "quedaron como EDT cliente y los demás, como EDT interna, y se agregó la columna EAC.",
           "Revisar la hoja PV-depuración."),
     _code("DEP-008", (W, I), "Meses de la previsión desplazados",
           "Cambió el mes 1 del horizonte: los meses de la hoja PV-depuración se desplazaron para conservar su fecha. "
           "Es una advertencia si quedaron importes fuera de las columnas.",
           "Revisar los importes que quedaron fuera, si los hay."),
+    _code("DEP-009", I, "Previsión pasada al formato con la columna EAC",
+          "La hoja PV-depuración del libro anterior (versión 2.4) no tenía la columna EAC: se agregó con la suma de "
+          "los meses de cada línea, y los meses empiezan en la columna G.",
+          "Ninguna."),
+    _code("DEP-010", (I, W), "Reparto del plan de costes conservado",
+          "Las filas procesadas con procesar-costes conservan en el libro nuevo el % planificado del plan de costes, "
+          "en lugar del que resulta de MS Project. Es una advertencia si quedaron meses después del horizonte del "
+          "libro nuevo: el % planificado de esas filas no suma 100 %.",
+          "Ninguna. Si el plan de costes cambió, ejecutar procesar-costes en un libro con depuración de costes.",
+          W_MIG),
+    _code("DEP-011", W, "Reparto del plan de costes no combinado",
+          "La fila nueva reúne varias filas del libro anterior con el reparto del plan de costes (p. ej. al bajar el "
+          "nivel máximo): su % planificado se calcula con MS Project.",
+          "Ejecutar procesar-costes en un libro con depuración de costes.", W_MIG),
+    _code("DEP-012", F, "Libro sin depuración de costes",
+          "procesar-costes necesita un libro generado con depuracion_costes = true, con el plan de costes pegado en la "
+          "hoja PV-depuración.",
+          "Generar el libro con depuracion_costes = true (y --migrar-desde para conservar el BAC).", W_PROC),
+    _code("DEP-013", F, "Plan de costes sin líneas asignadas",
+          "Ninguna línea de la hoja PV-depuración se asigna a una fila de ingreso del libro: la hoja está vacía o sus "
+          "códigos no son los del libro.",
+          "Pegar el plan de costes desde la celda A8 y revisar la columna 'Asignado a'.", W_PROC),
+    _code("DEP-014", W, "Líneas del plan de costes sin fila del libro",
+          "Líneas que se suman pero no tienen fila en el libro (código inexistente, resumen sin fila propia o sin EDT "
+          "cliente encima): su importe no forma parte del % planificado.",
+          "Corregir los códigos en el plan de costes, o agregar las filas al libro (p. ej. con lista_edt).", W_PROC),
+    _code("DEP-015", W, "Plan de costes después del horizonte",
+          "El plan de costes tiene importes en meses posteriores al horizonte del libro: no forman parte del % "
+          "planificado, que en esas filas no suma 100 %.",
+          "Ampliar el horizonte del libro (meses) o revisar el plan de costes.", W_PROC),
+    _code("DEP-016", I, "Filas sin líneas en el plan de costes",
+          "Filas de ingreso de la empresa sin líneas en el plan de costes: conservan su % planificado, de MS Project o "
+          "de un procesado anterior.",
+          "Ninguna, si la empresa no tiene costes en esas filas.", W_PROC),
+    _code("DEP-017", W, "Filas cuyo plan de costes suma 0",
+          "Las líneas asignadas a la fila suman 0: no hay reparto que aplicar y la fila conserva su % planificado.",
+          "Revisar los importes de esas filas en el plan de costes.", W_PROC),
+    _code("DEP-018", W, "Importes del plan de costes que no se suman",
+          "Importes guardados como texto, o celdas con fórmula sin valor calculado (el plan se pegó sin pegado "
+          "especial > valores y el libro no se guardó en Excel).",
+          "Pegar el plan de costes con pegado especial > valores.", W_PROC),
 
     # --- ACT: actualizar y analizar -----------------------------------------------------------------------------
     _code("ACT-001", F, "El libro es de un solo archivo",
@@ -1078,7 +1120,7 @@ _CODES = [
           "desde un respaldo."),
     _code("ACT-025", W, "Celdas de ingreso convertidas en número",
           "Celdas de ingreso con un número guardado como texto o con una fórmula se reemplazaron por su valor.",
-          "Ninguna; se recomienda ingresar números.", W_AN),
+          "Ninguna; se recomienda ingresar números.", "actualizar, analizar y procesar-costes"),
     _code("ACT-026", I, "El AC se carga a mano",
           "Recordatorio: los indicadores de costo usan el AC cargado en las hojas AC.",
           "Cargar el AC del mes."),

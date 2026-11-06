@@ -322,6 +322,10 @@ Casos especiales (se informan en `Validación`):
 | Tarea sin fechas de línea base (agregada después de guardarla) | Se usan sus fechas actuales y se advierte. |
 | Ninguna tarea de la fila tiene fechas | La fila no tiene % planificado: su BAC no se puede repartir en el tiempo. |
 
+Si el PV de una empresa debe seguir el reparto mensual de su plan de costes, y no el de las tareas, el
+comando `procesar-costes` reemplaza el % planificado de sus filas por el de ese plan
+([Depuración de costes](depuracion-costes.md#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes)).
+
 **Ejemplo** (caso ilustrativo, con datos distintos de los del proyecto de ejemplo). Paquete
 `3.2.1 Suministro de equipos`, BAC 1.000.000:
 

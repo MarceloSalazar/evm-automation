@@ -631,8 +631,9 @@ def fill_review(wb, meta: dict) -> int:
     """Libro con depuración de costes: escribe en la hoja PV-depuración (si está vacía) una previsión ficticia de
     la empresa, como la pegaría desde su plan de costes: el PV planificado de cada paquete con algunos meses
     desplazados y algunos totales distintos del BAC. Cada EDT cliente lleva el total de sus líneas de EDT interna:
-    personal propio y subcontratas (PER01, SUB01...), hitos de pago en un paquete (HP-01...) y subtareas en otro (y en
-    los paquetes «Otras tareas», XRF01...). Devuelve la cantidad de líneas escritas."""
+    personal propio y subcontratas (PER01, SUB01...), hitos de pago en un paquete (HP-01...), subtareas en otro (y en
+    los paquetes «Otras tareas», XRF01...) y, en otro, una EDT interna (GPR03) con sus componentes de coste. Devuelve
+    la cantidad de líneas escritas."""
     from evm import cost_review
     from evm.timeline import round_preserving_total
     from evm.workbook import FIRST_MONTH_COL, PCT_PREFIX, read_structure
@@ -662,7 +663,8 @@ def fill_review(wb, meta: dict) -> int:
         code, name = s.code, s.name
         if s.kind == "residual":
             code, name = s.code[:-2], s.name.replace("Otras tareas de ", "Subtareas de ")
-        items: list[tuple[str, str, list]] = []     # líneas de EDT interna: código, actividad, importes por mes
+        # Líneas de EDT interna: código (None en un componente de coste), actividad, importes por mes
+        items: list[tuple[str | None, str, list]] = []
         if s.kind == "residual" or k == 4:  # subtareas
             parts = [values[:], [0.0] * months]
             for i, v in enumerate(values):
@@ -680,9 +682,12 @@ def fill_review(wb, meta: dict) -> int:
             own = [round(v * 0.7) for v in values]
             items = [(f"PER{k + 1:02d}", "Personal propio", own),
                      (f"SUB{k + 1:02d}", "Subcontratas", [v - o for v, o in zip(values, own)])]
-        total = [sum(p[i] for _c, _d, p in items) for i in range(months)]
-        lines.append([code, name, None, None, sum(total)] + total)
-        lines += [[None, None, c, d, sum(p)] + p for c, d, p in items]
+        leaves = items                      # líneas que se suman en la EDT cliente
+        if k == 2 and s.kind != "residual":     # EDT interna (subtotal) con sus componentes de coste (columna D)
+            items = [(f"GPR{k + 1:02d}", "Gestión del paquete", values)] + [(None, d, p) for _c, d, p in leaves]
+        total = [sum(p[i] for _c, _d, p in leaves) for i in range(months)]
+        lines.append([code, name, None, None, sum(total), sum(total)] + total)
+        lines += [[None, None, c, d, sum(p), sum(p)] + p for c, d, p in items]
         k += 1
     for r, line in enumerate(lines, start=first):
         for c, v in enumerate(line, start=1):
