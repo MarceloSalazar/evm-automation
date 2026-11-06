@@ -191,6 +191,8 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True) -> ProjectData:
             warnings.append(Issue("LEC-016", message=f"No se encontró el campo de reparto '{cfg.split_field}' en el "
                                                      f"XML: las tareas '{cfg.company_both}' se reparten al "
                                                      f"{fmt_number(cfg.split_default, trim=True)} %."))
+        else:
+            found["campo_reparto"] = cfg.split_field
 
     # Calendario del proyecto: reparte la duración de las tareas entre los meses
     try:
@@ -249,7 +251,14 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True) -> ProjectData:
             skipped_external += 1
             continue
 
-        bl = next((b for b in el.findall(r.q("Baseline")) if r.text(b, "Number") == str(n)), None)
+        bl = None
+        saved: list[int] = []           # líneas base con fechas en la tarea
+        for b in el.findall(r.q("Baseline")):
+            number = r.text(b, "Number")
+            if number == str(n):
+                bl = b
+            if number.isdigit() and (r.text(b, "Start") or r.text(b, "Finish")):
+                saved.append(int(number))
         bl_start = r.date(bl, "Start") if bl is not None else None
         bl_finish = r.date(bl, "Finish") if bl is not None else None
         bl_duration = duration_minutes(r.text(bl, "Duration")) if bl is not None else None
@@ -280,6 +289,7 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True) -> ProjectData:
             duration=duration_minutes(r.text(el, "Duration")), estimated=r.flag(el, "Estimated"),
             manual=r.flag(el, "Manual"), constraint_type=r.integer(el, "ConstraintType") if links else CONSTRAINT_ASAP,
             constraint_date=r.date(el, "ConstraintDate") if links else None, predecessors=predecessors,
+            baselines=tuple(sorted(set(saved))),
             method=value_of(method_ref).strip(), milestone_weight=weight,
             company=company, split_a=split_a, visible=value_of(visible_ref).strip(),
             description=value_of(description_ref).strip(),
@@ -296,11 +306,14 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True) -> ProjectData:
 
     label = "Línea base" if n == 0 else f"Línea base {n}"
     per_day = r.num(root, "MinutesPerDay", 480.0)
+    critical_paths = r.text(root, "MultipleCriticalPaths")
     project = ProjectData(
         name=title, source=str(path), backend="xml", tasks=tasks, status_date=status,
         currency_symbol=currency, project_start=r.date(root, "StartDate"), baseline_label=label,
         baseline_found=any_baseline, warnings=warnings, calendar=calendar, fields_found=found,
         minutes_per_day=per_day if per_day > 0 else 480.0,
+        multiple_critical_paths=critical_paths in ("1", "true", "True") if critical_paths else None,
+        baseline_number=n,
     )
     if not any_baseline:
         use_current_schedule(project)

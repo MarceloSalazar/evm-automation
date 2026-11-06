@@ -169,7 +169,7 @@ Informe: Programa de ejemplo con dos proyectos
   Horizonte: 01/2026 a 12/2035 (120 meses)
   BAC: se debe ingresar el BAC de cada fila en la columna D de PV (celdas amarillas).
   [i] LIB-001 El PV y el EV de cada fila son el BAC × el % planificado y el % ganado (hojas % PV y % EV), ...
-  [i] EDT-017 INTERNO Planificación interna: [P1] Planificación 'INTERNO': se exportan las 51 tareas que dependen de 'Planificación interna'.
+  [i] EDT-017 [P1] Planificación 'INTERNO' («Planificación interna»): se exportan las 51 tareas que dependen de ella.
   [i] EDT-020 [P1] Se omitió 1 tarea sin código EDT que no depende de ningún elemento EDT: no forma parte de ninguna fila del libro.
   [i] EDT-022 [P1] 14 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.
   [i] EDT-022 [P2] 4 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.

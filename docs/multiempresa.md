@@ -205,6 +205,8 @@ está en [Cálculo del PV y el EV](calculo-pv-ev.md#10-multi-empresa).
 - `% Reparto` **fuera de rango** (negativo o mayor que 100).
 - `% Reparto` en una tarea que no es `Ambas` (informativo: se ignora).
 - Campo de empresa que existe, pero está vacío en todas las tareas (revisar `campo_empresa`).
+- Campo `% Reparto` que existe, pero está vacío en todas las tareas: las tareas de detalle `Ambas` se
+  reparten con `reparto_por_defecto` (cargar el reparto acordado o confirmar el valor por defecto).
 
 `actualizar` indica en las observaciones de la fila cuándo una empresa con BAC no participa en sus
 tareas y se usó el avance de la fila completa.

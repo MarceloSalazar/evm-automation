@@ -434,6 +434,8 @@ class ComSession:
                 warnings.append(Issue("LEC-016", message=f"No se encontró el campo de reparto '{cfg.split_field}' en "
                                                          f"MS Project: las tareas '{cfg.company_both}' se reparten al "
                                                          f"{fmt_number(cfg.split_default, trim=True)} %."))
+            else:
+                found["campo_reparto"] = cfg.split_field
 
         tasks: list[Task] = []
         any_baseline = False
@@ -489,19 +491,26 @@ class ComSession:
             warnings.append(Issue("LEC-017", message=f"Se omitieron {skipped_external} tareas externas (vínculos "
                                                      "entre proyectos)."))
 
-        saved = None
-        for getter in (lambda: p.BaselineSavedDate(n), lambda: p.GetBaselineSavedDate(n)):
-            try:
-                saved = _dt(getter())
-                break
-            except Exception:
-                continue
-        any_baseline = any_baseline or saved is not None
+        # Fecha en que se guardó cada línea base (0 = Línea base, 1..10): una llamada a MS Project por línea base
+        saved: dict[int, datetime] = {}
+        for k in range(11):
+            for getter in (lambda: p.BaselineSavedDate(k), lambda: p.GetBaselineSavedDate(k)):
+                try:
+                    when = _dt(getter())
+                    break
+                except Exception:
+                    continue
+            else:
+                when = None
+            if when is not None:
+                saved[k] = when
+        any_baseline = any_baseline or n in saved
 
         summary = _get(p, "ProjectSummaryTask")
         title = str(_get(summary, "Name", "") or "").strip() if summary is not None else ""
         status = _dt(_get(p, "StatusDate"))
         hours = _number(_get(p, "HoursPerDay"))
+        critical_paths = _get(p, "MultipleCriticalPaths")
         project = ProjectData(
             name=title or str(_get(p, "Name", "") or Path(self.origen).stem),
             source=str(_get(p, "FullName", "") or self.origen), backend="com", tasks=tasks,
@@ -511,6 +520,8 @@ class ComSession:
             baseline_label="Línea base" if n == 0 else f"Línea base {n}",
             warnings=warnings, fields_found=found,
             minutes_per_day=hours * 60 if hours and hours > 0 else 480.0,
+            multiple_critical_paths=bool(critical_paths) if isinstance(critical_paths, (bool, int)) else None,
+            baseline_number=n, baseline_saved=saved,
         )
         if not any_baseline:
             use_current_schedule(project)

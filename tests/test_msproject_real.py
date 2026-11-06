@@ -204,6 +204,32 @@ def test_same_schedule(books):
     assert not diffs, report(diffs, "el plazo según el cronograma")
 
 
+def test_same_project_options_and_saved_baselines(books):
+    """Opción Calcular varias rutas críticas (LOG-017) y línea base que usa el % planificado: las mismas con COM y
+    con XML. Con COM, la línea base usada tiene fecha de guardado si el XML tiene tareas con fechas en ella
+    (LEC-024 muestra las fechas con COM y la cantidad de tareas con XML)."""
+    from evm.config import load_config
+    from evm.reader_com import ComSession
+    from evm.reader_xml import read_xml
+
+    cfg = load_config(config_path())
+    if os.environ.get("EVM_LINEA_BASE"):
+        cfg.baseline = int(os.environ["EVM_LINEA_BASE"])
+    xml = read_xml(XML, cfg, links=False)
+    with ComSession(MPP) as session:
+        com = session.read_project(cfg, links=False)
+    if not books["was_running"]:
+        wait_until_closed()
+    assert com.multiple_critical_paths is not None, "COM no leyó la opción MultipleCriticalPaths del proyecto."
+    assert com.multiple_critical_paths == xml.multiple_critical_paths
+    assert com.baseline_number == xml.baseline_number
+    in_xml = {n for t in xml.tasks for n in t.baselines}
+    if xml.baseline_number in in_xml:
+        assert xml.baseline_number in com.baseline_saved, (
+            f"Líneas base con fecha de guardado (COM): {sorted(com.baseline_saved)}; con tareas (XML): "
+            f"{sorted(in_xml)}")
+
+
 def test_ms_project_is_left_as_found(books):
     """Si MS Project no estaba abierto, el programa lo cierra; si estaba abierto, no lo cierra."""
     if books["was_running"]:

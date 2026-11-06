@@ -339,7 +339,7 @@ def _print_update(res, currency: str, silence: Silence) -> None:
         for r in res.rows:
             print(f"{r.code:<10} {m(r.ev_month):>16} {m(r.ev_cum):>16}"
                   + "".join(f" {m(r.by_company.get(k)):>16}" for k in company_cols))
-    notes = silence.filter([n for r in res.rows for n in r.notes])
+    notes = _same_note_rows(silence.filter([n for r in res.rows for n in r.notes]))
     if notes:
         print("Observaciones por fila:")
         for n in notes[:25]:
@@ -362,6 +362,27 @@ def _print_update(res, currency: str, silence: Silence) -> None:
     if res.schedule is not None:
         print()
         _print_schedule(res.schedule)
+
+
+def _same_note_rows(notes: list[Issue]) -> list[Issue]:
+    """Observaciones por fila de actualizar: las de varias filas con el mismo código y el mismo texto (p. ej. ACT-034,
+    método no definido) en una línea con la cantidad de filas y sus códigos EDT, en el lugar de la primera."""
+    groups: dict[tuple[str, str], list[Issue]] = {}
+    for n in notes:
+        groups.setdefault((n.id, n.message), []).append(n)
+    out: list[Issue] = []
+    for n in notes:
+        same = groups.get((n.id, n.message))
+        if same is None:
+            continue                            # ya se mostró en la línea de su grupo
+        del groups[(n.id, n.message)]
+        if len(same) == 1:
+            out.append(n)
+            continue
+        codes = ", ".join(x.code for x in same[:10]) + (f" y {len(same) - 10} más" if len(same) > 10 else "")
+        out.append(replace(n, code="", name="", tasks=len(same),
+                           message=f"{n.message} en {len(same)} filas ({codes})."))
+    return out
 
 
 def _print_notices(issues: list[Issue], limit: int = 30) -> None:

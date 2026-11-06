@@ -153,7 +153,7 @@ def test_validar_groups_detail_and_shows_each_one_with_todas(tmp_path, capsys):
     assert ("[!] FEC-007 Duración estimada: 2 tareas de detalle de la fila 1.1 (1.1.1, 1.1.2). Una por tarea con "
             "--todas.") in out
     assert out.index("FEC-007 1.2 Cierre") < out.index("2 tareas de detalle")      # primero las filas EDT
-    assert ("Resultado: 5 advertencias, 3 informativas.\n  Por alcance: generales: 2 advertencias, 3 informativas; "
+    assert ("Resultado: 5 advertencias, 4 informativas.\n  Por alcance: generales: 2 advertencias, 4 informativas; "
             "en filas EDT: 1 advertencia; en tareas de detalle: 2 advertencias.") in out
     main(["validar", "--origen", str(path), "--nivel-max", "2", "--todas"])
     out = capsys.readouterr().out

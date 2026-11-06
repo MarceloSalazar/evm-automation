@@ -35,7 +35,7 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 | `test_robustez_libro.py` | `actualizar`, `--migrar-desde`, libros modificados a mano, errores de la línea de comandos y del archivo de configuración. |
 | `test_proyectos_aleatorios.py` | Proyectos aleatorios de punta a punta (`generar`, varias fechas de corte, migración y recálculo). |
 | `test_analisis_desviaciones.py` | Hoja `Análisis de desviaciones`: lista calculada aparte, texto conservado y copiado al mes siguiente, `analizar` con AC cargado a mano, libros antiguos, `--migrar-desde` y recálculo de sus fórmulas con LibreOffice. |
-| `test_validar.py` | Comando `validar` y controles del archivo: códigos EDT (dependencia de la tarea superior, formato, orden, duplicados), fechas y duración, pesos, método frente a la duración, empresas, avance a la fecha de estado y fuera de secuencia, lógica del cronograma y evaluación DCMA (holgura, duración, tareas incumplidas, CPLI y BEI), lectura de duración, vínculos y delimitaciones (XML y COM) y columna `Tema` de la hoja `Validación`. |
+| `test_validar.py` | Comando `validar` y controles del archivo: códigos EDT (dependencia de la tarea superior, formato, orden, duplicados), fechas y duración, pesos, método frente a la duración, empresas, avance a la fecha de estado y fuera de secuencia, fecha de estado que no es fin de mes, lógica del cronograma y evaluación DCMA (holgura, duración, tareas incumplidas, CPLI y BEI), adelantos agrupados por tarea, varias rutas críticas, líneas base guardadas y línea base de las tareas resumen, lectura de duración, vínculos, delimitaciones, líneas base y opción de rutas críticas (XML y COM) y columna `Tema` de la hoja `Validación`. |
 | `test_fichas_tareas.py` | Comando `generar-fichas`: fichas de los elementos del libro, vínculos trasladados al elemento con ficha (internos, repetidos y con tareas sin ficha), fechas y duración de la línea base, documento Markdown, varios archivos y lectura de la duración de la línea base, las horas por día y la descripción (XML y COM). |
 | `test_plazo_tendencia.py` | Plazo según el cronograma (días laborables, fin previsto, holgura y crítica de cada fila, filas resumen y total), columnas de `Indicadores EDT`, secciones del `Resumen` y del `Cuadro de Mando`, libros de versiones anteriores, tendencia (mes anterior con datos y últimos 3 meses) y recálculo de sus fórmulas con LibreOffice. |
 | `test_lista_edt.py` | Lista EDT (`lista_edt`): lectura del archivo, filas definidas por la lista, códigos sin los ceros finales, códigos faltantes, ramas sin elemento listado, lista guardada en el libro y usada por `actualizar`. |
@@ -47,7 +47,7 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 | `test_codigos.py` | Códigos de errores y advertencias: formato y numeración del catálogo, todo mensaje con un código del catálogo, todo código usado, `docs/codigos.md` al día y silenciar (configuración, `--silenciar`, hoja `Validación` y código de salida de `validar`). |
 | `test_varios_archivos.py` | Varios archivos de MS Project (`[[proyectos]]`): el libro combinado coincide, fila por fila, con el libro de cada archivo (también en multi-empresa, con UniqueID repetidos entre archivos); errores de configuración y de la línea de comandos, fechas de estado y `--migrar-desde`. |
 | `test_rendimiento.py` | Optimizaciones de la lectura de MS Project y de la escritura del libro: mismos estilos que openpyxl, celdas vacías de las hojas `% PV` y `% EV`, una sola lectura del libro, reparto por meses del calendario y lecturas de MS Project (vínculos y alias de los campos, solo cuando hacen falta). |
-| `test_review_fixes.py` | Regresiones de los problemas detectados en las revisiones del código: migración, `actualizar` y `analizar`, análisis de desviaciones, registro de cambios, mensajes y errores de la línea de comandos. |
+| `test_review_fixes.py` | Regresiones de los problemas detectados en las revisiones del código: migración, `actualizar` y `analizar` (tareas nuevas dentro de una fila), análisis de desviaciones, registro de cambios, fechas de plan de las filas, mensajes (horizonte, planificación, observaciones de fila agrupadas) y errores de la línea de comandos. |
 | `test_workbook_update.py` | Libro del proyecto de ejemplo: disposición de las hojas, ciclo de `actualizar`, respaldo, meses posteriores cargados, `--migrar-desde` y recálculo de las fórmulas con LibreOffice. |
 | `test_report_xml.py`, `test_timeline_methods.py` | Lectura del XML de ejemplo, filas EDT y % planificado; calendario, horizonte, fechas, redondeo, métodos de medición e indicadores. |
 | Resto | Cuadro de Mando, semáforo, multi-empresa, planificación, campo `Visible`, depuración de costes, calendario y lector COM simulado. |
@@ -77,8 +77,9 @@ El lector `.mpp` se prueba con objetos que simulan MS Project. En un PC con MS P
 opcionales de `test_msproject_real.py` (marca `msproject`) leen un proyecto real por automatización COM
 y comparan el resultado con el XML que MS Project guarda del mismo proyecto: estructura EDT, métodos,
 horizonte, % planificado de cada mes, % ganado acumulado a la fecha de corte (de cada empresa, en
-multi-empresa), plazo según el cronograma (fin previsto, holgura total y tareas críticas) y que MS
-Project quede como estaba (abierto o cerrado). Los dos libros reciben el mismo
+multi-empresa), plazo según el cronograma (fin previsto, holgura total y tareas críticas), la opción
+*Calcular varias rutas críticas* y la línea base usada, y que MS Project quede como estaba (abierto o
+cerrado). Los dos libros reciben el mismo
 BAC en cada fila.
 
 1. En MS Project se abre el proyecto, se define *Proyecto > Fecha de estado* y se guarda el `.mpp`.

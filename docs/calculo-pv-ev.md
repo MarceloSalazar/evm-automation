@@ -120,8 +120,19 @@ Un mismo archivo de MS Project puede contener varias planificaciones del mismo p
 primer nivel con ese código EDT.
 
 Si se indica `planificacion` (por ejemplo `INTERNO`), solo se exportan las tareas que dependen de la
-tarea con ese código EDT. Esa tarea contenedora no tiene fila propia. Si los códigos de sus tareas
-incluyen el prefijo de la planificación (por ejemplo `INTERNO.1.1`), el prefijo se quita.
+tarea con ese código EDT o, si ninguna tarea tiene ese código, de la tarea con ese nombre (la de menor
+nivel de esquema). Esa tarea contenedora no tiene fila propia. Si los códigos de sus tareas incluyen el
+prefijo de la planificación (por ejemplo `INTERNO.1.1`), el prefijo se quita. Las dos planificaciones
+pueden repetir los mismos códigos EDT: las filas del libro, las tareas inactivas que se informan, las
+líneas base de `validar` y la asociación de las filas en `actualizar` son solo las de la planificación
+elegida.
+
+Las dos planificaciones pueden estar vinculadas entre sí en MS Project (por ejemplo, si una replica a la
+otra con vínculos comienzo a comienzo). MS Project calcula con esos vínculos las fechas, la holgura y las
+tareas críticas, que el programa lee tal cual. Los controles de lógica de `validar` (criterios DCMA) y el
+avance fuera de secuencia solo cuentan los vínculos entre tareas de la planificación elegida, y
+`validar` informa cuántos vínculos la unen con otras planificaciones
+([LOG-018](codigos.md#log-018)).
 
 ```mermaid
 flowchart LR

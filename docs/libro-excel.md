@@ -57,8 +57,8 @@ Las tres hojas tienen la misma estructura:
 | B | Actividad (nombre de la tarea). |
 | C | Método de medición (lista desplegable; solo se edita en la hoja `PV`). |
 | D | BAC: presupuesto de la fila. Se ingresa a mano en la hoja `PV` (en multi-empresa, en `PV-EmpresaA` y `PV-EmpresaB`), en las celdas amarillas; las demás hojas lo toman de allí. |
-| E | Fecha inicio Plan (PV): inicio de la línea base. |
-| F | Fecha fin Plan (PV): fin de la línea base. |
+| E | Fecha inicio Plan (PV): comienzo más temprano de la línea base de las tareas de detalle que forman el % planificado de la fila (las que no tienen línea base, con sus fechas actuales); en una fila subtotal, el de sus filas. |
+| F | Fecha fin Plan (PV): fin más tardío de esas mismas tareas. Las dos fechas coinciden con los meses del % planificado, aunque la línea base de la tarea resumen no esté resumida o la rama tenga tareas con `Visible = No`. |
 | G ... DV | Un mes por columna, del mes 1 al último mes del horizonte (`meses`; con 120, el valor por defecto, hasta la columna DV). Fila 3: número de mes; fila 4: fecha del mes. |
 | Al final | Columna **Total horizonte** (en la hoja `PV`, en rojo si no coincide con el BAC) y fila **TOTAL**. |
 

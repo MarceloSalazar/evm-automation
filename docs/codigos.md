@@ -103,19 +103,19 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | Área | Nombre | Tema en la hoja Validación | Dónde aparecen | Códigos |
 |---|---|---|---|---|
 | [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 51 |
-| [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 22 |
+| [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 24 |
 | [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 22 |
 | [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 10 |
-| [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 12 |
+| [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 14 |
 | [HIT](#46-hit--hitos-y-pesos) | Hitos y pesos | Hitos y pesos | generar (hoja Validación) y validar | 9 |
 | [MET](#47-met--método-de-medición) | Método de medición | Método de medición | generar (hoja Validación) y validar | 5 |
 | [EMP](#48-emp--empresas) | Empresas | Empresas | generar (hoja Validación) y validar | 6 |
-| [AVA](#49-ava--avance-a-la-fecha-de-estado) | Avance a la fecha de estado | Avance a la fecha de estado | validar | 17 |
-| [LOG](#410-log--lógica-del-cronograma) | Lógica del cronograma | Lógica del cronograma | validar | 16 |
+| [AVA](#49-ava--avance-a-la-fecha-de-estado) | Avance a la fecha de estado | Avance a la fecha de estado | validar | 18 |
+| [LOG](#410-log--lógica-del-cronograma) | Lógica del cronograma | Lógica del cronograma | validar | 18 |
 | [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) | 15 |
 | [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 20 |
 | [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 18 |
-| [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 50 |
+| [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 51 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
 | [SIS](#416-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
 
@@ -537,9 +537,9 @@ Algunas filas tienen % planificado antes del primer mes del horizonte (mes_inici
 
 **% planificado posterior al último mes** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-Algunas filas tienen % planificado después del último mes del horizonte: no aparece en las columnas mensuales y su PV no llega al BAC.
+Algunas filas tienen % planificado después del último mes del horizonte: no aparece en las columnas mensuales y su PV no llega al BAC. El mensaje indica hasta qué % del BAC llega el PV de cada fila, el último mes con % planificado y cuántos meses hacen falta.
 
-**Qué hacer:** Aumentar meses (o `--meses`) y volver a generar.
+**Qué hacer:** Aumentar meses (o `--meses`) a la cantidad indicada y volver a generar.
 
 #### CFG-046
 
@@ -619,6 +619,8 @@ Apertura del archivo .mpp o .xml y campos configurados que no se encuentran o es
 | [LEC-020](#lec-020) | Advertencia | Ningún hito tiene peso |
 | [LEC-021](#lec-021) | Advertencia | Campo de empresa vacío |
 | [LEC-022](#lec-022) | Advertencia | No se pudo cerrar el proyecto en MS Project |
+| [LEC-023](#lec-023) | Advertencia | Campo de reparto vacío |
+| [LEC-024](#lec-024) | Info | Líneas base guardadas |
 
 #### LEC-001
 
@@ -796,6 +798,22 @@ Al terminar la lectura de un .mpp, MS Project no cerró el proyecto (por ejemplo
 
 **Qué hacer:** Cerrar el proyecto a mano en MS Project, sin guardar.
 
+#### LEC-023
+
+**Campo de reparto vacío** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+En multi-empresa, el campo de reparto existe, pero está vacío en todas las tareas: las tareas compartidas (ambas) se reparten con reparto_por_defecto.
+
+**Qué hacer:** Cargar el % de la empresa A en las tareas compartidas (o en su tarea superior), o confirmar que el reparto por defecto es el acordado.
+
+#### LEC-024
+
+**Líneas base guardadas** · Info · validar · se puede silenciar
+
+Líneas base guardadas y la que usa el % planificado: con un XML, la cantidad de tareas revisadas (las de la planificación exportada) con fechas en cada una; con un .mpp, la fecha en que se guardó cada una en el proyecto.
+
+**Qué hacer:** Ninguna, si el % planificado usa la línea base aprobada; si no, indicar la línea base con linea_base o `--linea-base`.
+
 ---
 
 ### 4.3 EDT · Estructura y códigos EDT
@@ -951,7 +969,7 @@ El código está en la lista EDT y el de su tarea superior no: la fila queda deb
 
 **Tareas inactivas excluidas** · Info · generar (hoja Validación) y validar · se puede silenciar
 
-Las tareas inactivas (y su rama) no forman parte del % planificado.
+Las tareas inactivas (y su rama) no forman parte del % planificado. Con una planificación, se cuentan solo las suyas.
 
 **Qué hacer:** Ninguna. Para incluirlas, activarlas en MS Project.
 
@@ -959,7 +977,7 @@ Las tareas inactivas (y su rama) no forman parte del % planificado.
 
 **Planificación exportada** · Info · generar (hoja Validación) y validar · se puede silenciar
 
-Se exportan solo las tareas que dependen de la planificación indicada (p. ej. INTERNO).
+Se exportan solo las tareas que dependen de la planificación indicada (p. ej. INTERNO). Si la tarea de la planificación no tiene código EDT, se elige por su nombre.
 
 **Qué hacer:** Ninguna.
 
@@ -1122,6 +1140,8 @@ Fechas de la línea base y del programa actual, hitos y duración de las tareas.
 | [FEC-010](#fec-010) | Advertencia | Tareas sin fechas de línea base |
 | [FEC-011](#fec-011) | Advertencia | Tarea sin fechas de línea base |
 | [FEC-012](#fec-012) | Advertencia | Tarea sin fechas |
+| [FEC-013](#fec-013) | Advertencia | Línea base de tareas resumen distinta de la de su detalle |
+| [FEC-014](#fec-014) | Advertencia | Tarea resumen con la línea base sin resumir |
 
 #### FEC-001
 
@@ -1218,6 +1238,22 @@ Detalle de [FEC-010](#fec-010): se usaron las fechas actuales de la tarea.
 La tarea no tiene fechas de línea base ni fechas actuales: no aporta % planificado.
 
 **Qué hacer:** Indicar sus fechas o su duración.
+
+#### FEC-013
+
+**Línea base de tareas resumen distinta de la de su detalle** · Advertencia · validar · se puede silenciar
+
+Resumen de [FEC-014](#fec-014): la línea base de algunas tareas resumen no va del comienzo más temprano al fin más tardío de la línea base de sus tareas de detalle activas, o termina antes de comenzar. Suele pasar al guardar la línea base de tareas seleccionadas sin resumirla en sus tareas resumen. MS Project muestra en esas tareas fechas de línea base que no corresponden a su detalle; el libro no se ve afectado, porque usa las fechas de las tareas de detalle.
+
+**Qué hacer:** Guardar la línea base de esas tareas con Establecer línea base > Tareas seleccionadas y Resumir líneas base: Para todas las tareas de resumen, como parte de un cambio de línea base aprobado.
+
+#### FEC-014
+
+**Tarea resumen con la línea base sin resumir** · Advertencia · validar · se puede silenciar
+
+Detalle de [FEC-013](#fec-013): las fechas de la línea base de la tarea resumen y las de sus tareas de detalle.
+
+**Qué hacer:** Resumir la línea base de la tarea resumen ([FEC-013](#fec-013)).
 
 ---
 
@@ -1451,6 +1487,7 @@ Fechas reales, % completado, avance actualizado a la fecha de estado y fuera de 
 | [AVA-015](#ava-015) | Advertencia o Info | Índice de longitud del camino crítico (CPLI) |
 | [AVA-016](#ava-016) | Advertencia | Avance fuera de secuencia |
 | [AVA-017](#ava-017) | Advertencia | Tarea con avance fuera de secuencia |
+| [AVA-018](#ava-018) | Advertencia | Fecha de estado que no es fin de mes |
 
 #### AVA-001
 
@@ -1588,6 +1625,14 @@ Detalle de [AVA-016](#ava-016): la tarea tiene avance y su predecesora no termin
 
 **Qué hacer:** Corregir el avance de la tarea o de su predecesora, o el vínculo.
 
+#### AVA-018
+
+**Fecha de estado que no es fin de mes** · Advertencia · validar · se puede silenciar
+
+actualizar carga el avance en el mes de la fecha de estado, y el PV acumulado de ese mes incluye el mes completo ([ACT-018](#act-018)): el avance y el PV no corresponden a la misma fecha.
+
+**Qué hacer:** Fijar la fecha de estado en el último día del mes informado (Proyecto > Fecha de estado) o indicar `--fecha-corte`.
+
 ---
 
 ### 4.10 LOG · Lógica del cronograma
@@ -1612,6 +1657,8 @@ Vínculos, delimitaciones, holgura y duración de las tareas, según los criteri
 | [LOG-014](#log-014) | Advertencia | Tareas con holgura negativa |
 | [LOG-015](#log-015) | Advertencia | Tarea con holgura negativa |
 | [LOG-016](#log-016) | Advertencia o Info | Tareas de duración alta |
+| [LOG-017](#log-017) | Advertencia | Varias rutas críticas |
+| [LOG-018](#log-018) | Info | Vínculos con otras planificaciones |
 
 #### LOG-001
 
@@ -1657,7 +1704,7 @@ El fin de la tarea no afecta a ninguna otra tarea.
 
 **Vínculo con adelanto** · Advertencia · validar · se puede silenciar
 
-El vínculo tiene posición negativa (adelanto); la evaluación DCMA recomienda no usarlos.
+El vínculo tiene posición negativa (adelanto); la evaluación DCMA recomienda no usarlos. Una línea por tarea, con sus predecesoras con adelanto.
 
 **Qué hacer:** Reemplazar el adelanto por tareas o vínculos sin adelanto.
 
@@ -1740,6 +1787,22 @@ Detalle de [LOG-014](#log-014): la holgura total de la tarea.
 Tareas sin terminar con más de 44 días laborables de duración en la línea base (sin los hitos ni las filas LOE): son difíciles de seguir y de medir. Es una advertencia si superan el 5 % de las tareas sin terminar (criterio DCMA).
 
 **Qué hacer:** Dividir esas tareas en tareas más cortas, con entregables intermedios.
+
+#### LOG-017
+
+**Varias rutas críticas** · Advertencia · validar · se puede silenciar
+
+La opción Calcular varias rutas críticas de MS Project está activada: cada cadena de tareas tiene su propia ruta crítica y toda tarea sin sucesoras queda sin holgura, es decir, crítica. La holgura y las tareas críticas (columnas Holgura y Crítica de Indicadores EDT, paquetes críticos de actualizar) no indican la ruta crítica del proyecto.
+
+**Qué hacer:** Desactivarla (Archivo > Opciones > Avanzadas) y vincular el final de cada rama con el hito de fin del proyecto.
+
+#### LOG-018
+
+**Vínculos con otras planificaciones** · Info · validar · se puede silenciar
+
+Con una planificación (p. ej. INTERNO), algunas de sus tareas están vinculadas con tareas activas de fuera de ella (otra planificación del mismo archivo). MS Project calcula con esos vínculos las fechas, la holgura y las tareas críticas de la planificación, pero los controles de lógica (DCMA) y de avance fuera de secuencia solo cuentan los vínculos entre tareas de la planificación: una tarea cuya única sucesora es de otra planificación se informa sin sucesoras.
+
+**Qué hacer:** Ninguna, si las planificaciones deben estar vinculadas (p. ej. una replica a la otra). Si deben ser independientes, quitar esos vínculos en MS Project.
 
 ---
 
@@ -2303,6 +2366,7 @@ Carga del % ganado del mes: fecha de corte, filas del libro, BAC y observaciones
 | [ACT-048](#act-048) | Advertencia | EAC poco realista |
 | [ACT-049](#act-049) | Advertencia | Mucho BAC en filas LOE |
 | [ACT-050](#act-050) | Advertencia | Ceros intermedios con otro criterio que el libro |
+| [ACT-051](#act-051) | Advertencia | Tareas nuevas que se suman en una fila |
 
 #### ACT-001
 
@@ -2420,7 +2484,7 @@ El campo Visible de algunas tareas no coincide con las filas del libro: el libro
 
 **Tareas nuevas sin fila en el libro** · Advertencia · actualizar · se puede silenciar
 
-Se agregaron tareas en MS Project después de generar el libro: su avance no se incluye en el % ganado.
+Se agregaron tareas en MS Project después de generar el libro, con un código EDT (o en la lista EDT) que les daría fila propia, debajo de una tarea resumen del libro: su avance no se incluye en el % ganado. Las que quedan dentro de una fila de ingreso se informan con [ACT-051](#act-051).
 
 **Qué hacer:** Para incluirlas, regenerar el libro con `--migrar-desde`.
 
@@ -2572,7 +2636,7 @@ Método «Hitos ponderados» sin hitos ni % físico completado: se usó el % com
 
 **Método no definido: % completado** · Info · actualizar (observaciones por fila) · se puede silenciar
 
-La fila no tiene método de medición: se usó el % completado.
+La fila no tiene método de medición: se usó el % completado. Las filas con la misma observación se muestran en una sola línea, con sus códigos EDT.
 
 **Qué hacer:** Indicar el método en la columna C del libro o en MS Project.
 
@@ -2580,7 +2644,7 @@ La fila no tiene método de medición: se usó el % completado.
 
 **Método no reconocido: % completado** · Info · actualizar (observaciones por fila) · se puede silenciar
 
-El método de la fila no es uno de los admitidos: se usó el % completado (ver [MET-001](#met-001)).
+El método de la fila no es uno de los admitidos: se usó el % completado (ver [MET-001](#met-001)). Las filas con el mismo método se muestran en una sola línea, con sus códigos EDT.
 
 **Qué hacer:** Corregir el método en la columna C del libro o en MS Project.
 
@@ -2703,6 +2767,14 @@ El % del BAC total en filas con método LOE supera `[validacion] loe_maximo`: su
 ignorar_ceros_intermedios de la configuración no coincide con el del libro, y algunas tareas con un 0 intermedio en el código (p. ej. 1.2.0.1) tendrían otra fila: el libro conserva sus filas.
 
 **Qué hacer:** Para aplicar la configuración, regenerar el libro con `--migrar-desde`; si no, indicar en la configuración el valor con que se generó el libro.
+
+#### ACT-051
+
+**Tareas nuevas que se suman en una fila** · Advertencia · actualizar · se puede silenciar
+
+Se agregaron tareas en MS Project después de generar el libro, con un código EDT (o en la lista EDT) que les daría fila propia, dentro de una fila de ingreso: su avance se suma en el % ganado de esa fila, pero su duración no forma parte del % planificado del libro (ver [ACT-047](#act-047)).
+
+**Qué hacer:** Para darles fila propia, con su % planificado, regenerar el libro con `--migrar-desde`.
 
 ---
 

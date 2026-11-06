@@ -50,6 +50,9 @@ contratos del gobierno de EE. UU. no son obligatorios; se usan como buena práct
 
 - **Tareas revisadas:** las tareas de detalle (sin subtareas) que exporta el libro: las de la
   planificación elegida, activas y sin `Visible = No`. Las tareas resumen no se cuentan.
+- **Vínculos:** con una planificación, solo los vínculos entre sus tareas. Los que la unen con otra
+  planificación del mismo archivo se informan aparte ([LOG-018](codigos.md#log-018)): MS Project los usa
+  para calcular las fechas y la holgura, pero no son lógica de la planificación revisada.
 - **Tareas sin terminar:** las que no tienen el 100 % completado. Casi todos los controles cuentan solo
   estas tareas: lo terminado ya no se puede corregir.
 - **Días laborables:** la duración y la holgura se leen de MS Project y se pasan a días con las horas
@@ -206,6 +209,11 @@ archivo de MS Project en solo lectura. Se hace a mano, sobre una **copia** del a
 5. Si se atrasa menos o no se mueve, el camino crítico no es continuo: buscar delimitaciones, tareas sin
    sucesoras o vínculos con tareas resumen entre esa tarea y el fin. Corregirlos en el archivo original.
 6. Cerrar la copia sin guardar.
+
+La prueba solo tiene sentido con la opción *Calcular varias rutas críticas* desactivada (*Archivo >
+Opciones > Avanzadas*): con ella activada, cada cadena de tareas tiene su propia ruta crítica y toda tarea
+sin sucesoras es crítica. `validar` avisa si la opción está activada, con el % de tareas sin terminar que
+son críticas ([LOG-017](codigos.md#log-017)).
 
 ### 4.13 CPLI (punto 13)
 

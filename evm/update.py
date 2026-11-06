@@ -18,8 +18,8 @@ from evm.messages import InputError, Issue, MissingFileError
 from evm.methods import parse_method
 from evm.model import ProjectData, Task
 from evm.timeline import Horizon
-from evm.wbs import (KIND_RESIDUAL, KIND_SUMMARY, Scope, Visibility, build_tree, code_key, has_interior_zero,
-                     iter_subtree, plural, prune_inactive, row_visibility, select_scope)
+from evm.wbs import (KIND_LEAF, KIND_RESIDUAL, KIND_SUMMARY, Scope, Visibility, build_tree, code_key, code_level,
+                     has_interior_zero, iter_subtree, plural, prune_inactive, row_visibility, select_scope)
 from evm.workbook import (COL_BAC, COL_CODE, COL_METHOD, FIRST_MONTH_COL, FMT_PCT_MONTH, LEGACY_SHEET_CURVE,
                           PCT_PREFIX, SHEET_AC, SHEET_EV, SHEET_META, SHEET_PV, SHEET_SUMMARY, STATUS_CELL, StructRow,
                           WorkbookFormatError, add_s_curve_chart, book_sources, clean_text, col, company_sheet,
@@ -573,31 +573,73 @@ def _visibility_warnings(book: BookData, matches: dict[int, Task], scope: Scope,
 
 
 def _new_task_warnings(book: BookData, matches: dict[int, Task], scope: Scope, visibility: Visibility,
-                       source: str = "") -> list[Issue]:
+                       cfg: Config, source: str = "") -> list[Issue]:
     """Tareas que tendrían fila propia y no la tienen en el libro: se agregaron en MS Project después de generarlo
-    (las de Visible con valor las informa _visibility_warnings). Su avance no se incluye en el % ganado."""
+    (las de Visible con valor las informa _visibility_warnings). cfg: con el nivel máximo del libro.
+
+    - Debajo de una tarea resumen del libro (ACT-015): su avance no se incluye en el % ganado (no forman parte de la
+      fila -D).
+    - Dentro de una fila de ingreso (ACT-051): su avance se suma en esa fila, que forma con toda su rama. No se
+      informan las que 'generar' también suma en esa fila: un código de nivel no mayor al máximo debajo de una fila
+      del nivel máximo (p. ej. 3.0.14 debajo de 3.0.1, sin lista EDT), que informan EDT-004 y EDT-005."""
     from evm.fields import parse_visible
-    rows = {matches[s.row].uid for s in book.structure
-            if s.row in matches and s.kind != KIND_RESIDUAL and split_key(s.key)[0] == source}
+    mine = [s for s in book.structure if s.row in matches and split_key(s.key)[0] == source]
+    rows = {matches[s.row].uid for s in mine if s.kind != KIND_RESIDUAL}
+    inputs = {matches[s.row].uid: s for s in mine if s.kind == KIND_LEAF}
     out_ids = visibility.excluded_uids()
     new = [t for t in scope.tasks() if visibility.has_row(t) and t.uid not in rows and t.uid not in out_ids
            and (visibility.listed or parse_visible(t.visible)[0] is None)]
     uids = {t.uid for t in new}
     new = [t for t in new if t.parent is None or t.parent.uid not in uids]      # solo la tarea superior de la rama
-    if not new:
-        return []
-    tasks = ", ".join(f"{scope.raw_code(t)} '{t.name}'" for t in new[:10])
-    more = f" y {len(new) - 10} más" if len(new) > 10 else ""
-    if visibility.listed:
-        text = (f"{plural(len(new), 'tarea de la lista EDT no tiene', 'tareas de la lista EDT no tienen')} fila en "
-                f"el libro (se {'agregó' if len(new) == 1 else 'agregaron'} en MS Project después de generarlo): "
-                f"{tasks}{more}. Su avance no se incluye en el % ganado. Para incluirlo, se debe regenerar el libro "
-                "con --migrar-desde.")
-    else:
-        text = (f"{plural(len(new), 'tarea con código EDT no tiene', 'tareas con código EDT no tienen')} fila en el "
-                f"libro (se {'agregó' if len(new) == 1 else 'agregaron'} después de generarlo): {tasks}{more}. Su "
-                "avance no se incluye en el % ganado. Para incluirlo, se debe regenerar el libro con --migrar-desde.")
-    return [Issue("ACT-015", message=text)]
+
+    def input_row(t: Task) -> StructRow | None:
+        """Fila de ingreso que suma la tarea (None si su fila más cercana es una fila resumen)."""
+        p = t.parent
+        while p is not None:
+            if p.uid in inputs:
+                return inputs[p.uid]
+            if p.uid in rows:
+                return None
+            p = p.parent
+        return None
+
+    missing: list[Task] = []
+    summed: list[tuple[Task, StructRow]] = []
+    for t in new:
+        row = input_row(t)
+        if row is None:
+            missing.append(t)
+        elif visibility.listed or code_level(scope.raw_code(matches[row.row]), cfg.ignore_interior_zeros) \
+                < cfg.max_level:
+            summed.append((t, row))
+    out: list[Issue] = []
+    listed = visibility.listed
+    if missing:
+        tasks = ", ".join(f"{scope.raw_code(t)} '{t.name}'" for t in missing[:10])
+        more = f" y {len(missing) - 10} más" if len(missing) > 10 else ""
+        one = len(missing) == 1
+        if listed:
+            text = (f"{plural(len(missing), 'tarea de la lista EDT no tiene', 'tareas de la lista EDT no tienen')} "
+                    f"fila en el libro (se {'agregó' if one else 'agregaron'} en MS Project después de generarlo): "
+                    f"{tasks}{more}. Su avance no se incluye en el % ganado. Para incluirlo, se debe regenerar el libro "
+                    "con --migrar-desde.")
+        else:
+            text = (f"{plural(len(missing), 'tarea con código EDT no tiene', 'tareas con código EDT no tienen')} fila "
+                    f"en el libro (se {'agregó' if one else 'agregaron'} después de generarlo): {tasks}{more}. Su "
+                    "avance no se incluye en el % ganado. Para incluirlo, se debe regenerar el libro con "
+                    "--migrar-desde.")
+        out.append(Issue("ACT-015", message=text))
+    if summed:
+        tasks = ", ".join(f"{scope.raw_code(t)} '{t.name}' (en la fila {row.code})" for t, row in summed[:10])
+        more = f" y {len(summed) - 10} más" if len(summed) > 10 else ""
+        one = len(summed) == 1
+        what = ("tarea de la lista EDT no tiene", "tareas de la lista EDT no tienen") if listed else \
+            ("tarea con código EDT no tiene", "tareas con código EDT no tienen")
+        out.append(Issue("ACT-051", message=(
+            f"{plural(len(summed), *what)} fila en el libro (se {'agregó' if one else 'agregaron'} después de "
+            f"generarlo): {tasks}{more}. Su avance se suma en el % ganado de esa fila, pero su duración no forma parte "
+            "del % planificado del libro. Para darle fila propia, se debe regenerar el libro con --migrar-desde.")))
+    return out
 
 
 def _month_end(d: date) -> date:
@@ -785,7 +827,8 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
             warnings += [_tag(n, x) for x in _interior_zero_warnings(scope, replace(pcfg, max_level=level),
                                                                      visibility, configured_zeros)]
         warnings += [_tag(n, x) for x in _visibility_warnings(book, found, scope, visibility, n)]
-        warnings += [_tag(n, x) for x in _new_task_warnings(book, found, scope, visibility, n)]
+        warnings += [_tag(n, x) for x in _new_task_warnings(book, found, scope, visibility,
+                                                            replace(pcfg, max_level=level), n)]
         hidden[n] = (visibility.excluded_uids(), {t.uid for t in visibility.excluded})
         matches.update(found)
         unlisted.update(_unlisted_packages(book, found, visibility))

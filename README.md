@@ -23,8 +23,8 @@ simulado.*
 - Selección de la **planificación** a exportar cuando el proyecto tiene varias (por ejemplo `INTERNO` y
   `CLIENTE`).
 - **Revisión del archivo de MS Project** antes de exportar (comando `validar`, sin crear archivos):
-  códigos EDT, fechas y duración, pesos de los hitos, método de medición, avance a la fecha de estado y
-  lógica del cronograma (criterios DCMA).
+  códigos EDT, fechas, duración y línea base, pesos de los hitos, método de medición, avance a la fecha de
+  estado y lógica del cronograma (criterios DCMA).
 - Cálculo del **% ganado** de cada paquete a la fecha de corte, según su **método de medición** (0/100,
   50/50, hitos ponderados, % completado, % físico completado, unidades y LOE), y carga del valor del mes
   en el libro. El **AC** se carga a mano.

@@ -65,15 +65,20 @@ errores y, en cada severidad, las observaciones generales, las de las filas EDT 
 - los pesos de los hitos, el campo `Visible`, el método de medición (también frente a la duración del
   paquete) y las empresas.
 
-Además, revisa dos aspectos del cronograma que no afectan al libro:
+Además, revisa aspectos del cronograma que no afectan al libro:
 
+- **Línea base:** las líneas base guardadas y la que usa el % planificado, y las tareas resumen cuya
+  línea base no coincide con la de sus tareas de detalle (no se resumió al guardarla).
 - **Avance a la fecha de estado:** *Comienzo real* y *Fin real* coherentes con el *% completado*,
-  avance posterior a la fecha de estado, trabajo pendiente programado antes de la fecha de estado
-  (cronograma sin actualizar), avance fuera de secuencia, índice de ejecución de la línea base (BEI),
-  tareas incumplidas respecto de la línea base e índice de longitud del camino crítico (CPLI).
+  avance posterior a la fecha de estado, fecha de estado que no es el último día del mes, trabajo
+  pendiente programado antes de la fecha de estado (cronograma sin actualizar), avance fuera de
+  secuencia, índice de ejecución de la línea base (BEI), tareas incumplidas respecto de la línea base e
+  índice de longitud del camino crítico (CPLI).
 - **Lógica del cronograma:** tareas sin predecesoras o sin sucesoras, adelantos, posiciones, vínculos
   comienzo a fin, proporción de vínculos fin a comienzo, vínculos en tareas resumen, delimitaciones que
-  fijan fechas, holgura alta, holgura negativa y tareas de duración alta.
+  fijan fechas, holgura alta, holgura negativa, tareas de duración alta y la opción *Calcular varias
+  rutas críticas* de MS Project. Con una planificación, solo cuentan los vínculos entre sus tareas, y se
+  informan los que la unen con otras planificaciones.
 
 Con estos controles, `validar` revisa 12 de los 14 puntos de la
 [evaluación DCMA de calidad de cronogramas](evaluacion-dcma.md). El detalle de cada control está en
@@ -102,10 +107,11 @@ Validación: Programa de ejemplo EVM
   Planificación: INTERNO  |  Línea base  |  Fecha de estado: 30/06/2027
   Tareas revisadas: 51  |  Filas EDT: 36 (24 de ingreso)  |  Nivel máximo: 3
 
-Lectura y configuración: sin observaciones
+Lectura y configuración: 1 informativa
+  [i] LEC-024 Líneas base guardadas en las tareas revisadas: Línea base (51 tareas). El % planificado usa la Línea base, la que el proyecto usa para el valor acumulado (Archivo > Opciones > Avanzadas).
 
 Estructura y códigos EDT: 3 informativas
-  [i] EDT-017 INTERNO Planificación interna: Planificación 'INTERNO': se exportan las 51 tareas que dependen de 'Planificación interna'.
+  [i] EDT-017 Planificación 'INTERNO' («Planificación interna»): se exportan las 51 tareas que dependen de ella.
   ...
 
 Campo Visible: sin observaciones
@@ -128,8 +134,8 @@ Avance a la fecha de estado: 2 advertencias, 1 informativa
 Lógica del cronograma: 1 advertencia
   [!] LOG-001 El cronograma no tiene vínculos entre tareas: las fechas no se recalculan cuando cambian las duraciones o el avance. Se recomienda vincular las tareas (cada tarea con al menos una predecesora y una sucesora).
 
-Resultado: 9 advertencias, 5 informativas.
-  Por alcance: generales: 3 advertencias, 5 informativas; en filas EDT: 6 advertencias.
+Resultado: 9 advertencias, 6 informativas.
+  Por alcance: generales: 3 advertencias, 6 informativas; en filas EDT: 6 advertencias.
 No se creó ni se modificó ningún archivo.
 ```
 
@@ -185,7 +191,7 @@ Proyecto: Programa de ejemplo EVM
   Horizonte: 01/2026 a 12/2035 (120 meses)
   BAC: se debe ingresar el BAC de cada fila en la columna D de PV (celdas amarillas).
   [i] LIB-001 El PV y el EV de cada fila son el BAC × el % planificado y el % ganado (hojas % PV y % EV), que se calculan con la duración de la línea base de las tareas y el peso de los hitos. Se debe ingresar el BAC de cada fila en las celdas amarillas de la columna D de la hoja PV.
-  [i] EDT-017 INTERNO Planificación interna: Planificación 'INTERNO': se exportan las 51 tareas que dependen de 'Planificación interna'.
+  [i] EDT-017 Planificación 'INTERNO' («Planificación interna»): se exportan las 51 tareas que dependen de ella.
   [i] EDT-020 Se omitió 1 tarea sin código EDT que no depende de ningún elemento EDT: no forma parte de ninguna fila del libro.
   [i] EDT-022 14 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.
   [i] MET-005 1 fila sin método de medición definido (columna C).

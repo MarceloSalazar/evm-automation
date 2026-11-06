@@ -48,6 +48,22 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   Project (`ACT-047`). Observaciones del comando: `DEP-012` a `DEP-018`, nuevos
   ([Depuración de costes](docs/depuracion-costes.md#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes),
   [Comandos](docs/comandos.md#procesar-costes-pv-con-el-reparto-del-plan-de-costes)).
+- **Más controles en `validar`:** las líneas base guardadas (con un XML, cuántas tareas revisadas tiene
+  cada una; con un `.mpp`, la fecha en que se guardó) y la que usa el % planificado (`LEC-024`); las
+  tareas resumen cuya línea base no coincide con la de sus tareas de detalle porque no se resumió al
+  guardarla (`FEC-013` y `FEC-014`); la fecha de estado que no es el último día del mes, con el mes en
+  que `actualizar` cargaría el avance (`AVA-018`); la opción *Calcular varias rutas críticas* de MS
+  Project activada, con el % de tareas sin terminar que son críticas (`LOG-017`), y, con una
+  planificación, los vínculos que la unen con otras planificaciones del archivo (`LOG-018`). `generar` y
+  `validar` avisan además, en multi-empresa, cuando el campo `% Reparto` existe pero está vacío en todas
+  las tareas y las tareas `Ambas` se reparten con el reparto por defecto (`LEC-023`)
+  ([Validaciones](docs/validaciones-y-problemas.md#1-validaciones)). Todos los códigos son nuevos.
+- **Mensajes más claros:** el aviso de % planificado posterior al último mes del horizonte (`CFG-045`)
+  indica hasta qué % del BAC llega el PV de cada fila y cuántos meses hacen falta; los adelantos
+  (`LOG-006`) se informan en una línea por tarea, con sus predecesoras; las observaciones de fila de
+  `actualizar` iguales en varias filas (por ejemplo `ACT-034`, método no definido) se muestran en una
+  línea con sus códigos EDT, y la planificación exportada (`EDT-017`) se nombra una sola vez e indica si
+  se eligió por el nombre de la tarea, porque no tiene código EDT.
 
 ### Correcciones
 
@@ -60,6 +76,28 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   `AC` (y las de cada empresa) e `Indicadores EDT`, y a la tabla por elemento EDT del Cuadro de Mando
   ([El libro Excel](docs/libro-excel.md)). Los libros ya generados conservan sus colores; el cambio se ve
   en los libros que se generan de nuevo.
+- **Tareas nuevas dentro de una fila del libro:** `actualizar` informaba como tareas agregadas después de
+  generar el libro, con su avance fuera del % ganado (`ACT-015`), las tareas con un código EDT de nivel
+  no mayor al máximo colgadas de una fila del nivel máximo (por ejemplo `1.1.4` debajo de `1.1.1`), que
+  `generar` suma en esa fila y cuyo avance sí se incluye. Ya no se informan: los códigos que no dependen
+  de su tarea superior se informan al generar (`EDT-005`). Las tareas que sí se agregaron después dentro
+  de una fila de ingreso se informan con un aviso nuevo (`ACT-051`): su avance se suma en esa fila, pero
+  no forman parte de su % planificado. `ACT-015` queda para las tareas cuyo avance no se incluye.
+- **Fechas de plan de las filas:** las columnas *Fecha inicio Plan* y *Fecha fin Plan* de las hojas `PV`,
+  `EV` y `AC` se toman de las tareas de detalle que forman el % planificado de la fila (en una fila
+  subtotal, de sus filas), igual que el fin de línea base de `Indicadores EDT`. Antes eran las de la
+  línea base de la tarea resumen, que no coinciden con el % planificado si la línea base no se resumió
+  al guardarla, si la rama tiene tareas con `Visible = No` o tareas sin línea base, y podían tener el fin
+  antes del comienzo ([El libro Excel](docs/libro-excel.md#2-hojas-pv-ev-y-ac)). Los libros ya generados
+  conservan sus fechas; el cambio se ve en los libros que se generan de nuevo.
+- **Solo la planificación elegida:** con `planificacion` (por ejemplo `INTERNO`), el aviso de tareas
+  inactivas excluidas (`EDT-016`) contaba las de todo el archivo, también las de otras planificaciones;
+  ahora cuenta solo las de la planificación. Los controles de lógica de `validar` (criterios DCMA) y el
+  avance fuera de secuencia contaban los vínculos con tareas de otras planificaciones: una tarea cuya
+  única sucesora era de otra planificación no se informaba sin sucesoras, y los vínculos con los que una
+  planificación replica a otra cambiaban la proporción de vínculos fin a comienzo. Ahora solo cuentan
+  los vínculos entre tareas de la planificación, y `LOG-018` informa los demás
+  ([Planificación exportada](docs/calculo-pv-ev.md#31-planificación-exportada)).
 
 ### Otros
 

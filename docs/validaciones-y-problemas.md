@@ -10,6 +10,7 @@
    1. [Datos del libro (generar y validar)](#11-datos-del-libro-generar-y-validar)
    2. [Avance a la fecha de estado (validar)](#12-avance-a-la-fecha-de-estado-validar)
    3. [Lógica del cronograma (validar)](#13-lógica-del-cronograma-validar)
+   4. [Línea base (validar)](#14-línea-base-validar)
 2. [Limitaciones conocidas](#2-limitaciones-conocidas)
 3. [Solución de problemas](#3-solución-de-problemas)
 
@@ -71,6 +72,7 @@ cronograma de las secciones [1.2](#12-avance-a-la-fecha-de-estado-validar) y
 | Método `0/100` en un paquete de más de `meses_0_100` meses (1 por defecto) o `50/50`, `25/75`, `20/80` en uno de más de `meses_formula_fija` meses (2) | Con esos métodos el EV queda en 0 (o en el % inicial) hasta que el paquete termina. Dividir el paquete o usar un método de avance; los umbrales se ajustan en [`[validacion]`](configuracion.md#claves). |
 | Campo de método o de empresa que existe, pero está vacío en todas las tareas | Revisar el nombre o el alias del campo en la configuración. |
 | Multi-empresa: `% Reparto` en una tarea que no es `Ambas` (`Info`) | El reparto solo se usa en las tareas `Ambas`; en las demás se ignora. |
+| Multi-empresa: el campo `% Reparto` existe, pero está vacío en todas las tareas (`Advertencia`) | Las tareas de detalle `Ambas` se reparten con `reparto_por_defecto`: cargar el reparto acordado en esas tareas (o en su tarea superior) o confirmar que el reparto por defecto es el correcto. |
 | Recordatorio de dónde se ingresa el BAC | Ingresar el BAC de cada fila en la columna D de la hoja `PV` (o de cada empresa) ([Cálculo del PV y el EV](calculo-pv-ev.md#14-controles-y-validaciones)). |
 | Tareas sin fechas de línea base | Tareas agregadas después de guardar la línea base: su % planificado usa sus fechas actuales. Si están aprobadas, guardar la línea base de esas tareas. |
 | Pesos de hitos que suman más de 100 (o menos, sin tareas con duración), pesos negativos, filas sin pesos o sin fechas | Revisar el `Peso hito` de los hitos de la fila y las fechas de sus tareas ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)). |
@@ -82,7 +84,7 @@ cronograma de las secciones [1.2](#12-avance-a-la-fecha-de-estado-validar) y
 | Proyecto sin línea base: se usaron las fechas actuales | Guardar la línea base antes de informar ([Preparación en MS Project](preparacion-ms-project.md#6-línea-base)). |
 | Tareas sin código EDT que forman una fila `-D Otras tareas` | Tareas con duración (o hitos con peso) directamente bajo un elemento de nivel 1 o 2: la fila tiene su propio BAC. |
 | Excepciones de calendario que no se interpretan (por ejemplo, "primer lunes de mayo") | Se omiten; solo afectan el reparto del % planificado entre meses (motor XML). |
-| % planificado anterior al mes 1 o posterior al último mes | Revisar `mes_inicio` y `meses`. |
+| % planificado anterior al mes 1 o posterior al último mes | Revisar `mes_inicio` y `meses`. Si es posterior, el aviso indica hasta qué % del BAC llega el PV de cada fila, el último mes con % planificado y cuántos meses hacen falta. |
 | Filas sin método de medición | Completar el método en MS Project o en la columna C de la hoja `PV`. |
 | Tareas inactivas excluidas | Informativo (con `incluir_inactivas = false`): no forman parte del % planificado. |
 | Multi-empresa: tareas sin empresa, valores no reconocidos y `% Reparto` fuera de rango | Completar la columna `Empresa` y revisar los repartos ([Multi-empresa](multiempresa.md#7-validaciones-y-controles)). |
@@ -93,7 +95,9 @@ cronograma de las secciones [1.2](#12-avance-a-la-fecha-de-estado-validar) y
 | Varios archivos: observaciones precedidas por el nombre del archivo (`[P1]`, `[P2]`) y monedas distintas | Revisar cada archivo; si las monedas difieren, indicar `moneda` en `[exportacion]` ([Varios archivos](varios-archivos.md#8-validaciones-y-controles)). |
 
 `actualizar` informa sus controles en pantalla: filas con % ganado y sin BAC, filas cuya tarea ya no
-existe o está inactiva, tareas con código EDT sin fila en el libro, cambios del campo `Visible` o de la
+existe o está inactiva, tareas con código EDT agregadas después de generar el libro (sin fila propia: su
+avance no se incluye si cuelgan de una tarea resumen del libro, y se suma en la fila si están dentro de
+una fila de ingreso), cambios del campo `Visible` o de la
 lista EDT, celdas sin la fórmula del libro, cambios del BAC y de meses ya informados (que agrega a la hoja
 `Registro de cambios`), EV y AC incoherentes, análisis del mes anterior incompleto, acciones vencidas,
 meses sin informe, línea base de MS Project distinta de la del libro, EAC poco realista y peso del LOE en
@@ -113,6 +117,7 @@ No afectan al libro de `generar`, pero sí al % ganado que calcula `actualizar`.
 | *Fin real* sin *Comienzo real*, o anterior a él (`Error`) | Corregir las fechas reales. |
 | *% completado* mayor que 0 sin *Comienzo real*; 100 % sin *Fin real*; *Fin real* con menos del 100 % | Registrar el avance de forma coherente: para el programa, una tarea con *Fin real* y menos del 100 % no está terminada. |
 | *Comienzo real* o *Fin real* posterior a la fecha de estado (`Error`) | Avance registrado en el futuro: corregir la fecha real o la fecha de estado. |
+| Fecha de estado que no es el último día del mes (`Advertencia`) | `actualizar` carga el avance en el mes de la fecha de estado, con el PV acumulado del mes completo: fijar la fecha de estado en el último día del mes informado o indicar `--fecha-corte`. |
 | Trabajo pendiente antes de la fecha de estado: tareas sin terminar con *Fin* anterior a la fecha de estado, o sin avance con *Comienzo* anterior | El cronograma no está actualizado: registrar el avance o reprogramar el trabajo pendiente después de la fecha de estado (*Proyecto > Actualizar proyecto*). |
 | Tareas que debían comenzar según la línea base y no comenzaron (`Info`) | Atrasos respecto de la línea base. |
 | Índice de ejecución de la línea base (BEI): tareas terminadas / tareas que debían terminar según la línea base (`Advertencia` si es menor que 0,95) | Lista las tareas que debían terminar y no terminaron. |
@@ -125,15 +130,17 @@ No afectan al libro de `generar`, pero sí al % ganado que calcula `actualizar`.
 
 Se revisan los vínculos, las delimitaciones, la holgura y la duración de las tareas exportadas con los
 criterios de la evaluación **DCMA de 14 puntos** (*Defense Contract Management Agency*), una referencia
-habitual de calidad de cronogramas. No afectan al cálculo del libro, pero un cronograma sin lógica no
-reprograma las fechas cuando cambia el avance. Qué mide cada punto, cómo lo calcula el programa y qué
-puntos no revisa está en [Evaluación DCMA de 14 puntos](evaluacion-dcma.md).
+habitual de calidad de cronogramas. Con una planificación (`planificacion`), solo cuentan los vínculos
+entre sus tareas: una tarea cuya única sucesora es de otra planificación se informa sin sucesoras. No
+afectan al cálculo del libro, pero un cronograma sin lógica no reprograma las fechas cuando cambia el
+avance. Qué mide cada punto, cómo lo calcula el programa y qué puntos no revisa está en [Evaluación DCMA
+de 14 puntos](evaluacion-dcma.md).
 
 | Observación | Criterio DCMA | Qué revisar |
 |---|---|---|
 | El cronograma no tiene vínculos entre tareas | — | Vincular las tareas. |
 | Tareas sin terminar sin predecesoras o sin sucesoras (no cuentan la primera y la última tarea del proyecto; el vínculo de una tarea resumen cuenta para sus subtareas) | Hasta 5 % | Agregar los vínculos que faltan. |
-| Vínculos con adelanto (posición negativa) | Ninguno | Reemplazar el adelanto por un vínculo comienzo a comienzo o dividir la tarea. |
+| Vínculos con adelanto (posición negativa), en una línea por tarea con sus predecesoras | Ninguno | Reemplazar el adelanto por un vínculo comienzo a comienzo o dividir la tarea. |
 | Vínculos con posición positiva | Hasta 5 % | Una espera fija oculta trabajo que conviene representar como tarea. |
 | Vínculos comienzo a fin (CF) y proporción de vínculos fin a comienzo (FC) | Al menos 90 % FC | Usar vínculos fin a comienzo. |
 | Tareas resumen con vínculos | — | Vincular las tareas de detalle. |
@@ -141,6 +148,18 @@ puntos no revisa está en [Evaluación DCMA de 14 puntos](evaluacion-dcma.md).
 | Tareas sin terminar con más de 44 días laborables de holgura total (sin las filas LOE; no se revisa en un cronograma sin vínculos) | Hasta 5 % | Una holgura alta suele indicar que faltan sucesoras. |
 | Tareas sin terminar con holgura negativa: su fin previsto supera una fecha límite o una delimitación | Ninguna | Recuperar el atraso en el trabajo que queda o revisar la fecha límite. |
 | Tareas sin terminar con más de 44 días laborables de duración en la línea base (sin los hitos ni las filas LOE) | Hasta 5 % | Dividirlas en tareas más cortas, con entregables intermedios. |
+| Vínculos entre la planificación exportada y otras planificaciones (`Info`) | — | MS Project calcula con ellos las fechas, la holgura y las tareas críticas, pero los controles de lógica no los cuentan. Si las planificaciones deben ser independientes, quitarlos en MS Project. |
+| Opción *Calcular varias rutas críticas* activada, con el % de tareas sin terminar que son críticas | — | Cada cadena de tareas tiene su propia ruta crítica y toda tarea sin sucesoras es crítica: la holgura y las tareas críticas no indican la ruta crítica del proyecto. Desactivarla (*Archivo > Opciones > Avanzadas*) y vincular el final de cada rama con el hito de fin. |
+
+### 1.4 Línea base (validar)
+
+Se revisan las líneas base del archivo. No afectan al libro, que usa las fechas de las tareas de detalle,
+pero sí a lo que muestra MS Project.
+
+| Observación | Qué revisar |
+|---|---|
+| Líneas base guardadas (`Info`): con un XML, cuántas tareas tienen fechas en cada una; con un `.mpp`, la fecha en que se guardó cada una. Indica la que usa el % planificado | Que sea la línea base aprobada; si no, indicarla con `linea_base` o `--linea-base`. |
+| Tareas resumen cuya línea base no coincide con la de sus tareas de detalle activas (del comienzo más temprano al fin más tardío), o termina antes de comenzar (`Advertencia`) | La línea base de esas tareas no se resumió al guardar la de sus tareas, o se modificó a mano. Guardar la línea base de esas tareas con *Establecer línea base > Tareas seleccionadas* y *Resumir líneas base: Para todas las tareas de resumen*, como parte de un cambio aprobado. |
 
 ---
 
@@ -172,8 +191,8 @@ puntos no revisa está en [Evaluación DCMA de 14 puntos](evaluacion-dcma.md).
   los meses sin datos de EV y AC en los gráficos.
 - El lector `.mpp` se prueba con objetos que simulan MS Project y, de forma opcional, con un proyecto
   real ([Desarrollo](desarrollo.md#11-pruebas-con-ms-project-real-opcionales)). En el primer uso con un
-  proyecto real se recomienda comparar las fechas de línea base de algunas filas (columnas E y F de la
-  hoja `PV`) con las de MS Project, y revisar el resultado de `actualizar --simular`.
+  proyecto real se recomienda comparar las fechas de algunas filas (columnas E y F de la hoja `PV`) con
+  las de línea base de sus tareas en MS Project, y revisar el resultado de `actualizar --simular`.
 
 ---
 
