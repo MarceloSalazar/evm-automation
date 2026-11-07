@@ -18,6 +18,20 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Nuevas funciones
 
+- Ninguna.
+
+### Correcciones
+
+- Ninguna.
+
+### Otros
+
+- Ninguna.
+
+## [2.5.0] - 2026-11-07 · Observaciones por prioridad, plan de costes en tres niveles y revisión de mejoras con validar
+
+### Nuevas funciones
+
 - **Observaciones por prioridad (alcance y fila del libro):** cada observación de la hoja `Validación`
   y de la consola indica su alcance: `General` (el proyecto, la configuración o el libro), `Fila EDT`
   (una fila de las hojas `PV`, `EV` y `AC`), `Detalle` (tarea que se suma en una fila: de nivel mayor al
@@ -126,7 +140,11 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Otros
 
-- Ninguna.
+- Presentación: la versión en la portada y la hoja nueva `Validación detalle` entre las pestañas del libro;
+  en las notas, el orden de las observaciones de la hoja `Validación`, la evaluación DCMA y el informe de
+  mejoras de `validar`. Capturas de la hoja `Validación` actualizadas.
+- Esta versión no publica instalador de Windows: las funciones nuevas se usan con la instalación con
+  Python, y el instalador de la versión 2.4.1 sigue disponible, sin ellas.
 
 ## [2.4.1] - 2026-10-31 · Ceros del código EDT, correcciones de la revisión y rendimiento
 
@@ -774,7 +792,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.1...HEAD
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.5.0...HEAD
+[2.5.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.1...v2.5.0
 [2.4.1]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.2.1...v2.3.0
