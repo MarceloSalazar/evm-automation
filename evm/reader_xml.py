@@ -252,12 +252,12 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True) -> ProjectData:
             continue
 
         bl = None
-        saved: list[int] = []           # líneas base con fechas en la tarea
+        saved: list[int] = []           # líneas base con comienzo en la tarea (como con COM)
         for b in el.findall(r.q("Baseline")):
             number = r.text(b, "Number")
             if number == str(n):
                 bl = b
-            if number.isdigit() and (r.text(b, "Start") or r.text(b, "Finish")):
+            if number.isdigit() and r.text(b, "Start"):
                 saved.append(int(number))
         bl_start = r.date(bl, "Start") if bl is not None else None
         bl_finish = r.date(bl, "Finish") if bl is not None else None

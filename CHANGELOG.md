@@ -48,8 +48,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   Project (`ACT-047`). Observaciones del comando: `DEP-012` a `DEP-018`, nuevos
   ([Depuración de costes](docs/depuracion-costes.md#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes),
   [Comandos](docs/comandos.md#procesar-costes-pv-con-el-reparto-del-plan-de-costes)).
-- **Más controles en `validar`:** las líneas base guardadas (cuántas tareas revisadas tienen fechas en
-  cada una) y la que usa el % planificado (`LEC-024`); las
+- **Más controles en `validar`:** las líneas base guardadas (cuántas tareas revisadas tienen fecha de
+  comienzo en cada una) y la que usa el % planificado (`LEC-024`); las
   tareas resumen cuya línea base no coincide con la de sus tareas de detalle porque no se resumió al
   guardarla (`FEC-013` y `FEC-014`); la fecha de estado que no es el último día del mes, con el mes en
   que `actualizar` cargaría el avance (`AVA-018`); la opción *Calcular varias rutas críticas* de MS

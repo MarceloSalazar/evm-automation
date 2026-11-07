@@ -811,7 +811,7 @@ En multi-empresa, el campo de reparto existe, pero está vacío en todas las tar
 
 **Líneas base guardadas** · Info · validar · se puede silenciar
 
-Líneas base guardadas y la que usa el % planificado: la cantidad de tareas revisadas (las de la planificación exportada) con fechas en cada una.
+Líneas base guardadas y la que usa el % planificado: la cantidad de tareas revisadas (las de la planificación exportada) con fecha de comienzo en cada una.
 
 **Qué hacer:** Ninguna, si el % planificado usa la línea base aprobada; si no, indicar la línea base con linea_base o `--linea-base`.
 

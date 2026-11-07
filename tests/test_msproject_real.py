@@ -231,7 +231,7 @@ def projects(books):
 
 def test_same_project_options_and_saved_baselines(projects):
     """Opción Calcular varias rutas críticas (LOG-017), línea base que usa el % planificado y cantidad de tareas
-    con fechas en cada línea base (LEC-024): los mismos con COM y con XML."""
+    con fecha de comienzo en cada línea base (LEC-024): los mismos con COM y con XML."""
     com, xml = projects["com"], projects["xml"]
     critical = (com.multiple_critical_paths, xml.multiple_critical_paths)
     assert critical[0] is not None, "COM no leyó la opción MultipleCriticalPaths del proyecto."
@@ -247,7 +247,7 @@ def test_same_project_options_and_saved_baselines(projects):
         return dict(sorted(out.items()))
 
     saved = (counts(com), counts(xml))
-    assert saved[0] == saved[1], f"Tareas con fechas en cada línea base: COM {saved[0]} / XML {saved[1]}"
+    assert saved[0] == saved[1], f"Tareas con comienzo en cada línea base: COM {saved[0]} / XML {saved[1]}"
 
 
 def test_same_calendar(projects):

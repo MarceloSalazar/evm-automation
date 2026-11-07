@@ -68,7 +68,7 @@ class Task:
     constraint_type: int = CONSTRAINT_ASAP
     constraint_date: datetime | None = None
     predecessors: list[Link] = field(default_factory=list)
-    # Líneas base con fechas en la tarea (0 = Línea base, 1..10): siempre con XML; con COM, solo en validar
+    # Líneas base con fecha de comienzo en la tarea (0 = Línea base, 1..10): siempre con XML; con COM, solo en validar
     baselines: tuple[int, ...] = ()
 
     # Campos personalizados configurados

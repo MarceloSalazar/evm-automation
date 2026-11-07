@@ -534,9 +534,9 @@ class ComSession:
             has_bl = bl_start is not None or bl_finish is not None
             any_baseline = any_baseline or has_bl
             saved: tuple[int, ...] = ()
-            if baselines:               # el comienzo de cada línea base ('NA' si la tarea no la tiene)
-                saved = tuple(k for k in range(11) if (has_bl if k == n else
-                                                       _dt(_get(t, f"Baseline{'' if k == 0 else k}Start")) is not None))
+            if baselines:               # el comienzo de cada línea base ('NA' si la tarea no la tiene), como en el XML
+                saved = tuple(k for k in range(11) if (bl_start if k == n else
+                                                       _dt(_get(t, f"Baseline{'' if k == 0 else k}Start"))) is not None)
             wbs = self._field_value(t, wbs_ref)
             weight = self._field_value(t, weight_ref)
             company = self._field_value(t, company_ref)

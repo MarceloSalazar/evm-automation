@@ -473,7 +473,7 @@ def baseline_checks(project: ProjectData, scope: Scope, code_of: CodeOf, cfg: Co
     de las ramas con Visible = No; las inactivas no cuentan, como en MS Project."""
     issues: list[Issue] = []
     used = _baseline_label(project.baseline_number)
-    # Tareas revisadas (de la planificación exportada) con fechas en cada línea base
+    # Tareas revisadas (de la planificación exportada) con fecha de comienzo en cada línea base
     counts: dict[int, int] = {}
     for t in scope.tasks():
         for n in t.baselines:

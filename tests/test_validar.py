@@ -952,7 +952,8 @@ def test_xml_reads_saved_baselines_and_critical_paths_option(tmp_path):
     path = write_xml(tmp_path / "p.xml", project_xml([
         task_xml(0, 0, "Proyecto", start=S, finish=F, baselines=[(0, S, F, 0)]),       # no cuenta
         task_xml(1, 1, "A", wbs="1", start=S, finish=F, baselines=[(0, S, F, 0), (1, S, F, 0)]),
-        task_xml(2, 1, "B", wbs="2", start=S, finish=F, baselines=[(0, S, F, 0), (2, None, None, 0)]),
+        task_xml(2, 1, "B", wbs="2", start=S, finish=F,
+                 baselines=[(0, S, F, 0), (2, None, None, 0), (3, None, F, 0)]),    # solo el fin: no cuenta
     ], header="<BaselineForEarnedValue>1</BaselineForEarnedValue><MultipleCriticalPaths>1</MultipleCriticalPaths>"))
     p = read_xml(path, Config())
     assert (p.baseline_number, p.multiple_critical_paths) == (1, True)

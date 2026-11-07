@@ -158,7 +158,7 @@ pero sí a lo que muestra MS Project.
 
 | Observación | Qué revisar |
 |---|---|
-| Líneas base guardadas (`Info`): cuántas tareas revisadas tienen fechas en cada una. Indica la que usa el % planificado | Que sea la línea base aprobada; si no, indicarla con `linea_base` o `--linea-base`. |
+| Líneas base guardadas (`Info`): cuántas tareas revisadas tienen fecha de comienzo en cada una. Indica la que usa el % planificado | Que sea la línea base aprobada; si no, indicarla con `linea_base` o `--linea-base`. |
 | Tareas resumen cuya línea base no coincide con la de sus tareas de detalle activas (del comienzo más temprano al fin más tardío), o termina antes de comenzar (`Advertencia`) | La línea base de esas tareas no se resumió al guardar la de sus tareas, o se modificó a mano. Guardar la línea base de esas tareas con *Establecer línea base > Tareas seleccionadas* y *Resumir líneas base: Para todas las tareas de resumen*, como parte de un cambio aprobado. |
 
 ---

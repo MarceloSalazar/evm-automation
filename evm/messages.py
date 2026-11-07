@@ -498,7 +498,7 @@ _CODES = [
           "por defecto es el acordado.", W_GV),
     _code("LEC-024", I, "Líneas base guardadas",
           "Líneas base guardadas y la que usa el % planificado: la cantidad de tareas revisadas (las de la "
-          "planificación exportada) con fechas en cada una.",
+          "planificación exportada) con fecha de comienzo en cada una.",
           "Ninguna, si el % planificado usa la línea base aprobada; si no, indicar la línea base con linea_base o "
           "--linea-base.", W_V),
     _code("LEC-025", W, "Calendario del proyecto no leído",
