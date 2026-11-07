@@ -247,8 +247,10 @@ reparto_por_defecto = 50
 # Obligatorio para generar-cliente; el resto de los comandos no lo usa.
 # campo = "Etiqueta Cliente"
 
-# Nombre de la tarea de la planificación (la de [exportacion] planificacion, por
-# ejemplo INTERNO) en el archivo del cliente. Vacío = conserva su nombre.
+# Solo si el archivo tiene varias planificaciones y se indica la interna en
+# [exportacion] planificacion (por ejemplo INTERNO): nombre de esa tarea en el
+# archivo del cliente. Vacío = conserva su nombre. Con una sola planificación
+# (planificacion vacía) no se usa.
 nombre_planificacion = "CLIENTE"
 
 # Fechas que cambian al quitar las tareas ocultas: true = se fijan con la

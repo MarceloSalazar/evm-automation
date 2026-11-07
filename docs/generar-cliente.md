@@ -26,9 +26,12 @@ mano. Se vuelve a generar en cada entrega, junto con su libro EVM.
 
 - Un campo personalizado de texto (por ejemplo *Texto15*, con el alias `Etiqueta Cliente`) indica, tarea
   por tarea, si el cliente la ve: `Sí` o `No`. Se configura en `[cliente] campo`.
-- Si el archivo tiene varias planificaciones (por ejemplo `INTERNO` y `CLIENTE`), la planificación interna
-  es una tarea de **primer nivel** del esquema y se indica en `[exportacion] planificacion`. Las demás
-  planificaciones no pasan al archivo del cliente.
+- El archivo tiene **una sola planificación**, la interna: `[exportacion] planificacion` se deja vacía (o
+  sin la clave), y el comando usa todo el proyecto.
+- Solo si el archivo tuviera varias planificaciones (por ejemplo, tareas de primer nivel `INTERNO` y
+  `CLIENTE`), se indica la interna en `[exportacion] planificacion`: las demás no pasan al archivo del
+  cliente, y la tarea de la interna pasa a llamarse como indica `[cliente] nombre_planificacion` (por
+  defecto `CLIENTE`).
 
 ## 2. Qué tareas ve el cliente
 
@@ -43,10 +46,6 @@ hasta que se marca.
 | `No` o vacío | No se muestra, con su rama | — |
 | Valor no reconocido (por ejemplo `Sí, revisar` o `X`) | No se muestra | `CLI-003` |
 | `Sí` debajo de una tarea sin `Sí` | No se muestra | `CLI-004` |
-
-La tarea de la planificación (por ejemplo `INTERNO`) se conserva siempre y pasa a llamarse como indica
-`[cliente] nombre_planificacion` (por defecto `CLIENTE`). Así, el libro EVM del cliente se configura con
-`planificacion = "CLIENTE"`.
 
 ## 3. Resúmenes sin tareas visibles
 
@@ -72,7 +71,7 @@ Al quitar tareas, sus vínculos desaparecen. Para que la lógica siga completa y
 - Entre dos tareas solo puede haber un vínculo: si hay varios caminos, se elige el que más restringe a la
   sucesora. No se crean vínculos entre tareas ya vinculadas, entre un resumen y sus subtareas, ni los que
   cerrarían un ciclo (`CLI-007`).
-- Los vínculos con las otras planificaciones desaparecen con ellas.
+- Si el archivo tuviera otras planificaciones, sus vínculos desaparecen con ellas.
 
 Con `[cliente] fijar_fechas = true` (por defecto), las fechas que aun así cambien al recalcular el
 archivo del cliente se fijan con la delimitación *No comenzar antes del* y se informan (ver el
@@ -82,11 +81,10 @@ apartado 6).
 
 ```toml
 [exportacion]
-planificacion = "INTERNO"
+planificacion = ""          # una sola planificación: todo el proyecto
 
 [cliente]
 campo = "Etiqueta Cliente"
-nombre_planificacion = "CLIENTE"
 fijar_fechas = true
 ```
 
@@ -106,8 +104,8 @@ python evm_export.py generar-cliente --origen INTERNO.mpp --config config.toml -
 | `--sobrescribir` | Reemplaza el archivo del cliente y el informe de control si existen |
 
 El libro EVM del cliente se genera y se actualiza con el archivo del cliente, con su propia
-configuración: `planificacion = "CLIENTE"` (o el nombre de `nombre_planificacion`) y el campo
-`Visible` de siempre. Así, el libro solo tiene las tareas que ve el cliente y, de ellas, las que indica
+configuración: `planificacion = ""` (con varias planificaciones, el nombre de `nombre_planificacion`) y el
+campo `Visible` de siempre. Así, el libro solo tiene las tareas que ve el cliente y, de ellas, las que indica
 `Visible`. Los UID de las tareas son los de la planificación interna y no cambian de una entrega a otra,
 por lo que `actualizar` encuentra las filas en cada archivo nuevo. Para pasar a este libro los meses de
 un libro anterior, se usa `generar --migrar-desde`.
@@ -118,15 +116,15 @@ La planificación interna **no se abre ni se modifica**: el programa la copia a 
 carpeta de destino y MS Project trabaja sobre la copia.
 
 1. Abre la copia y la lee como el resto del programa.
-2. Con el cálculo manual y sin vincular tareas automáticamente, borra las tareas de otras planificaciones y
-   las que no se muestran, y comprueba que quedan exactamente las tareas que se muestran (si no, se
+2. Con el cálculo manual y sin vincular tareas automáticamente, borra las tareas que no se muestran (y las
+   de otras planificaciones, si las hubiera), y comprueba que quedan exactamente las tareas que se muestran (si no, se
    detiene sin generar el archivo: `CLI-018`).
 3. Devuelve a cada resumen convertido su duración, su avance y sus líneas base (`CLI-019` si MS Project no
    lo admite).
 4. Quita los vínculos que MS Project pudo crear al borrar tareas (`CLI-016`) y crea los vínculos nuevos
    (`CLI-015` si MS Project rechaza alguno).
-5. Vacía el campo del cliente en todas las tareas y quita su nombre (`CLI-017` si no puede), y renombra
-   la planificación.
+5. Vacía el campo del cliente en todas las tareas y quita su nombre (`CLI-017` si no puede). Con varias
+   planificaciones, renombra además la interna.
 6. Recalcula y compara las fechas de cada tarea con las de la planificación interna. Fija con *No comenzar
    antes del* las tareas sin comenzar que se adelantan (`CLI-013`) y quita los vínculos nuevos de las que
    se atrasan; repite el cálculo hasta que no hay cambios. Las que siguen distintas (comenzadas, con otra

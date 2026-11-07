@@ -285,7 +285,8 @@ def select_scope(roots: list[Task], plan_code: str) -> Scope:
         tops = [f"{(t.wbs or '').strip()} ({t.name})" if (t.wbs or "").strip() else t.name for t in roots]
         raise PlanNotFound(
             "EDT-010", f"No se encontró la planificación '{plan_code}': ninguna tarea tiene ese código EDT. Tareas "
-            f"de nivel superior del proyecto: {', '.join(tops[:15]) or 'ninguna'}.")
+            f"de nivel superior del proyecto: {', '.join(tops[:15]) or 'ninguna'}. Si el archivo tiene una sola "
+            "planificación, se debe dejar vacía [exportacion] planificacion (planificacion = \"\") o quitar la clave.")
     plan = found[0]
     return Scope(list(plan.children), plan, (plan.wbs or "").strip() or plan_code)
 

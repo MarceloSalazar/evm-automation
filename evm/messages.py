@@ -567,8 +567,10 @@ _CODES = [
     _code("EDT-010", (F, E), "No se encontró la planificación",
           "Ninguna tarea tiene el código EDT (o el nombre) de la planificación indicada. validar lo informa como "
           "error y revisa el proyecto completo.",
-          "Revisar planificacion (o --planificacion): el mensaje lista las tareas de nivel superior.",
-          "generar, actualizar, generar-fichas y validar"),
+          "Revisar planificacion (o --planificacion): el mensaje lista las tareas de nivel superior. Si el archivo "
+          "tiene una sola planificación, dejar planificacion vacía (planificacion = \"\") o quitar la clave: se usa "
+          "todo el proyecto.",
+          "generar, actualizar, generar-fichas, generar-cliente y validar"),
     _code("EDT-011", (F, E), "Código EDT en dos archivos",
           "Con varios archivos de MS Project, el mismo código EDT está en dos de ellos: el libro identifica cada "
           "fila por su código. validar lo informa como error.",

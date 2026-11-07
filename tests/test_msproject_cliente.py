@@ -5,7 +5,7 @@ Se ejecutan en un PC con MS Project, con las mismas variables de entorno que tes
 
     $env:EVM_MPP = "C:\\Proyectos\\Programa.mpp"
     $env:EVM_MPP_XML = "C:\\Proyectos\\Programa.xml"     # opcional aquí: compara la lectura del .mpp y del XML
-    $env:EVM_CONFIG = "C:\\Proyectos\\config.toml"       # con [exportacion] planificacion y [cliente] campo
+    $env:EVM_CONFIG = "C:\\Proyectos\\config.toml"       # con [cliente] campo (y planificacion vacía si hay una)
     python -m pytest tests/test_msproject_cliente.py -m msproject -v
 
 Cada prueba deja en la carpeta temporal de pytest el archivo del cliente, el informe de control y el registro de
@@ -45,7 +45,7 @@ pytestmark = [
     pytest.mark.skipif(not MPP, reason='Falta definir EVM_MPP (en PowerShell: $env:EVM_MPP = "C:\\ruta\\Programa.mpp").'),
     pytest.mark.skipif(bool(MPP) and _client_config() is None,
                        reason="La configuración de EVM_CONFIG no tiene [cliente] campo (por ejemplo campo = "
-                              "\"Etiqueta Cliente\") ni [exportacion] planificacion."),
+                              "\"Etiqueta Cliente\")."),
 ]
 
 

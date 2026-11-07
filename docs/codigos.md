@@ -966,11 +966,11 @@ Varias tareas tienen el mismo código EDT: el libro no puede distinguir sus fila
 
 #### EDT-010
 
-**No se encontró la planificación** · Error (detiene el programa, salvo en validar) · generar, actualizar, generar-fichas y validar · no se puede silenciar
+**No se encontró la planificación** · Error (detiene el programa, salvo en validar) · generar, actualizar, generar-fichas, generar-cliente y validar · no se puede silenciar
 
 Ninguna tarea tiene el código EDT (o el nombre) de la planificación indicada. validar lo informa como error y revisa el proyecto completo.
 
-**Qué hacer:** Revisar planificacion (o `--planificacion`): el mensaje lista las tareas de nivel superior.
+**Qué hacer:** Revisar planificacion (o `--planificacion`): el mensaje lista las tareas de nivel superior. Si el archivo tiene una sola planificación, dejar planificacion vacía (planificacion = "") o quitar la clave: se usa todo el proyecto.
 
 #### EDT-011
 

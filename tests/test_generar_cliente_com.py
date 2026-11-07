@@ -283,6 +283,27 @@ def test_generates_the_client_file_from_a_copy(tmp_path):
     assert {i.id for i in result.issues(plan)} == {"CLI-013"}
 
 
+def test_single_plan_without_plan_task(tmp_path):
+    """Una sola planificación, sin tarea de planificación: [exportacion] planificacion vacía, todo el proyecto."""
+    p = FakeProject()
+    fase = p.add(1, 1, "Fase", "1", "Sí", start=d(5), finish=d(13, 17))
+    a1 = p.add(2, 2, "A1", "1.1", "Sí", start=d(5), finish=d(6, 17), duration=960)
+    oculta = p.add(3, 2, "Oculta", "1.2", "No", start=d(7), finish=d(9, 17), duration=1440)
+    a3 = p.add(4, 2, "A3", "1.3", "Sí", start=d(12), finish=d(13, 17), duration=960)
+    p.add(5, 1, "Interna", "2", "", start=d(5), finish=d(6, 17))
+    p.add(6, 2, "Interna 1", "2.1", "Sí", start=d(5), finish=d(6, 17))     # Sí debajo de una tarea sin Sí
+    p.add(7, 1, "B", "3", "S", start=d(5), finish=d(5, 17), duration=480)
+    p.link(a1, oculta)
+    p.link(oculta, a3)
+    app = FakeApp(p)
+    _, destino, plan, result = run(tmp_path, app, cfg=Config(client_field="Etiqueta Cliente"))
+    assert plan.root is None and plan.outside == []
+    assert [x.UniqueID for x in p.live] == [1, 2, 4, 7] and fase.Name == "Fase"
+    assert [(x.From.UniqueID, x.To.UniqueID, x.Lag) for x in p.links] == [(2, 4, 1440)]
+    assert all(x.Text15 == "" for x in p.live) and destino.read_bytes() == b"archivo del cliente"
+    assert {i.id for i in plan.issues()} >= {"CLI-004"} and result.differences == []
+
+
 def test_collapsed_summary_keeps_its_baselines_and_progress(tmp_path):
     app, t = build()
     t["res"].PercentComplete, t["res"].ActualStart = 40, d(5)

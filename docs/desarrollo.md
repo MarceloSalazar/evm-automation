@@ -102,8 +102,8 @@ archivo del cliente en la carpeta temporal de pytest y comprueba que el origen n
 exactamente las tareas que se muestran, que el campo del cliente está vacío, que las fechas son las de la
 planificación interna (o el informe de control explica por qué no), que el registro y el informe no tienen
 nombres de tareas y que `--sobrescribir` reemplaza el archivo de solo lectura. Si está `EVM_MPP_XML`,
-compara además el cálculo con el `.mpp` y con el XML. Necesita en `EVM_CONFIG` las claves
-`[exportacion] planificacion` y `[cliente] campo`. Con `-s` muestra la carpeta con el archivo generado, el
+compara además el cálculo con el `.mpp` y con el XML. Necesita en `EVM_CONFIG` la clave `[cliente] campo`
+y, si el archivo tiene una sola planificación, `[exportacion] planificacion` vacía o sin indicar. Con `-s` muestra la carpeta con el archivo generado, el
 informe y el registro de diagnóstico. Los dos motores reparten la duración de
 las tareas con el calendario del proyecto; el motor COM no lee las excepciones que solo cambian el horario
 de un día laborable, por eso se admite una pequeña diferencia. Los mensajes de las pruebas solo muestran
