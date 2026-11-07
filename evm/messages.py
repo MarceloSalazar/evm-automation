@@ -150,7 +150,7 @@ W_READ = "generar, actualizar, validar y generar-fichas (lectura de MS Project)"
 W_GV = "generar (hoja Validación) y validar"
 W_G = "generar (hoja Validación)"
 W_V = "validar"
-W_OUT = "generar y generar-fichas"
+W_OUT = "generar, generar-fichas y validar --informe"
 W_BOOK = "actualizar, analizar, procesar-costes y generar --migrar-desde (lectura del libro)"
 W_MIG = "generar --migrar-desde (hoja Validación)"
 W_REVIEW = "generar con depuracion_costes (hoja Validación)"
@@ -373,12 +373,12 @@ _CODES = [
           "Indicar --origen P1=C:\\ruta\\archivo.mpp, con un nombre de [[proyectos]].", W_SOURCE),
     _code("CFG-040", F, "Falta --salida con varios archivos",
           "Con varios archivos no hay un nombre de salida por defecto.",
-          "Indicar el archivo a crear con --salida.", W_OUT),
+          "Indicar el archivo a crear con --salida (o con --informe en validar).", W_OUT),
     _code("CFG-041", F, "Extensión del archivo de salida no válida",
-          "El libro se guarda como .xlsx y las fichas como .md.",
-          "Indicar --salida con la extensión que corresponde.", W_OUT),
+          "El libro se guarda como .xlsx; las fichas y el informe de mejoras de validar, como .md.",
+          "Indicar --salida (o --informe) con la extensión que corresponde.", W_OUT),
     _code("CFG-042", F, "El archivo de salida ya existe",
-          "El archivo de --salida existe y no se indicó --sobrescribir.",
+          "El archivo de --salida (o de --informe) existe y no se indicó --sobrescribir.",
           "Usar --sobrescribir para reemplazarlo o indicar otro nombre. Para conservar los EV/AC cargados en un "
           "libro, se genera un archivo nuevo con --migrar-desde.", W_OUT),
     _code("CFG-043", F, "--migrar-desde igual a --salida",
@@ -413,7 +413,18 @@ _CODES = [
           "Indicar un % entre 0 y 100 (por defecto 15; 0 = no se controla)."),
     _code("CFG-051", F, "No existe la carpeta de salida",
           "La carpeta del archivo indicado en --salida no existe.",
-          "Crear la carpeta o indicar otra ruta en --salida.", "generar y generar-fichas"),
+          "Crear la carpeta o indicar otra ruta en --salida.", W_OUT),
+    _code("CFG-052", W, "Fin previsto posterior al último mes",
+          "El fin previsto del cronograma actual (las fechas de las tareas de las filas del libro) es posterior al "
+          "último mes del horizonte: el EV y el AC de los meses posteriores no se podrán cargar en el libro. El "
+          "mensaje indica cuántos meses hacen falta.",
+          "Aumentar meses (o --meses) a la cantidad indicada y volver a generar; si el atraso no es real, revisar "
+          "el cronograma.", W_GV),
+    _code("CFG-053", F, "Varias planificaciones fuera de validar",
+          "Se indicaron varias planificaciones separadas por comas (p. ej. INTERNO,CLIENTE): solo validar las revisa, "
+          "una por una, y con un solo archivo (sin [[proyectos]]).",
+          "Indicar una sola planificación en planificacion o --planificacion; para revisar varias, usar validar "
+          "--planificacion INTERNO,CLIENTE.", "generar, actualizar, validar y generar-fichas"),
 
     # --- LEC: lectura de MS Project -----------------------------------------------------------------------------
     _code("LEC-001", F, "No existe el archivo de origen",
@@ -683,6 +694,21 @@ _CODES = [
     _code("FEC-014", W, "Tarea resumen con la línea base sin resumir",
           "Detalle de FEC-013: las fechas de la línea base de la tarea resumen y las de sus tareas de detalle.",
           "Resumir la línea base de la tarea resumen (FEC-013).", W_V),
+    _code("FEC-015", W, "Tarea con la línea base incompleta",
+          "La tarea de detalle tiene en la línea base que usa el % planificado solo el comienzo o solo el fin: se "
+          "toma como si durara 0 y no pesa en el % planificado de su fila.",
+          "Guardar de nuevo la línea base de la tarea (Establecer línea base > Tareas seleccionadas)."),
+    _code("FEC-016", W, "Líneas base incompletas",
+          "Algunas tareas (también tareas resumen) tienen en una línea base solo el comienzo o solo el fin. Con un "
+          ".mpp solo se revisa la línea base que usa el % planificado; con un XML, todas.",
+          "Guardar de nuevo la línea base de esas tareas, o borrar la fecha suelta si la línea base no se usa.",
+          W_V),
+    _code("FEC-017", W, "Tareas con calendario propio",
+          "Algunas tareas tienen un calendario de tarea distinto del calendario del proyecto: MS Project calcula sus "
+          "fechas con él, pero el programa reparte su duración entre los meses con el calendario del proyecto, y "
+          "su % planificado puede diferir algo del de MS Project.",
+          "Ninguna, si el calendario de la tarea es necesario; si no, quitarlo (Información de la tarea > "
+          "Avanzado > Calendario: Ninguno).", W_V),
 
     # --- HIT: hitos y pesos -------------------------------------------------------------------------------------
     _code("HIT-001", W, "Peso en una tarea que no es un hito de detalle",
@@ -891,14 +917,20 @@ _CODES = [
           "indican la ruta crítica del proyecto.",
           "Desactivarla (Archivo > Opciones > Avanzadas) y vincular el final de cada rama con el hito de fin del "
           "proyecto."),
-    _code("LOG-018", I, "Vínculos con otras planificaciones",
-          "Con una planificación (p. ej. INTERNO), algunas de sus tareas están vinculadas con tareas activas de fuera "
-          "de ella (otra planificación del mismo archivo). MS Project calcula con esos vínculos las fechas, la "
-          "holgura y las tareas críticas de la planificación, pero los controles de lógica (DCMA) y de avance fuera "
-          "de secuencia solo cuentan los vínculos entre tareas de la planificación: una tarea cuya única sucesora es "
-          "de otra planificación se informa sin sucesoras.",
-          "Ninguna, si las planificaciones deben estar vinculadas (p. ej. una replica a la otra). Si deben ser "
-          "independientes, quitar esos vínculos en MS Project."),
+    _code("LOG-018", W, "Vínculos con otras planificaciones",
+          "Resumen de LOG-019. Con una planificación (p. ej. INTERNO), algunas de sus tareas están vinculadas con "
+          "tareas activas de fuera de ella (otra planificación del mismo archivo), y las planificaciones no son "
+          "independientes. MS Project calcula con esos vínculos las fechas, la holgura y las tareas críticas de la "
+          "planificación, pero los controles de lógica (DCMA) y de avance fuera de secuencia solo cuentan los "
+          "vínculos entre tareas de la planificación: una tarea cuya única sucesora es de otra planificación se "
+          "informa sin sucesoras. El mensaje indica cuántas tareas se quedarían sin predecesoras o sin sucesoras "
+          "al quitarlos.",
+          "Si las planificaciones deben ser independientes, completar la lógica propia de cada una y quitar esos "
+          "vínculos en MS Project. Si deben estar vinculadas (p. ej. una replica a la otra), silenciar LOG-018 y "
+          "LOG-019."),
+    _code("LOG-019", W, "Tarea vinculada con otra planificación",
+          "Detalle de LOG-018: las tareas de otras planificaciones de las que la tarea es predecesora o sucesora.",
+          "Quitar el vínculo, después de dar a la tarea una predecesora o una sucesora de su planificación."),
 
     # --- LIB: libro ---------------------------------------------------------------------------------------------
     _code("LIB-001", I, "Cálculo del PV y el EV",

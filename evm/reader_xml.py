@@ -201,6 +201,11 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True) -> ProjectData:
         cal_uid = None
     calendar = calendar_from_xml(r, root, cal_uid, warnings) or WorkCalendar()
     calendar.add_holidays(cfg.holidays)
+    # Nombres de los calendarios, para las tareas con calendario propio (distinto del del proyecto)
+    calendar_names: dict[str, str] = {}
+    cals_el = root.find(r.q("Calendars"))
+    for c in cals_el.findall(r.q("Calendar")) if cals_el is not None else []:
+        calendar_names[r.text(c, "UID")] = r.text(c, "Name") or f"UID {r.text(c, 'UID')}"
 
     # Línea base: la indicada en la configuración o la que el proyecto usa para el valor acumulado
     try:
@@ -253,12 +258,18 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True) -> ProjectData:
 
         bl = None
         saved: list[int] = []           # líneas base con comienzo en la tarea (como con COM)
+        incomplete: list[int] = []      # líneas base con solo el comienzo o solo el fin
         for b in el.findall(r.q("Baseline")):
             number = r.text(b, "Number")
             if number == str(n):
                 bl = b
             if number.isdigit() and r.text(b, "Start"):
                 saved.append(int(number))
+            if number.isdigit() and bool(r.text(b, "Start")) != bool(r.text(b, "Finish")):
+                incomplete.append(int(number))
+        task_cal = r.text(el, "CalendarUID")
+        own_calendar = (calendar_names.get(task_cal, f"UID {task_cal}")
+                        if task_cal not in ("", "-1") and task_cal != str(cal_uid) else "")
         bl_start = r.date(bl, "Start") if bl is not None else None
         bl_finish = r.date(bl, "Finish") if bl is not None else None
         bl_duration = duration_minutes(r.text(bl, "Duration")) if bl is not None else None
@@ -289,7 +300,8 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True) -> ProjectData:
             duration=duration_minutes(r.text(el, "Duration")), estimated=r.flag(el, "Estimated"),
             manual=r.flag(el, "Manual"), constraint_type=r.integer(el, "ConstraintType") if links else CONSTRAINT_ASAP,
             constraint_date=r.date(el, "ConstraintDate") if links else None, predecessors=predecessors,
-            baselines=tuple(sorted(set(saved))),
+            baselines=tuple(sorted(set(saved))), incomplete_baselines=tuple(sorted(set(incomplete))),
+            calendar=own_calendar,
             method=value_of(method_ref).strip(), milestone_weight=weight,
             company=company, split_a=split_a, visible=value_of(visible_ref).strip(),
             description=value_of(description_ref).strip(),

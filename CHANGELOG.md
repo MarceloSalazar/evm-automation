@@ -58,6 +58,23 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   `validar` avisan además, en multi-empresa, cuando el campo `% Reparto` existe pero está vacío en todas
   las tareas y las tareas `Ambas` se reparten con el reparto por defecto (`LEC-023`)
   ([Validaciones](docs/validaciones-y-problemas.md#1-validaciones)). Todos los códigos son nuevos.
+- **`validar` como revisión de mejoras:**
+  - `--informe [RUTA]` escribe un informe de mejoras en Markdown (por defecto `<origen>_mejoras.md`): un
+    resumen, las observaciones por prioridad (alta: las que cambian el libro; media: la calidad del
+    cronograma; baja: las informativas), cada una con sus tareas, la causa y qué hacer, la evaluación DCMA y,
+    con varias planificaciones, su comparación. No incluye nombres de tareas, de empresas ni de calendarios,
+    ni el título del proyecto: las tareas se identifican por su código EDT o su UniqueID.
+  - Al final de cada revisión, la **evaluación DCMA de 14 puntos** en una tabla: valor, umbral y si cumple.
+  - `--planificacion INTERNO,CLIENTE` revisa cada planificación por separado y las compara: tareas,
+    inactivas, filas, líneas base, vínculos, tareas críticas y fin previsto, y las filas que solo están en
+    una o que tienen otra línea base u otro fin previsto. Los demás comandos admiten una sola planificación
+    (`CFG-053`, nuevo).
+  - Controles nuevos: fin previsto del cronograma posterior al último mes del horizonte, también en
+    `generar` (`CFG-052`); líneas base incompletas, con solo el comienzo o solo el fin (`FEC-015` en la
+    tarea de detalle, también en `generar`, y `FEC-016`); tareas con calendario propio (`FEC-017`). Los
+    vínculos con otras planificaciones (`LOG-018`) pasan a ser una advertencia, con el detalle por tarea
+    (`LOG-019`, nuevo) y cuántas tareas se quedarían sin predecesoras o sin sucesoras al quitarlos
+    ([Comandos](docs/comandos.md#validar-revisa-el-archivo-de-ms-project)).
 - **Mensajes más claros:** el aviso de % planificado posterior al último mes del horizonte (`CFG-045`)
   indica hasta qué % del BAC llega el PV de cada fila y cuántos meses hacen falta; los adelantos
   (`LOG-006`) se informan en una línea por tarea, con sus predecesoras; las observaciones de fila de

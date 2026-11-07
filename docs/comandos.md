@@ -51,7 +51,8 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --config config
 ```
 
 Lee el archivo de MS Project con la configuración, igual que `generar`, y muestra en pantalla las
-observaciones agrupadas por tema. **No crea ni modifica ningún archivo.** En cada tema van primero los
+observaciones agrupadas por tema y la evaluación DCMA de 14 puntos. **No crea ni modifica ningún
+archivo**, salvo el informe de mejoras si se indica `--informe`. En cada tema van primero los
 errores y, en cada severidad, las observaciones generales, las de las filas EDT (las filas de las hojas
 `PV`, `EV` y `AC`), las de las tareas de detalle y las de fuera del libro
 ([alcance](validaciones-y-problemas.md#1-validaciones)). Revisa lo mismo que la hoja `Validación` de
@@ -81,7 +82,8 @@ Además, revisa aspectos del cronograma que no afectan al libro:
   informan los que la unen con otras planificaciones.
 
 Con estos controles, `validar` revisa 12 de los 14 puntos de la
-[evaluación DCMA de calidad de cronogramas](evaluacion-dcma.md). El detalle de cada control está en
+[evaluación DCMA de calidad de cronogramas](evaluacion-dcma.md), y al final de cada revisión muestra la
+tabla de los 14 puntos: valor, umbral y si cumple. El detalle de cada control está en
 [Validaciones](validaciones-y-problemas.md#1-validaciones). Se recomienda ejecutar `validar` antes de
 `generar` y antes de cada `actualizar`.
 
@@ -90,6 +92,9 @@ Con estos controles, `validar` revisa 12 de los 14 puntos de la
 | `--origen`, `--config`, `--motor`, `--planificacion`, `--linea-base`, `--nivel-max`, `--visible`, `--silenciar` | Igual que en `generar`. Con varios archivos (`[[proyectos]]`) se revisan todos. Los errores silenciados no cuentan para el código de salida. |
 | `--fecha-corte AAAA-MM-DD` | Fecha de corte (fecha de estado) con la que se revisa el avance. Por defecto, la fecha de estado de cada archivo. Sin fecha de estado, solo se revisan la coherencia de las fechas reales y el avance fuera de secuencia. |
 | `--todas` | Muestra todas las observaciones, una por tarea. Por defecto, hasta 20 líneas por tema, con las de las tareas de detalle y fuera del libro agrupadas por código y fila del libro. |
+| `--planificacion INTERNO,CLIENTE` | Varias planificaciones separadas por comas (también en `planificacion` de la configuración): revisa cada una por separado y al final las compara ([abajo](#varias-planificaciones)). Solo con un archivo, sin `[[proyectos]]`. |
+| `--informe [RUTA]` | Escribe un informe de mejoras en Markdown, sin nombres ([abajo](#informe-de-mejoras)). Por defecto, `<origen>_mejoras.md` junto al archivo de MS Project. |
+| `--sobrescribir` | Reemplaza el informe de mejoras si ya existe. |
 
 Si la planificación indicada no existe, o si dos archivos de `[[proyectos]]` tienen el mismo código
 EDT (casos en los que `generar` se detiene), `validar` lo informa como error y revisa lo que puede. El
@@ -134,6 +139,17 @@ Avance a la fecha de estado: 2 advertencias, 1 informativa
 Lógica del cronograma: 1 advertencia
   [!] LOG-001 El cronograma no tiene vínculos entre tareas: las fechas no se recalculan cuando cambian las duraciones o el avance. Se recomienda vincular las tareas (cada tarea con al menos una predecesora y una sucesora).
 
+Evaluación DCMA de 14 puntos:
+   1. Lógica (sin predecesoras o sucesoras)  sin vínculos                 ≤ 5 %   no cumple
+   2. Adelantos                              sin vínculos                 0
+   ...
+   9. Fechas no válidas                      0 tareas                     0       cumple
+  10. Recursos                               no aplica (BAC en el libro)  —
+  11. Tareas incumplidas                     12 de 12 (100 %)             ≤ 5 %   no cumple
+  12. Prueba del camino crítico              prueba manual                —
+  13. CPLI                                   0,96                         ≥ 0,95  cumple
+  14. BEI                                    0,33                         ≥ 0,95  no cumple
+
 Resultado: 9 advertencias, 6 informativas.
   Por alcance: generales: 3 advertencias, 6 informativas; en filas EDT: 6 advertencias.
 No se creó ni se modificó ningún archivo.
@@ -154,6 +170,49 @@ La línea *Por alcance* del resultado indica cuántas observaciones son generale
 de detalle y de fuera del libro. Las observaciones que ya se revisaron se pueden ocultar con
 `--silenciar` o con `[validacion] silenciar`
 ([Silenciar observaciones](codigos.md#2-silenciar-observaciones)).
+
+### Varias planificaciones
+
+```powershell
+python evm_export.py validar --origen "C:\Programa\Programa.mpp" --config config.toml --planificacion INTERNO,CLIENTE
+```
+
+Con varias planificaciones separadas por comas, `validar` lee el archivo una vez y revisa cada
+planificación por separado, como si se ejecutara una vez por planificación: sus observaciones, su
+evaluación DCMA y su resultado. Al final, una tabla las compara lado a lado (tareas, inactivas, con
+`Visible = No`, revisadas, filas del libro, tareas con comienzo en cada línea base, tareas resumen con la
+línea base sin resumir, vínculos propios y con otras planificaciones, tareas críticas, fecha de estado,
+fin de la línea base y fin previsto, y observaciones) y lista sus diferencias: las filas del libro que
+solo están en una planificación y las filas comunes con otras fechas de plan (línea base) o con otro fin
+previsto. Los vínculos entre planificaciones se informan con `LOG-018` y `LOG-019`. El código de salida
+es 1 si alguna planificación tiene errores. Los demás comandos admiten una sola planificación
+([CFG-053](codigos.md#cfg-053)).
+
+### Informe de mejoras
+
+```powershell
+python evm_export.py validar --origen "C:\Programa\Programa.mpp" --config config.toml --informe
+```
+
+`--informe` escribe, además de la salida en pantalla, un documento Markdown para compartir la revisión
+(por defecto `<origen>_mejoras.md`; con `[[proyectos]]` se indica la ruta, `--informe C:\Revisión\mejoras.md`):
+
+1. **Resumen:** las cifras de cada planificación o archivo (las de la comparación de arriba) y las
+   mejoras de prioridad alta con más observaciones.
+2. **Mejoras por prioridad:** cada código de observación con su severidad, las tareas en las que aparece
+   y, del [catálogo](codigos.md), su causa y qué hacer. Prioridad **alta**: errores y advertencias que
+   cambian el libro (filas, % planificado, % ganado u horizonte; los que también informa `generar`);
+   **media**: advertencias de la calidad del cronograma que solo revisa `validar` (línea base, avance y
+   lógica); **baja**: observaciones informativas.
+3. **Evaluación DCMA de 14 puntos**, con una columna por planificación.
+4. **Comparación de planificaciones**, si se revisaron varias.
+
+El informe **no incluye nombres** de tareas, de empresas ni de calendarios, ni el título del proyecto: las
+tareas se identifican por su código EDT o, sin código, por su UniqueID, y en los textos de las
+observaciones generales los nombres se reemplazan por `…`. Las empresas de multi-empresa aparecen como
+«empresa A» y «empresa B». Así se puede compartir con quien no debe ver el contenido del cronograma. La
+salida en pantalla sí muestra los nombres. Los archivos `*_mejoras.md` están en el `.gitignore` del
+repositorio.
 
 ---
 

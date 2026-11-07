@@ -99,6 +99,8 @@ class ReportPart:
     scope: "Scope | None" = None                # tareas exportadas (sin las inactivas ni las de Visible = No)
     code_of: Callable[[Task], str] | None = None    # código EDT de una tarea, como en el libro
     list_matched: set[str] | None = None        # lista EDT: códigos de la lista que tienen tarea (None = sin lista)
+    # validar: evaluación DCMA de 14 puntos, punto -> (valor, umbral, cumple; None = no se evalúa)
+    dcma: dict = field(default_factory=dict)
 
 
 # ----------------------------------------------------------------------------
@@ -965,6 +967,23 @@ def _after_horizon(rows: list[ReportRow], codes: set[str], horizon: Horizon) -> 
                  f"({shown}{more}).{needed} Se debe aumentar 'meses' (o --meses) y volver a generar.")
 
 
+def _forecast_after_horizon(rows: list[ReportRow], horizon: Horizon) -> Issue | None:
+    """CFG-052: el fin previsto de las tareas de las filas del libro (cronograma actual) es posterior al último mes
+    del horizonte, en el que ya no se pueden cargar el EV ni el AC."""
+    finishes = [t.finish for row in rows if row.is_input for t in row.leaves if t.finish is not None]
+    if not finishes:
+        return None
+    last = max(finishes)
+    if (last.year, last.month) <= (horizon.end.year, horizon.end.month):
+        return None
+    months = (last.year - horizon.start.year) * 12 + last.month - horizon.start.month + 1
+    return Issue("CFG-052", "", "",
+                 f"El fin previsto del cronograma ({last:%m/%Y}) es posterior al último mes del horizonte "
+                 f"({horizon.end:%m/%Y}): el EV y el AC de los meses posteriores no se podrán cargar en el libro. Se "
+                 f"necesitan al menos {months} meses desde {horizon.start:%m/%Y} (hoy son {horizon.months}): se debe "
+                 "aumentar 'meses' (o --meses) y volver a generar.")
+
+
 def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:
     """Combina las filas de uno o varios archivos, fija el horizonte y calcula los vectores mensuales."""
     issues = [i for part in parts for i in tagged_issues(part, part.issues)]
@@ -1033,6 +1052,9 @@ def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:
                             f"1 ({horizon.start:%m/%Y}): se acumuló en la columna del mes 1."))
     if pct_after:
         issues.append(_after_horizon(rows, pct_after, horizon))
+    late = _forecast_after_horizon(rows, horizon)
+    if late is not None:
+        issues.append(late)
 
     # --- Controles -------------------------------------------------------------
     for part in parts:

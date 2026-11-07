@@ -63,6 +63,7 @@ cronograma de las secciones [1.2](#12-avance-a-la-fecha-de-estado-validar) y
 | Código EDT que salta un nivel (`1.2.3.1` directamente bajo `1.2.0`) o de nivel 2 o más sin tarea superior con código | Asignar código a la tarea intermedia o corregir el código. |
 | Códigos EDT fuera de orden (`1.2.3` antes que `1.2.2`) y saltos en la numeración (`Info`: después de `1.2.2` sigue `1.2.14`) | Revisar si el código tiene un error de escritura. Un salto puede ser intencional (por ejemplo, un paquete eliminado). |
 | Códigos EDT duplicados (`Error`) | Por ejemplo, si no se eligió una planificación y ambas usan los mismos códigos. Los ceros finales no cuentan: `1.2`, `1.2.0` y `1.2.0.0` son el mismo código. Se revisan todas las tareas exportadas, también las de nivel mayor al máximo. |
+| Tarea de detalle con la línea base incompleta: solo *Comienzo previsto* o solo *Fin previsto* (`Advertencia`) | Se toma como si durara 0 y no pesa en el % planificado: guardar de nuevo su línea base. |
 | Fin anterior al comienzo (`Error`), en la línea base (*Fin previsto* y *Comienzo previsto*) o en el programa actual (*Fin* y *Comienzo*); tarea sin *Comienzo* o sin *Fin* | Corregir las fechas en MS Project (las tareas programadas manualmente pueden quedar sin fechas). |
 | Hito con duración; tarea con duración 0 que no está marcada como hito | Un hito pone todo su % planificado en el mes de su fecha de fin; una tarea con duración 0 que no es hito no pesa en el % planificado. Corregir la marca de hito (*Información de la tarea > Avanzado*) o la duración. Se revisa si MS Project informa la duración (siempre con `.mpp` y con el XML que guarda MS Project). |
 | Duraciones estimadas (`Advertencia`; con `?`, por ejemplo `5 días?`) y tareas programadas manualmente (`Advertencia`) | Confirmar la duración: define el % planificado. Las tareas manuales no se reprograman cuando cambian sus predecesoras. |
@@ -85,6 +86,7 @@ cronograma de las secciones [1.2](#12-avance-a-la-fecha-de-estado-validar) y
 | Tareas sin código EDT que forman una fila `-D Otras tareas` | Tareas con duración (o hitos con peso) directamente bajo un elemento de nivel 1 o 2: la fila tiene su propio BAC. |
 | Excepciones de calendario que no se interpretan (por ejemplo, "primer lunes de mayo") | Se omiten; solo afectan el reparto del % planificado entre meses (motor XML). |
 | % planificado anterior al mes 1 o posterior al último mes | Revisar `mes_inicio` y `meses`. Si es posterior, el aviso indica hasta qué % del BAC llega el PV de cada fila, el último mes con % planificado y cuántos meses hacen falta. |
+| Fin previsto del cronograma posterior al último mes del horizonte (`Advertencia`) | El EV y el AC de los meses posteriores no se podrán cargar: aumentar `meses` a la cantidad que indica el aviso o, si el atraso no es real, revisar el cronograma. |
 | Filas sin método de medición | Completar el método en MS Project o en la columna C de la hoja `PV`. |
 | Tareas inactivas excluidas | Informativo (con `incluir_inactivas = false`): no forman parte del % planificado. |
 | Multi-empresa: tareas sin empresa, valores no reconocidos y `% Reparto` fuera de rango | Completar la columna `Empresa` y revisar los repartos ([Multi-empresa](multiempresa.md#7-validaciones-y-controles)). |
@@ -148,17 +150,19 @@ de 14 puntos](evaluacion-dcma.md).
 | Tareas sin terminar con más de 44 días laborables de holgura total (sin las filas LOE; no se revisa en un cronograma sin vínculos) | Hasta 5 % | Una holgura alta suele indicar que faltan sucesoras. |
 | Tareas sin terminar con holgura negativa: su fin previsto supera una fecha límite o una delimitación | Ninguna | Recuperar el atraso en el trabajo que queda o revisar la fecha límite. |
 | Tareas sin terminar con más de 44 días laborables de duración en la línea base (sin los hitos ni las filas LOE) | Hasta 5 % | Dividirlas en tareas más cortas, con entregables intermedios. |
-| Vínculos entre la planificación exportada y otras planificaciones (`Info`) | — | MS Project calcula con ellos las fechas, la holgura y las tareas críticas, pero los controles de lógica no los cuentan. Si las planificaciones deben ser independientes, quitarlos en MS Project. |
+| Vínculos entre la planificación exportada y otras planificaciones (`Advertencia`), con el detalle por tarea y cuántas tareas se quedarían sin predecesoras o sin sucesoras al quitarlos | — | MS Project calcula con ellos las fechas, la holgura y las tareas críticas, pero los controles de lógica no los cuentan. Si las planificaciones deben ser independientes, completar la lógica propia de cada una y quitarlos en MS Project; si deben estar vinculadas, silenciar `LOG-018` y `LOG-019`. |
 | Opción *Calcular varias rutas críticas* activada, con el % de tareas sin terminar que son críticas | — | Cada cadena de tareas tiene su propia ruta crítica y toda tarea sin sucesoras es crítica: la holgura y las tareas críticas no indican la ruta crítica del proyecto. Desactivarla (*Archivo > Opciones > Avanzadas*) y vincular el final de cada rama con el hito de fin. |
 
 ### 1.4 Línea base (validar)
 
-Se revisan las líneas base del archivo. No afectan al libro, que usa las fechas de las tareas de detalle,
-pero sí a lo que muestra MS Project.
+Se revisan las líneas base y los calendarios de las tareas. No afectan al libro, que usa las fechas de las
+tareas de detalle y el calendario del proyecto, pero sí a lo que muestra MS Project.
 
 | Observación | Qué revisar |
 |---|---|
 | Líneas base guardadas (`Info`): cuántas tareas revisadas tienen fecha de comienzo en cada una. Indica la que usa el % planificado | Que sea la línea base aprobada; si no, indicarla con `linea_base` o `--linea-base`. |
+| Líneas base incompletas (`Advertencia`): tareas, también resumen, con solo el comienzo o solo el fin en una línea base (con `.mpp`, solo la que usa el % planificado) | Guardar de nuevo la línea base de esas tareas, o borrar la fecha suelta si esa línea base no se usa. |
+| Tareas con calendario propio (`Advertencia`) | MS Project calcula sus fechas con el calendario de la tarea, pero el programa reparte su duración con el del proyecto: quitar el calendario si no es necesario. |
 | Tareas resumen cuya línea base no coincide con la de sus tareas de detalle activas (del comienzo más temprano al fin más tardío), o termina antes de comenzar (`Advertencia`) | La línea base de esas tareas no se resumió al guardar la de sus tareas, o se modificó a mano. Guardar la línea base de esas tareas con *Establecer línea base > Tareas seleccionadas* y *Resumir líneas base: Para todas las tareas de resumen*, como parte de un cambio aprobado. |
 
 ---

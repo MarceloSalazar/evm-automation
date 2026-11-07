@@ -70,6 +70,11 @@ class Task:
     predecessors: list[Link] = field(default_factory=list)
     # Líneas base con fecha de comienzo en la tarea (0 = Línea base, 1..10): siempre con XML; con COM, solo en validar
     baselines: tuple[int, ...] = ()
+    # Líneas base con solo el comienzo o solo el fin (con COM, solo se lee la que usa el % planificado)
+    incomplete_baselines: tuple[int, ...] = ()
+    # Calendario de la tarea, si es distinto del calendario del proyecto ("" = sin calendario propio); con COM, solo
+    # en validar
+    calendar: str = ""
 
     # Campos personalizados configurados
     method: str = ""                    # método de medición

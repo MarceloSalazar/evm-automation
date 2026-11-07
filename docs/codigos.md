@@ -102,16 +102,16 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 
 | Área | Nombre | Tema en la hoja Validación | Dónde aparecen | Códigos |
 |---|---|---|---|---|
-| [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 51 |
+| [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 53 |
 | [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 25 |
 | [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 22 |
 | [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 10 |
-| [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 14 |
+| [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 17 |
 | [HIT](#46-hit--hitos-y-pesos) | Hitos y pesos | Hitos y pesos | generar (hoja Validación) y validar | 9 |
 | [MET](#47-met--método-de-medición) | Método de medición | Método de medición | generar (hoja Validación) y validar | 5 |
 | [EMP](#48-emp--empresas) | Empresas | Empresas | generar (hoja Validación) y validar | 6 |
 | [AVA](#49-ava--avance-a-la-fecha-de-estado) | Avance a la fecha de estado | Avance a la fecha de estado | validar | 18 |
-| [LOG](#410-log--lógica-del-cronograma) | Lógica del cronograma | Lógica del cronograma | validar | 18 |
+| [LOG](#410-log--lógica-del-cronograma) | Lógica del cronograma | Lógica del cronograma | validar | 19 |
 | [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) | 15 |
 | [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 20 |
 | [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 18 |
@@ -180,6 +180,8 @@ Archivo de configuración, opciones de la línea de comandos, horizonte y códig
 | [CFG-049](#cfg-049) | Info | Observaciones silenciadas |
 | [CFG-050](#cfg-050) | Error (detiene el programa) | loe_maximo fuera de rango |
 | [CFG-051](#cfg-051) | Error (detiene el programa) | No existe la carpeta de salida |
+| [CFG-052](#cfg-052) | Advertencia | Fin previsto posterior al último mes |
+| [CFG-053](#cfg-053) | Error (detiene el programa) | Varias planificaciones fuera de validar |
 
 #### CFG-001
 
@@ -495,25 +497,25 @@ Con `[[proyectos]]`, `--origen` debe ser NOMBRE=RUTA, con el nombre de uno de lo
 
 #### CFG-040
 
-**Falta `--salida` con varios archivos** · Error (detiene el programa) · generar y generar-fichas · no se puede silenciar
+**Falta `--salida` con varios archivos** · Error (detiene el programa) · generar, generar-fichas y validar `--informe` · no se puede silenciar
 
 Con varios archivos no hay un nombre de salida por defecto.
 
-**Qué hacer:** Indicar el archivo a crear con `--salida`.
+**Qué hacer:** Indicar el archivo a crear con `--salida` (o con `--informe` en validar).
 
 #### CFG-041
 
-**Extensión del archivo de salida no válida** · Error (detiene el programa) · generar y generar-fichas · no se puede silenciar
+**Extensión del archivo de salida no válida** · Error (detiene el programa) · generar, generar-fichas y validar `--informe` · no se puede silenciar
 
-El libro se guarda como .xlsx y las fichas como .md.
+El libro se guarda como .xlsx; las fichas y el informe de mejoras de validar, como .md.
 
-**Qué hacer:** Indicar `--salida` con la extensión que corresponde.
+**Qué hacer:** Indicar `--salida` (o `--informe`) con la extensión que corresponde.
 
 #### CFG-042
 
-**El archivo de salida ya existe** · Error (detiene el programa) · generar y generar-fichas · no se puede silenciar
+**El archivo de salida ya existe** · Error (detiene el programa) · generar, generar-fichas y validar `--informe` · no se puede silenciar
 
-El archivo de `--salida` existe y no se indicó `--sobrescribir`.
+El archivo de `--salida` (o de `--informe`) existe y no se indicó `--sobrescribir`.
 
 **Qué hacer:** Usar `--sobrescribir` para reemplazarlo o indicar otro nombre. Para conservar los EV/AC cargados en un libro, se genera un archivo nuevo con `--migrar-desde`.
 
@@ -583,11 +585,27 @@ Resumen de las observaciones que no se muestran por `[validacion] silenciar` o `
 
 #### CFG-051
 
-**No existe la carpeta de salida** · Error (detiene el programa) · generar y generar-fichas · no se puede silenciar
+**No existe la carpeta de salida** · Error (detiene el programa) · generar, generar-fichas y validar `--informe` · no se puede silenciar
 
 La carpeta del archivo indicado en `--salida` no existe.
 
 **Qué hacer:** Crear la carpeta o indicar otra ruta en `--salida`.
+
+#### CFG-052
+
+**Fin previsto posterior al último mes** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+El fin previsto del cronograma actual (las fechas de las tareas de las filas del libro) es posterior al último mes del horizonte: el EV y el AC de los meses posteriores no se podrán cargar en el libro. El mensaje indica cuántos meses hacen falta.
+
+**Qué hacer:** Aumentar meses (o `--meses`) a la cantidad indicada y volver a generar; si el atraso no es real, revisar el cronograma.
+
+#### CFG-053
+
+**Varias planificaciones fuera de validar** · Error (detiene el programa) · generar, actualizar, validar y generar-fichas · no se puede silenciar
+
+Se indicaron varias planificaciones separadas por comas (p. ej. INTERNO,CLIENTE): solo validar las revisa, una por una, y con un solo archivo (sin `[[proyectos]]`).
+
+**Qué hacer:** Indicar una sola planificación en planificacion o `--planificacion`; para revisar varias, usar validar `--planificacion` INTERNO,CLIENTE.
 
 ---
 
@@ -1151,6 +1169,9 @@ Fechas de la línea base y del programa actual, hitos y duración de las tareas.
 | [FEC-012](#fec-012) | Advertencia | Tarea sin fechas |
 | [FEC-013](#fec-013) | Advertencia | Línea base de tareas resumen distinta de la de su detalle |
 | [FEC-014](#fec-014) | Advertencia | Tarea resumen con la línea base sin resumir |
+| [FEC-015](#fec-015) | Advertencia | Tarea con la línea base incompleta |
+| [FEC-016](#fec-016) | Advertencia | Líneas base incompletas |
+| [FEC-017](#fec-017) | Advertencia | Tareas con calendario propio |
 
 #### FEC-001
 
@@ -1263,6 +1284,30 @@ Resumen de [FEC-014](#fec-014): la línea base de algunas tareas resumen no va d
 Detalle de [FEC-013](#fec-013): las fechas de la línea base de la tarea resumen y las de sus tareas de detalle.
 
 **Qué hacer:** Resumir la línea base de la tarea resumen ([FEC-013](#fec-013)).
+
+#### FEC-015
+
+**Tarea con la línea base incompleta** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+La tarea de detalle tiene en la línea base que usa el % planificado solo el comienzo o solo el fin: se toma como si durara 0 y no pesa en el % planificado de su fila.
+
+**Qué hacer:** Guardar de nuevo la línea base de la tarea (Establecer línea base > Tareas seleccionadas).
+
+#### FEC-016
+
+**Líneas base incompletas** · Advertencia · validar · se puede silenciar
+
+Algunas tareas (también tareas resumen) tienen en una línea base solo el comienzo o solo el fin. Con un .mpp solo se revisa la línea base que usa el % planificado; con un XML, todas.
+
+**Qué hacer:** Guardar de nuevo la línea base de esas tareas, o borrar la fecha suelta si la línea base no se usa.
+
+#### FEC-017
+
+**Tareas con calendario propio** · Advertencia · validar · se puede silenciar
+
+Algunas tareas tienen un calendario de tarea distinto del calendario del proyecto: MS Project calcula sus fechas con él, pero el programa reparte su duración entre los meses con el calendario del proyecto, y su % planificado puede diferir algo del de MS Project.
+
+**Qué hacer:** Ninguna, si el calendario de la tarea es necesario; si no, quitarlo (Información de la tarea > Avanzado > Calendario: Ninguno).
 
 ---
 
@@ -1667,7 +1712,8 @@ Vínculos, delimitaciones, holgura y duración de las tareas, según los criteri
 | [LOG-015](#log-015) | Advertencia | Tarea con holgura negativa |
 | [LOG-016](#log-016) | Advertencia o Info | Tareas de duración alta |
 | [LOG-017](#log-017) | Advertencia | Varias rutas críticas |
-| [LOG-018](#log-018) | Info | Vínculos con otras planificaciones |
+| [LOG-018](#log-018) | Advertencia | Vínculos con otras planificaciones |
+| [LOG-019](#log-019) | Advertencia | Tarea vinculada con otra planificación |
 
 #### LOG-001
 
@@ -1807,11 +1853,19 @@ La opción Calcular varias rutas críticas de MS Project está activada: cada ca
 
 #### LOG-018
 
-**Vínculos con otras planificaciones** · Info · validar · se puede silenciar
+**Vínculos con otras planificaciones** · Advertencia · validar · se puede silenciar
 
-Con una planificación (p. ej. INTERNO), algunas de sus tareas están vinculadas con tareas activas de fuera de ella (otra planificación del mismo archivo). MS Project calcula con esos vínculos las fechas, la holgura y las tareas críticas de la planificación, pero los controles de lógica (DCMA) y de avance fuera de secuencia solo cuentan los vínculos entre tareas de la planificación: una tarea cuya única sucesora es de otra planificación se informa sin sucesoras.
+Resumen de [LOG-019](#log-019). Con una planificación (p. ej. INTERNO), algunas de sus tareas están vinculadas con tareas activas de fuera de ella (otra planificación del mismo archivo), y las planificaciones no son independientes. MS Project calcula con esos vínculos las fechas, la holgura y las tareas críticas de la planificación, pero los controles de lógica (DCMA) y de avance fuera de secuencia solo cuentan los vínculos entre tareas de la planificación: una tarea cuya única sucesora es de otra planificación se informa sin sucesoras. El mensaje indica cuántas tareas se quedarían sin predecesoras o sin sucesoras al quitarlos.
 
-**Qué hacer:** Ninguna, si las planificaciones deben estar vinculadas (p. ej. una replica a la otra). Si deben ser independientes, quitar esos vínculos en MS Project.
+**Qué hacer:** Si las planificaciones deben ser independientes, completar la lógica propia de cada una y quitar esos vínculos en MS Project. Si deben estar vinculadas (p. ej. una replica a la otra), silenciar [LOG-018](#log-018) y [LOG-019](#log-019).
+
+#### LOG-019
+
+**Tarea vinculada con otra planificación** · Advertencia · validar · se puede silenciar
+
+Detalle de [LOG-018](#log-018): las tareas de otras planificaciones de las que la tarea es predecesora o sucesora.
+
+**Qué hacer:** Quitar el vínculo, después de dar a la tarea una predecesora o una sucesora de su planificación.
 
 ---
 

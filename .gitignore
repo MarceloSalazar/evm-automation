@@ -17,6 +17,7 @@ venv/
 *.mpp
 /*.xml
 *_fichas.md
+*_mejoras.md
 /Fichas*.md
 /config_*.toml
 /notas.md

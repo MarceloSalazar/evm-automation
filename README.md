@@ -22,9 +22,10 @@ simulado.*
   compartir (con el cliente o entre las empresas que ejecutan el proyecto) sin importes.
 - Selección de la **planificación** a exportar cuando el proyecto tiene varias (por ejemplo `INTERNO` y
   `CLIENTE`).
-- **Revisión del archivo de MS Project** antes de exportar (comando `validar`, sin crear archivos):
-  códigos EDT, fechas, duración y línea base, pesos de los hitos, método de medición, avance a la fecha de
-  estado y lógica del cronograma (criterios DCMA).
+- **Revisión del archivo de MS Project** antes de exportar (comando `validar`): códigos EDT, fechas,
+  duración y línea base, pesos de los hitos, método de medición, avance a la fecha de estado y lógica del
+  cronograma, con la evaluación DCMA de 14 puntos. Revisa varias planificaciones a la vez y las compara, y
+  escribe un **informe de mejoras** por prioridad, sin nombres de tareas, para compartirlo.
 - Cálculo del **% ganado** de cada paquete a la fecha de corte, según su **método de medición** (0/100,
   50/50, hitos ponderados, % completado, % físico completado, unidades y LOE), y carga del valor del mes
   en el libro. El **AC** se carga a mano.

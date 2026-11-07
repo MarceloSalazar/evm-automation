@@ -132,7 +132,8 @@ otra con vínculos comienzo a comienzo). MS Project calcula con esos vínculos l
 tareas críticas, que el programa lee tal cual. Los controles de lógica de `validar` (criterios DCMA) y el
 avance fuera de secuencia solo cuentan los vínculos entre tareas de la planificación elegida, y
 `validar` informa cuántos vínculos la unen con otras planificaciones
-([LOG-018](codigos.md#log-018)).
+([LOG-018](codigos.md#log-018)). `validar --planificacion INTERNO,CLIENTE` revisa las dos y las compara
+([Varias planificaciones](comandos.md#varias-planificaciones)).
 
 ```mermaid
 flowchart LR

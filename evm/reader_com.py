@@ -459,10 +459,10 @@ class ComSession:
                 continue
 
     def read_project(self, cfg: Config, status_date: date | None = None, links: bool = True,
-                     baselines: bool = False) -> ProjectData:
+                     review: bool = False) -> ProjectData:
         """links: lee los vínculos y las delimitaciones de las tareas (solo los usan validar y generar-fichas; son
-        varias llamadas a MS Project por tarea). baselines: lee en qué líneas base (0 a 10) tiene fechas cada tarea
-        (solo validar: diez llamadas más por tarea)."""
+        varias llamadas a MS Project por tarea). review: lecturas que solo usa validar, unas doce llamadas más por
+        tarea: en qué líneas base (0 a 10) tiene comienzo cada tarea y su calendario de tarea."""
         p = self.project
         self._activate()
         if status_date is not None:
@@ -521,6 +521,7 @@ class ComSession:
         any_baseline = False
         skipped_external = 0
         count = int(_number(_get(p.Tasks, "Count", 0)) or 0)
+        project_calendar = str(_get(_get(p, "Calendar"), "Name", "") or "") if review else ""
         for i, t in enumerate(p.Tasks, start=1):
             progress.step(i, count, "tareas")
             if t is None:                 # fila en blanco
@@ -534,9 +535,13 @@ class ComSession:
             has_bl = bl_start is not None or bl_finish is not None
             any_baseline = any_baseline or has_bl
             saved: tuple[int, ...] = ()
-            if baselines:               # el comienzo de cada línea base ('NA' si la tarea no la tiene), como en el XML
+            own_calendar = ""
+            if review:                  # el comienzo de cada línea base ('NA' si la tarea no la tiene), como en el XML
                 saved = tuple(k for k in range(11) if (bl_start if k == n else
                                                        _dt(_get(t, f"Baseline{'' if k == 0 else k}Start"))) is not None)
+                # Calendario de la tarea (Nothing si no tiene): solo cuenta si es distinto del del proyecto
+                own_calendar = str(_get(_get(t, "CalendarObject"), "Name", "") or "")
+                own_calendar = "" if own_calendar == project_calendar else own_calendar
             wbs = self._field_value(t, wbs_ref)
             weight = self._field_value(t, weight_ref)
             company = self._field_value(t, company_ref)
@@ -563,6 +568,8 @@ class ComSession:
                                  if links else CONSTRAINT_ASAP),
                 constraint_date=_dt(_get(t, "ConstraintDate")) if links else None,
                 predecessors=_predecessors(t, uid) if links else [], baselines=saved,
+                incomplete_baselines=(n,) if (bl_start is None) != (bl_finish is None) else (),
+                calendar=own_calendar,
                 method=str(self._field_value(t, method_ref) or "").strip(),
                 milestone_weight=None if weight in (None, "") else parse_number(weight),
                 company=str(company or "").strip(),

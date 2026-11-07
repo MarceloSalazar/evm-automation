@@ -48,6 +48,10 @@ contratos del gobierno de EE. UU. no son obligatorios; se usan como buena práct
 
 ## 2. Cómo cuenta el programa
 
+`validar` muestra al final de cada revisión la tabla de los 14 puntos, con el valor, el umbral y si cumple
+(los puntos 10 y 12 no se evalúan), y la incluye en el informe de mejoras (`--informe`)
+([Comandos](comandos.md#informe-de-mejoras)).
+
 - **Tareas revisadas:** las tareas de detalle (sin subtareas) que exporta el libro: las de la
   planificación elegida, activas y sin `Visible = No`. Las tareas resumen no se cuentan.
 - **Vínculos:** con una planificación, solo los vínculos entre sus tareas. Los que la unen con otra

@@ -883,11 +883,20 @@ def test_links_with_another_plan_are_reported():
     t["B I"].predecessors = [Link(t["A I"].uid, LINK_FS), Link(t["Inactiva I"].uid, LINK_FS)]
     issues = validate_part(P(tasks), Config(plan="INTERNO")).checks
     [line] = [i for i in issues if i.id == "LOG-018"]
-    assert line.severity == SEV_INFO and line.topic == TOPIC_LOGIC
+    assert line.severity == SEV_WARN and line.topic == TOPIC_LOGIC
     assert line.message.startswith("1 vínculo une 1 tarea de la planificación INTERNO con tareas de fuera de ella")
+    assert line.message.endswith("Al quitarlos, 1 tarea de detalle se quedaría sin predecesoras y 0 sin sucesoras "
+                                 "en la planificación.")
+    assert [(i.code, i.message) for i in issues if i.id == "LOG-019"] == [
+        ("1.1.0", "Vinculada con otra planificación: sucesora de 1.2 (UID 4).")]
     assert not [i for i in issues if i.id == "LOG-001"]
-    assert [i.id for i in validate_part(P(tasks), Config(plan="CLIENTE")).checks if i.id == "LOG-018"] == ["LOG-018"]
-    assert not [i for i in validate_part(P(tasks), Config()).checks if i.id == "LOG-018"]   # sin planificación
+    other = validate_part(P(tasks), Config(plan="CLIENTE")).checks
+    [line] = [i for i in other if i.id == "LOG-018"]
+    assert line.message.endswith("0 tareas de detalle se quedarían sin predecesoras y 1 sin sucesoras en la "
+                                 "planificación.")
+    assert [(i.code, i.message) for i in other if i.id == "LOG-019"] == [
+        ("1.2.0", "Vinculada con otra planificación: predecesora de 1.1 (UID 7).")]
+    assert not [i for i in validate_part(P(tasks), Config()).checks if i.id in ("LOG-018", "LOG-019")]
 
 
 def test_multiple_critical_paths():
@@ -974,7 +983,7 @@ def test_com_reads_saved_baselines_and_critical_paths_option():
     a.Baseline1Start, a.Baseline2Start, b.Baseline2Start = "NA", d(2026, 3, 2), d(2026, 3, 9)
     session = make_session([a, b])
     session.project.MultipleCriticalPaths = True
-    p = session.read_project(Config(), baselines=True)
+    p = session.read_project(Config(), review=True)
     assert [t.baselines for t in p.tasks] == [(0, 2), (2,)]
     assert (p.baseline_number, p.multiple_critical_paths, p.baseline_found) == (0, True, True)
     assert [t.baselines for t in make_session([a, b]).read_project(Config()).tasks] == [(), ()]

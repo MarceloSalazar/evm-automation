@@ -223,7 +223,7 @@ def projects(books):
         cfg.baseline = int(os.environ["EVM_LINEA_BASE"])
     xml = read_xml(XML, cfg, links=False)
     with ComSession(MPP) as session:
-        com = session.read_project(cfg, links=False, baselines=True)
+        com = session.read_project(cfg, links=False, review=True)
     if not books["was_running"]:
         wait_until_closed()
     return Hidden(com=com, xml=xml)
@@ -248,6 +248,13 @@ def test_same_project_options_and_saved_baselines(projects):
 
     saved = (counts(com), counts(xml))
     assert saved[0] == saved[1], f"Tareas con comienzo en cada línea base: COM {saved[0]} / XML {saved[1]}"
+    # Línea base usada incompleta (FEC-015, FEC-016) y tareas con calendario propio (FEC-017): las mismas tareas
+    n = xml.baseline_number
+    incomplete = (sorted(t.uid for t in com.tasks if n in t.incomplete_baselines),
+                  sorted(t.uid for t in xml.tasks if n in t.incomplete_baselines))
+    assert incomplete[0] == incomplete[1], f"Línea base incompleta (UID): COM {incomplete[0]} / XML {incomplete[1]}"
+    calendars = (sorted(t.uid for t in com.tasks if t.calendar), sorted(t.uid for t in xml.tasks if t.calendar))
+    assert calendars[0] == calendars[1], f"Tareas con calendario propio (UID): COM {calendars[0]} / XML {calendars[1]}"
 
 
 def test_same_calendar(projects):
