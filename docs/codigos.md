@@ -103,7 +103,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | Área | Nombre | Tema en la hoja Validación | Dónde aparecen | Códigos |
 |---|---|---|---|---|
 | [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 51 |
-| [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 24 |
+| [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 25 |
 | [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 22 |
 | [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 10 |
 | [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 14 |
@@ -621,6 +621,7 @@ Apertura del archivo .mpp o .xml y campos configurados que no se encuentran o es
 | [LEC-022](#lec-022) | Advertencia | No se pudo cerrar el proyecto en MS Project |
 | [LEC-023](#lec-023) | Advertencia | Campo de reparto vacío |
 | [LEC-024](#lec-024) | Info | Líneas base guardadas |
+| [LEC-025](#lec-025) | Advertencia | Calendario del proyecto no leído |
 
 #### LEC-001
 
@@ -810,9 +811,17 @@ En multi-empresa, el campo de reparto existe, pero está vacío en todas las tar
 
 **Líneas base guardadas** · Info · validar · se puede silenciar
 
-Líneas base guardadas y la que usa el % planificado: con un XML, la cantidad de tareas revisadas (las de la planificación exportada) con fechas en cada una; con un .mpp, la fecha en que se guardó cada una en el proyecto.
+Líneas base guardadas y la que usa el % planificado: la cantidad de tareas revisadas (las de la planificación exportada) con fechas en cada una.
 
 **Qué hacer:** Ninguna, si el % planificado usa la línea base aprobada; si no, indicar la línea base con linea_base o `--linea-base`.
+
+#### LEC-025
+
+**Calendario del proyecto no leído** · Advertencia · generar, actualizar, validar y generar-fichas con archivos .mpp · se puede silenciar
+
+Con un .mpp, MS Project no devolvió el calendario del proyecto (la jornada de cada día de la semana y los días no laborables) como se esperaba: el % planificado se reparte con un calendario de lunes a viernes, de 8:00 a 12:00 y de 13:00 a 17:00, y los feriados de la configuración.
+
+**Qué hacer:** Comparar con el resultado del XML del mismo proyecto (Archivo > Guardar como > XML), que lee el calendario del archivo, y usar el XML si difieren.
 
 ---
 

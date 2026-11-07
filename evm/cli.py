@@ -48,11 +48,12 @@ def _engine_for(origen: str, motor: str) -> str:
 
 @contextmanager
 def open_project(origen: str, cfg: Config, motor: str, visible: bool = False, status: date | None = None,
-                 name: str = "", links: bool = True):
+                 name: str = "", links: bool = True, baselines: bool = False):
     """Devuelve el proyecto leído (ProjectData). Con COM, MS Project queda abierto mientras dure el bloque.
 
     name: nombre del archivo en [[proyectos]] (etapas de la barra de progreso).
     links: lee los vínculos y las delimitaciones de las tareas (validar y generar-fichas).
+    baselines: con COM, lee las líneas base de cada tarea (validar; el XML siempre las tiene).
     """
     engine = _engine_for(origen, motor)
     if origen.lower() != "activo" and not Path(origen).is_file():
@@ -67,7 +68,7 @@ def open_project(origen: str, cfg: Config, motor: str, visible: bool = False, st
     progress.stage(f"abrir:{name}", f"Apertura en MS Project{which}")
     with ComSession(origen, visible=visible) as session:
         progress.stage(f"leer:{name}", f"Lectura de MS Project{which}")
-        yield session.read_project(cfg, status_date=status, links=links)
+        yield session.read_project(cfg, status_date=status, links=links, baselines=baselines)
 
 
 def _stages(files: list[tuple[str, str, Config]], motor: str, before: dict[str, float] | None = None,
@@ -542,7 +543,7 @@ def cmd_validar(args) -> int:
     with progress.tracking(_stages(files, args.motor, compute=0.2, after={"revisar": 0.1})):
         for name, origin, pcfg in files:
             progress.say(_reading(name, origin))
-            with open_project(origin, pcfg, args.motor, args.visible, name=name) as project:
+            with open_project(origin, pcfg, args.motor, args.visible, name=name, baselines=True) as project:
                 _computing(name, "Revisión del cronograma")
                 parts.append(validate_part(project, pcfg, name, status))
         progress.stage("revisar", "Revisión de los códigos EDT de todos los archivos")

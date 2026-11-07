@@ -14,8 +14,9 @@ from __future__ import annotations
 
 import gc
 import logging
+import re
 import time
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from evm import progress
@@ -24,6 +25,7 @@ from evm.fields import (TASK_NUMBER_IDS, TASK_TEXT_IDS, builtin_kind, fmt_number
                         is_spanish_wbs_name, parse_custom_name, parse_number, same_name)
 from evm.messages import Issue, ProjectAppError
 from evm.model import CONSTRAINT_ASAP, LINK_FS, Link, ProjectData, Task, use_current_schedule
+from evm.workcalendar import STANDARD_DAY, WorkCalendar
 
 log = logging.getLogger(__name__)
 
@@ -109,6 +111,82 @@ def _predecessors(t, uid: int) -> list[Link]:
         kind = _number(_get(dep, "Type", LINK_FS))
         links.append(Link(pred, LINK_FS if kind is None else int(kind), _number(_get(dep, "Lag", 0)) or 0.0))
     return links
+
+
+def _minutes(v) -> int | None:
+    """Hora de un turno de MS Project en minutos desde las 00:00: fecha y hora de COM (solo cuenta la hora) o texto
+    ('9:00', '9:00 a. m.', '13:00:00'); None si está vacía o no se reconoce."""
+    if isinstance(v, datetime):
+        return v.hour * 60 + v.minute
+    if isinstance(v, str):
+        m = re.search(r"(\d{1,2}):(\d{2})", v)
+        if not m:
+            return None
+        hour, minute = int(m.group(1)), int(m.group(2))
+        tail = re.sub(r"[\s.:\d]", "", v[m.end():]).lower()
+        if tail.startswith("pm") and hour < 12:
+            hour += 12
+        elif tail.startswith("am") and hour == 12:
+            hour = 0
+        return hour * 60 + minute
+    return None
+
+
+def _shifts(day) -> list[tuple[int, int]]:
+    """Turnos laborables (Shift1 a Shift5) de un día de MS Project (WeekDay o Period), en minutos desde las 00:00.
+    Un turno sin horas termina la lista; un fin a las 0:00 es la medianoche (24:00)."""
+    out: list[tuple[int, int]] = []
+    for i in range(1, 6):
+        shift = _get(day, f"Shift{i}")
+        if shift is None:
+            break
+        a, b = _minutes(_get(shift, "Start")), _minutes(_get(shift, "Finish"))
+        if a is None or b is None or (a == 0 and b == 0):
+            break
+        b = 24 * 60 if b == 0 else b
+        if b <= a:
+            break
+        out.append((a, b))
+    return out
+
+
+def _item(collection, index):
+    """Elemento de una colección de MS Project (Item o llamada, según el enlace de pywin32)."""
+    try:
+        return collection.Item(index)
+    except Exception:
+        return collection(index)
+
+
+def calendar_from_com(cal, first: date, last: date) -> WorkCalendar | None:
+    """Calendario del proyecto leído de MS Project (Project.Calendar), como el del XML: la jornada de cada día de la
+    semana (WeekDays, turnos Shift1 a Shift5) y, día por día entre first y last, los días que son laborables o no
+    laborables distinto de su día de la semana (Period(día).Working): MS Project los resuelve con las excepciones,
+    las semanas laborales y el calendario base. Un día laborable distinto de la semana toma sus turnos (o los de un
+    día laborable de la semana). No se leen las excepciones que solo cambian el horario de un día laborable.
+
+    None si no hay calendario; error si MS Project no responde como se espera (el lector avisa con LEC-025)."""
+    if cal is None:
+        return None
+    weekly: dict[int, list[tuple[int, int]]] = {}
+    for pj in range(1, 8):                      # pjSunday = 1 ... pjSaturday = 7
+        day = _item(cal.WeekDays, pj)
+        working = bool(day.Working)
+        windows = _shifts(day) if working else []
+        if working and not windows:
+            raise ProjectAppError("LEC-025", f"No se reconocen los turnos del día {pj} de la semana del calendario "
+                                             "del proyecto.")
+        weekly[(pj + 5) % 7] = windows          # weekday(): 0 = lunes ... 6 = domingo
+    usual = next((w for w in (weekly[k] for k in range(7)) if w), list(STANDARD_DAY))
+    out = WorkCalendar(weekly, name=str(_get(cal, "Name", "") or "Proyecto"))
+    d = first
+    while d <= last:
+        period = cal.Period(_com_date(d))
+        working = bool(period.Working)
+        if working != bool(weekly[d.weekday()]):
+            out.exceptions[d] = (_shifts(period) or list(usual)) if working else []
+        d += timedelta(days=1)
+    return out
 
 
 class ComSession:
@@ -380,9 +458,11 @@ class ComSession:
             except Exception:
                 continue
 
-    def read_project(self, cfg: Config, status_date: date | None = None, links: bool = True) -> ProjectData:
+    def read_project(self, cfg: Config, status_date: date | None = None, links: bool = True,
+                     baselines: bool = False) -> ProjectData:
         """links: lee los vínculos y las delimitaciones de las tareas (solo los usan validar y generar-fichas; son
-        varias llamadas a MS Project por tarea)."""
+        varias llamadas a MS Project por tarea). baselines: lee en qué líneas base (0 a 10) tiene fechas cada tarea
+        (solo validar: diez llamadas más por tarea)."""
         p = self.project
         self._activate()
         if status_date is not None:
@@ -453,6 +533,10 @@ class ComSession:
             bl_finish = _dt(_get(t, f"Baseline{sfx}Finish"))
             has_bl = bl_start is not None or bl_finish is not None
             any_baseline = any_baseline or has_bl
+            saved: tuple[int, ...] = ()
+            if baselines:               # el comienzo de cada línea base ('NA' si la tarea no la tiene)
+                saved = tuple(k for k in range(11) if (has_bl if k == n else
+                                                       _dt(_get(t, f"Baseline{'' if k == 0 else k}Start")) is not None))
             wbs = self._field_value(t, wbs_ref)
             weight = self._field_value(t, weight_ref)
             company = self._field_value(t, company_ref)
@@ -478,7 +562,7 @@ class ComSession:
                 constraint_type=(int(_number(_get(t, "ConstraintType", CONSTRAINT_ASAP)) or CONSTRAINT_ASAP)
                                  if links else CONSTRAINT_ASAP),
                 constraint_date=_dt(_get(t, "ConstraintDate")) if links else None,
-                predecessors=_predecessors(t, uid) if links else [],
+                predecessors=_predecessors(t, uid) if links else [], baselines=saved,
                 method=str(self._field_value(t, method_ref) or "").strip(),
                 milestone_weight=None if weight in (None, "") else parse_number(weight),
                 company=str(company or "").strip(),
@@ -491,20 +575,29 @@ class ComSession:
             warnings.append(Issue("LEC-017", message=f"Se omitieron {skipped_external} tareas externas (vínculos "
                                                      "entre proyectos)."))
 
-        # Fecha en que se guardó cada línea base (0 = Línea base, 1..10): una llamada a MS Project por línea base
-        saved: dict[int, datetime] = {}
-        for k in range(11):
-            for getter in (lambda: p.BaselineSavedDate(k), lambda: p.GetBaselineSavedDate(k)):
-                try:
-                    when = _dt(getter())
-                    break
-                except Exception:
-                    continue
-            else:
-                when = None
-            if when is not None:
-                saved[k] = when
-        any_baseline = any_baseline or n in saved
+        saved_date = None
+        for getter in (lambda: p.BaselineSavedDate(n), lambda: p.GetBaselineSavedDate(n)):
+            try:
+                saved_date = _dt(getter())
+                break
+            except Exception:
+                continue
+        any_baseline = any_baseline or saved_date is not None
+
+        # Calendario del proyecto, en el período de las tareas (como el del XML), con los feriados de la configuración
+        dates = [d for t in tasks for d in (t.baseline_start, t.baseline_finish, t.start, t.finish) if d is not None]
+        calendar = None
+        if dates:
+            try:
+                calendar = calendar_from_com(_get(p, "Calendar"), min(dates).date(), max(dates).date())
+            except Exception as exc:        # objeto de MS Project que no responde como se espera
+                log.debug("Calendario del proyecto no leído: %s", exc)
+                warnings.append(Issue("LEC-025", message="No se pudo leer el calendario del proyecto en MS Project: "
+                                                         "el % planificado se reparte con un calendario de lunes a "
+                                                         "viernes, de 8:00 a 12:00 y de 13:00 a 17:00, y los feriados "
+                                                         "de la configuración."))
+        if calendar is not None:
+            calendar.add_holidays(cfg.holidays)
 
         summary = _get(p, "ProjectSummaryTask")
         title = str(_get(summary, "Name", "") or "").strip() if summary is not None else ""
@@ -518,10 +611,10 @@ class ComSession:
             currency_symbol=str(_get(p, "CurrencyCode", "") or _get(p, "CurrencySymbol", "") or ""),
             project_start=_dt(_get(p, "ProjectStart")),
             baseline_label="Línea base" if n == 0 else f"Línea base {n}",
-            warnings=warnings, fields_found=found,
+            warnings=warnings, fields_found=found, calendar=calendar,
             minutes_per_day=hours * 60 if hours and hours > 0 else 480.0,
             multiple_critical_paths=bool(critical_paths) if isinstance(critical_paths, (bool, int)) else None,
-            baseline_number=n, baseline_saved=saved,
+            baseline_number=n,
         )
         if not any_baseline:
             use_current_schedule(project)

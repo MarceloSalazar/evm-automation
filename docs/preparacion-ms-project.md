@@ -217,9 +217,9 @@ Si la PC que ejecuta el programa no tiene MS Project, se guarda el proyecto en f
 *Archivo > Guardar como*, tipo **XML**. El XML se debe guardar **después** de registrar el avance y fijar
 la fecha de estado: el programa toma la fecha de estado del archivo como fecha de corte.
 
-Calendario: con XML, la duración de las tareas se reparte entre los meses con el calendario del proyecto;
-con `.mpp`, con un calendario de lunes a viernes más los `feriados` de la configuración. En ambos casos
-no se usan los calendarios de recursos ni de tareas
+Calendario: la duración de las tareas se reparte entre los meses con el calendario del proyecto (la
+jornada de cada día y los días no laborables), leído del XML o del `.mpp`, más los `feriados` de la
+configuración. No se usan los calendarios de recursos ni de tareas
 ([Limitaciones](validaciones-y-problemas.md#2-limitaciones-conocidas)).
 
 ---

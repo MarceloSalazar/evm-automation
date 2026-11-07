@@ -78,8 +78,8 @@ opcionales de `test_msproject_real.py` (marca `msproject`) leen un proyecto real
 y comparan el resultado con el XML que MS Project guarda del mismo proyecto: estructura EDT, métodos,
 horizonte, % planificado de cada mes, % ganado acumulado a la fecha de corte (de cada empresa, en
 multi-empresa), plazo según el cronograma (fin previsto, holgura total y tareas críticas), la opción
-*Calcular varias rutas críticas* y la línea base usada, y que MS Project quede como estaba (abierto o
-cerrado). Los dos libros reciben el mismo
+*Calcular varias rutas críticas*, las líneas base de las tareas, el calendario del proyecto (jornada de
+cada día de la semana y días laborables) y que MS Project quede como estaba (abierto o cerrado). Los dos libros reciben el mismo
 BAC en cada fila.
 
 1. En MS Project se abre el proyecto, se define *Proyecto > Fecha de estado* y se guarda el `.mpp`.
@@ -94,10 +94,11 @@ python -m pytest -m msproject -v
 
 Opcionales: `EVM_CONFIG` (archivo de configuración; por defecto `config.toml` si existe y, si no,
 `config.ejemplo.toml`), `EVM_LINEA_BASE` (línea base N) y `EVM_TOLERANCIA_PV` (diferencia admitida en el
-% planificado de cada mes; por defecto 0.005, es decir, 0,5 %). El motor XML reparte la duración de las
-tareas con el calendario del proyecto, y el motor COM con lunes a viernes y los `feriados` de la
-configuración, por eso se admite una pequeña diferencia. Los mensajes de las pruebas solo muestran
-códigos EDT y porcentajes.
+% planificado de cada mes; por defecto 0.005, es decir, 0,5 %). Los dos motores reparten la duración de
+las tareas con el calendario del proyecto; el motor COM no lee las excepciones que solo cambian el horario
+de un día laborable, por eso se admite una pequeña diferencia. Los mensajes de las pruebas solo muestran
+códigos EDT, UniqueID, fechas y porcentajes (con multi-empresa, «empresa A» y «empresa B»), y los datos
+del proyecto no aparecen si una prueba falla.
 
 El proyecto de ejemplo (`ejemplos/programa_ejemplo.xml`) y su generador se describen en el
 [tutorial](ejemplo-paso-a-paso.md). El segundo proyecto de ejemplo (`ejemplos/proyecto2_ejemplo.xml`,

@@ -58,8 +58,8 @@ class RowWeights:
 
 
 def calendar_for(project, cfg) -> WorkCalendar:
-    """Calendario para repartir la duración: el del proyecto (XML, con los feriados de la configuración) o
-    lunes a viernes con los feriados de la configuración (.mpp)."""
+    """Calendario para repartir la duración: el del proyecto, leído del XML o de MS Project (.mpp), con los feriados
+    de la configuración; si no se pudo leer, lunes a viernes con los feriados de la configuración."""
     if getattr(project, "calendar", None) is not None:
         return project.calendar
     cal = WorkCalendar()

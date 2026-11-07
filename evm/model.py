@@ -68,7 +68,7 @@ class Task:
     constraint_type: int = CONSTRAINT_ASAP
     constraint_date: datetime | None = None
     predecessors: list[Link] = field(default_factory=list)
-    # Líneas base con fechas en la tarea (0 = Línea base, 1..10); solo XML: con COM se lee la fecha de cada una
+    # Líneas base con fechas en la tarea (0 = Línea base, 1..10): siempre con XML; con COM, solo en validar
     baselines: tuple[int, ...] = ()
 
     # Campos personalizados configurados
@@ -109,10 +109,9 @@ class ProjectData:
     fields_found: dict[str, str] = field(default_factory=dict)
     # Opción "Calcular varias rutas críticas" de MS Project (None = no se leyó)
     multiple_critical_paths: bool | None = None
-    # Línea base que usa el % planificado (0 = "Línea base", 1..10 = "Línea base N") y, con COM, fecha en que se guardó
-    # cada línea base (con XML, cada tarea indica sus líneas base: Task.baselines)
+    # Línea base que usa el % planificado (0 = "Línea base", 1..10 = "Línea base N"); las líneas base de cada tarea
+    # están en Task.baselines
     baseline_number: int = 0
-    baseline_saved: dict[int, datetime] = field(default_factory=dict)
 
 
 def use_current_schedule(project: ProjectData) -> None:

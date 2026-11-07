@@ -821,13 +821,11 @@ def test_saved_baselines_are_listed():
     assert line.message == ("Líneas base guardadas en las tareas revisadas: Línea base (2 tareas), Línea base 1 (1 "
                             "tarea) y Línea base 2 (2 tareas). El % planificado usa la Línea base 1, la que el proyecto "
                             "usa para el valor acumulado (Archivo > Opciones > Avanzadas).")
-    t["Fase"].baselines = t["A"].baselines = ()
-    issues = checks_of(tasks, Config(baseline=3), baseline_number=3,
-                       baseline_saved={0: datetime(2025, 12, 15, 8)})
+    issues = checks_of(tasks, Config(baseline=3), baseline_number=3)
     [line] = [i for i in issues if i.id == "LEC-024"]
-    assert line.message == ("Líneas base guardadas en el proyecto: Línea base (guardada el 15/12/2025). El % "
-                            "planificado usaría la Línea base 3, la indicada con linea_base o --linea-base, que no "
-                            "está guardada (FEC-009).")
+    assert line.message.endswith("El % planificado usaría la Línea base 3, la indicada con linea_base o "
+                                 "--linea-base, que no está guardada (FEC-009).")
+    t["Fase"].baselines = t["A"].baselines = ()
     assert not [i for i in checks_of(tasks) if i.id == "LEC-024"]          # sin datos de las líneas base
     t["A"].baselines = (0,)
     assert not [i for i in build_report(P(tasks), Config()).issues if i.id == "LEC-024"]      # solo validar
@@ -968,15 +966,17 @@ def test_xml_reads_saved_baselines_and_critical_paths_option(tmp_path):
 
 
 def test_com_reads_saved_baselines_and_critical_paths_option():
+    """Con COM, las líneas base de cada tarea se leen solo si se piden (validar): el comienzo de cada una."""
     from test_reader_com_fake import FakeTask, d, make_session
 
-    session = make_session([FakeTask(1, 1, "A", "1")])
-    dates = {0: d(2025, 12, 15), 2: d(2026, 3, 2)}
-    session.project.BaselineSavedDate = lambda n: dates.get(n, "NA")
+    a, b = FakeTask(1, 1, "A", "1"), FakeTask(2, 1, "B", "2", bl=False)
+    a.Baseline1Start, a.Baseline2Start, b.Baseline2Start = "NA", d(2026, 3, 2), d(2026, 3, 9)
+    session = make_session([a, b])
     session.project.MultipleCriticalPaths = True
-    p = session.read_project(Config())
-    assert p.baseline_saved == {0: datetime(2025, 12, 15, 8), 2: datetime(2026, 3, 2, 8)}
+    p = session.read_project(Config(), baselines=True)
+    assert [t.baselines for t in p.tasks] == [(0, 2), (2,)]
     assert (p.baseline_number, p.multiple_critical_paths, p.baseline_found) == (0, True, True)
+    assert [t.baselines for t in make_session([a, b]).read_project(Config()).tasks] == [(), ()]
     session = make_session([FakeTask(1, 1, "A", "1")])
     session.project.MultipleCriticalPaths = False
     assert session.read_project(Config()).multiple_critical_paths is False

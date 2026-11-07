@@ -35,7 +35,7 @@ copy config.ejemplo.toml config.toml
 | `[exportacion] rellenar_edt` | `true` | `1` → `1.0.0`, `1.2` → `1.2.0`. |
 | `[exportacion] incluir_inactivas` | `false` | Incluir tareas inactivas. |
 | `[exportacion] distribucion` | `"habiles"` | Duración de cada tarea, que define su peso y su reparto en el tiempo: tiempo laborable (`habiles`) o días corridos (`calendario`). |
-| `[exportacion] feriados` | `[]` | Feriados adicionales para repartir la duración de las tareas. Con XML se agregan al calendario del proyecto; con `.mpp` se usan con un calendario de lunes a viernes. |
+| `[exportacion] feriados` | `[]` | Feriados adicionales para repartir la duración de las tareas: se agregan al calendario del proyecto, leído del XML o del `.mpp`. |
 | `[exportacion] metodo_por_defecto` | `"Por definir"` | Método para las filas sin método. |
 | `[exportacion] moneda` | `"EUR"` | Moneda que se muestra en el libro. Con `""` se usa el código de moneda del proyecto en MS Project. |
 | `[exportacion] decimales` | `0` | Decimales de los montos en el libro (0 a 4). |

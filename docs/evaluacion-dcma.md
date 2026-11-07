@@ -57,8 +57,8 @@ contratos del gobierno de EE. UU. no son obligatorios; se usan como buena práct
   estas tareas: lo terminado ya no se puede corregir.
 - **Días laborables:** la duración y la holgura se leen de MS Project y se pasan a días con las horas
   por día del proyecto (*Archivo > Opciones > Programación*; 8 horas por defecto). Las fechas (CPLI) se
-  cuentan con el mismo calendario que reparte el % planificado: el del proyecto (XML) o de lunes a viernes
-  con los `feriados` de la configuración (`.mpp`).
+  cuentan con el mismo calendario que reparte el % planificado: el del proyecto, leído del XML o del
+  `.mpp`, con los `feriados` de la configuración.
 - **44 días laborables** (unos 2 meses) es el límite de la DCMA para una holgura o una duración alta.
 - **Fecha de estado:** la del proyecto en MS Project (*Proyecto > Información del proyecto*) o la de
   `--fecha-corte`. Sin fecha de estado, no se calculan los puntos que dependen de ella (9, 11, 13 y 14).

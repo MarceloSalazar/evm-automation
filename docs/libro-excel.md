@@ -201,7 +201,7 @@ tareas de detalle de cada fila, las mismas del % ganado:
 |---|---|
 | Fin línea base | Fin de la última tarea según la línea base. |
 | Fin previsto | Fin de la última tarea según el cronograma vigente (campo *Fin*; fin real si terminó). No es el campo *Fin previsto* de MS Project en español, que es el de la línea base. |
-| Desvío fin (días lab.) | Días laborables entre los dos: > 0 = atraso. Con XML se cuentan con el calendario del proyecto; con `.mpp`, de lunes a viernes con los `feriados` de la configuración. |
+| Desvío fin (días lab.) | Días laborables entre los dos: > 0 = atraso. Se cuentan con el calendario del proyecto (leído del XML o del `.mpp`) y los `feriados` de la configuración. |
 | Holgura (días lab.) | Menor holgura total de las tareas sin terminar, como la calcula MS Project. Negativa: la fecha de fin del proyecto está comprometida. |
 | Crítica | `Sí` si alguna tarea sin terminar es crítica en MS Project, `No`, o `Terminado`. |
 

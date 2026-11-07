@@ -473,25 +473,20 @@ def baseline_checks(project: ProjectData, scope: Scope, code_of: CodeOf, cfg: Co
     de las ramas con Visible = No; las inactivas no cuentan, como en MS Project."""
     issues: list[Issue] = []
     used = _baseline_label(project.baseline_number)
-    # XML: tareas revisadas (de la planificación exportada) con fechas en cada línea base; COM: fecha de guardado
+    # Tareas revisadas (de la planificación exportada) con fechas en cada línea base
     counts: dict[int, int] = {}
     for t in scope.tasks():
         for n in t.baselines:
             counts[n] = counts.get(n, 0) + 1
     if counts:
-        where = "en las tareas revisadas"
         items = [f"{_baseline_label(n)} ({fmt_number(c, 0)} {'tarea' if c == 1 else 'tareas'})"
                  for n, c in sorted(counts.items())]
-    else:
-        where = "en el proyecto"
-        items = [f"{_baseline_label(n)} (guardada el {_day(d)})" for n, d in sorted(project.baseline_saved.items())]
-    if items:
-        saved = project.baseline_number in (counts or project.baseline_saved)
         how = ("la indicada con linea_base o --linea-base" if cfg.baseline is not None else
                "la que el proyecto usa para el valor acumulado (Archivo > Opciones > Avanzadas)")
-        which = (f"El % planificado usa la {used}, {how}." if saved else
+        which = (f"El % planificado usa la {used}, {how}." if project.baseline_number in counts else
                  f"El % planificado usaría la {used}, {how}, que no está guardada (FEC-009).")
-        issues.append(Issue("LEC-024", "", "", f"Líneas base guardadas {where}: {_series(items)}. {which}"))
+        issues.append(Issue("LEC-024", "", "", f"Líneas base guardadas en las tareas revisadas: {_series(items)}. "
+                                               f"{which}"))
     if not project.baseline_found:
         return issues
 

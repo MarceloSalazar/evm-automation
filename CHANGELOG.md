@@ -48,8 +48,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   Project (`ACT-047`). Observaciones del comando: `DEP-012` a `DEP-018`, nuevos
   ([Depuración de costes](docs/depuracion-costes.md#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes),
   [Comandos](docs/comandos.md#procesar-costes-pv-con-el-reparto-del-plan-de-costes)).
-- **Más controles en `validar`:** las líneas base guardadas (con un XML, cuántas tareas revisadas tiene
-  cada una; con un `.mpp`, la fecha en que se guardó) y la que usa el % planificado (`LEC-024`); las
+- **Más controles en `validar`:** las líneas base guardadas (cuántas tareas revisadas tienen fechas en
+  cada una) y la que usa el % planificado (`LEC-024`); las
   tareas resumen cuya línea base no coincide con la de sus tareas de detalle porque no se resumió al
   guardarla (`FEC-013` y `FEC-014`); la fecha de estado que no es el último día del mes, con el mes en
   que `actualizar` cargaría el avance (`AVA-018`); la opción *Calcular varias rutas críticas* de MS
@@ -90,6 +90,14 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   al guardarla, si la rama tiene tareas con `Visible = No` o tareas sin línea base, y podían tener el fin
   antes del comienzo ([El libro Excel](docs/libro-excel.md#2-hojas-pv-ev-y-ac)). Los libros ya generados
   conservan sus fechas; el cambio se ve en los libros que se generan de nuevo.
+- **Calendario del proyecto con `.mpp`:** el % planificado, el desvío de fin y los controles de `validar`
+  se calculaban con un calendario fijo de lunes a viernes, de 8:00 a 12:00 y de 13:00 a 17:00, aunque el
+  proyecto tuviera otra jornada u otros días no laborables: con un calendario de 9:00 a 13:00 y de 15:00 a
+  19:00, el reparto de los días incompletos difería del que da el XML del mismo proyecto. Ahora se lee el
+  calendario del proyecto de MS Project: la jornada de cada día de la semana y los días laborables y no
+  laborables, con las excepciones y las semanas laborales que resuelve MS Project, como con el XML. Si no
+  se puede leer, se usa el calendario fijo y se avisa (`LEC-025`, nuevo)
+  ([Limitaciones](docs/validaciones-y-problemas.md#2-limitaciones-conocidas)).
 - **Solo la planificación elegida:** con `planificacion` (por ejemplo `INTERNO`), el aviso de tareas
   inactivas excluidas (`EDT-016`) contaba las de todo el archivo, también las de otras planificaciones;
   ahora cuenta solo las de la planificación. Los controles de lógica de `validar` (criterios DCMA) y el

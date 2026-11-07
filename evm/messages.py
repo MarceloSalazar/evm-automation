@@ -497,11 +497,17 @@ _CODES = [
           "Cargar el % de la empresa A en las tareas compartidas (o en su tarea superior), o confirmar que el reparto "
           "por defecto es el acordado.", W_GV),
     _code("LEC-024", I, "Líneas base guardadas",
-          "Líneas base guardadas y la que usa el % planificado: con un XML, la cantidad de tareas revisadas (las de "
-          "la planificación exportada) con fechas en cada una; con un .mpp, la fecha en que se guardó cada una en el "
-          "proyecto.",
+          "Líneas base guardadas y la que usa el % planificado: la cantidad de tareas revisadas (las de la "
+          "planificación exportada) con fechas en cada una.",
           "Ninguna, si el % planificado usa la línea base aprobada; si no, indicar la línea base con linea_base o "
           "--linea-base.", W_V),
+    _code("LEC-025", W, "Calendario del proyecto no leído",
+          "Con un .mpp, MS Project no devolvió el calendario del proyecto (la jornada de cada día de la semana y los "
+          "días no laborables) como se esperaba: el % planificado se reparte con un calendario de lunes a viernes, "
+          "de 8:00 a 12:00 y de 13:00 a 17:00, y los feriados de la configuración.",
+          "Comparar con el resultado del XML del mismo proyecto (Archivo > Guardar como > XML), que lee el "
+          "calendario del archivo, y usar el XML si difieren.", "generar, actualizar, validar y generar-fichas con "
+          "archivos .mpp"),
 
     # --- EDT: estructura y códigos EDT --------------------------------------------------------------------------
     _code("EDT-001", E, "Código EDT con formato no válido",

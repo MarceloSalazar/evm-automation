@@ -110,9 +110,8 @@ incluir_inactivas = false
 #   "calendario" proporcional a los días corridos
 distribucion = "habiles"
 
-# Feriados adicionales. Con XML se agregan al calendario del proyecto; con .mpp
-# se usan para repartir la duración de las tareas, con un calendario de lunes a
-# viernes.
+# Feriados adicionales: se agregan al calendario del proyecto (leído del XML o
+# del .mpp) para repartir la duración de las tareas.
 feriados = [
   # "2026-12-25",
   # "2027-01-01",
