@@ -118,7 +118,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 18 |
 | [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 51 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
-| [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 19 |
+| [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 21 |
 | [SIS](#417-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
 
 ---
@@ -2931,6 +2931,8 @@ Comando generar-cliente: tareas que se muestran al cliente, resúmenes convertid
 | [CLI-017](#cli-017) | Advertencia | No se pudo quitar el nombre del campo del cliente |
 | [CLI-018](#cli-018) | Error (detiene el programa) | Error de MS Project al generar el archivo del cliente |
 | [CLI-019](#cli-019) | Advertencia | Resúmenes convertidos con datos sin restaurar |
+| [CLI-020](#cli-020) | Advertencia | Resúmenes con otro % completado |
+| [CLI-021](#cli-021) | Advertencia | Tareas que no conservan su % completado |
 
 #### CLI-001
 
@@ -3083,6 +3085,22 @@ MS Project devolvió un error en uno de los pasos (borrar tareas, vincular, reca
 Al pasar de resumen a tarea, MS Project cambió la duración, el avance o una línea base del resumen y no aceptó el valor original.
 
 **Qué hacer:** Revisar esas tareas en el archivo del cliente (el informe de control indica el dato).
+
+#### CLI-020
+
+**Resúmenes con otro % completado** · Advertencia · generar-cliente · se puede silenciar
+
+MS Project calcula el % completado de un resumen con la duración de sus tareas de detalle. En el archivo del cliente no están las tareas ocultas, y su avance no cuenta; un resumen convertido pesa por su duración, no por la de sus subtareas: el % del resumen cambia.
+
+**Qué hacer:** Revisar la lista del informe de control. Si el cliente debe ver el avance de esos resúmenes, se debe mostrar el detalle que lo explica (marcar con Sí las tareas que lo forman).
+
+#### CLI-021
+
+**Tareas que no conservan su % completado** · Advertencia · generar-cliente · se puede silenciar
+
+Una tarea de detalle o un resumen convertido tiene en el archivo del cliente otro % completado que en la planificación interna (por ejemplo, porque MS Project no aceptó el avance al convertir el resumen).
+
+**Qué hacer:** Revisar esas tareas en el archivo del cliente y el registro de diagnóstico (`--registro`).
 
 ---
 

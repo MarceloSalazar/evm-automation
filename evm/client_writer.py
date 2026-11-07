@@ -34,7 +34,8 @@ from datetime import datetime
 from pathlib import Path
 
 from evm import progress
-from evm.client_plan import ClientPlan, DateChange, WriteResult, build_client_plan, require_client_field
+from evm.client_plan import (ClientPlan, DateChange, ProgressChange, WriteResult, build_client_plan,
+                              require_client_field)
 from evm.config import Config, ConfigError
 from evm.fields import field_id, parse_custom_name
 from evm.messages import EvmError, ProjectAppError
@@ -150,7 +151,8 @@ class _Writer:
                                  ("vínculos", self._links),
                                  ("campo del cliente", self._clear_field),
                                  ("nombre de la planificación", self._rename_root),
-                                 ("fechas", self._dates)):
+                                 ("fechas", self._dates),
+                                 ("avance", self._progress)):
                 self.step = step
                 log.info("Paso: %s", step)
                 action()
@@ -462,6 +464,37 @@ class _Writer:
                       start, finish, note)
         log.info("Fechas: %d fijadas, %d distintas de la planificación interna", len(self.r.fixed),
                  len(self.r.differences))
+
+    def _progress(self) -> None:
+        """Compara el % completado de cada tarea que se muestra con el de la planificación interna: las tareas de
+        detalle y los resúmenes convertidos deben conservarlo; el de los resúmenes lo calcula MS Project con las
+        tareas que quedan (se guarda para el informe y se compara con el previsto)."""
+        collapsed = {t.uid for t in self.plan.collapsed}
+        expected = {c.task.uid: c.client for c in self.plan.progress_changes}
+        summaries = changed = 0
+        for t in self.plan.tasks:
+            if t.uid not in self.plan.shown or not _active(t):
+                continue
+            pct = _number(_get(self.com[t.uid], "PercentComplete"))
+            if pct is None:
+                continue
+            if t.children and t.uid not in collapsed:
+                summaries += 1
+                self.r.summary_percent[t.uid] = pct
+                predicted = expected.get(t.uid, t.percent_complete)
+                if abs(pct - predicted) >= 1:
+                    log.warning("Resumen %s: MS Project calcula %s %% y se preveía %.1f %% (interno %s %%)",
+                                self._ref(t.uid), pct, predicted, t.percent_complete)
+                elif abs(pct - t.percent_complete) >= 0.5:
+                    changed += 1
+                    log.debug("Resumen %s: %% completado %s (interno %s), como se preveía", self._ref(t.uid), pct,
+                              t.percent_complete)
+            elif abs(pct - t.percent_complete) >= 0.5:
+                self.r.progress_tasks.append(ProgressChange(t, pct))
+                log.warning("Tarea %s: %% completado %s en el archivo del cliente e interno %s", self._ref(t.uid), pct,
+                            t.percent_complete)
+        log.info("Avance: %d resúmenes, %d con otro %% completado; %d tareas que no conservan el suyo", summaries,
+                 changed, len(self.r.progress_tasks))
 
 
 def _writable(path: Path) -> None:

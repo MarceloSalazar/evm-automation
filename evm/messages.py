@@ -1424,6 +1424,16 @@ _CODES = [
           "Al pasar de resumen a tarea, MS Project cambió la duración, el avance o una línea base del resumen y no "
           "aceptó el valor original.",
           "Revisar esas tareas en el archivo del cliente (el informe de control indica el dato)."),
+    _code("CLI-020", W, "Resúmenes con otro % completado",
+          "MS Project calcula el % completado de un resumen con la duración de sus tareas de detalle. En el archivo del "
+          "cliente no están las tareas ocultas, y su avance no cuenta; un resumen convertido pesa por su duración, no "
+          "por la de sus subtareas: el % del resumen cambia.",
+          "Revisar la lista del informe de control. Si el cliente debe ver el avance de esos resúmenes, se debe "
+          "mostrar el detalle que lo explica (marcar con Sí las tareas que lo forman)."),
+    _code("CLI-021", W, "Tareas que no conservan su % completado",
+          "Una tarea de detalle o un resumen convertido tiene en el archivo del cliente otro % completado que en la "
+          "planificación interna (por ejemplo, porque MS Project no aceptó el avance al convertir el resumen).",
+          "Revisar esas tareas en el archivo del cliente y el registro de diagnóstico (--registro)."),
 
     # --- SIS: errores del sistema -------------------------------------------------------------------------------
     _code("SIS-001", F, "Error inesperado",

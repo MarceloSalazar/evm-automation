@@ -15,10 +15,11 @@ mano. Se vuelve a generar en cada entrega, junto con su libro EVM.
 2. [Qué tareas ve el cliente](#2-qué-tareas-ve-el-cliente)
 3. [Resúmenes sin tareas visibles](#3-resúmenes-sin-tareas-visibles)
 4. [Lógica del cronograma](#4-lógica-del-cronograma)
-5. [Uso](#5-uso)
-6. [Cómo se genera el archivo](#6-cómo-se-genera-el-archivo)
-7. [Informe de control](#7-informe-de-control)
-8. [Registro de diagnóstico](#8-registro-de-diagnóstico)
+5. [Avance de los resúmenes](#5-avance-de-los-resúmenes)
+6. [Uso](#6-uso)
+7. [Cómo se genera el archivo](#7-cómo-se-genera-el-archivo)
+8. [Informe de control](#8-informe-de-control)
+9. [Registro de diagnóstico](#9-registro-de-diagnóstico)
 
 ---
 
@@ -75,9 +76,26 @@ Al quitar tareas, sus vínculos desaparecen. Para que la lógica siga completa y
 
 Con `[cliente] fijar_fechas = true` (por defecto), las fechas que aun así cambien al recalcular el
 archivo del cliente se fijan con la delimitación *No comenzar antes del* y se informan (ver el
-apartado 6).
+apartado 7).
 
-## 5. Uso
+## 5. Avance de los resúmenes
+
+MS Project calcula el % completado de un resumen con la duración de sus tareas de detalle: la suma de la
+duración real (duración × % completado) dividida por la suma de la duración. Si un resumen solo tiene
+hitos, su % es 100 cuando están todos cumplidos y 0 si no.
+
+- **Resumen convertido** (no se muestra ninguna subtarea): conserva el % que tenía, calculado con todas
+  sus subtareas. El programa lo comprueba después de generar el archivo (`CLI-021` si no es así). En su
+  resumen superior pesa por su propia duración (de su comienzo a su fin), no por la suma de la de sus
+  subtareas: si estas van en paralelo, pesa menos.
+- **Resumen con subtareas visibles y ocultas:** en el archivo del cliente, MS Project lo calcula solo con
+  las tareas que se muestran (y los resúmenes convertidos, con su avance y su duración). El avance de las
+  tareas ocultas no cuenta, y el % del resumen cambia. El programa lo calcula antes de generar el archivo (también
+  con `--simular`), lo compara después con el de MS Project y lista cada resumen con su % interno y el del
+  cliente (`CLI-020`).
+- **Tareas de detalle que se muestran:** conservan su % (`CLI-021` si no es así).
+
+## 6. Uso
 
 ```toml
 [exportacion]
@@ -110,7 +128,7 @@ campo `Visible` de siempre. Así, el libro solo tiene las tareas que ve el clien
 por lo que `actualizar` encuentra las filas en cada archivo nuevo. Para pasar a este libro los meses de
 un libro anterior, se usa `generar --migrar-desde`.
 
-## 6. Cómo se genera el archivo
+## 7. Cómo se genera el archivo
 
 La planificación interna **no se abre ni se modifica**: el programa la copia a un archivo temporal en la
 carpeta de destino y MS Project trabaja sobre la copia.
@@ -129,13 +147,14 @@ carpeta de destino y MS Project trabaja sobre la copia.
    antes del* las tareas sin comenzar que se adelantan (`CLI-013`) y quita los vínculos nuevos de las que
    se atrasan; repite el cálculo hasta que no hay cambios. Las que siguen distintas (comenzadas, con otra
    delimitación...) se informan (`CLI-014`).
-7. Guarda la copia y la deja en `--destino` como archivo **de solo lectura**: no se edita, se vuelve a
+7. Compara el % completado de cada tarea con el de la planificación interna (apartado 5).
+8. Guarda la copia y la deja en `--destino` como archivo **de solo lectura**: no se edita, se vuelve a
    generar en cada entrega. Si se debe reemplazar, `--sobrescribir` lo hace.
 
 Si la planificación interna está abierta en MS Project, se usa la versión guardada en el disco
 (`CLI-012`). Si algo falla, no queda ningún archivo del cliente ni la copia temporal.
 
-## 7. Informe de control
+## 8. Informe de control
 
 Documento interno en Markdown, que **no se entrega al cliente**: identifica las tareas por su código EDT y
 su UID (Id. único de MS Project), sin sus nombres. Contiene:
@@ -147,10 +166,12 @@ su UID (Id. único de MS Project), sin sus nombres. Contiene:
 - los resúmenes que pasan a ser tareas;
 - cada vínculo nuevo: predecesora, sucesora, tipo, posición en días y origen (puente o resumen);
 - los vínculos que no se crean y los resúmenes que cambian de fechas;
+- los resúmenes con otro % completado en el archivo del cliente (el interno, el previsto y, al generar el
+  archivo, el que calcula MS Project) y las tareas que no conservan el suyo;
 - al generar el archivo: las fechas fijadas, las fechas que siguen distintas (con el motivo), los vínculos
   que MS Project no aceptó o creó al borrar tareas y si se quitó el nombre del campo.
 
-## 8. Registro de diagnóstico
+## 9. Registro de diagnóstico
 
 Para revisar un problema, la opción `--registro` (antes del comando) escribe el registro de diagnóstico
 completo en un archivo, con la fecha y la hora de cada paso y el detalle técnico de los errores. La consola

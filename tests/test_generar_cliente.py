@@ -9,7 +9,7 @@ import pytest
 
 from evm.cli import main
 from evm.client_plan import (ORIGIN_BRIDGE, ORIGIN_SUMMARY, SKIP_CYCLE, SKIP_LINKED, SKIP_SUMMARY, build_client_plan,
-                             render_control, working_minutes)
+                             render_control, rollup_percent, working_minutes)
 from evm.config import Config, load_config
 from evm.fields import TASK_TEXT_IDS
 from evm.messages import EvmError
@@ -271,6 +271,51 @@ def test_summary_dates_set_by_a_hidden_subtask():
     [change] = plan.span_changes
     assert (change.task.uid, change.start, change.finish) == (2, d(7), d(9, 17))
     assert "CLI-008" in {i.id for i in plan.issues()}
+
+
+# ----------------------------------------------------------------------------
+# Avance de los resúmenes
+# ----------------------------------------------------------------------------
+def test_rollup_percent_like_ms_project():
+    a = task(1, 1, "A", duration=2 * DAY, percent_complete=100)
+    b = task(2, 1, "B", duration=6 * DAY, percent_complete=50)
+    assert rollup_percent([a, b]) == 62.5                     # (2 × 100 + 6 × 50) / 8
+    h1 = task(3, 1, "H1", duration=0, percent_complete=100)
+    h2 = task(4, 1, "H2", duration=0, percent_complete=0)
+    assert rollup_percent([h1, h2]) == 0 and rollup_percent([h1]) == 100   # solo hitos: 100 si están todos
+    assert rollup_percent([]) is None
+
+
+def test_summary_progress_with_hidden_and_collapsed_subtasks():
+    tasks = [root(),
+             task(2, 2, "Fase", percent_complete=50),
+             task(3, 3, "Visible", duration=2 * DAY, percent_complete=0),
+             task(4, 3, "Oculta", "No", duration=2 * DAY, percent_complete=100),
+             task(5, 2, "Otra fase", percent_complete=50),
+             task(6, 3, "Resumen", percent_complete=50, duration=4 * DAY),
+             task(7, 4, "Oculta 1", "No", duration=2 * DAY, percent_complete=100),
+             task(8, 4, "Oculta 2", "No", duration=2 * DAY, percent_complete=0)]
+    plan = plan_of(tasks)
+    # Fase pierde el avance de la oculta: 0 %. Otra fase conserva el 50 % (el resumen convertido lo lleva)
+    assert [(c.task.uid, c.task.percent_complete, c.client, c.hidden) for c in plan.progress_changes] == [(2, 50, 0, 1)]
+    assert "CLI-020" in {i.id for i in plan.issues()}
+    text = render_control(plan, "INTERNO.mpp", date(2026, 11, 7), "Simulación")
+    assert "## Avance de los resúmenes" in text and "| 2 (UID 2) | 50 % | 0 % | 1 tarea oculta |" in text
+
+
+def test_converted_summary_weighs_by_its_own_duration():
+    """Dos subtareas ocultas en paralelo (2 días cada una, una al 100 %): el resumen convertido conserva su 50 %, pero
+    en el resumen superior pesa 2 días (su duración), no 4."""
+    tasks = [root(),
+             task(2, 2, "Fase", percent_complete=67),
+             task(3, 3, "Visible", duration=2 * DAY, percent_complete=100),
+             task(4, 3, "Resumen", duration=2 * DAY, percent_complete=50),
+             task(5, 4, "Oculta 1", "No", duration=2 * DAY, percent_complete=100),
+             task(6, 4, "Oculta 2", "No", duration=2 * DAY, percent_complete=0)]
+    # Interno: (2 × 100 + 2 × 100 + 2 × 0) / 6 = 66,7 %; cliente: (2 × 100 + 2 × 50) / 4 = 75 %
+    [change] = plan_of(tasks).progress_changes
+    assert (change.task.uid, change.client, change.hidden, change.converted) == (2, 75.0, 0, 1)
+    assert "1 resumen convertido" in change.reason
 
 
 def test_working_minutes_signed():

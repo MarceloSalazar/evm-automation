@@ -97,6 +97,26 @@ class SpanChange:
 
 
 @dataclass
+class ProgressChange:
+    """Tarea que se muestra con otro % completado que en la planificación interna."""
+
+    task: Task                      # tarea de la planificación interna (su % completado es el interno)
+    client: float                   # % completado en el archivo del cliente (previsto o leído de MS Project)
+    hidden: int = 0                 # resúmenes: tareas de detalle ocultas, con duración, que ya no cuentan en su %
+    converted: int = 0              # resúmenes: resúmenes convertidos cuyo peso cambia (duración ≠ la de sus tareas)
+
+    @property
+    def reason(self) -> str:
+        parts = []
+        if self.hidden:
+            parts.append(plural(self.hidden, "tarea oculta", "tareas ocultas"))
+        if self.converted:
+            parts.append(plural(self.converted, "resumen convertido", "resúmenes convertidos") + " (cuentan por su "
+                         "duración, no por la de sus subtareas)")
+        return "; ".join(parts) or "—"
+
+
+@dataclass
 class DateChange:
     """Tarea del cliente cuyas fechas, después de recalcular en MS Project, no eran las de la planificación interna."""
 
@@ -119,6 +139,8 @@ class WriteResult:
     restore_problems: list[tuple[Task, str]] = field(default_factory=list)  # resúmenes convertidos sin restaurar
     field_name_removed: bool = True                             # se quitó el nombre (alias) del campo del cliente
     rounds: int = 0                                             # cálculos de MS Project hasta fijar las fechas
+    summary_percent: dict[int, float] = field(default_factory=dict)  # % de cada resumen según MS Project (UID)
+    progress_tasks: list[ProgressChange] = field(default_factory=list)  # tareas que no conservan su % completado
 
     def issues(self, plan: "ClientPlan") -> list[Issue]:
         """Observaciones de la escritura del archivo del cliente."""
@@ -149,6 +171,10 @@ class WriteResult:
             what = plural(len(self.differences), "tarea tiene", "tareas tienen")
             out.append(Issue("CLI-014", message=f"{what} fechas distintas de la planificación interna: ver el informe "
                                                 "de control."))
+        if self.progress_tasks:
+            what = plural(len(self.progress_tasks), "tarea no conserva", "tareas no conservan")
+            out.append(Issue("CLI-021", message=f"{what} su % completado de la planificación interna en el archivo "
+                                                "del cliente: ver el informe de control."))
         return out
 
 
@@ -175,6 +201,7 @@ class ClientPlan:
     new_links: list[NewLink] = field(default_factory=list)
     skipped: list[SkippedLink] = field(default_factory=list)
     span_changes: list[SpanChange] = field(default_factory=list)
+    progress_changes: list[ProgressChange] = field(default_factory=list)   # resúmenes con otro % completado
 
     @property
     def root(self) -> Task | None:
@@ -221,6 +248,11 @@ class ClientPlan:
             reasons = Counter(s.reason for s in self.skipped if s.reason != SKIP_LINKED)
             out.append(Issue("CLI-007", message="Vínculos que no se crean: " + ", ".join(
                 f"{n} porque {r}" if r == SKIP_CYCLE else f"{n} entre {r}" for r, n in reasons.items()) + "."))
+        if self.progress_changes:
+            what = plural(len(self.progress_changes), "resumen tendrá", "resúmenes tendrán")
+            out.append(Issue("CLI-020", message=f"{what} otro % completado en el archivo del cliente: MS Project lo "
+                                                "calcula solo con las tareas que se muestran, sin el avance de las "
+                                                "tareas ocultas (ver el informe de control)."))
         if self.span_changes:
             out.append(Issue("CLI-008", message=f"{plural(len(self.span_changes), 'resumen cambia', 'resúmenes cambian')} "
                                                 "de fechas: las fija una subtarea que no se muestra."))
@@ -286,6 +318,18 @@ def _from_start(link: NewLink, calendar: WorkCalendar) -> None:
     lag = working_minutes(calendar, link.pred.start, target)
     if lag >= 0:
         link.kind, link.lag = KIND_OF[(START, succ_point)], lag
+
+
+def rollup_percent(leaves: list[Task]) -> float | None:
+    """% completado de un resumen como lo calcula MS Project: la suma de la duración real (duración × % completado)
+    de sus tareas de detalle dividida por la suma de su duración. Si ninguna tiene duración (solo hitos): 100 si todas
+    están completas y 0 si no. None si no tiene tareas de detalle."""
+    if not leaves:
+        return None
+    total = sum(t.duration or 0.0 for t in leaves)
+    if total > 0:
+        return sum((t.duration or 0.0) * t.percent_complete for t in leaves) / total
+    return 100.0 if all(t.percent_complete >= 100 for t in leaves) else 0.0
 
 
 @dataclass
@@ -500,6 +544,27 @@ def build_client_plan(project: ProjectData, cfg: Config) -> ClientPlan:
         start, finish = min(first), max(last)
         if (start, finish) != (t.start, t.finish):
             plan.span_changes.append(SpanChange(t, start, finish))
+
+    # % completado de los resúmenes que se muestran: MS Project lo calcula con sus tareas de detalle (en el archivo
+    # del cliente, las que se muestran y los resúmenes convertidos), sin el avance de las tareas ocultas
+    def inner_leaves(t: Task) -> list[Task]:
+        out = []
+        for c in t.children:
+            if _active(c):
+                out.extend(inner_leaves(c) if c.children else [c])
+        return out
+
+    for t in tasks:
+        if t.uid not in plan.shown or t.uid in collapsed or not t.children or not _active(t):
+            continue
+        client = rollup_percent(leaves(t))
+        if client is None or abs(client - t.percent_complete) < 0.5:
+            continue
+        hidden = sum(1 for x in inner_leaves(t) if x.uid not in plan.shown and (x.duration or 0) > 0
+                     and reps.get(x.uid) is None)
+        converted = sum(1 for x in leaves(t) if x.uid in collapsed
+                        and abs((x.duration or 0.0) - sum(y.duration or 0.0 for y in inner_leaves(x))) >= 1)
+        plan.progress_changes.append(ProgressChange(t, client, hidden, converted))
     return plan
 
 
@@ -629,9 +694,54 @@ def render_control(plan: ClientPlan, source: str, today: date, result: str,
         lines += [f"| {plan.ref(c.task)} | {_d(c.task.start)} | {_d(c.task.finish)} | {_d(c.start)} | {_d(c.finish)} |"
                   for c in plan.span_changes]
         lines.append("")
+    lines += _progress_lines(plan, outcome)
     if outcome is not None:
         lines += _outcome_lines(plan, outcome, per_day)
     return "\n".join(lines)
+
+
+def _pct(value: float | None) -> str:
+    return "—" if value is None else f"{fmt_number(round(value, 1), trim=True)} %"
+
+
+def _progress_lines(plan: ClientPlan, out: WriteResult | None) -> list[str]:
+    """Resúmenes con otro % completado en el archivo del cliente, y tareas que no conservaron el suyo."""
+    lines: list[str] = []
+    changes = {c.task.uid: c for c in plan.progress_changes}
+    if out is not None:              # resúmenes que MS Project calculó distinto de lo previsto
+        by_uid = {t.uid: t for t in plan.tasks}
+        for uid, pct in out.summary_percent.items():
+            if uid not in changes and abs(pct - by_uid[uid].percent_complete) >= 0.5:
+                changes[uid] = ProgressChange(by_uid[uid], pct)
+    if changes:
+        order = {t.uid: k for k, t in enumerate(plan.tasks)}
+        lines += ["## Avance de los resúmenes", "",
+                  "MS Project calcula el % completado de un resumen con la duración de sus tareas de detalle. En el "
+                  "archivo del cliente solo están las que se muestran: el avance de las tareas ocultas no cuenta. Un "
+                  "resumen convertido conserva su %, pero en el resumen superior pesa por su duración (de su comienzo "
+                  "a su fin), no por la suma de la de sus subtareas.", ""]
+        if out is None:
+            lines += ["| Resumen | % completado | En el archivo del cliente | Motivo |", "|---|---:|---:|---|"]
+            lines += [f"| {plan.ref(c.task)} | {_pct(c.task.percent_complete)} | {_pct(c.client)} | {c.reason} |"
+                      for c in sorted(changes.values(), key=lambda c: order[c.task.uid])]
+        else:
+            lines += ["| Resumen | % completado | Previsto para el cliente | Según MS Project | Motivo |",
+                      "|---|---:|---:|---:|---|"]
+            for c in sorted(changes.values(), key=lambda c: order[c.task.uid]):
+                expected = next((x.client for x in plan.progress_changes if x.task is c.task), None)
+                actual = out.summary_percent.get(c.task.uid)
+                lines.append(f"| {plan.ref(c.task)} | {_pct(c.task.percent_complete)} | {_pct(expected)} | "
+                             f"{_pct(actual)} | {c.reason} |")
+        lines.append("")
+    if out is not None and out.progress_tasks:
+        lines += ["## Tareas que no conservan su % completado", "",
+                  "Tareas de detalle o resúmenes convertidos cuyo % completado en el archivo del cliente no es el de "
+                  "la planificación interna.", "", "| Tarea | % completado | En el archivo del cliente |",
+                  "|---|---:|---:|"]
+        lines += [f"| {plan.ref(c.task)} | {_pct(c.task.percent_complete)} | {_pct(c.client)} |"
+                  for c in out.progress_tasks]
+        lines.append("")
+    return lines
 
 
 def _dt_min(value: datetime | None) -> str:

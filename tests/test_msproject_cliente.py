@@ -156,6 +156,29 @@ def test_dates_match_the_internal_plan(generated):
     assert not diffs, f"{len(diffs)} tareas con fechas distintas que el informe no explica:\n" + "\n".join(diffs[:LIMIT])
 
 
+def test_progress_is_kept_and_summaries_as_predicted(generated):
+    """Las tareas de detalle y los resúmenes convertidos conservan su % completado; el de los demás resúmenes lo
+    calcula MS Project con las tareas que quedan y debe coincidir con el previsto (CLI-020)."""
+    plan, tasks = generated["plan"], generated.get("tasks", {})
+    collapsed = {t.uid for t in plan.collapsed}
+    expected = {c.task.uid: c.client for c in plan.progress_changes}
+    lost, unexpected = [], []
+    for t in plan.tasks:
+        if t.uid not in plan.shown or t.uid not in tasks:
+            continue
+        got = tasks[t.uid].percent_complete
+        if t.children and t.uid not in collapsed:
+            want = expected.get(t.uid, t.percent_complete)
+            if abs(got - want) >= 1:
+                unexpected.append(f"UID {t.uid}: interno {t.percent_complete:g} %, previsto {want:.1f} %, MS Project "
+                                  f"{got:g} %")
+        elif abs(got - t.percent_complete) >= 0.5:
+            lost.append(f"UID {t.uid}: interno {t.percent_complete:g} %, cliente {got:g} %")
+    assert not lost, f"{len(lost)} tareas no conservan su % completado:\n" + "\n".join(lost[:LIMIT])
+    assert not unexpected, (f"{len(unexpected)} resúmenes con un % distinto del previsto:\n"
+                            + "\n".join(unexpected[:LIMIT]))
+
+
 def test_log_and_report_have_no_task_names(generated):
     texts = {"registro": generated["log"].read_text(encoding="utf-8"),
              "informe": generated["report"].read_text(encoding="utf-8")}

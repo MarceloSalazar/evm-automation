@@ -1,9 +1,10 @@
 """generar-cliente con un MS Project simulado: copia del origen, borrado de tareas, vínculos, campo del cliente,
 fechas fijadas, archivo de solo lectura y registro de diagnóstico.
 
-El MS Project simulado hace lo mínimo: borra una tarea con su rama, guarda los vínculos de cada tarea y, al
-recalcular, lleva al comienzo del proyecto las tareas sin predecesoras, sin comenzar y sin delimitación (o a la fecha
-de su delimitación «No comenzar antes del»). Las pruebas con MS Project real están en test_msproject_cliente.py.
+El MS Project simulado hace lo mínimo: borra una tarea con su rama, guarda los vínculos de cada tarea, calcula el %
+completado de los resúmenes con la duración de sus tareas de detalle (como MS Project) y, al recalcular, lleva al
+comienzo del proyecto las tareas sin predecesoras, sin comenzar y sin delimitación (o a la fecha de su delimitación «No
+comenzar antes del»). Las pruebas con MS Project real están en test_msproject_cliente.py.
 """
 from __future__ import annotations
 
@@ -69,7 +70,7 @@ class FakeTask:
         self.Start, self.Finish, self.Duration = start, finish, duration
         self.BaselineStart, self.BaselineFinish, self.BaselineDuration = start, finish, duration
         self.Baseline1Start, self.Baseline1Finish = d(1), d(2, 17)
-        self.PercentComplete, self.PhysicalPercentComplete = pct, 0
+        self._pct, self.PhysicalPercentComplete = pct, 0
         self.ActualStart = actual_start or "NA"
         self.ActualFinish = "NA"
         self.ConstraintType, self.ConstraintDate = 0, "NA"
@@ -81,6 +82,23 @@ class FakeTask:
         tasks = self.project.live
         i = tasks.index(self)
         return i + 1 < len(tasks) and tasks[i + 1].OutlineLevel > self.OutlineLevel
+
+    @property
+    def PercentComplete(self):
+        """Resumen: duración real de sus tareas de detalle / su duración, redondeado (como MS Project)."""
+        if not self.Summary:
+            return self._pct
+        leaves = self.project.leaves(self)
+        total = sum(x.Duration for x in leaves)
+        if not total:
+            return 100 if leaves and all(x.PercentComplete >= 100 for x in leaves) else 0
+        return round(sum(x.Duration * x.PercentComplete for x in leaves) / total)
+
+    @PercentComplete.setter
+    def PercentComplete(self, value):
+        if self.project.reject_percent:
+            raise RuntimeError("no se puede")
+        self._pct = value
 
     @property
     def TaskDependencies(self):
@@ -117,6 +135,7 @@ class FakeProject:
         self.AutoLinkTasks = True
         self.autolink_always = False            # simula que no se puede desactivar la vinculación automática
         self.fail_delete = False
+        self.reject_percent = False
         self.StatusDate = "NA"
         self.ProjectStart = PROJECT_START
         self.FullName = "copia.mpp"
@@ -136,6 +155,17 @@ class FakeProject:
 
     def BaselineSavedDate(self, n):
         return "NA"
+
+    def leaves(self, task):
+        """Tareas de detalle de un resumen."""
+        i = self.live.index(task)
+        out = []
+        for t in self.live[i + 1:]:
+            if t.OutlineLevel <= task.OutlineLevel:
+                break
+            if not t.Summary:
+                out.append(t)
+        return out
 
     def delete(self, task):
         if self.fail_delete:
@@ -306,7 +336,8 @@ def test_single_plan_without_plan_task(tmp_path):
 
 def test_collapsed_summary_keeps_its_baselines_and_progress(tmp_path):
     app, t = build()
-    t["res"].PercentComplete, t["res"].ActualStart = 40, d(5)
+    t["r1"].PercentComplete, t["r1"].ActualStart, t["res"].ActualStart = 100, d(5), d(5)
+    assert t["res"].PercentComplete == 50           # el resumen tiene el avance de sus dos subtareas ocultas
     original = (t["res"].Duration, t["res"].BaselineStart, t["res"].Baseline1Finish)
 
     def forget(task):                           # MS Project cambia los datos del resumen al quedarse sin subtareas
@@ -315,9 +346,36 @@ def test_collapsed_summary_keeps_its_baselines_and_progress(tmp_path):
             t["res"].Duration, t["res"].BaselineStart, t["res"].Baseline1Finish = 480, "NA", d(3, 17)
 
     app.project.delete = forget
-    run(tmp_path, app)
+    _, _, plan, result = run(tmp_path, app)
     assert (t["res"].Duration, t["res"].BaselineStart, t["res"].Baseline1Finish) == original
-    assert t["res"].PercentComplete == 40
+    assert not t["res"].Summary and t["res"].PercentComplete == 50     # ahora es una tarea, con el mismo avance
+    assert result.progress_tasks == [] and "CLI-021" not in {i.id for i in result.issues(plan)}
+
+
+def test_summary_with_hidden_progress_is_reported(tmp_path):
+    """El avance de una subtarea oculta no cuenta en el resumen del cliente: se avisa (CLI-020) con el % previsto y
+    el que calcula MS Project."""
+    app, t = build()
+    t["oculta"].PercentComplete, t["oculta"].ActualStart = 100, d(7)
+    t["a1"].PercentComplete, t["a1"].ActualStart = 100, d(5)
+    t["fase"].ActualStart = d(5)
+    # Fase: A1 (2 días, 100 %), Oculta (3 días, 100 %), A3 (2 días, 0 %) -> 5/7 = 71 %; sin la oculta, 2/4 = 50 %
+    assert t["fase"].PercentComplete == 71
+    _, _, plan, result = run(tmp_path, app)
+    [change] = plan.progress_changes
+    assert (change.task.uid, change.task.percent_complete, change.client, change.hidden) == (2, 71, 50.0, 1)
+    assert result.summary_percent[2] == 50 and result.progress_tasks == []
+    assert "CLI-020" in {i.id for i in plan.issues()}
+
+
+def test_task_that_loses_its_progress_is_reported(tmp_path):
+    app, t = build()
+    t["r1"].PercentComplete, t["r1"].ActualStart, t["res"].ActualStart = 100, d(5), d(5)
+    app.project.reject_percent = True               # MS Project no acepta el avance del resumen convertido
+    _, _, plan, result = run(tmp_path, app)
+    [change] = result.progress_tasks
+    assert (change.task.uid, change.task.percent_complete, change.client) == (6, 50, 0)
+    assert {"CLI-019", "CLI-021"} <= {i.id for i in result.issues(plan)}
 
 
 def test_links_created_by_ms_project_are_removed(tmp_path):

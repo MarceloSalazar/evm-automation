@@ -24,9 +24,11 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   vínculos de sus subtareas pasados al resumen y vínculos puente en lugar de los caminos por tareas
   ocultas. MS Project trabaja sobre una copia (la planificación interna no se modifica), recalcula y fija
   con *No comenzar antes del* las fechas que se adelantarían; el campo del cliente se vacía y el archivo
-  queda de solo lectura. Con `--simular` (también con el XML) solo calcula los cambios. Escribe un informe
+  queda de solo lectura. Con `--simular` (también con el XML) solo calcula los cambios. Comprueba el %
+  completado de cada tarea: los resúmenes convertidos y las tareas de detalle lo conservan, y avisa de los
+  resúmenes cuyo % cambia porque MS Project ya no cuenta el avance de sus tareas ocultas. Escribe un informe
   de control interno, sin nombres de tareas. Nueva sección `[cliente]` de la configuración, códigos
-  `CFG-054`, `LEC-026` y `CLI-001` a `CLI-019`, documento
+  `CFG-054`, `LEC-026` y `CLI-001` a `CLI-021`, documento
   [Planificación para el cliente](docs/generar-cliente.md) y pruebas con MS Project real
   (`tests/test_msproject_cliente.py`).
 - **Registro de diagnóstico en un archivo (`--registro RUTA`).** Todos los comandos pueden escribir el

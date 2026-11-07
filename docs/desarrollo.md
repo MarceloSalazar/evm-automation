@@ -100,7 +100,8 @@ Opcionales: `EVM_CONFIG` (archivo de configuración; por defecto `config.toml` s
 `test_msproject_cliente.py` (misma marca) prueba `generar-cliente` con el `.mpp` de `EVM_MPP`: genera el
 archivo del cliente en la carpeta temporal de pytest y comprueba que el origen no cambió, que quedan
 exactamente las tareas que se muestran, que el campo del cliente está vacío, que las fechas son las de la
-planificación interna (o el informe de control explica por qué no), que el registro y el informe no tienen
+planificación interna (o el informe de control explica por qué no), que las tareas de detalle y los
+resúmenes convertidos conservan su % completado y que el de los demás resúmenes es el previsto, que el registro y el informe no tienen
 nombres de tareas y que `--sobrescribir` reemplaza el archivo de solo lectura. Si está `EVM_MPP_XML`,
 compara además el cálculo con el `.mpp` y con el XML. Necesita en `EVM_CONFIG` la clave `[cliente] campo`
 y, si el archivo tiene una sola planificación, `[exportacion] planificacion` vacía o sin indicar. Con `-s` muestra la carpeta con el archivo generado, el
