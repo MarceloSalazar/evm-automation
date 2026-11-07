@@ -68,6 +68,13 @@ class Task:
     constraint_type: int = CONSTRAINT_ASAP
     constraint_date: datetime | None = None
     predecessors: list[Link] = field(default_factory=list)
+    # Líneas base con fecha de comienzo en la tarea (0 = Línea base, 1..10): siempre con XML; con COM, solo en validar
+    baselines: tuple[int, ...] = ()
+    # Líneas base con solo el comienzo o solo el fin (con COM, solo se lee la que usa el % planificado)
+    incomplete_baselines: tuple[int, ...] = ()
+    # Calendario de la tarea, si es distinto del calendario del proyecto ("" = sin calendario propio); con COM, solo
+    # en validar
+    calendar: str = ""
 
     # Campos personalizados configurados
     method: str = ""                    # método de medición
@@ -105,6 +112,11 @@ class ProjectData:
     # Campos configurados que existen en el archivo ([campos] y [multiempresa]): clave de la configuración ->
     # nombre del campo. Sirve para avisar de los campos que existen pero están vacíos en todas las tareas
     fields_found: dict[str, str] = field(default_factory=dict)
+    # Opción "Calcular varias rutas críticas" de MS Project (None = no se leyó)
+    multiple_critical_paths: bool | None = None
+    # Línea base que usa el % planificado (0 = "Línea base", 1..10 = "Línea base N"); las líneas base de cada tarea
+    # están en Task.baselines
+    baseline_number: int = 0
 
 
 def use_current_schedule(project: ProjectData) -> None:

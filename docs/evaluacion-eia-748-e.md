@@ -369,11 +369,11 @@ responsables.
 
 - **Qué exige:** documentar los cambios internos de alcance, plazo y presupuesto, y comparar la línea
   base del período con la del anterior para identificar todas las diferencias.
-- **Qué hace el programa:** avisa de las tareas nuevas sin fila (`ACT-015`) y de las tareas sin línea base
-  (`FEC-010`), y registra los cambios del BAC y de los valores de meses ya informados frente a la
-  ejecución anterior (`ACT-036`, `ACT-037`). `actualizar` compara el % planificado que resulta de la línea
-  base actual de MS Project con el del libro y avisa de las filas que cambiaron, con el PV acumulado a la
-  fecha de corte con cada línea base (`ACT-047`).
+- **Qué hace el programa:** avisa de las tareas nuevas sin fila (`ACT-015` y `ACT-051`) y de las tareas
+  sin línea base (`FEC-010`), y registra los cambios del BAC y de los valores de meses ya informados
+  frente a la ejecución anterior (`ACT-036`, `ACT-037`). `actualizar` compara el % planificado que
+  resulta de la línea base actual de MS Project con el del libro y avisa de las filas que cambiaron, con
+  el PV acumulado a la fecha de corte con cada línea base (`ACT-047`).
 - **Qué falta:** registrar en la hoja `Registro de cambios` los cambios de la línea base (fechas y %
   planificado), como los del BAC; hoy se avisan, y se documentan al generar el libro con
   `--migrar-desde`.

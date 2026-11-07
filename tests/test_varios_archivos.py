@@ -16,6 +16,8 @@ from evm.update import indicators_for, read_book
 from evm.wbs import TOPIC_METHOD
 from evm.workbook import split_key
 
+from builders import validation_rows
+
 
 COMMON = ('[campos]\nmetodo = "Método EVM"\npeso_hito = "Peso hito"\n\n[horizonte]\nmes_inicio = "2026-01"\n\n'
           '[exportacion]\nplanificacion = "INTERNO"\n')
@@ -187,7 +189,7 @@ def test_generate_combines_files(xml, tmp_path, capsys):
     assert wb["Resumen"]["A2"].value == "Programa de ejemplo EVM + Accesos y servicios (proyecto 2 de ejemplo)"
     assert wb["Resumen"]["B14"].value == "P1: INTERNO  |  P2: todas"
     assert wb["Cuadro de Mando"]["B2"].value == wb["Resumen"]["A2"].value
-    details = [r[4] for r in wb["Validación"].iter_rows(min_row=4, values_only=True) if r[4]]
+    details = [r["detalle"] for r in validation_rows(book) if r["detalle"]]
     assert any(d.startswith("[P1] Planificación 'INTERNO'") for d in details)
     assert any(d.startswith("[P2] ") for d in details)
 
@@ -338,19 +340,15 @@ def test_update_indicators_recalculate(books, recalc):
 # ----------------------------------------------------------------------------
 # --migrar-desde
 # ----------------------------------------------------------------------------
-def validation(book) -> list[tuple]:
-    return [r for r in load_workbook(book)["Validación"].iter_rows(min_row=4, values_only=True) if r[0]]
-
-
 def test_migrate_combined_book_keeps_history(books, tmp_path):
     cfg, book = books("varios")
     new = tmp_path / "EVM_LB2.xlsx"
     generate(cfg, new, "--migrar-desde", str(book))
     assert by_code(new) == by_code(book)
     # Solo advierte del método de los paquetes largos del ejemplo (0/100 y fórmulas fijas)
-    serious = [r for r in validation(new) if r[0] in ("Error", "Advertencia")]
-    assert serious and all(r[1] == "MET-004" and r[5] == TOPIC_METHOD and "meses (línea base)" in r[4]
-                           for r in serious)
+    serious = [r for r in validation_rows(new) if r["severidad"] in ("Error", "Advertencia")]
+    assert serious and all(r["codigo"] == "MET-004" and r["tema"] == TOPIC_METHOD
+                           and "meses (línea base)" in r["detalle"] for r in serious)
     assert read_book(new).status_date == date(2027, 7, 31)
 
 
@@ -364,10 +362,10 @@ def test_migrate_without_one_file(xml, books, tmp_path):
     after = by_code(new)
     assert set(after) == {c for c in before if not c.startswith("9.")}
     assert all(after[c] == before[c] for c in after)
-    rows = validation(new)
-    assert any("El archivo 'P2' del libro anterior no forma parte del libro nuevo" in r[4] for r in rows)
-    assert {r[2] for r in rows if r[0] == "Error"} == {c for c, v in before.items()
-                                                      if c.startswith("9.") and any(v[2] + v[3])}
+    rows = validation_rows(new)
+    assert any("El archivo 'P2' del libro anterior no forma parte del libro nuevo" in r["detalle"] for r in rows)
+    assert {r["edt"] for r in rows if r["severidad"] == "Error"} == {c for c, v in before.items()
+                                                                    if c.startswith("9.") and any(v[2] + v[3])}
 
 
 def test_migrate_single_file_book_by_code(xml, tmp_path):
@@ -381,4 +379,4 @@ def test_migrate_single_file_book_by_code(xml, tmp_path):
     before, after = by_code(old), by_code(new)
     assert all(after[c] == before[c] for c in before)
     assert all(not any(v[2] + v[3]) for c, v in after.items() if c.startswith("9."))
-    assert any("es de un solo archivo de MS Project" in r[4] for r in validation(new))
+    assert any("es de un solo archivo de MS Project" in r["detalle"] for r in validation_rows(new))

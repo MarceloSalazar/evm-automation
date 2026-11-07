@@ -39,7 +39,7 @@ rápido están en el [README principal](../README.md).
 |---|---|
 | [Tutorial con el proyecto de ejemplo](ejemplo-paso-a-paso.md) | Ciclo completo con el XML de ejemplo: generar el libro, ingresar el BAC, simular 24 meses de avance y revisar el resultado. |
 | [Proceso de reporte EVM](proceso-reporte-evm.md) | Puesta en marcha, cierre mensual, cambios de línea base, roles, calendario, buenas prácticas y lista de control. |
-| [Comandos y opciones](comandos.md) | `validar`, `generar`, `actualizar`, `analizar` y `generar-fichas` (fichas de tareas para el cliente en Markdown), todas sus opciones y ejemplos de salida. |
+| [Comandos y opciones](comandos.md) | `validar`, `generar`, `actualizar`, `analizar`, `generar-fichas` (fichas de tareas para el cliente en Markdown) y `procesar-costes` (PV con el plan de costes), todas sus opciones y ejemplos de salida. |
 | [Configuración](configuracion.md) | Claves del archivo `config.toml` y ejemplos. |
 | [Códigos de errores y advertencias](codigos.md) | Código de cada mensaje (`ÁREA-NNN`): severidad, causa y qué hacer; cómo silenciar observaciones con `[validacion] silenciar` o `--silenciar`. |
 | [Presentación para el equipo de proyecto](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) | 38 diapositivas para unos 30 minutos, con notas para el presentador: conceptos EVM y semáforo, preparación en MS Project (incluidas la línea base y la definición del método de medición), `validar`, `generar` y `actualizar`, Cuadro de Mando, análisis de desviaciones, avisos del cierre y cierre mensual. Se abre con PowerPoint o LibreOffice Impress. |
@@ -52,7 +52,7 @@ rápido están en el [README principal](../README.md).
 | [Métodos de medición](metodos-de-medicion.md) | 0/100, fórmulas fijas, hitos ponderados, % completado, % físico, unidades y LOE; dónde se define el método y dónde se calcula el EV; guía y proceso para definir el método de cada paquete. |
 | [Multi-empresa (opcional)](multiempresa.md) | PV, EV y AC de dos empresas: preparación, reparto, cálculo y ejemplo. |
 | [Varios archivos de MS Project (opcional)](varios-archivos.md) | Un informe con los elementos EDT de varios archivos: códigos EDT, `[[proyectos]]`, cierre mensual, cambios de archivos y ejemplo. |
-| [Depuración de costes (opcional)](depuracion-costes.md) | PV planificado de una empresa frente a la previsión de su plan de costes, pegada en el libro; filas «(coste)», reglas de asignación, indicador de alineamiento, gráfico por elemento EDT y ciclo de ajuste. |
+| [Depuración de costes (opcional)](depuracion-costes.md) | PV planificado de una empresa frente a la previsión de su plan de costes, pegada en el libro; filas «(coste)», reglas de asignación, indicador de alineamiento, gráfico por elemento EDT, PV con el reparto del plan de costes (`procesar-costes`) y ciclo de ajuste. |
 
 **Cálculos y libro**
 

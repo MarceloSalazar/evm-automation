@@ -5,10 +5,13 @@
 La **depuración de costes** compara, paquete por paquete, el **PV planificado** de una empresa (BAC × %
 planificado de MS Project) con la **previsión mensual de su plan de costes**. Sirve para ajustar en
 MS Project las tareas, sus fechas y el peso de sus hitos hasta que la curva S del cronograma se parezca a
-la previsión de la empresa.
+la previsión de la empresa. Con el comando `procesar-costes`, el reparto mensual del plan de costes
+pasa a ser el **% planificado** de la empresa, y su PV sigue el plan en lugar del cronograma
+([8](#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes)).
 
 Se activa solo mientras dura ese ajuste. Para los libros que se entregan y para las actualizaciones
-mensuales posteriores, el libro se genera sin depuración.
+mensuales posteriores, el libro se genera sin depuración (conserva el BAC y el reparto del plan de
+costes).
 
 ---
 
@@ -21,9 +24,10 @@ mensuales posteriores, el libro se genera sin depuración.
 5. [Filas «(coste)» de la hoja PV](#5-filas-coste-de-la-hoja-pv)
 6. [Indicador de alineamiento (opcional)](#6-indicador-de-alineamiento-opcional)
 7. [Hoja Depuración costes: el gráfico](#7-hoja-depuración-costes-el-gráfico)
-8. [Ciclo de ajuste](#8-ciclo-de-ajuste)
-9. [Validaciones y limitaciones](#9-validaciones-y-limitaciones)
-10. [Preguntas frecuentes](#10-preguntas-frecuentes)
+8. [PV con el reparto del plan de costes (procesar-costes)](#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes)
+9. [Ciclo de ajuste](#9-ciclo-de-ajuste)
+10. [Validaciones y limitaciones](#10-validaciones-y-limitaciones)
+11. [Preguntas frecuentes](#11-preguntas-frecuentes)
 
 ---
 
@@ -49,10 +53,13 @@ flowchart LR
     PV & CO --> G["Hoja Depuración costes:<br/>curvas acumuladas"]
     G -- "diferencias" --> AJ["Ajuste en MS Project"]
     AJ -- "generar --migrar-desde" --> MSP
+    PD -- "procesar-costes" --> PCT["Hoja % PV-EmpresaA:<br/>reparto del plan<br/>de costes"]
+    PCT --> PV
 ```
 
-- La empresa **pega** su previsión mensual en la hoja `PV-depuración`, tal como sale de su plan de
-  costes: EDT cliente, actividad, EDT interna, actividad interna, BAC y un importe por mes.
+- La empresa **pega** su plan de costes en la hoja `PV-depuración`, tal como sale de su sistema: EDT
+  cliente, actividad, EDT interna, actividad interna o componente de coste, BAC, EAC y un importe por
+  mes.
 - Con **fórmulas de Excel**, cada línea pegada se asigna a una fila del libro. En la hoja PV de la
   empresa, debajo de cada fila de la EDT, la fila **«(coste)»** muestra la previsión de esa fila. Al
   pegar o cambiar la previsión, el libro se actualiza al instante, sin ejecutar el programa.
@@ -62,6 +69,9 @@ flowchart LR
 - La hoja `Depuración costes` muestra las **dos curvas acumuladas** del elemento EDT elegido.
 - Las filas «(coste)» **no forman parte** del PV, del EV ni de los indicadores: `actualizar`, `analizar`
   y el Cuadro de Mando dan los mismos resultados que en un libro sin depuración.
+- Si el PV de la empresa debe seguir el plan de costes y no el cronograma, `procesar-costes` copia el
+  reparto mensual de cada fila al % planificado de la hoja `% PV-EmpresaA`
+  ([8](#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes)).
 
 ---
 
@@ -100,24 +110,29 @@ La hoja tiene el mismo formato que el plan de costes de la empresa, para pegar e
 
 | Columna | Contenido |
 |---|---|
-| A · EDT cliente | Código EDT del elemento en el cronograma (`2.3.4.1`). |
-| B · Actividad | Descripción de la EDT cliente. |
-| C · EDT interna | Código del concepto de coste interno de la empresa que corresponde a la EDT cliente: partidas, subtareas o hitos de pago, con códigos no numéricos (`ABC01`, `XRF01`, `HP-01`). Vacía en la línea de la EDT cliente. |
-| D · Actividad interna | Descripción del concepto interno. |
-| E · BAC | Importe total de la línea; en la línea de la EDT cliente, la suma de sus líneas de EDT interna. Solo se usa como control: se compara con la suma de sus meses. |
-| F en adelante | Importe de cada mes, del mes 1 al 120 (o hasta el último mes del horizonte, si tiene más). |
+| A · EDT cliente | Código EDT del elemento en el cronograma (`2.3.4.1`). Es la clave con la que cada línea se asigna a una fila del libro. |
+| B · Actividad EDT | Descripción de la EDT cliente. |
+| C · EDT interna | Código del concepto de coste interno de la empresa que corresponde a la EDT cliente: partidas, subtareas o hitos de pago, con códigos no numéricos (`GPR01`, `XRF01`, `HP-01`). Vacía en la línea de la EDT cliente y en las de componentes de coste. |
+| D · Actividad interna / componente de coste | Descripción de la EDT interna o, en una línea sin código en C, el **componente de coste** de la EDT interna de arriba (`Costes indirectos`, `Otros`...). |
+| E · BAC | Presupuesto de la línea. No se usa en el cálculo. |
+| F · EAC | Total de la línea según el plan de costes (la suma de sus meses). No se usa en el cálculo. |
+| G en adelante | Importe de cada mes, del mes 1 al 120 (o hasta el último mes del horizonte, si tiene más). |
 
-Ejemplo de una EDT cliente con dos conceptos internos:
+Ejemplo de una EDT cliente con una EDT interna y sus componentes de coste, y otra EDT interna sin
+componentes:
 
-| A · EDT cliente | B · Actividad | C · EDT interna | D · Actividad interna | E · BAC | F · mes 1 | G · mes 2 | Se suma |
-|---|---|---|---|---:|---:|---:|---|
-| `1.1.1` | Oficina del programa | | | 1.000 | 500 | 500 | No: es el subtotal |
-| | | `ABC01` | Personal propio | 700 | 350 | 350 | Sí, en la fila `1.1.1` |
-| | | `ABC02` | Subcontratas | 300 | 150 | 150 | Sí, en la fila `1.1.1` |
+| A · EDT cliente | B · Actividad EDT | C · EDT interna | D · Actividad interna / componente | E · BAC | F · EAC | G · mes 1 | H · mes 2 | Se suma |
+|---|---|---|---|---:|---:|---:|---:|---|
+| `1.1.0` | Lanzamiento | | | 1.300 | 1.300 | | | No: es el subtotal |
+| | | `GPR00` | Gestión del lanzamiento | 1.000 | 1.000 | 500 | 500 | No: es el subtotal de sus componentes |
+| | | | Costes indirectos X | 700 | 700 | 350 | 350 | Sí, en la fila `1.1.0` |
+| | | | Otros | 300 | 300 | 150 | 150 | Sí, en la fila `1.1.0` |
+| | | `GPR05` | Infraestructura | 300 | 300 | 100 | 200 | Sí, en la fila `1.1.0` |
 
-La columna A de las líneas de EDT interna puede ir vacía (como en el ejemplo) o repetir la EDT cliente;
-en los dos casos, cada línea se suma en su EDT cliente. Si el plan de costes no tiene la línea de
-subtotal de la EDT cliente, se pegan solo las líneas de EDT interna, con la EDT cliente en la columna A.
+La columna A de las líneas de EDT interna y de componentes puede ir vacía (como en el ejemplo) o repetir
+la EDT cliente; en los dos casos, cada línea se suma en su EDT cliente. Si el plan de costes no tiene
+la línea de subtotal de la EDT cliente, se pegan solo las líneas de EDT interna, con la EDT cliente en
+la columna A. Un plan en dos niveles (EDT cliente y EDT interna, sin componentes) también vale.
 
 - Encima de cada columna de meses, el programa escribe el **N° de mes** y su **fecha**: el mes 1 de la
   previsión debe ser el mes 1 del libro (`[horizonte] mes_inicio`). Si el plan de costes empieza en otro
@@ -132,15 +147,15 @@ subtotal de la EDT cliente, se pegan solo las líneas de EDT interna, con la EDT
 |---|---|
 | EDT cliente igual al código de una fila del libro (`2.1.3`), sin EDT interna | Esa fila. Los ceros finales no cuentan: `1.2` es `1.2.0`. |
 | EDT cliente más detallada que el libro (`1.2.2.9`) | La fila de la que depende (`1.2.2`). |
-| Línea de EDT interna (`ABC01` en la columna C) con la columna A vacía | La fila de la **última EDT cliente de las líneas anteriores**. |
+| Línea de EDT interna (`GPR01` en la columna C) con la columna A vacía | La fila de la **última EDT cliente de las líneas anteriores**. |
 | Línea de EDT interna con la EDT cliente en la columna A | La fila de esa EDT cliente (o de la que depende, si es más detallada que el libro). |
-| EDT cliente sin EDT interna, con líneas de EDT interna o códigos más detallados debajo | **No se suma**: es un subtotal. Se suman sus líneas, para no contar dos veces el mismo importe. Una línea de EDT interna nunca es un subtotal. |
-| EDT cliente de un resumen del libro (`1.2` cuando el libro tiene `1.2.1` y `1.2.2`) | No se asigna: el importe se debe pegar con el código de cada paquete. Si el resumen tiene fila «Otras tareas», sus líneas de EDT interna van a esa fila. |
+| Componente de coste (solo la columna D, sin código en C) | La fila de la EDT cliente de la **última EDT interna de arriba** o, si la EDT cliente no tiene EDT interna, la de la EDT cliente. |
+| EDT interna con componentes de coste debajo | **No se suma**: es el subtotal de sus componentes, que son los que se suman. Una EDT interna sin componentes se suma. |
+| EDT cliente sin EDT interna, con líneas de EDT interna, componentes o códigos más detallados debajo | **No se suma**: es un subtotal. Se suman sus líneas, para no contar dos veces el mismo importe. |
+| EDT cliente de un resumen del libro (`1.2` cuando el libro tiene `1.2.1` y `1.2.2`) | No se asigna: el importe se debe pegar con el código de cada paquete, o el libro se genera con ese código como fila (con `lista_edt`). Si el resumen tiene fila «Otras tareas», sus líneas de EDT interna van a esa fila. |
 | EDT cliente que no está en el libro | No se asigna. |
 | Código no numérico en la columna A (`XRF01`) | Igual que una línea de EDT interna: la fila de la última EDT cliente de las líneas anteriores. |
 | Línea vacía o solo con descripción | Se ignora. |
-
-Una línea es de EDT interna si tiene algo en la columna C o en la D.
 
 > Excel convierte en número un código como `1.10` (que queda `1.1`). Para evitarlo, la columna del código
 > en el plan de costes debe tener formato de texto. Las columnas A y C de `PV-depuración` ya tienen
@@ -150,13 +165,15 @@ Una línea es de EDT interna si tiene algo en la columna C o en la D.
 
 | Control | Dónde | Qué indica |
 |---|---|---|
-| **Total pegado (sin subtotales)** | Celda E3 | Suma de las líneas que se suman. |
-| **Asignado a filas del libro** | Celda E4 | Parte del total pegado que llegó a filas del libro, dentro del horizonte. |
-| **Sin asignar** | Celda E5 (en rojo si no es 0) | Códigos sin fila en el libro, códigos de resúmenes sin fila propia, líneas de EDT interna sin EDT cliente encima o meses fuera del horizonte. |
-| **Asignado a** | Columna a la derecha de los meses (DW con 120 meses) | La fila del libro de cada línea, `Subtotal (no se suma)`, `Resumen sin fila propia` o `Sin fila del libro` (en rojo). |
-| **Observación** | Columna siguiente (DX) | `BAC distinto de la suma de los meses`, `Sin EDT cliente en las líneas anteriores` (línea de EDT interna antes de la primera EDT cliente), `Subtotal distinto de la suma de sus líneas` (la línea de la EDT cliente tenía importes que no son la suma de sus líneas), `Importes fuera del horizonte del libro` o `Importes guardados como texto: no se suman`. |
+| **Total pegado (sin subtotales)** | Celda F3 | Suma de los meses de las líneas que se suman. |
+| **Asignado a filas del libro** | Celda F4 | Parte del total pegado que llegó a filas del libro, dentro del horizonte. |
+| **Sin asignar** | Celda F5 (en rojo si no es 0) | Códigos sin fila en el libro, códigos de resúmenes sin fila propia, líneas de EDT interna o componentes sin EDT cliente encima o meses fuera del horizonte. |
+| **Asignado a** | Columna a la derecha de los meses (DX con 120 meses) | La fila del libro de cada línea, `Subtotal (no se suma)`, `Resumen sin fila propia` o `Sin fila del libro` (en rojo). |
+| **Observación** | Columna siguiente (DY) | `Sin EDT cliente en las líneas anteriores` (línea de EDT interna o componente antes de la primera EDT cliente), `Subtotal distinto de la suma de sus líneas` (la línea de la EDT cliente o de la EDT interna tenía importes que no son la suma de sus líneas), `Importes fuera del horizonte del libro` o `Importes guardados como texto: no se suman`. |
 
-Las líneas que son subtotales se muestran en gris.
+Las líneas que son subtotales se muestran en gris. El BAC y el EAC de cada línea no se comparan: el
+objetivo es que el plan reparta en el tiempo el BAC de cada EDT cliente, y el BAC con el que se
+calcula el PV es el de la columna D de la hoja PV de la empresa.
 
 ---
 
@@ -226,7 +243,54 @@ acepta la diferencia si el PV debe seguir el avance del trabajo y no los pagos.
 
 ---
 
-## 8. Ciclo de ajuste
+## 8. PV con el reparto del plan de costes (procesar-costes)
+
+Cuando el PV de la empresa debe seguir su plan de costes, y no el reparto que resulta de las tareas de
+MS Project, el comando `procesar-costes` lleva el reparto mensual de cada fila al % planificado:
+
+```powershell
+python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx
+```
+
+- Lee la hoja `PV-depuración` y asigna cada línea a su fila del libro con las mismas reglas que la
+  columna `Asignado a` ([4.2](#42-cómo-se-asigna-cada-línea)): la **EDT cliente** es la clave.
+- En la hoja `% PV-EmpresaA` (o `% PV` en un libro de una sola empresa), el % planificado de cada mes de
+  la fila es el importe del mes dividido por su **EAC** (la suma de sus líneas en el plan). Los meses
+  procesados se muestran en cursiva naranja.
+- El PV sigue siendo el **BAC × el %**: si el BAC de la fila (columna D de la hoja PV de la empresa)
+  coincide con su EAC, el PV de cada mes es el importe del plan; si no coinciden, el plan da el reparto
+  en el tiempo y el total del PV es el BAC.
+- Las filas sin líneas en el plan, y las de la otra empresa, conservan su % planificado.
+- No lee MS Project: se puede ejecutar cada vez que cambia el plan pegado. Con `--simular` muestra el
+  resultado sin modificar el libro.
+
+| Ejemplo (fila `1.1.0`) | Mes 1 | Mes 2 | Mes 3 | Total |
+|---|---:|---:|---:|---:|
+| Plan de costes: suma de sus líneas (EAC 157) | 31 | 30 | 39... | 157 |
+| % planificado (importe / EAC) | 19,7 % | 19,1 % | 24,8 %... | 100 % |
+| PV con BAC 157 (igual al EAC) | 31 | 30 | 39... | 157 |
+| PV con BAC 150 (distinto del EAC) | 29,6 | 28,7 | 37,3... | 150 |
+
+Las filas procesadas quedan marcadas en el libro, y su % planificado:
+
+- **se conserva** al regenerar el libro con `--migrar-desde`, también en el libro de entrega sin
+  depuración. La hoja `Validación` lo indica ([DEP-010](codigos.md#dep-010)). Si cambió el mes 1 del
+  horizonte, cada mes conserva su fecha; lo anterior al nuevo mes 1 se suma en el mes 1;
+- **no se compara** con la línea base de MS Project en `actualizar` (el aviso
+  [ACT-047](codigos.md#act-047) solo revisa las demás filas). El % ganado se sigue calculando con el avance
+  de MS Project.
+
+Para volver a calcular el % planificado de esas filas con MS Project, se genera el libro sin
+`--migrar-desde` y se cargan de nuevo el BAC y el AC, o se usa el respaldo del libro anterior a
+`procesar-costes`.
+
+> Con el reparto del plan de costes, el PV de cada mes sigue el plan y el EV sigue el avance de las
+> tareas. Si el plan no sigue la ejecución del trabajo (por ejemplo, si son hitos de pago), el SV y el SPI
+> miden también esa diferencia. Por eso conviene revisar antes las dos curvas en `Depuración costes`.
+
+---
+
+## 9. Ciclo de ajuste
 
 1. **Generar el libro de depuración**, con la configuración de depuración:
 
@@ -254,8 +318,10 @@ acepta la diferencia si el PV debe seguir el avance del trabajo y no los pagos.
 
    Se repiten los pasos 4 a 6 hasta que las curvas queden alineadas.
 7. **Aprobar la línea base** ajustada, según el [proceso de reporte](proceso-reporte-evm.md#5-cambios-de-línea-base).
+   Si el PV de la empresa debe seguir el plan de costes, se ejecuta `procesar-costes`
+   ([8](#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes)).
 8. **Generar el libro de entrega** sin depuración (`depuracion_costes = false`, por ejemplo con el
-   `config.toml` habitual) y con `--migrar-desde`, que conserva el BAC:
+   `config.toml` habitual) y con `--migrar-desde`, que conserva el BAC y el reparto del plan de costes:
 
    ```powershell
    python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config.toml `
@@ -273,13 +339,14 @@ Sobre `--migrar-desde` en la depuración:
 - Si cambió el mes 1 del horizonte, los meses de `PV-depuración` se desplazan para conservar su fecha;
   lo que queda antes del mes 1 se informa en `Validación`.
 - Las líneas se asignan de nuevo con los códigos EDT del libro nuevo, aunque la EDT haya cambiado.
-- Si el libro anterior tiene la hoja sin las columnas de EDT interna (código, descripción, BAC y meses
-  desde la columna D), la previsión se pasa al formato actual: los códigos numéricos quedan como EDT
-  cliente y los demás (`XRF01`), como EDT interna.
+- Si el libro anterior tiene la hoja sin la columna EAC (versión 2.4: meses desde la columna F), se
+  agrega con la suma de los meses de cada línea. Si tiene la hoja sin las columnas de EDT interna
+  (código, descripción, BAC y meses desde la columna D), la previsión se pasa al formato actual: los
+  códigos numéricos quedan como EDT cliente y los demás (`XRF01`), como EDT interna.
 
 ---
 
-## 9. Validaciones y limitaciones
+## 10. Validaciones y limitaciones
 
 | Mensaje en `Validación` | Significado |
 |---|---|
@@ -288,7 +355,14 @@ Sobre `--migrar-desde` en la depuración:
 | `códigos EDT repetidos en el libro ...` (Advertencia) | Un código está en dos filas: la previsión se asigna a la primera. |
 | `Se conservó el contenido de la hoja PV-depuración ...` (Info) | `--migrar-desde` trasladó la previsión. |
 | `La hoja PV-depuración del libro anterior tenía el formato sin EDT interna ...` (Info) | La previsión trasladada se pasó al formato con las columnas de EDT interna. |
+| `La hoja PV-depuración del libro anterior no tenía la columna EAC ...` (Info) | La previsión trasladada se pasó al formato con la columna EAC. |
 | `La hoja PV-depuración del libro anterior ... no se trasladó` (Info o Advertencia) | El libro nuevo no tiene depuración, o depura otra empresa. |
+| `Se conservó el reparto del plan de costes (procesar-costes) en ... filas ...` (Info o Advertencia) | `--migrar-desde` conservó el % planificado del plan de costes. |
+| `Reúne varias filas del libro anterior con el reparto del plan de costes ...` (Advertencia) | La fila nueva junta varias filas procesadas (p. ej. al bajar el nivel máximo): su % planificado vuelve a ser el de MS Project. |
+
+`procesar-costes` informa en la consola las líneas sin fila del libro, los importes después del
+horizonte, las filas sin líneas en el plan, las filas cuyo plan suma 0 y los importes guardados como
+texto ([DEP-012 a DEP-018](codigos.md#413-dep--depuración-de-costes)).
 
 Limitaciones:
 
@@ -300,11 +374,20 @@ Limitaciones:
 
 ---
 
-## 10. Preguntas frecuentes
+## 11. Preguntas frecuentes
 
 **¿La depuración cambia el PV o el EV del libro?** No. Las filas «(coste)» solo se comparan con el PV
 planificado; los indicadores, el Cuadro de Mando y `actualizar` usan las mismas filas que un libro sin
-depuración.
+depuración. El PV solo cambia si se ejecuta `procesar-costes`, que lleva el reparto del plan de costes
+al % planificado.
+
+**¿Qué pasa con la EDT interna que trae el total de sus componentes de coste?** Es un subtotal, como la
+línea de la EDT cliente: se suman sus componentes. Si sus importes no son la suma de sus componentes, la
+columna `Observación` lo marca.
+
+**¿Hay que hacer coincidir el BAC y el EAC?** Es el objetivo, pero el programa no los compara. Con
+`procesar-costes`, el PV de la fila es el BAC × el reparto del plan: si no coinciden, el total del PV es
+el BAC.
 
 **¿Se pueden cargar los cierres mensuales en el libro de depuración?** Sí, `actualizar` y `analizar`
 funcionan igual. Pero el libro muestra la previsión de costes de la empresa: para entregar o compartir
@@ -324,4 +407,5 @@ fila del libro (`2.3.4.1.5` en `2.3.4.1`), y las líneas de EDT interna en su ED
 se genera el libro multi-empresa con `depuracion_costes = true` y se ejecuta
 `python ejemplos\generar_ejemplo.py --libro EVM_Depuracion.xlsx`, que escribe el BAC de cada fila y una
 previsión ficticia de EmpresaA en `PV-depuración`: cada EDT cliente con sus líneas de EDT interna
-(personal propio y subcontratas, hitos de pago o subtareas), con algunos meses desplazados.
+(personal propio y subcontratas, hitos de pago, subtareas o una EDT interna con sus componentes de
+coste), con algunos meses desplazados. Después se puede probar `procesar-costes` con ese libro.

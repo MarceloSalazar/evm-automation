@@ -185,7 +185,8 @@ o el mes de reporte.
 |---|---|---|
 | **CPI vs SPI por elemento EDT** | Un punto por cada elemento EDT de nivel 1 (rombo) y 2 (círculo) en el mes de reporte. Eje X: CPI; eje Y: SPI; el centro es (1, 1). | Arriba a la derecha: adelantado y con ahorro. Abajo a la izquierda: atrasado y con sobrecosto. Los elementos alejados del centro son los que explican la desviación del proyecto. |
 
-Junto al gráfico, una tabla muestra el CPI, el SPI y el % completado de cada elemento.
+Junto al gráfico, una tabla muestra el CPI, el SPI y el % completado de cada elemento. Como en las
+hojas del libro, los elementos de nivel 1 del código EDT tienen fondo y las filas resumen van en negrita.
 
 Los gráficos de índices usan una escala fija de 0,5 a 1,5, igual en todos los informes para poder
 compararlos. Los valores fuera de escala se dibujan en el límite y su valor exacto está en la tabla.

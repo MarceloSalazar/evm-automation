@@ -12,6 +12,8 @@ from evm.cli import main
 from evm.update import read_book
 from evm.workbook import FIRST_MONTH_COL, FIRST_ROW
 
+from builders import validation_rows
+
 
 JUN, JUL = date(2027, 6, 1), date(2027, 7, 1)
 JUNE_COUNT = 13         # paquetes fuera de 0,95 a 1,05 en junio de 2027 (8 por debajo y 5 por encima)
@@ -217,7 +219,7 @@ def test_migrate_keeps_the_analysis(book_jun, example_files, tmp_path):
     data_row = next(s.row for s in read_book(new).input_rows if s.code == "2.2.1")
     ws = load_workbook(new)[SHEET_ANALYSIS]
     assert ws.cell(rows_of(new)["2.2.1"], A_BAC).value == f"='PV'!$D${data_row}"
-    details = [r[4] for r in load_workbook(new)["Validación"].iter_rows(min_row=4, values_only=True) if r[4]]
+    details = [r["detalle"] for r in validation_rows(new) if r["detalle"]]
     assert any(f"trasladaron {JUNE_COUNT - 1} filas del análisis de desviaciones" in d for d in details)
     assert any("ya no tiene fila en el libro nuevo" in d for d in details)
 

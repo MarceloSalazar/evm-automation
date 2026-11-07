@@ -1,8 +1,8 @@
-"""Calendario laboral para repartir montos en el tiempo.
+"""Calendario laboral para repartir la duración de las tareas entre los meses.
 
-Con XML se usa el calendario del proyecto. Con COM, MS Project calcula el PV
-con sus propios calendarios; aquí solo se usa el calendario estándar para las
-tareas sin distribución mensual.
+Es el calendario del proyecto, leído del XML (calendar_from_xml) o de MS Project
+(reader_com.calendar_from_com). Sin él, lunes a viernes de 8:00 a 12:00 y de
+13:00 a 17:00.
 """
 from __future__ import annotations
 

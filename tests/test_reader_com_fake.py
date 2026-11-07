@@ -138,3 +138,96 @@ def test_baseline_n_reads_its_dates():
     p = s.read_project(cfg)
     assert p.baseline_label == "Línea base 2"
     assert {t.baseline_start for t in p.tasks} == {datetime(2026, 6, 1, 8)}
+
+
+# ----------------------------------------------------------------------------
+# Calendario del proyecto (Project.Calendar)
+# ----------------------------------------------------------------------------
+class FakeShift:
+    def __init__(self, start="", finish=""):
+        self.Start, self.Finish = start, finish
+
+
+class FakeDay:
+    """WeekDay o Period de MS Project: Working y turnos Shift1 a Shift5 (vacíos: texto vacío)."""
+
+    def __init__(self, working, shifts=()):
+        self.Working = working
+        for i in range(1, 6):
+            setattr(self, f"Shift{i}", FakeShift(*shifts[i - 1]) if i <= len(shifts) else FakeShift())
+
+
+class FakeItems:
+    def __init__(self, items):
+        self._items = items
+
+    def Item(self, i):
+        return self._items[i]
+
+
+def com_time(h, m=0):
+    """Hora de un turno como la devuelve pywin32 (fecha del día 0 de COM)."""
+    return datetime(1899, 12, 30, h, m, tzinfo=UTC)
+
+
+class FakeCalendar:
+    """Calendario de MS Project: WeekDays(pjSunday = 1 ... pjSaturday = 7) y Period(día), que ya resuelve las
+    excepciones (festivos y días laborables extra)."""
+
+    def __init__(self, week, holidays=(), extra=None):
+        self.Name = "Estándar"
+        self.WeekDays = FakeItems(week)
+        self._week, self._holidays, self._extra = week, set(holidays), extra or {}
+
+    def Period(self, when):
+        d = when.date()
+        if d in self._holidays:
+            return FakeDay(False)
+        return self._extra.get(d) or self._week[(d.weekday() + 1) % 7 + 1]
+
+
+def split_week():
+    """Lunes a viernes de 9:00 a 13:00 y de 15:00 a 19:00: el lunes con horas de COM, los demás con texto."""
+    week = {1: FakeDay(False), 7: FakeDay(False), 2: FakeDay(True, [(com_time(9), com_time(13)),
+                                                                     (com_time(15), com_time(19))])}
+    for pj, texts in ((3, [("9:00", "13:00"), ("15:00", "19:00")]),
+                      (4, [("9:00:00", "13:00:00"), ("15:00:00", "19:00:00")]),
+                      (5, [("9:00 a. m.", "1:00 p. m."), ("3:00 p. m.", "7:00 p. m.")]),
+                      (6, [("9:00 AM", "1:00 PM"), ("3:00 PM", "7:00 PM")])):
+        week[pj] = FakeDay(True, texts)
+    return week
+
+
+def test_com_reads_the_project_calendar():
+    """El % planificado se reparte con el calendario del proyecto, como con el XML: jornada de cada día de la
+    semana, días no laborables y laborables distintos de la semana, y los feriados de la configuración."""
+    s = make_session([FakeTask(1, 1, "A", "1")])                  # del 5 al 20 de enero de 2026
+    saturday = date(2026, 1, 10)
+    s.project.Calendar = FakeCalendar(split_week(), holidays={date(2026, 1, 6)},
+                                      extra={saturday: FakeDay(True, [("9:00", "13:00")])})
+    p = s.read_project(Config(holidays={date(2026, 1, 7)}))
+    cal = p.calendar
+    jornada = [(9 * 60, 13 * 60), (15 * 60, 19 * 60)]
+    assert {k: cal.weekly[k] for k in range(7)} == {0: jornada, 1: jornada, 2: jornada, 3: jornada, 4: jornada,
+                                                     5: [], 6: []}
+    assert cal.exceptions == {date(2026, 1, 6): [], saturday: [(9 * 60, 13 * 60)], date(2026, 1, 7): []}
+    assert not [w for w in p.warnings if w.id == "LEC-025"]
+    # Un día que empieza a las 15:24 cuenta 3 h 36 min, como en el XML (con 8:00 a 17:00 contaría 1 h 36 min)
+    assert cal.minutes_by_month(datetime(2026, 1, 12, 15, 24), datetime(2026, 1, 12, 19)) == {(2026, 1): 216}
+
+
+def test_com_calendar_that_cannot_be_read_falls_back_with_a_warning():
+    class Broken:
+        Name = "Roto"
+
+        @property
+        def WeekDays(self):
+            raise RuntimeError("sin respuesta")
+
+    s = make_session([FakeTask(1, 1, "A", "1")])
+    s.project.Calendar = Broken()
+    p = s.read_project(Config())
+    assert p.calendar is None
+    [warning] = [w for w in p.warnings if w.id == "LEC-025"]
+    assert "lunes a viernes, de 8:00 a 12:00 y de 13:00 a 17:00" in warning.message
+    assert make_session([FakeTask(1, 1, "A", "1")]).read_project(Config()).calendar is None      # sin calendario

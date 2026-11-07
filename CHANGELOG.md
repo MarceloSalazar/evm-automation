@@ -28,6 +28,124 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - Ninguna.
 
+## [2.5.0] - 2026-11-07 · Observaciones por prioridad, plan de costes en tres niveles y revisión de mejoras con validar
+
+### Nuevas funciones
+
+- **Observaciones por prioridad (alcance y fila del libro):** cada observación de la hoja `Validación`
+  y de la consola indica su alcance: `General` (el proyecto, la configuración o el libro), `Fila EDT`
+  (una fila de las hojas `PV`, `EV` y `AC`), `Detalle` (tarea que se suma en una fila: de nivel mayor al
+  máximo, fuera de la lista EDT o sin código EDT) o `Fuera del libro` (tarea omitida o con
+  `Visible = No`), y la fila del libro donde se ve o se suma la tarea, con un enlace a esa fila de la
+  hoja `PV`. Las observaciones van primero por severidad y, en cada una, por alcance, para resolver
+  primero las de las filas EDT; arriba, un resumen con las cantidades por severidad y alcance. Las de
+  las tareas de detalle y de fuera del libro se agrupan en una línea por código y fila del libro, con la
+  cantidad de tareas y sus códigos; la hoja nueva `Validación detalle` las tiene todas, una por tarea
+  ([El libro Excel](docs/libro-excel.md#validación)). `validar` y `generar` muestran en pantalla el
+  mismo orden y la misma agrupación, con una línea *Por alcance* en el resultado; `validar --todas`
+  muestra las observaciones una por una, con la fila del libro de cada tarea de detalle.
+- **Plan de costes en tres niveles en `PV-depuración`:** la hoja sigue el formato del plan de costes de
+  la empresa: A `EDT cliente`, B `Actividad EDT`, C `EDT interna`, D `Actividad interna / componente de
+  coste`, E `BAC`, F `EAC` (nueva) y los meses desde la columna G. Las líneas con solo la columna D son
+  **componentes de coste** de la EDT interna de arriba: la EDT interna con componentes es un subtotal y
+  se suman sus componentes, en la EDT cliente. Antes la EDT interna y sus componentes se sumaban los
+  dos. El BAC y el EAC de las líneas ya no se comparan (se quitó la observación `BAC distinto de la suma
+  de los meses`) y los controles de la hoja pasan a la columna F
+  ([Depuración de costes](docs/depuracion-costes.md#4-hoja-pv-depuración-la-previsión-pegada)).
+  `--migrar-desde` pasa al formato nuevo la hoja de los libros de la versión 2.4 (`DEP-009`, nuevo).
+- **Comando `procesar-costes`:** lleva el reparto mensual del plan de costes pegado en `PV-depuración`
+  al % planificado de la empresa que se depura: en cada fila, el importe del mes dividido por el EAC de
+  sus líneas, asignadas por la EDT cliente. El PV sigue siendo el BAC × el %: con el BAC igual al EAC,
+  es el importe del plan. Las filas sin líneas conservan el % de MS Project. Las filas procesadas
+  conservan ese % al regenerar el libro con `--migrar-desde`, también en el libro de entrega sin
+  depuración (`DEP-010` y `DEP-011`, nuevos), y `actualizar` no lo compara con la línea base de MS
+  Project (`ACT-047`). Observaciones del comando: `DEP-012` a `DEP-018`, nuevos
+  ([Depuración de costes](docs/depuracion-costes.md#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes),
+  [Comandos](docs/comandos.md#procesar-costes-pv-con-el-reparto-del-plan-de-costes)).
+- **Más controles en `validar`:** las líneas base guardadas (cuántas tareas revisadas tienen fecha de
+  comienzo en cada una) y la que usa el % planificado (`LEC-024`); las
+  tareas resumen cuya línea base no coincide con la de sus tareas de detalle porque no se resumió al
+  guardarla (`FEC-013` y `FEC-014`); la fecha de estado que no es el último día del mes, con el mes en
+  que `actualizar` cargaría el avance (`AVA-018`); la opción *Calcular varias rutas críticas* de MS
+  Project activada, con el % de tareas sin terminar que son críticas (`LOG-017`), y, con una
+  planificación, los vínculos que la unen con otras planificaciones del archivo (`LOG-018`). `generar` y
+  `validar` avisan además, en multi-empresa, cuando el campo `% Reparto` existe pero está vacío en todas
+  las tareas y las tareas `Ambas` se reparten con el reparto por defecto (`LEC-023`)
+  ([Validaciones](docs/validaciones-y-problemas.md#1-validaciones)). Todos los códigos son nuevos.
+- **`validar` como revisión de mejoras:**
+  - `--informe [RUTA]` escribe un informe de mejoras en Markdown (por defecto `<origen>_mejoras.md`): un
+    resumen, las observaciones por prioridad (alta: las que cambian el libro; media: la calidad del
+    cronograma; baja: las informativas), cada una con sus tareas, la causa y qué hacer, la evaluación DCMA y,
+    con varias planificaciones, su comparación. No incluye nombres de tareas, de empresas ni de calendarios,
+    ni el título del proyecto: las tareas se identifican por su código EDT o su UniqueID.
+  - Al final de cada revisión, la **evaluación DCMA de 14 puntos** en una tabla: valor, umbral y si cumple.
+  - `--planificacion INTERNO,CLIENTE` revisa cada planificación por separado y las compara: tareas,
+    inactivas, filas, líneas base, vínculos, tareas críticas y fin previsto, y las filas que solo están en
+    una o que tienen otra línea base u otro fin previsto. Los demás comandos admiten una sola planificación
+    (`CFG-053`, nuevo).
+  - Controles nuevos: fin previsto del cronograma posterior al último mes del horizonte, también en
+    `generar` (`CFG-052`); líneas base incompletas, con solo el comienzo o solo el fin (`FEC-015` en la
+    tarea de detalle, también en `generar`, y `FEC-016`); tareas con calendario propio (`FEC-017`). Los
+    vínculos con otras planificaciones (`LOG-018`) pasan a ser una advertencia, con el detalle por tarea
+    (`LOG-019`, nuevo) y cuántas tareas se quedarían sin predecesoras o sin sucesoras al quitarlos
+    ([Comandos](docs/comandos.md#validar-revisa-el-archivo-de-ms-project)).
+- **Mensajes más claros:** el aviso de % planificado posterior al último mes del horizonte (`CFG-045`)
+  indica hasta qué % del BAC llega el PV de cada fila y cuántos meses hacen falta; los adelantos
+  (`LOG-006`) se informan en una línea por tarea, con sus predecesoras; las observaciones de fila de
+  `actualizar` iguales en varias filas (por ejemplo `ACT-034`, método no definido) se muestran en una
+  línea con sus códigos EDT, y la planificación exportada (`EDT-017`) se nombra una sola vez e indica si
+  se eligió por el nombre de la tarea, porque no tiene código EDT.
+
+### Correcciones
+
+- **Color de las filas según el nivel EDT:** el fondo de una fila depende del nivel de su código EDT,
+  sea un subtotal o un paquete de trabajo: azul oscuro el nivel 1, azul claro el nivel 2 y sin fondo los
+  niveles siguientes y las filas `-D`. Antes dependía de lo que colgaba por debajo: `2.7.1`, con
+  actividades con fila propia, tenía fondo azul y `2.8.1`, sin ellas, no tenía fondo; y una fila cuya
+  tarea superior no tenía fila en el libro (por ejemplo, por la lista EDT) pasaba al azul oscuro del
+  nivel 1. La negrita sigue solo en los subtotales. Se aplica a las hojas `PV`, `% PV`, `EV`, `% EV`,
+  `AC` (y las de cada empresa) e `Indicadores EDT`, y a la tabla por elemento EDT del Cuadro de Mando
+  ([El libro Excel](docs/libro-excel.md)). Los libros ya generados conservan sus colores; el cambio se ve
+  en los libros que se generan de nuevo.
+- **Tareas nuevas dentro de una fila del libro:** `actualizar` informaba como tareas agregadas después de
+  generar el libro, con su avance fuera del % ganado (`ACT-015`), las tareas con un código EDT de nivel
+  no mayor al máximo colgadas de una fila del nivel máximo (por ejemplo `1.1.4` debajo de `1.1.1`), que
+  `generar` suma en esa fila y cuyo avance sí se incluye. Ya no se informan: los códigos que no dependen
+  de su tarea superior se informan al generar (`EDT-005`). Las tareas que sí se agregaron después dentro
+  de una fila de ingreso se informan con un aviso nuevo (`ACT-051`): su avance se suma en esa fila, pero
+  no forman parte de su % planificado. `ACT-015` queda para las tareas cuyo avance no se incluye.
+- **Fechas de plan de las filas:** las columnas *Fecha inicio Plan* y *Fecha fin Plan* de las hojas `PV`,
+  `EV` y `AC` se toman de las tareas de detalle que forman el % planificado de la fila (en una fila
+  subtotal, de sus filas), igual que el fin de línea base de `Indicadores EDT`. Antes eran las de la
+  línea base de la tarea resumen, que no coinciden con el % planificado si la línea base no se resumió
+  al guardarla, si la rama tiene tareas con `Visible = No` o tareas sin línea base, y podían tener el fin
+  antes del comienzo ([El libro Excel](docs/libro-excel.md#2-hojas-pv-ev-y-ac)). Los libros ya generados
+  conservan sus fechas; el cambio se ve en los libros que se generan de nuevo.
+- **Calendario del proyecto con `.mpp`:** el % planificado, el desvío de fin y los controles de `validar`
+  se calculaban con un calendario fijo de lunes a viernes, de 8:00 a 12:00 y de 13:00 a 17:00, aunque el
+  proyecto tuviera otra jornada u otros días no laborables: con un calendario de 9:00 a 13:00 y de 15:00 a
+  19:00, el reparto de los días incompletos difería del que da el XML del mismo proyecto. Ahora se lee el
+  calendario del proyecto de MS Project: la jornada de cada día de la semana y los días laborables y no
+  laborables, con las excepciones y las semanas laborales que resuelve MS Project, como con el XML. Si no
+  se puede leer, se usa el calendario fijo y se avisa (`LEC-025`, nuevo)
+  ([Limitaciones](docs/validaciones-y-problemas.md#2-limitaciones-conocidas)).
+- **Solo la planificación elegida:** con `planificacion` (por ejemplo `INTERNO`), el aviso de tareas
+  inactivas excluidas (`EDT-016`) contaba las de todo el archivo, también las de otras planificaciones;
+  ahora cuenta solo las de la planificación. Los controles de lógica de `validar` (criterios DCMA) y el
+  avance fuera de secuencia contaban los vínculos con tareas de otras planificaciones: una tarea cuya
+  única sucesora era de otra planificación no se informaba sin sucesoras, y los vínculos con los que una
+  planificación replica a otra cambiaban la proporción de vínculos fin a comienzo. Ahora solo cuentan
+  los vínculos entre tareas de la planificación, y `LOG-018` informa los demás
+  ([Planificación exportada](docs/calculo-pv-ev.md#31-planificación-exportada)).
+
+### Otros
+
+- Presentación: la versión en la portada y la hoja nueva `Validación detalle` entre las pestañas del libro;
+  en las notas, el orden de las observaciones de la hoja `Validación`, la evaluación DCMA y el informe de
+  mejoras de `validar`. Capturas de la hoja `Validación` actualizadas.
+- Esta versión no publica instalador de Windows: las funciones nuevas se usan con la instalación con
+  Python, y el instalador de la versión 2.4.1 sigue disponible, sin ellas.
+
 ## [2.4.1] - 2026-10-31 · Ceros del código EDT, correcciones de la revisión y rendimiento
 
 ### Nuevas funciones
@@ -674,7 +792,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.1...HEAD
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.5.0...HEAD
+[2.5.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.1...v2.5.0
 [2.4.1]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.2.1...v2.3.0

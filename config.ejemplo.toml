@@ -110,9 +110,8 @@ incluir_inactivas = false
 #   "calendario" proporcional a los días corridos
 distribucion = "habiles"
 
-# Feriados adicionales. Con XML se agregan al calendario del proyecto; con .mpp
-# se usan para repartir la duración de las tareas, con un calendario de lunes a
-# viernes.
+# Feriados adicionales: se agregan al calendario del proyecto (leído del XML o
+# del .mpp) para repartir la duración de las tareas.
 feriados = [
   # "2026-12-25",
   # "2027-01-01",
@@ -144,8 +143,9 @@ guardado_rapido = true
 # y la hoja Depuración costes con el gráfico comparativo. En la hoja PV de esa
 # empresa (PV-EmpresaA o PV-EmpresaB; PV en un libro de una sola empresa), cada
 # fila lleva debajo su fila «(coste)» con esa previsión, para alinear las tareas
-# e hitos de MS Project con ella. El libro de entrega se genera sin depuración,
-# con --migrar-desde para conservar el BAC.
+# e hitos de MS Project con ella. El comando procesar-costes lleva el reparto
+# mensual del plan al % planificado de la empresa. El libro de entrega se genera
+# sin depuración, con --migrar-desde para conservar el BAC y ese reparto.
 depuracion_costes = false
 
 # Empresa que se depura en multi-empresa: el valor de empresa_a o empresa_b.

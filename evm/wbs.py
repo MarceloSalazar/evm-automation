@@ -9,9 +9,9 @@ from datetime import date, datetime
 from evm import progress
 from evm.config import Config, ConfigError
 from evm.fields import fmt_number
-from evm.messages import (SEV_ERROR, SEV_INFO, SEV_WARN, TOPIC_BOOK, TOPIC_COMPANY, TOPIC_DATES,  # noqa: F401
-                          TOPIC_LOGIC, TOPIC_METHOD, TOPIC_PROGRESS, TOPIC_READ, TOPIC_VISIBLE, TOPIC_WBS,
-                          TOPIC_WEIGHTS, TOPICS, Issue)
+from evm.messages import (SEV_ERROR, SEV_INFO, SEV_WARN, TARGET_DETAIL, TARGET_GENERAL,  # noqa: F401
+                          TARGET_OUT, TARGET_ROW, TOPIC_BOOK, TOPIC_COMPANY, TOPIC_DATES, TOPIC_LOGIC, TOPIC_METHOD,
+                          TOPIC_PROGRESS, TOPIC_READ, TOPIC_VISIBLE, TOPIC_WBS, TOPIC_WEIGHTS, TOPICS, Issue)
 from evm.methods import is_undefined
 from evm.model import MonthKey, ProjectData, Task
 from evm.timeline import Horizon, first_of_month
@@ -31,6 +31,9 @@ class ReportRow:
     method: str = ""
     start: datetime | None = None
     finish: datetime | None = None
+    # Nivel del código EDT (code_level), que decide el color de la fila: al menos uno más que el de la fila
+    # superior (los hijos de una planificación como INTERNO, con códigos desde 1.0.0, son de nivel 2); 0 en las -D
+    wbs_level: int = 0
     parent: "ReportRow | None" = field(default=None, repr=False)
     children: list["ReportRow"] = field(default_factory=list, repr=False)
     vector: list[float] = field(default_factory=list, repr=False)    # % planificado del mes (todas las empresas)
@@ -96,6 +99,8 @@ class ReportPart:
     scope: "Scope | None" = None                # tareas exportadas (sin las inactivas ni las de Visible = No)
     code_of: Callable[[Task], str] | None = None    # código EDT de una tarea, como en el libro
     list_matched: set[str] | None = None        # lista EDT: códigos de la lista que tienen tarea (None = sin lista)
+    # validar: evaluación DCMA de 14 puntos, punto -> (valor, umbral, cumple; None = no se evalúa)
+    dcma: dict = field(default_factory=dict)
 
 
 # ----------------------------------------------------------------------------
@@ -147,6 +152,26 @@ def prune_inactive(roots: list[Task]) -> tuple[list[Task], dict[int, list[Task]]
         return kept
 
     return prune(roots, None), removed_children, count
+
+
+def _active_branch(t: Task) -> bool:
+    """La tarea y todas sus tareas superiores están activas."""
+    n: Task | None = t
+    while n is not None:
+        if not n.active:
+            return False
+        n = n.parent
+    return True
+
+
+def _under(t: Task, ancestor: Task) -> bool:
+    """La tarea depende de ancestor (en el árbol completo de MS Project)."""
+    n = t.parent
+    while n is not None:
+        if n is ancestor:
+            return True
+        n = n.parent
+    return False
 
 
 def pad_code(code: str, levels: int) -> str:
@@ -309,7 +334,7 @@ def row_visibility(scope: Scope, cfg: Config, code_of=None) -> Visibility:
             if not valid:
                 out.issues.append(Issue("VIS-001", code_of(t), t.name,
                                         f"Visible = '{t.visible}' no se reconoce (se admite Sí o No): se usa el "
-                                        "nivel máximo."))
+                                        "nivel máximo.", uid=t.uid))
 
     def hidden(t: Task) -> bool:
         return values.get(t.uid) is False
@@ -325,7 +350,7 @@ def row_visibility(scope: Scope, cfg: Config, code_of=None) -> Visibility:
             if n is not t and values.get(n.uid) is True:
                 out.issues.append(Issue("VIS-002", code_of(n), n.name,
                                         f"Visible = Sí, pero depende de {label(t)}, con Visible = No: queda fuera "
-                                        "del cálculo con esa rama."))
+                                        "del cálculo con esa rama.", uid=n.uid))
 
     def walk(group: list[Task], parent: Task | None, hidden_by: Task | None) -> None:
         every = bool(group) and all(hidden(t) for t in group)
@@ -341,11 +366,11 @@ def row_visibility(scope: Scope, cfg: Config, code_of=None) -> Visibility:
             if value is True and hidden_by is not None:
                 out.issues.append(Issue("VIS-003", code_of(t), t.name,
                                         f"Visible = Sí, pero depende de {label(hidden_by)}, con Visible = No: se "
-                                        "suma con su rama."))
+                                        "suma con su rama.", uid=t.uid))
             elif value is True and not raw:
                 out.issues.append(Issue("VIS-004", code_of(t), t.name,
                                         "Visible = Sí en una tarea sin código EDT: no puede tener fila propia; se "
-                                        "suma en su fila superior."))
+                                        "suma en su fila superior.", uid=t.uid))
             level = code_level(raw, cfg.ignore_interior_zeros)
             has_row = bool(raw) and inner is None and (value is True or level <= cfg.max_level)
             if has_row and level > cfg.max_level:
@@ -434,6 +459,28 @@ PERCENT_PV_SOURCE = ("% planificado de MS Project (duración de la línea base d
                      "× BAC ingresado en el libro")
 
 
+def leaf_span(leaves: list[Task], start: datetime | None = None,
+              finish: datetime | None = None) -> tuple[datetime | None, datetime | None]:
+    """Comienzo y fin de una fila (columnas Fecha inicio y Fecha fin Plan de la hoja PV): el comienzo más temprano y
+    el fin más tardío de las tareas de detalle que forman su % planificado, con las mismas fechas (las de la línea
+    base o, si no las tienen, las actuales; un fin anterior al comienzo se invierte, como en el reparto). Así las
+    fechas coinciden con los meses del % PV aunque la línea base de la tarea resumen no esté resumida o la rama tenga
+    tareas con Visible = No. start y finish: las fechas si ninguna tarea de detalle tiene fechas."""
+    from evm.percent import task_dates
+    starts: list[datetime] = []
+    finishes: list[datetime] = []
+    for t in leaves:
+        a, b, _ = task_dates(t)
+        a, b = a or b, b or a
+        if a is None or b is None:
+            continue
+        starts.append(min(a, b))
+        finishes.append(max(a, b))
+    if not starts:
+        return start, finish
+    return min(starts), max(finishes)
+
+
 def _has_weight(t: Task) -> bool:
     """Tarea que puede aportar % planificado: tarea con fechas o hito con peso."""
     if t.milestone:
@@ -480,10 +527,10 @@ def _percent_curves(project: ProjectData, cfg: Config, rows: list[ReportRow], co
                             "actualizar la línea base de esas tareas."))
         for x in current[:200]:
             issues.append(Issue("FEC-011", code_of(x.task), task_name(x.task, code_of),
-                                "Sin fechas de línea base: se usaron sus fechas actuales."))
+                                "Sin fechas de línea base: se usaron sus fechas actuales.", uid=x.task.uid))
     for x in undated[:200]:
         issues.append(Issue("FEC-012", code_of(x.task), task_name(x.task, code_of),
-                            "Sin fechas de línea base ni fechas actuales: no aporta % planificado."))
+                            "Sin fechas de línea base ni fechas actuales: no aporta % planificado.", uid=x.task.uid))
     for company, codes in alone.items():
         shown = ", ".join(codes[:10]) + (f" y {len(codes) - 10} más" if len(codes) > 10 else "")
         issues.append(Issue("EMP-002", "", "",
@@ -512,20 +559,29 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
     roots = build_tree(tasks)
 
     # Tareas inactivas (MS Project 2010+): se excluyen con toda su rama
+    inactive: list[Task] = []           # tareas inactivas cuya tarea superior está activa (con su rama)
     if not cfg.include_inactive:
-        roots, _, removed = prune_inactive(roots)
-        if removed:
-            issues.append(Issue("EDT-016", "", "",
-                                f"Se {'excluyó' if removed == 1 else 'excluyeron'} "
-                                f"{plural(removed, 'tarea inactiva', 'tareas inactivas')}: no "
-                                f"{'forma' if removed == 1 else 'forman'} parte del % planificado."))
+        inactive = [t for t in tasks if not t.active and (t.parent is None or _active_branch(t.parent))]
+        roots, _, _ = prune_inactive(roots)
 
-    # Planificación (p. ej. INTERNO o CLIENTE): solo las tareas que dependen de ella
+    # Planificación (p. ej. INTERNO o CLIENTE): solo las tareas que dependen de ella. Las tareas inactivas se cuentan
+    # solo las de la planificación
     scope = select_scope(roots, cfg.plan)
+    removed = sum(sum(1 for _ in iter_subtree(t)) for t in inactive if scope.plan is None or _under(t, scope.plan))
+    if removed:
+        issues.append(Issue("EDT-016", "", "",
+                            f"Se {'excluyó' if removed == 1 else 'excluyeron'} "
+                            f"{plural(removed, 'tarea inactiva', 'tareas inactivas')}"
+                            f"{'' if scope.plan is None else f' de la planificación {scope.prefix}'}: no "
+                            f"{'forma' if removed == 1 else 'forman'} parte del % planificado."))
     if scope.plan is not None:
-        issues.append(Issue("EDT-017", scope.prefix, scope.plan.name,
-                            f"Planificación '{scope.prefix}': se exportan las {sum(1 for _ in scope.tasks())} "
-                            f"tareas que dependen de '{scope.plan.name}'."))
+        from evm.fields import same_name
+        plan_name = (scope.plan.name or "").strip()
+        named = f" («{plan_name}»)" if plan_name and not same_name(plan_name, scope.prefix) else ""
+        by_name = "" if (scope.plan.wbs or "").strip() else " (tarea sin código EDT, elegida por su nombre)"
+        issues.append(Issue("EDT-017", "", "",
+                            f"Planificación '{scope.prefix}'{named}{by_name}: se exportan las "
+                            f"{sum(1 for _ in scope.tasks())} tareas que dependen de ella."))
 
     if not project.baseline_found:
         issues.append(Issue(
@@ -575,6 +631,7 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
         mark(r)
 
     def subtree_dates(t: Task) -> tuple[datetime | None, datetime | None]:
+        """Fechas de la línea base de la tarea (o de su rama): solo si sus tareas de detalle no tienen fechas."""
         if t.baseline_start or t.baseline_finish:
             return t.baseline_start, t.baseline_finish
         starts = [n.baseline_start for n in iter_subtree(t) if n.baseline_start]
@@ -615,9 +672,10 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
                                         and code_level(scope.raw_code(t), cfg.ignore_interior_zeros) >= cfg.max_level
                                         and not any(code_level(scope.raw_code(c), cfg.ignore_interior_zeros)
                                                     > cfg.max_level for c in row_tasks))
+        wbs_level = max(code_level(scope.raw_code(t), cfg.ignore_interior_zeros), parent.wbs_level + 1 if parent else 1)
         row = ReportRow(code=code_of(t), name=t.name, level=(parent.level + 1) if parent else 1,
                         kind=KIND_LEAF if is_leaf_row else KIND_SUMMARY, task=t,
-                        start=s, finish=f, parent=parent)
+                        start=s, finish=f, wbs_level=wbs_level, parent=parent)
         rows.append(row)
         if parent:
             parent.children.append(row)
@@ -626,6 +684,7 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
 
         if is_leaf_row:
             row.leaves = [n for n in iter_subtree(t) if not n.children]
+            row.start, row.finish = leaf_span(row.leaves, s, f)
             row.method = (t.method or "").strip() or cfg.default_method
             row.hidden_tasks = sum(1 for _ in iter_subtree(t)) - 1
             aggregated += row.hidden_tasks
@@ -638,17 +697,21 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
         loose = [n for b in loose_full for n in iter_subtree(b) if not n.children]
         aggregated += sum(1 for b in loose_full for _ in iter_subtree(b)) + len(loose_own)
         if any(_has_weight(n) for n in loose):
-            # Fechas de la línea base de sus propias tareas (no las de toda la tarea resumen)
-            starts = [n.baseline_start for n in loose if n.baseline_start]
-            finishes = [n.baseline_finish for n in loose if n.baseline_finish]
+            # Fechas de sus propias tareas (no las de toda la tarea resumen)
+            start, finish = leaf_span(loose, s, f)
             res = ReportRow(code=f"{row.code}-D", name=f"Otras tareas de «{t.name}»",
                             level=row.level + 1, kind=KIND_RESIDUAL, task=t, method=cfg.default_method,
-                            start=min(starts) if starts else s, finish=max(finishes) if finishes else f, parent=row)
+                            start=start, finish=finish, parent=row)
             res.leaves = loose
             rows.append(res)
             row.children.append(res)
             issues.append(Issue("EDT-018", row.code, t.name,
                                 f"Tareas sin código EDT o {beyond}: forman la fila {row.code}-D, con su propio BAC."))
+        # Fila subtotal: desde el comienzo de la primera de sus filas hasta el fin de la última
+        starts = [c.start for c in row.children if c.start]
+        finishes = [c.finish for c in row.children if c.finish]
+        if starts and finishes:
+            row.start, row.finish = min(starts), max(finishes)
 
     omitted: list[Task] = []
 
@@ -683,16 +746,17 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
             for t in top_missing[:50]:
                 issues.append(Issue("EMP-004", code_of(t), task_name(t, code_of),
                                     f"Sin empresa: se trata como '{cfg.company_both}'"
-                                    + (" (incluye sus subtareas sin empresa)." if t.children else ".")))
+                                    + (" (incluye sus subtareas sin empresa)." if t.children else "."), uid=t.uid))
         for t in notes["desconocida"][:50]:
             issues.append(Issue("EMP-005", code_of(t), task_name(t, code_of),
                                 f"Empresa '{t.company}' no reconocida (se esperaba '{cfg.company_a}', "
-                                f"'{cfg.company_b}' o '{cfg.company_both}'): se trata como '{cfg.company_both}'."))
+                                f"'{cfg.company_b}' o '{cfg.company_both}'): se trata como '{cfg.company_both}'.",
+                                uid=t.uid))
         for t in notes["reparto"][:50]:
             issues.append(Issue("EMP-006", code_of(t), task_name(t, code_of),
                                 f"'{cfg.split_field}' = {fmt_number(t.split_a, trim=True)} fuera de rango (debe ser "
                                 "mayor que 0 y como máximo 100): se usa "
-                                f"{fmt_number(cfg.split_default, trim=True)} %."))
+                                f"{fmt_number(cfg.split_default, trim=True)} %.", uid=t.uid))
 
     # --- Controles del archivo ------------------------------------------------
     checks: list[Issue] = []
@@ -737,12 +801,12 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
                             f"{'queda' if n == 1 else 'quedan'} fuera del PV, el EV y el AC ({names}{more}): "
                             f"{detail}."))
         for t in visibility.excluded[:200]:
-            checks.append(Issue("VIS-008", code_of(t), t.name, "Visible = No: fuera del PV, el EV y el AC."))
+            checks.append(Issue("VIS-008", code_of(t), t.name, "Visible = No: fuera del PV, el EV y el AC.", uid=t.uid))
     for t in visibility.represented:
         checks.append(Issue("VIS-009", code_of(t), t.name,
                             "Todas sus subtareas tienen Visible = No: "
                             + ("la fila es el paquete de trabajo, con toda su rama." if included(t)
-                               else "se suman con la tarea en su fila superior.")))
+                               else "se suman con la tarea en su fila superior."), uid=t.uid))
     if visibility.shown:
         checks.append(Issue("VIS-010", "", "",
                             f"{plural(visibility.shown, 'tarea tiene', 'tareas tienen')} Visible = Sí y fila propia "
@@ -796,12 +860,128 @@ def _block(row: ReportRow):
         yield from _block(c)
 
 
+def locate_issues(part: ReportPart, issues: list[Issue]) -> list[Issue]:
+    """Las observaciones de un archivo con su alcance y la fila del libro de su tarea: Fila EDT (la tarea es una fila
+    de las hojas PV, EV y AC), Detalle (se suma en una fila: de nivel mayor al máximo, fuera de la lista EDT o sin
+    código, también en la fila -D), Fuera del libro (no forma parte de ninguna fila: omitida, inactiva, con Visible =
+    No o de otra planificación) y General (sin tarea). La tarea se busca por su UniqueID o, si la observación no lo
+    indica, por su código EDT."""
+    where: dict[int, tuple[str, str]] = {}          # UniqueID -> (alcance, fila del libro)
+    for row in part.rows:
+        if row.kind == KIND_RESIDUAL:
+            for n in row.leaves:
+                where.setdefault(n.uid, (TARGET_DETAIL, row.code))
+            continue
+        where[row.task.uid] = (TARGET_ROW, row.code)
+        if row.kind == KIND_LEAF:
+            for n in iter_subtree(row.task):
+                where.setdefault(n.uid, (TARGET_DETAIL, row.code))
+    exported = list(part.scope.tasks()) if part.scope is not None else []
+    in_scope = {t.uid for t in exported}
+    tasks = {t.uid: t for t in part.source.project.tasks}
+    code_of = part.code_of or (lambda t: t.wbs or "")
+    by_code: dict[str, Task] = {}
+    for t in exported:
+        if code_of(t):
+            by_code.setdefault(code_key(code_of(t)), t)
+    row_codes = {code_key(r.code): r.code for r in part.rows}
+
+    def of_task(t: Task) -> tuple[str, str]:
+        if t.uid in where:
+            return where[t.uid]
+        if t.uid in in_scope:           # sin fila propia, de una tarea resumen (p. ej. sin peso y sin fila -D)
+            p = t.parent
+            while p is not None:
+                if where.get(p.uid, ("",))[0] == TARGET_ROW:
+                    return TARGET_DETAIL, where[p.uid][1]
+                p = p.parent
+        return TARGET_OUT, ""
+
+    out = []
+    for i in issues:
+        if i.target:
+            out.append(i)
+            continue
+        key = code_key(i.code) if i.code else ""
+        if i.uid is not None and i.uid in tasks:
+            target, row = of_task(tasks[i.uid])
+        elif key in row_codes:
+            target, row = TARGET_ROW, row_codes[key]
+        elif key in by_code:
+            target, row = of_task(by_code[key])
+        else:
+            target, row = TARGET_GENERAL, ""
+        out.append(replace(i, target=target, row=row))
+    return out
+
+
+def located(rows: list[ReportRow], issues: list[Issue]) -> list[Issue]:
+    """Las observaciones con alcance. Las que no lo tienen (las del libro, la depuración de costes y --migrar-desde)
+    son de una fila EDT si su código EDT es una fila del libro, y generales si no."""
+    codes = {code_key(r.code): r.code for r in rows}
+    out = []
+    for i in issues:
+        key = code_key(i.code) if i.code else ""
+        if not i.target:
+            i = replace(i, target=TARGET_ROW, row=codes[key]) if key in codes else replace(i, target=TARGET_GENERAL)
+        out.append(i)
+    return out
+
+
 def tagged_issues(part: ReportPart, issues: list[Issue]) -> list[Issue]:
-    """Con varios archivos, cada observación indica el archivo: '[P2] ...'."""
+    """Las observaciones de un archivo con su alcance (locate_issues). Con varios archivos, cada observación indica
+    el archivo: '[P2] ...'."""
+    issues = locate_issues(part, issues)
     name = part.source.name
     if not name:
-        return list(issues)
-    return [replace(i, message=f"[{name}] {i.message}") for i in issues]
+        return issues
+    return [replace(i, message=f"[{name}] {i.message}", file=name) for i in issues]
+
+
+def _after_horizon(rows: list[ReportRow], codes: set[str], horizon: Horizon) -> Issue:
+    """CFG-045: filas con % planificado después del último mes del horizonte, con el % del BAC al que llega su PV
+    (la empresa que menos llega, en multi-empresa), el último mes con % planificado y los meses necesarios."""
+    reached: list[tuple[float, str]] = []
+    last: MonthKey | None = None
+    for row in rows:
+        if not row.is_input:
+            continue
+        for values in row.pct.values():
+            keys = [k for k, v in values.items() if v > 1e-9]
+            if keys:
+                last = max(last, max(keys)) if last else max(keys)
+        if row.code in codes:
+            share = min((sum(v) for v in row.pct_vec.values() if any(v)), default=0.0)
+            reached.append((share, row.code))
+    reached.sort()
+    shown = ", ".join(f"{code} llega al {fmt_number(100 * share, 1, trim=True)} %" for share, code in reached[:10])
+    more = f" y {len(reached) - 10} más" if len(reached) > 10 else ""
+    needed = ""
+    if last is not None:
+        months = (last[0] - horizon.start.year) * 12 + last[1] - horizon.start.month + 1
+        needed = (f" El último mes con % planificado es {last[1]:02d}/{last[0]}: se necesitan al menos {months} meses "
+                  f"desde {horizon.start:%m/%Y} (hoy son {horizon.months}).")
+    return Issue("CFG-045", "", "",
+                 f"{plural(len(codes), 'fila tiene', 'filas tienen')} % planificado posterior al último mes del "
+                 f"horizonte ({horizon.end:%m/%Y}): no aparece en las columnas mensuales y su PV no llega al BAC "
+                 f"({shown}{more}).{needed} Se debe aumentar 'meses' (o --meses) y volver a generar.")
+
+
+def _forecast_after_horizon(rows: list[ReportRow], horizon: Horizon) -> Issue | None:
+    """CFG-052: el fin previsto de las tareas de las filas del libro (cronograma actual) es posterior al último mes
+    del horizonte, en el que ya no se pueden cargar el EV ni el AC."""
+    finishes = [t.finish for row in rows if row.is_input for t in row.leaves if t.finish is not None]
+    if not finishes:
+        return None
+    last = max(finishes)
+    if (last.year, last.month) <= (horizon.end.year, horizon.end.month):
+        return None
+    months = (last.year - horizon.start.year) * 12 + last.month - horizon.start.month + 1
+    return Issue("CFG-052", "", "",
+                 f"El fin previsto del cronograma ({last:%m/%Y}) es posterior al último mes del horizonte "
+                 f"({horizon.end:%m/%Y}): el EV y el AC de los meses posteriores no se podrán cargar en el libro. Se "
+                 f"necesitan al menos {months} meses desde {horizon.start:%m/%Y} (hoy son {horizon.months}): se debe "
+                 "aumentar 'meses' (o --meses) y volver a generar.")
 
 
 def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:
@@ -871,10 +1051,10 @@ def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:
                             f"{plural(len(pct_before), 'fila tiene', 'filas tienen')} % planificado anterior al mes "
                             f"1 ({horizon.start:%m/%Y}): se acumuló en la columna del mes 1."))
     if pct_after:
-        issues.append(Issue("CFG-045", "", "",
-                            f"{plural(len(pct_after), 'fila tiene', 'filas tienen')} % planificado posterior al "
-                            f"último mes del horizonte ({horizon.end:%m/%Y}): no aparece en las columnas mensuales "
-                            "y su PV no llega al BAC. Se debe aumentar 'meses'."))
+        issues.append(_after_horizon(rows, pct_after, horizon))
+    late = _forecast_after_horizon(rows, horizon)
+    if late is not None:
+        issues.append(late)
 
     # --- Controles -------------------------------------------------------------
     for part in parts:

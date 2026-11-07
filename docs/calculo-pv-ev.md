@@ -120,8 +120,20 @@ Un mismo archivo de MS Project puede contener varias planificaciones del mismo p
 primer nivel con ese código EDT.
 
 Si se indica `planificacion` (por ejemplo `INTERNO`), solo se exportan las tareas que dependen de la
-tarea con ese código EDT. Esa tarea contenedora no tiene fila propia. Si los códigos de sus tareas
-incluyen el prefijo de la planificación (por ejemplo `INTERNO.1.1`), el prefijo se quita.
+tarea con ese código EDT o, si ninguna tarea tiene ese código, de la tarea con ese nombre (la de menor
+nivel de esquema). Esa tarea contenedora no tiene fila propia. Si los códigos de sus tareas incluyen el
+prefijo de la planificación (por ejemplo `INTERNO.1.1`), el prefijo se quita. Las dos planificaciones
+pueden repetir los mismos códigos EDT: las filas del libro, las tareas inactivas que se informan, las
+líneas base de `validar` y la asociación de las filas en `actualizar` son solo las de la planificación
+elegida.
+
+Las dos planificaciones pueden estar vinculadas entre sí en MS Project (por ejemplo, si una replica a la
+otra con vínculos comienzo a comienzo). MS Project calcula con esos vínculos las fechas, la holgura y las
+tareas críticas, que el programa lee tal cual. Los controles de lógica de `validar` (criterios DCMA) y el
+avance fuera de secuencia solo cuentan los vínculos entre tareas de la planificación elegida, y
+`validar` informa cuántos vínculos la unen con otras planificaciones
+([LOG-018](codigos.md#log-018)). `validar --planificacion INTERNO,CLIENTE` revisa las dos y las compara
+([Varias planificaciones](comandos.md#varias-planificaciones)).
 
 ```mermaid
 flowchart LR
@@ -321,6 +333,10 @@ Casos especiales (se informan en `Validación`):
 | Ninguna tarea con duración ni hito con peso | Todas las tareas pesan igual. |
 | Tarea sin fechas de línea base (agregada después de guardarla) | Se usan sus fechas actuales y se advierte. |
 | Ninguna tarea de la fila tiene fechas | La fila no tiene % planificado: su BAC no se puede repartir en el tiempo. |
+
+Si el PV de una empresa debe seguir el reparto mensual de su plan de costes, y no el de las tareas, el
+comando `procesar-costes` reemplaza el % planificado de sus filas por el de ese plan
+([Depuración de costes](depuracion-costes.md#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes)).
 
 **Ejemplo** (caso ilustrativo, con datos distintos de los del proyecto de ejemplo). Paquete
 `3.2.1 Suministro de equipos`, BAC 1.000.000:

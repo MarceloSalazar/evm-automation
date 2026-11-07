@@ -48,14 +48,21 @@ contratos del gobierno de EE. UU. no son obligatorios; se usan como buena práct
 
 ## 2. Cómo cuenta el programa
 
+`validar` muestra al final de cada revisión la tabla de los 14 puntos, con el valor, el umbral y si cumple
+(los puntos 10 y 12 no se evalúan), y la incluye en el informe de mejoras (`--informe`)
+([Comandos](comandos.md#informe-de-mejoras)).
+
 - **Tareas revisadas:** las tareas de detalle (sin subtareas) que exporta el libro: las de la
   planificación elegida, activas y sin `Visible = No`. Las tareas resumen no se cuentan.
+- **Vínculos:** con una planificación, solo los vínculos entre sus tareas. Los que la unen con otra
+  planificación del mismo archivo se informan aparte ([LOG-018](codigos.md#log-018)): MS Project los usa
+  para calcular las fechas y la holgura, pero no son lógica de la planificación revisada.
 - **Tareas sin terminar:** las que no tienen el 100 % completado. Casi todos los controles cuentan solo
   estas tareas: lo terminado ya no se puede corregir.
 - **Días laborables:** la duración y la holgura se leen de MS Project y se pasan a días con las horas
   por día del proyecto (*Archivo > Opciones > Programación*; 8 horas por defecto). Las fechas (CPLI) se
-  cuentan con el mismo calendario que reparte el % planificado: el del proyecto (XML) o de lunes a viernes
-  con los `feriados` de la configuración (`.mpp`).
+  cuentan con el mismo calendario que reparte el % planificado: el del proyecto, leído del XML o del
+  `.mpp`, con los `feriados` de la configuración.
 - **44 días laborables** (unos 2 meses) es el límite de la DCMA para una holgura o una duración alta.
 - **Fecha de estado:** la del proyecto en MS Project (*Proyecto > Información del proyecto*) o la de
   `--fecha-corte`. Sin fecha de estado, no se calculan los puntos que dependen de ella (9, 11, 13 y 14).
@@ -206,6 +213,11 @@ archivo de MS Project en solo lectura. Se hace a mano, sobre una **copia** del a
 5. Si se atrasa menos o no se mueve, el camino crítico no es continuo: buscar delimitaciones, tareas sin
    sucesoras o vínculos con tareas resumen entre esa tarea y el fin. Corregirlos en el archivo original.
 6. Cerrar la copia sin guardar.
+
+La prueba solo tiene sentido con la opción *Calcular varias rutas críticas* desactivada (*Archivo >
+Opciones > Avanzadas*): con ella activada, cada cadena de tareas tiene su propia ruta crítica y toda tarea
+sin sucesoras es crítica. `validar` avisa si la opción está activada, con el % de tareas sin terminar que
+son críticas ([LOG-017](codigos.md#log-017)).
 
 ### 4.13 CPLI (punto 13)
 

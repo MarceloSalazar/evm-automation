@@ -1,4 +1,5 @@
 """Pruebas de regresión de los problemas detectados en la revisión del código."""
+import re
 from datetime import date, datetime
 
 import pytest
@@ -523,3 +524,95 @@ def test_console_limits_informational_lines(capsys):
     _print_issues([Issue("MIG-013", "", "", f"informativa {n}") for n in range(20)])
     out = capsys.readouterr().out
     assert out.count("informativa ") == 15 and "... y 5 informativas más" in out
+
+
+# ------------------------------------------------- revisión de un cronograma grande
+def test_code_inside_a_package_of_the_max_level_is_not_a_new_task(tmp_path):
+    """Una tarea con código de nivel no mayor al máximo dentro de un paquete del nivel máximo (p. ej. 1.1.4 debajo de
+    1.1.1) se suma en el paquete al generar el libro: actualizar no la informa como nueva (ACT-015) y su avance
+    cuenta en el paquete."""
+    tasks = [T(1, 1, "1", "Fase"), T(2, 2, "1.1", "Grupo"), T(3, 3, "1.1.1", "Paquete"),
+             T(4, 4, "1.1.1.1", "Actividad"), T(5, 4, "1.1.4", "Mal colocada")]
+    book = tmp_path / "b.xlsx"
+    rep = make_book(book, P(tasks), bac={"1.1.1": 100})
+    assert [r.code for r in rep.rows] == ["1.0.0", "1.1.0", "1.1.1"]
+    tasks[4].percent_complete = 100
+    res = run_update(P(tasks), Config(months=24), book, date(2026, 3, 31), dry_run=True)
+    assert not ids(res.warnings, "ACT-015") and not ids(res.warnings, "ACT-051")
+    assert {r.code: r.ev_cum for r in res.rows}["1.1.1"] == pytest.approx(50)
+
+
+def test_new_task_inside_an_input_row_is_summed_in_that_row(tmp_path):
+    """Un paquete agregado después de generar el libro dentro de una fila de ingreso de nivel menor al máximo: su
+    avance se suma en esa fila (ACT-051), no se pierde (ACT-015)."""
+    tasks = [T(1, 1, "1", "Fase"), T(2, 2, "1.1", "Grupo"), T(3, 3, "", "Actividad")]
+    book = tmp_path / "b.xlsx"
+    make_book(book, P(tasks), bac={"1.1.0": 100})
+    now = tasks + [T(4, 3, "1.1.1", "Paquete nuevo", percent_complete=100)]
+    res = run_update(P(now), Config(months=24), book, date(2026, 3, 31), dry_run=True)
+    assert not ids(res.warnings, "ACT-015")
+    [warning] = ids(res.warnings, "ACT-051")
+    assert "1.1.1 'Paquete nuevo' (en la fila 1.1.0)" in warning.message
+    assert "se suma en el % ganado de esa fila" in warning.message and "--migrar-desde" in warning.message
+    assert {r.code: r.ev_cum for r in res.rows}["1.1.0"] == pytest.approx(50)
+
+
+def test_row_dates_come_from_the_tasks_of_its_planned_value():
+    """Las fechas de plan de cada fila (hoja PV) son las de las tareas de detalle que forman su % planificado: no las
+    de la línea base de la tarea resumen (sin resumir), sin las ramas con Visible = No, con las fechas actuales de las
+    tareas sin línea base y con las fechas invertidas en el orden del reparto."""
+    stale = datetime(2026, 2, 1, 17)
+    tasks = [T(1, 1, "1", "Fase", bf=stale), T(2, 2, "1.1", "Paquete", bf=stale),
+             T(3, 3, "", "A"), T(4, 3, "", "Sin línea base", bs=None, bf=None),
+             T(5, 2, "1.2", "Invertida", bs=datetime(2026, 4, 30, 17), bf=datetime(2026, 4, 1, 8)),
+             T(6, 2, "1.3", "Oculta", bs=datetime(2026, 6, 1, 8), bf=datetime(2026, 6, 30, 17), visible="No")]
+    tasks[3].start, tasks[3].finish = datetime(2026, 4, 1, 8), datetime(2026, 5, 29, 17)
+    tasks[3].has_baseline = False
+    rows = {r.code: r for r in build_report(P(tasks), Config(months=24)).rows}
+    assert (rows["1.1.0"].start, rows["1.1.0"].finish) == (S, datetime(2026, 5, 29, 17))
+    assert (rows["1.2.0"].start, rows["1.2.0"].finish) == (datetime(2026, 4, 1, 8), datetime(2026, 4, 30, 17))
+    assert "1.3.0" not in rows
+    assert (rows["1.0.0"].start, rows["1.0.0"].finish) == (S, datetime(2026, 5, 29, 17))
+
+
+def test_row_dates_of_the_other_tasks_row():
+    tasks = [T(1, 1, "1", "Fase", bf=datetime(2026, 9, 30, 17)), T(2, 2, "1.1", "Paquete"),
+             T(3, 2, "", "Suelta", bs=datetime(2026, 5, 4, 8), bf=datetime(2026, 6, 30, 17))]
+    rows = {r.code: r for r in build_report(P(tasks), Config(months=24)).rows}
+    assert (rows["1.0.0-D"].start, rows["1.0.0-D"].finish) == (datetime(2026, 5, 4, 8), datetime(2026, 6, 30, 17))
+    assert (rows["1.0.0"].start, rows["1.0.0"].finish) == (S, datetime(2026, 6, 30, 17))
+
+
+def test_planned_value_after_the_horizon_says_how_many_months_are_needed():
+    tasks = [T(1, 1, "1", "Fase"), T(2, 2, "1.1", "Corta"),
+             T(3, 2, "1.2", "Larga", bs=datetime(2026, 1, 5, 8), bf=datetime(2026, 5, 29, 17))]
+    rep = build_report(P(tasks), Config(months=3, start_month=date(2026, 1, 1)))
+    [issue] = ids(rep.issues, "CFG-045")
+    assert "1 fila tiene % planificado posterior al último mes del horizonte (03/2026)" in issue.message
+    reached = float(re.search(r"1\.2\.0 llega al ([\d,]+) %", issue.message).group(1).replace(",", "."))
+    assert 55 < reached < 65                                    # enero a marzo, de enero a mayo
+    assert "El último mes con % planificado es 05/2026: se necesitan al menos 5 meses desde 01/2026 (hoy son " \
+           "3)." in issue.message
+
+
+@pytest.mark.parametrize("plan_code, plan_name, expected", [
+    ("", "INTERNO", "Planificación 'INTERNO' (tarea sin código EDT, elegida por su nombre): se exportan las 2 "
+                    "tareas que dependen de ella."),
+    ("INTERNO", "Planificación interna", "Planificación 'INTERNO' («Planificación interna»): se exportan las 2 "
+                                         "tareas que dependen de ella."),
+    ("INTERNO", "Interno", "Planificación 'INTERNO': se exportan las 2 tareas que dependen de ella."),
+])
+def test_exported_plan_is_named_once(plan_code, plan_name, expected):
+    tasks = [T(1, 1, plan_code, plan_name), T(2, 2, "1", "Fase"), T(3, 3, "1.1", "A")]
+    [issue] = ids(build_report(P(tasks), Config(months=24, plan="INTERNO")).issues, "EDT-017")
+    assert (issue.code, issue.name, issue.message) == ("", "", expected)
+
+
+def test_same_row_observations_are_shown_in_one_line():
+    from evm.cli import _issue_line, _same_note_rows
+    notes = [Issue("ACT-034", code, "Fila", "método no definido: se usó % completado")
+             for code in ("1.1.0", "1.2.0", "1.3.0")]
+    notes.insert(1, Issue("ACT-027", "1.2.0", "Fila", "% EV del mes negativo (corrección)"))
+    lines = [_issue_line(n) for n in _same_note_rows(notes)]
+    assert lines == ["  [i] ACT-034 método no definido: se usó % completado en 3 filas (1.1.0, 1.2.0, 1.3.0).",
+                     "  [i] ACT-027 1.2.0 Fila: % EV del mes negativo (corrección)"]

@@ -163,7 +163,8 @@ Detalle y ejemplos en [Métodos de medición](metodos-de-medicion.md).
 1. *Proyecto > Establecer línea base > Establecer línea base...*, **Línea base**, **Para: Proyecto
    completo**.
 2. Tareas nuevas aprobadas: **Tareas seleccionadas** y **Resumir líneas base: Para todas las tareas de
-   resumen**.
+   resumen**. Sin esa opción, las tareas resumen conservan una línea base que no corresponde a su
+   detalle: `validar` las informa.
 3. Copia de cada línea base aprobada en *Línea base 1..10* (*Establecer plan provisional*, *Copiar:
    Línea base*, *En: Línea base N*).
 
@@ -180,7 +181,8 @@ base guardada se usan las fechas actuales de las tareas y se advierte
 ## 7. Fecha de estado y registro del avance
 
 - Antes de cada `actualizar` se define **Proyecto > Fecha de estado** (grupo *Estado*) = **último día
-  del mes** informado. También en *Proyecto > Información del proyecto > Fecha de estado*.
+  del mes** informado. También en *Proyecto > Información del proyecto > Fecha de estado*. `validar`
+  avisa si no es el último día del mes.
 - Sin fecha de estado, el programa exige `--fecha-corte`.
 - Con archivos `.mpp`, si se indica `--fecha-corte`, el programa fija esa fecha de estado en la copia
   abierta (no guarda el archivo).
@@ -215,9 +217,9 @@ Si la PC que ejecuta el programa no tiene MS Project, se guarda el proyecto en f
 *Archivo > Guardar como*, tipo **XML**. El XML se debe guardar **después** de registrar el avance y fijar
 la fecha de estado: el programa toma la fecha de estado del archivo como fecha de corte.
 
-Calendario: con XML, la duración de las tareas se reparte entre los meses con el calendario del proyecto;
-con `.mpp`, con un calendario de lunes a viernes más los `feriados` de la configuración. En ambos casos
-no se usan los calendarios de recursos ni de tareas
+Calendario: la duración de las tareas se reparte entre los meses con el calendario del proyecto (la
+jornada de cada día y los días no laborables), leído del XML o del `.mpp`, más los `feriados` de la
+configuración. No se usan los calendarios de recursos ni de tareas
 ([Limitaciones](validaciones-y-problemas.md#2-limitaciones-conocidas)).
 
 ---
@@ -242,4 +244,5 @@ no se usan los calendarios de recursos ni de tareas
   lógica, adelantos, posiciones, tipos de vínculo, delimitaciones, holgura, duración, fechas no
   válidas, tareas incumplidas, CPLI y BEI ([Evaluación DCMA de 14 puntos](evaluacion-dcma.md)). Para que MS Project
   muestre la holgura frente a la fecha de fin comprometida, se recomienda ponerla como **fecha límite**
-  del hito de fin, en lugar de una delimitación.
+  del hito de fin, en lugar de una delimitación, y dejar desactivada la opción *Calcular varias rutas
+  críticas* (*Archivo > Opciones > Avanzadas*): con ella, toda tarea sin sucesoras es crítica.

@@ -5,10 +5,12 @@
     python evm_export.py validar    --origen proyecto.mpp
     python evm_export.py analizar   --libro EVM.xlsx
     python evm_export.py generar-fichas --origen proyecto.mpp --salida Fichas.md
+    python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx
 """
 from __future__ import annotations
 
 import argparse
+import copy
 import logging
 import sys
 import time
@@ -20,9 +22,10 @@ from pathlib import Path
 from evm import __version__, progress
 from evm.config import Config, ConfigError, load_config, parse_date, parse_month
 from evm.fields import fmt_number
-from evm.messages import (SEV_ERROR, SEV_INFO, SEV_WARN, SUMMARY_ID, EvmError, Issue, MissingFileError, Silence,
+from evm.messages import (SEV_ERROR, SEV_INFO, SEV_WARN, SUMMARY_ID, TARGET_DETAIL, TARGET_GENERAL, TARGET_OUT,
+                          TARGET_ROW, TARGETS, EvmError, Issue, MissingFileError, Silence, by_priority, grouped,
                           parse_silence)
-from evm.wbs import assemble_report, build_part, fmt_money, plural
+from evm.wbs import assemble_report, build_part, fmt_money, located, plural
 
 log = logging.getLogger("evm")
 
@@ -46,11 +49,12 @@ def _engine_for(origen: str, motor: str) -> str:
 
 @contextmanager
 def open_project(origen: str, cfg: Config, motor: str, visible: bool = False, status: date | None = None,
-                 name: str = "", links: bool = True):
+                 name: str = "", links: bool = True, review: bool = False):
     """Devuelve el proyecto leído (ProjectData). Con COM, MS Project queda abierto mientras dure el bloque.
 
     name: nombre del archivo en [[proyectos]] (etapas de la barra de progreso).
     links: lee los vínculos y las delimitaciones de las tareas (validar y generar-fichas).
+    review: con COM, lecturas que solo usa validar (líneas base y calendario de cada tarea; el XML las tiene).
     """
     engine = _engine_for(origen, motor)
     if origen.lower() != "activo" and not Path(origen).is_file():
@@ -65,7 +69,7 @@ def open_project(origen: str, cfg: Config, motor: str, visible: bool = False, st
     progress.stage(f"abrir:{name}", f"Apertura en MS Project{which}")
     with ComSession(origen, visible=visible) as session:
         progress.stage(f"leer:{name}", f"Lectura de MS Project{which}")
-        yield session.read_project(cfg, status_date=status, links=links)
+        yield session.read_project(cfg, status_date=status, links=links, review=review)
 
 
 def _stages(files: list[tuple[str, str, Config]], motor: str, before: dict[str, float] | None = None,
@@ -170,20 +174,40 @@ def _reading(name: str, origin: str) -> str:
 MARKS = {SEV_ERROR: "[X]", SEV_WARN: "[!]", SEV_INFO: "[i]"}
 
 
+# Alcance de las observaciones en el resumen de la consola
+TARGET_LABELS = {TARGET_GENERAL: "generales", TARGET_ROW: "en filas EDT", TARGET_DETAIL: "en tareas de detalle",
+                 TARGET_OUT: "fuera del libro"}
+
+
 def _issue_line(i: Issue) -> str:
-    """'  [!] FEC-003 1.2.3 Montaje: mensaje' (el código de la observación, la fila o tarea y el mensaje)."""
-    where = f"{i.code} {i.name}".strip()
+    """'  [!] FEC-003 1.2.3 Montaje: mensaje' (el código de la observación, la fila o tarea y el mensaje). Una tarea
+    de detalle indica su fila del libro ('2.7.1.3 Montaje (detalle de 2.7.1)'); una línea agrupada, solo el
+    mensaje."""
+    where = "" if i.tasks else f"{i.code} {i.name}".strip()
+    if where and i.target == TARGET_DETAIL and i.row:
+        where += f" (detalle de {i.row})"
+    elif where and i.target == TARGET_OUT:
+        where += " (fuera del libro)"
     return f"  {MARKS.get(i.severity, '[!]')} {i.id} {where + ': ' if where else ''}{i.message}"
 
 
+def _targets_text(issues: list[Issue]) -> str:
+    """'en filas EDT: 2 errores, 3 advertencias; en tareas de detalle: 40 advertencias' (los alcances que tienen
+    observaciones, en el orden de prioridad)."""
+    found = {t: [i for i in issues if (i.target or TARGET_GENERAL) == t] for t in TARGETS}
+    return "; ".join(f"{TARGET_LABELS[t]}: {_count_text(v)}" for t, v in found.items() if v)
+
+
 def _print_issues(issues: list[Issue], limit: int = 15) -> None:
-    serious = [i for i in issues if i.severity != SEV_INFO]
-    infos = [i for i in issues if i.severity == SEV_INFO]
+    """Las informativas y después las demás, por prioridad (severidad y alcance), con las de las tareas de detalle y
+    fuera del libro agrupadas por código y fila del libro."""
+    lines = by_priority(grouped(issues, "Una por tarea en la hoja 'Validación detalle'."))
+    serious = [i for i in lines if i.severity != SEV_INFO]
+    infos = [i for i in lines if i.severity == SEV_INFO]
     for i in infos[:limit]:
         print(_issue_line(i))
     if len(infos) > limit:
         print(f"  ... y {len(infos) - limit} informativas más (ver hoja 'Validación').")
-    serious.sort(key=lambda i: i.severity != SEV_ERROR)
     for i in serious[:limit]:
         print(_issue_line(i))
     if len(serious) > limit:
@@ -192,6 +216,7 @@ def _print_issues(issues: list[Issue], limit: int = 15) -> None:
 
 def cmd_generar(args) -> int:
     cfg = _apply_overrides(load_config(args.config), args)
+    _one_plan(cfg)
     files = _sources(cfg, args)
     origen = files[0][1]
     if args.salida:
@@ -259,13 +284,29 @@ def cmd_generar(args) -> int:
     print(f"  Horizonte: {report.horizon.start:%m/%Y} a {report.horizon.end:%m/%Y} ({report.horizon.months} meses)")
     sheets = (f"PV-{report.company_a} y PV-{report.company_b}" if report.multi else "PV")
     print(f"  BAC: se debe ingresar el BAC de cada fila en la columna D de {sheets} (celdas amarillas).")
-    _print_issues(report.issues)
+    issues = located(report.rows, report.issues)
+    _print_issues(issues)
+    if any(i.severity != SEV_INFO for i in issues):
+        print(f"  Por alcance: {_targets_text(issues)}.")
     if prior is not None:
         print(f"Migración desde {args.migrar_desde}: {prior.matched} filas con historial trasladado.")
         for i in unmatched:
             print(_issue_line(i))
     print(f"Libro generado: {salida.resolve()}")
     return 0
+
+
+def _plans(cfg: Config) -> list[str]:
+    """Planificaciones indicadas en planificacion o --planificacion: varias, separadas por comas, solo en validar."""
+    return list(dict.fromkeys(p.strip() for p in (cfg.plan or "").split(",") if p.strip()))
+
+
+def _one_plan(cfg: Config) -> None:
+    """generar, actualizar y generar-fichas trabajan con una sola planificación por archivo (CFG-053)."""
+    if any("," in (plan or "") for plan in [cfg.plan] + [spec.plan for spec in cfg.projects]):
+        raise ConfigError("CFG-053", "Se indicaron varias planificaciones separadas por comas: solo validar las revisa "
+                                     "(validar --planificacion INTERNO,CLIENTE). Se debe indicar una sola "
+                                     "planificación.")
 
 
 def _check_folder(salida: Path) -> None:
@@ -314,7 +355,7 @@ def _print_update(res, currency: str, silence: Silence) -> None:
         for r in res.rows:
             print(f"{r.code:<10} {m(r.ev_month):>16} {m(r.ev_cum):>16}"
                   + "".join(f" {m(r.by_company.get(k)):>16}" for k in company_cols))
-    notes = silence.filter([n for r in res.rows for n in r.notes])
+    notes = _same_note_rows(silence.filter([n for r in res.rows for n in r.notes]))
     if notes:
         print("Observaciones por fila:")
         for n in notes[:25]:
@@ -337,6 +378,27 @@ def _print_update(res, currency: str, silence: Silence) -> None:
     if res.schedule is not None:
         print()
         _print_schedule(res.schedule)
+
+
+def _same_note_rows(notes: list[Issue]) -> list[Issue]:
+    """Observaciones por fila de actualizar: las de varias filas con el mismo código y el mismo texto (p. ej. ACT-034,
+    método no definido) en una línea con la cantidad de filas y sus códigos EDT, en el lugar de la primera."""
+    groups: dict[tuple[str, str], list[Issue]] = {}
+    for n in notes:
+        groups.setdefault((n.id, n.message), []).append(n)
+    out: list[Issue] = []
+    for n in notes:
+        same = groups.get((n.id, n.message))
+        if same is None:
+            continue                            # ya se mostró en la línea de su grupo
+        del groups[(n.id, n.message)]
+        if len(same) == 1:
+            out.append(n)
+            continue
+        codes = ", ".join(x.code for x in same[:10]) + (f" y {len(same) - 10} más" if len(same) > 10 else "")
+        out.append(replace(n, code="", name="", tasks=len(same),
+                           message=f"{n.message} en {len(same)} filas ({codes})."))
+    return out
 
 
 def _print_notices(issues: list[Issue], limit: int = 30) -> None:
@@ -392,8 +454,43 @@ def cmd_analizar(args) -> int:
     return 0
 
 
+def cmd_procesar_costes(args) -> int:
+    cfg = load_config(args.config)
+    _add_silence(cfg, args)
+    from evm.cost_plan import run_cost_plan
+    from evm.update import book_meta
+    meta = book_meta(args.libro)
+    if not args.simular:
+        from evm.workbook import check_writable
+        check_writable(args.libro)
+    after = {} if args.simular else {"guardar": 4.5}
+    with progress.tracking(_book_stages(meta["meses"], libro=9.7, procesar=0.3, **after)):
+        res = run_cost_plan(cfg, args.libro, backup=not args.sin_respaldo, dry_run=args.simular)
+    decimals = int(res.book.meta.get("decimales") or 0)
+    money = lambda v: fmt_number(v, decimals)       # noqa: E731
+    print(f"Hoja: {res.sheet}  |  Plan de costes: {plural(res.lines, 'línea', 'líneas')}, "
+          f"{res.counted} se suman (sin subtotales)  |  Total: {money(res.total)}")
+    print(f"Reparto del plan de costes en {len(res.rows)} de {plural(res.inputs, 'fila', 'filas')} de ingreso, "
+          f"{money(res.assigned)} dentro del horizonte:")
+    for code, name, eac in res.rows[:15]:
+        print(f"  {code:<12} {name[:48]:<48}  EAC {money(eac):>14}")
+    if len(res.rows) > 15:
+        print(f"  ... y {len(res.rows) - 15} filas más.")
+    _print_notices(_silence(cfg).apply(res.warnings))
+    print(f"El PV de cada mes es el BAC × el % planificado (hoja '% {res.sheet}'): en las filas cuyo BAC coincide con "
+          "el EAC, es el importe del plan de costes.")
+    if args.simular:
+        print("Simulación: no se modificó el libro.")
+    else:
+        if res.backup:
+            print(f"Respaldo: {res.backup}")
+        print(f"Libro actualizado: {Path(args.libro).resolve()}")
+    return 0
+
+
 def cmd_actualizar(args) -> int:
     cfg = _apply_overrides(load_config(args.config), args)
+    _one_plan(cfg)
     status = parse_date(args.fecha_corte) if args.fecha_corte else None
     from evm.update import apply_book_settings, book_meta, check_sources, run_update
     # Multi-empresa: se usan los nombres y campos con los que se generó el libro
@@ -434,39 +531,49 @@ def _count_text(issues) -> str:
 
 
 def _print_validation(issues, limit: int | None) -> None:
-    """Observaciones agrupadas por tema (el tema Libro, solo si tiene observaciones)."""
+    """Observaciones agrupadas por tema (el tema Libro, solo si tiene observaciones), por prioridad: severidad y
+    alcance. Con límite (sin --todas), las de las tareas de detalle y fuera del libro van en una línea por código y
+    fila del libro."""
     from evm.messages import TOPIC_BOOK, TOPICS
-    order = {SEV_ERROR: 0, SEV_WARN: 1, SEV_INFO: 2}
     for topic in TOPICS:
         # El resumen de las observaciones silenciadas va primero: no queda fuera del límite
-        found = sorted((i for i in issues if i.topic == topic),
-                       key=lambda i: (i.id != SUMMARY_ID, order.get(i.severity, 1)))
+        found = sorted(by_priority([i for i in issues if i.topic == topic]), key=lambda i: i.id != SUMMARY_ID)
         if not found and topic == TOPIC_BOOK:
             continue
         print()
         print(f"{topic}: {_count_text(found)}")
-        shown = found if limit is None else found[:limit]
+        lines = found if limit is None else grouped(found, "Una por tarea con --todas.")
+        shown = lines if limit is None else lines[:limit]
         for i in shown:
             print(_issue_line(i))
-        if len(found) > len(shown):
-            print(f"  ... y {len(found) - len(shown)} más (--todas para verlas todas).")
+        if len(lines) > len(shown):
+            print(f"  ... y {len(lines) - len(shown)} más (--todas para verlas todas).")
 
 
-def cmd_validar(args) -> int:
-    cfg = _apply_overrides(load_config(args.config), args)
-    files = _sources(cfg, args)
-    status = parse_date(args.fecha_corte) if args.fecha_corte else None
-    from evm.validation import combine, validate_part
-    parts = []
-    with progress.tracking(_stages(files, args.motor, compute=0.2, after={"revisar": 0.1})):
-        for name, origin, pcfg in files:
-            progress.say(_reading(name, origin))
-            with open_project(origin, pcfg, args.motor, args.visible, name=name) as project:
-                _computing(name, "Revisión del cronograma")
-                parts.append(validate_part(project, pcfg, name, status))
-        progress.stage("revisar", "Revisión de los códigos EDT de todos los archivos")
-        report, issues = combine(parts, cfg)
-    issues = _silence(cfg).apply(issues)
+def _report_path(args, cfg: Config, files) -> Path:
+    """Archivo del informe de mejoras (--informe): el indicado o <origen>_mejoras.md."""
+    origen = files[0][1]
+    if args.informe:
+        path = Path(args.informe)
+    elif cfg.projects:
+        raise ConfigError("CFG-040", "Con varios archivos ([[proyectos]]) se debe indicar el archivo del informe de "
+                                     "mejoras: --informe RUTA.md.")
+    elif origen.lower() == "activo":
+        path = Path("proyecto_mejoras.md")
+    else:
+        path = Path(origen).with_name(Path(origen).stem + "_mejoras.md")
+    if path.suffix.lower() != ".md":
+        raise ConfigError("CFG-041", "El informe de mejoras se guarda en un archivo .md (Markdown).")
+    _check_folder(path)
+    if path.exists() and not args.sobrescribir:
+        raise ConfigError("CFG-042", f"'{path}' ya existe. Para reemplazarlo se debe usar --sobrescribir.")
+    return path
+
+
+def _print_unit(unit, cfg: Config, status: date | None, limit: int | None) -> int:
+    """Una revisión de validar: encabezado, observaciones por tema, evaluación DCMA y resultado. Devuelve los
+    errores."""
+    parts = unit.parts
 
     def when(project) -> str:
         if status is not None:
@@ -477,7 +584,8 @@ def cmd_validar(args) -> int:
 
     reviewed = sum(1 for p in parts for _ in p.scope.tasks())
     if any(p.source.name for p in parts):
-        print(f"Validación: {report.title if report else ' + '.join(p.source.project.name for p in parts)}")
+        title = unit.report.title if unit.report else " + ".join(p.source.project.name for p in parts)
+        print(f"Validación: {title}")
         for p in parts:
             plan = f"  |  Planificación: {p.source.plan}" if p.source.plan else ""
             print(f"  {p.source.name}: {p.source.project.name}{plan}  |  {p.source.project.baseline_label}  |  "
@@ -487,22 +595,113 @@ def cmd_validar(args) -> int:
         print(f"Validación: {project.name}")
         plan = f"Planificación: {parts[0].source.plan}  |  " if parts[0].source.plan else ""
         print(f"  {plan}{project.baseline_label}  |  {when(project)}")
-    rows = report.rows if report else [r for p in parts for r in p.rows]
+    rows = unit.report.rows if unit.report else [r for p in parts for r in p.rows]
     leaves = sum(1 for r in rows if r.is_input)
     print(f"  Tareas revisadas: {reviewed}  |  Filas EDT: {len(rows)} ({leaves} de ingreso)  |  "
           f"{_rows_rule(cfg)}")
-    _print_validation(issues, None if args.todas else 20)
-    errors = sum(1 for i in issues if i.severity == SEV_ERROR)
+    _print_validation(unit.issues, limit)
+    _print_dcma(parts)
+    errors = sum(1 for i in unit.issues if i.severity == SEV_ERROR)
     print()
-    print(f"Resultado: {_count_text(issues)}.")
+    print(f"Resultado: {_count_text(unit.issues)}.")
+    if unit.issues:
+        print(f"  Por alcance: {_targets_text(unit.issues)}.")
+    return errors
+
+
+def _print_dcma(parts) -> None:
+    """Evaluación DCMA de 14 puntos de cada archivo: valor, umbral y si cumple."""
+    from evm.review import dcma_rows
+    for k, part in enumerate(parts):
+        rows = dcma_rows([part])
+        width = max(len(text) for _p, _n, values, _t in rows for text in [(values[0] or ("-",))[0]])
+        print()
+        print("Evaluación DCMA de 14 puntos" + (f" [{part.source.name}]" if part.source.name else "") + ":")
+        for point, name, values, threshold in rows:
+            text, _threshold, ok = values[0] or ("-", threshold, None)
+            result = "" if ok is None else ("cumple" if ok else "no cumple")
+            print(f"  {point:>2}. {name:<38} {text:<{width}}  {threshold:<7} {result}".rstrip())
+
+
+def _print_comparison(units) -> None:
+    """Varias planificaciones: sus cifras lado a lado y las diferencias entre sus filas."""
+    from evm.review import compare, facts, facts_table
+    items = [facts(u.parts[0], u.issues, u.title, u.status) for u in units]
+    table = facts_table(items)
+    first = max(len(name) for name, _ in table)
+    widths = [max(len(f.label), *(len(values[k]) for _n, values in table)) for k, f in enumerate(items)]
+    print()
+    print("Comparación de planificaciones:")
+    print("  " + " " * first + "".join(f"  {f.label:>{w}}" for f, w in zip(items, widths)))
+    for name, values in table:
+        print(f"  {name:<{first}}" + "".join(f"  {v:>{w}}" for v, w in zip(values, widths)))
+    for line in compare(units):
+        print(f"  {line}")
+
+
+def cmd_validar(args) -> int:
+    cfg = _apply_overrides(load_config(args.config), args)
+    files = _sources(cfg, args)
+    plans = _plans(cfg)
+    several = len(plans) > 1
+    if (several and cfg.projects) or any("," in (spec.plan or "") for spec in cfg.projects):
+        raise ConfigError("CFG-053", "Varias planificaciones separadas por comas solo se revisan con un archivo, sin "
+                                     "[[proyectos]]: se debe indicar una sola planificación en cada archivo.")
+    status = parse_date(args.fecha_corte) if args.fecha_corte else None
+    report_path = _report_path(args, cfg, files) if args.informe is not None else None
+    from evm.review import Unit
+    from evm.validation import combine, validate_part
+    units: list[Unit] = []
+    weight = 0.2 * max(1, len(plans))
+    with progress.tracking(_stages(files, args.motor, compute=weight, after={"revisar": 0.1})):
+        if several:
+            # Un archivo, varias planificaciones: se lee una vez y se revisa cada planificación por separado
+            name, origin, pcfg = files[0]
+            progress.say(_reading(name, origin))
+            with open_project(origin, pcfg, args.motor, args.visible, name=name, review=True) as project:
+                for plan in plans:
+                    _computing(name, f"Revisión de la planificación {plan}")
+                    part = validate_part(copy.deepcopy(project), replace(pcfg, plan=plan), name, status)
+                    report, issues = combine([part], replace(cfg, plan=plan))
+                    units.append(Unit(plan, [part], report, issues, status))
+            progress.stage("revisar", "Comparación de las planificaciones")
+        else:
+            parts = []
+            for name, origin, pcfg in files:
+                progress.say(_reading(name, origin))
+                with open_project(origin, pcfg, args.motor, args.visible, name=name, review=True) as project:
+                    _computing(name, "Revisión del cronograma")
+                    parts.append(validate_part(project, pcfg, name, status))
+            progress.stage("revisar", "Revisión de los códigos EDT de todos los archivos")
+            report, issues = combine(parts, cfg)
+            units.append(Unit("", parts, report, issues, status))
+    silence = _silence(cfg)
+    errors = 0
+    for k, unit in enumerate(units):
+        rows = unit.report.rows if unit.report else [r for p in unit.parts for r in p.rows]
+        unit.issues = located(rows, silence.apply(unit.issues))
+        if k:
+            print()
+            print("=" * 100)
+        errors += _print_unit(unit, cfg, status, None if args.todas else 20)
+    if several:
+        _print_comparison(units)
     if errors:
         print("Se deben corregir los errores en MS Project antes de generar o actualizar el libro.")
-    print("No se creó ni se modificó ningún archivo.")
+    if report_path is not None:
+        from evm.review import write_report
+        engine = ("MS Project (.mpp)" if units[0].parts[0].source.project.backend == "com" else "XML de MS Project")
+        write_report(report_path, units, cfg, __version__, engine)
+        print(f"Informe de mejoras: {report_path.resolve()} (sin nombres de tareas). No se modificó ningún otro "
+              "archivo.")
+    else:
+        print("No se creó ni se modificó ningún archivo.")
     return 1 if errors else 0
 
 
 def cmd_generar_fichas(args) -> int:
     cfg = _apply_overrides(load_config(args.config), args)
+    _one_plan(cfg)
     files = _sources(cfg, args)
     origen = files[0][1]
     if args.salida:
@@ -591,7 +790,8 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--nivel-max", type=int, help="nivel máximo del código EDT (por defecto, nivel_maximo de la configuración: 3)")
         sp.add_argument("--planificacion", metavar="CODIGO",
                         help="código EDT de la planificación a exportar, p. ej. INTERNO o CLIENTE (reemplaza el "
-                             "valor del archivo de configuración; \"\" = todas)")
+                             "valor del archivo de configuración; \"\" = todas). validar admite varias separadas por "
+                             "comas (INTERNO,CLIENTE): las revisa por separado y las compara")
         sp.add_argument("--visible", action="store_true", help="muestra MS Project durante la lectura (COM)")
         silence_option(sp)
 
@@ -621,14 +821,20 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--simular", action="store_true", help="muestra el resultado sin modificar el libro")
     a.set_defaults(func=cmd_actualizar)
 
-    v = sub.add_parser("validar", help="revisa el archivo de MS Project (códigos EDT, fechas, duración, pesos, "
-                                       "método, empresas, avance y lógica del cronograma) y muestra el resultado, "
-                                       "sin crear ningún archivo")
+    v = sub.add_parser("validar", help="revisa el archivo de MS Project (códigos EDT, fechas, duración, línea "
+                                       "base, pesos, método, empresas, avance y lógica del cronograma) y muestra el "
+                                       "resultado y la evaluación DCMA; con --informe, escribe además un informe de "
+                                       "mejoras sin nombres de tareas")
     common_source(v)
     v.add_argument("--fecha-corte", help="fecha de estado para revisar el avance, AAAA-MM-DD (por defecto la fecha de "
                                          "estado del proyecto)")
-    v.add_argument("--todas", action="store_true", help="muestra todas las observaciones (por defecto, hasta 20 "
-                                                        "por tema)")
+    v.add_argument("--todas", action="store_true", help="muestra todas las observaciones, una por tarea (por "
+                                                        "defecto, hasta 20 líneas por tema, con las de las tareas de "
+                                                        "detalle agrupadas por fila del libro)")
+    v.add_argument("--informe", nargs="?", const="", default=None, metavar="RUTA",
+                   help="escribe un informe de mejoras en Markdown, sin nombres de tareas, de empresas ni de "
+                        "calendarios (por defecto <origen>_mejoras.md)")
+    v.add_argument("--sobrescribir", action="store_true", help="reemplaza el informe de mejoras si existe")
     v.set_defaults(func=cmd_validar)
 
     f = sub.add_parser("generar-fichas", help="crea un documento Markdown (.md) con la ficha de cada tarea "
@@ -647,6 +853,17 @@ def build_parser() -> argparse.ArgumentParser:
     n.add_argument("--sin-respaldo", action="store_true", help="no crea copia de respaldo del libro")
     silence_option(n)
     n.set_defaults(func=cmd_analizar)
+
+    c = sub.add_parser("procesar-costes", help="lleva el reparto mensual del plan de costes pegado en la hoja "
+                                               "PV-depuración al %% planificado de cada fila de la empresa que se "
+                                               "depura (el PV es el BAC × ese %%)")
+    c.add_argument("--libro", required=True, help="libro .xlsx generado con depuracion_costes = true")
+    c.add_argument("--config", help="archivo de configuración: solo se usan [validacion] silenciar y [exportacion] "
+                                    "guardado_rapido")
+    c.add_argument("--simular", action="store_true", help="muestra el resultado sin modificar el libro")
+    c.add_argument("--sin-respaldo", action="store_true", help="no crea copia de respaldo del libro")
+    silence_option(c)
+    c.set_defaults(func=cmd_procesar_costes)
 
     return p
 

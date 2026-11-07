@@ -2,11 +2,13 @@
 
 [Inicio](../README.md) › [Documentación](README.md) › Comandos y opciones
 
-El programa tiene cinco comandos: `validar` (revisa el archivo de MS Project sin crear ningún
+El programa tiene seis comandos: `validar` (revisa el archivo de MS Project sin crear ningún
 archivo), `generar` (crea el libro con el % planificado de cada mes), `actualizar` (carga el % ganado
-de un mes), `analizar` (actualiza la hoja `Análisis de desviaciones` sin leer MS Project) y
-`generar-fichas` (crea un documento con la ficha de cada tarea para el cliente). El BAC y el AC se
-ingresan a mano en el libro ([Cálculo del PV y el EV](calculo-pv-ev.md)). La ayuda se obtiene con:
+de un mes), `analizar` (actualiza la hoja `Análisis de desviaciones` sin leer MS Project),
+`generar-fichas` (crea un documento con la ficha de cada tarea para el cliente) y `procesar-costes`
+(lleva el reparto mensual del plan de costes de una empresa al % planificado, en un libro con
+[depuración de costes](depuracion-costes.md)). El BAC y el AC se ingresan a mano en el libro
+([Cálculo del PV y el EV](calculo-pv-ev.md)). La ayuda se obtiene con:
 
 ```powershell
 python evm_export.py --help
@@ -15,6 +17,7 @@ python evm_export.py generar --help
 python evm_export.py actualizar --help
 python evm_export.py analizar --help
 python evm_export.py generar-fichas --help
+python evm_export.py procesar-costes --help
 ```
 
 Con el [instalador de Windows](../README.md#opción-1-instalador-para-windows-sin-python), el programa se
@@ -23,7 +26,7 @@ ejecuta con `evm_export` en lugar de `python evm_export.py` (por ejemplo, `evm_e
 Para ver mensajes de diagnóstico se agrega `-v` **antes** del comando:
 `python evm_export.py -v generar ...`
 
-Todos los comandos muestran en la primera línea la versión del programa (`Exportador EVM 2.4.1`). En
+Todos los comandos muestran en la primera línea la versión del programa (`Exportador EVM 2.5.0`). En
 una consola, mientras trabajan, muestran también una barra de progreso con el % del total, el tiempo
 transcurrido, el tiempo restante estimado (ETA), la tarea en curso y el % de esa tarea:
 
@@ -48,8 +51,12 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --config config
 ```
 
 Lee el archivo de MS Project con la configuración, igual que `generar`, y muestra en pantalla las
-observaciones agrupadas por tema. **No crea ni modifica ningún archivo.** Revisa lo mismo que la hoja
-`Validación` de `generar`:
+observaciones agrupadas por tema y la evaluación DCMA de 14 puntos. **No crea ni modifica ningún
+archivo**, salvo el informe de mejoras si se indica `--informe`. En cada tema van primero los
+errores y, en cada severidad, las observaciones generales, las de las filas EDT (las filas de las hojas
+`PV`, `EV` y `AC`), las de las tareas de detalle y las de fuera del libro
+([alcance](validaciones-y-problemas.md#1-validaciones)). Revisa lo mismo que la hoja `Validación` de
+`generar`:
 
 - los códigos EDT: que el código de cada tarea dependa del de su tarea superior (bajo `1.2.0` van
   `1.2.1`, `1.2.2`...; `1.14.2` es un error), su formato, los niveles salteados, el orden y los
@@ -59,18 +66,24 @@ observaciones agrupadas por tema. **No crea ni modifica ningún archivo.** Revis
 - los pesos de los hitos, el campo `Visible`, el método de medición (también frente a la duración del
   paquete) y las empresas.
 
-Además, revisa dos aspectos del cronograma que no afectan al libro:
+Además, revisa aspectos del cronograma que no afectan al libro:
 
+- **Línea base:** las líneas base guardadas y la que usa el % planificado, y las tareas resumen cuya
+  línea base no coincide con la de sus tareas de detalle (no se resumió al guardarla).
 - **Avance a la fecha de estado:** *Comienzo real* y *Fin real* coherentes con el *% completado*,
-  avance posterior a la fecha de estado, trabajo pendiente programado antes de la fecha de estado
-  (cronograma sin actualizar), avance fuera de secuencia, índice de ejecución de la línea base (BEI),
-  tareas incumplidas respecto de la línea base e índice de longitud del camino crítico (CPLI).
+  avance posterior a la fecha de estado, fecha de estado que no es el último día del mes, trabajo
+  pendiente programado antes de la fecha de estado (cronograma sin actualizar), avance fuera de
+  secuencia, índice de ejecución de la línea base (BEI), tareas incumplidas respecto de la línea base e
+  índice de longitud del camino crítico (CPLI).
 - **Lógica del cronograma:** tareas sin predecesoras o sin sucesoras, adelantos, posiciones, vínculos
   comienzo a fin, proporción de vínculos fin a comienzo, vínculos en tareas resumen, delimitaciones que
-  fijan fechas, holgura alta, holgura negativa y tareas de duración alta.
+  fijan fechas, holgura alta, holgura negativa, tareas de duración alta y la opción *Calcular varias
+  rutas críticas* de MS Project. Con una planificación, solo cuentan los vínculos entre sus tareas, y se
+  informan los que la unen con otras planificaciones.
 
 Con estos controles, `validar` revisa 12 de los 14 puntos de la
-[evaluación DCMA de calidad de cronogramas](evaluacion-dcma.md). El detalle de cada control está en
+[evaluación DCMA de calidad de cronogramas](evaluacion-dcma.md), y al final de cada revisión muestra la
+tabla de los 14 puntos: valor, umbral y si cumple. El detalle de cada control está en
 [Validaciones](validaciones-y-problemas.md#1-validaciones). Se recomienda ejecutar `validar` antes de
 `generar` y antes de cada `actualizar`.
 
@@ -78,7 +91,10 @@ Con estos controles, `validar` revisa 12 de los 14 puntos de la
 |---|---|
 | `--origen`, `--config`, `--motor`, `--planificacion`, `--linea-base`, `--nivel-max`, `--visible`, `--silenciar` | Igual que en `generar`. Con varios archivos (`[[proyectos]]`) se revisan todos. Los errores silenciados no cuentan para el código de salida. |
 | `--fecha-corte AAAA-MM-DD` | Fecha de corte (fecha de estado) con la que se revisa el avance. Por defecto, la fecha de estado de cada archivo. Sin fecha de estado, solo se revisan la coherencia de las fechas reales y el avance fuera de secuencia. |
-| `--todas` | Muestra todas las observaciones. Por defecto, hasta 20 por tema. |
+| `--todas` | Muestra todas las observaciones, una por tarea. Por defecto, hasta 20 líneas por tema, con las de las tareas de detalle y fuera del libro agrupadas por código y fila del libro. |
+| `--planificacion INTERNO,CLIENTE` | Varias planificaciones separadas por comas (también en `planificacion` de la configuración): revisa cada una por separado y al final las compara ([abajo](#varias-planificaciones)). Solo con un archivo, sin `[[proyectos]]`. |
+| `--informe [RUTA]` | Escribe un informe de mejoras en Markdown, sin nombres ([abajo](#informe-de-mejoras)). Por defecto, `<origen>_mejoras.md` junto al archivo de MS Project. |
+| `--sobrescribir` | Reemplaza el informe de mejoras si ya existe. |
 
 Si la planificación indicada no existe, o si dos archivos de `[[proyectos]]` tienen el mismo código
 EDT (casos en los que `generar` se detiene), `validar` lo informa como error y revisa lo que puede. El
@@ -90,16 +106,17 @@ Ejemplo de salida con el avance simulado del proyecto de ejemplo a junio de 2027
 [tutorial](ejemplo-paso-a-paso.md#2-configuración); se omiten algunas líneas):
 
 ```text
-Exportador EVM 2.4.1
+Exportador EVM 2.5.0
 Leyendo avance.xml ...
 Validación: Programa de ejemplo EVM
   Planificación: INTERNO  |  Línea base  |  Fecha de estado: 30/06/2027
   Tareas revisadas: 51  |  Filas EDT: 36 (24 de ingreso)  |  Nivel máximo: 3
 
-Lectura y configuración: sin observaciones
+Lectura y configuración: 1 informativa
+  [i] LEC-024 Líneas base guardadas en las tareas revisadas: Línea base (51 tareas). El % planificado usa la Línea base, la que el proyecto usa para el valor acumulado (Archivo > Opciones > Avanzadas).
 
 Estructura y códigos EDT: 3 informativas
-  [i] EDT-017 INTERNO Planificación interna: Planificación 'INTERNO': se exportan las 51 tareas que dependen de 'Planificación interna'.
+  [i] EDT-017 Planificación 'INTERNO' («Planificación interna»): se exportan las 51 tareas que dependen de ella.
   ...
 
 Campo Visible: sin observaciones
@@ -122,15 +139,80 @@ Avance a la fecha de estado: 2 advertencias, 1 informativa
 Lógica del cronograma: 1 advertencia
   [!] LOG-001 El cronograma no tiene vínculos entre tareas: las fechas no se recalculan cuando cambian las duraciones o el avance. Se recomienda vincular las tareas (cada tarea con al menos una predecesora y una sucesora).
 
-Resultado: 9 advertencias, 5 informativas.
+Evaluación DCMA de 14 puntos:
+   1. Lógica (sin predecesoras o sucesoras)  sin vínculos                 ≤ 5 %   no cumple
+   2. Adelantos                              sin vínculos                 0
+   ...
+   9. Fechas no válidas                      0 tareas                     0       cumple
+  10. Recursos                               no aplica (BAC en el libro)  —
+  11. Tareas incumplidas                     12 de 12 (100 %)             ≤ 5 %   no cumple
+  12. Prueba del camino crítico              prueba manual                —
+  13. CPLI                                   0,96                         ≥ 0,95  cumple
+  14. BEI                                    0,33                         ≥ 0,95  no cumple
+
+Resultado: 9 advertencias, 6 informativas.
+  Por alcance: generales: 3 advertencias, 6 informativas; en filas EDT: 6 advertencias.
 No se creó ni se modificó ningún archivo.
 ```
 
 Cada línea indica la severidad (`[X]` error, `[!]` advertencia, `[i]` informativa), el código de la
 observación (por ejemplo `MET-004`, explicado en [Códigos de errores y advertencias](codigos.md)), el
 código EDT y el nombre de la tarea (las tareas sin código EDT, con su Id de MS Project) y la observación.
-Las observaciones que ya se revisaron se pueden ocultar con `--silenciar` o con `[validacion] silenciar`
+Una tarea de detalle indica la fila del libro en que se suma, y las observaciones de las tareas de
+detalle de una misma fila se muestran en una sola línea, con `--todas` para verlas una por una:
+
+```text
+  [!] FEC-007 Duración estimada: 12 tareas de detalle de la fila 2.7.1 (2.7.1.1, 2.7.1.3, ... y 2 más). Una por tarea con --todas.
+  [!] FEC-007 2.7.1.3 Montaje (detalle de 2.7.1): Duración estimada («?»).      (con --todas)
+```
+
+La línea *Por alcance* del resultado indica cuántas observaciones son generales, de filas EDT, de tareas
+de detalle y de fuera del libro. Las observaciones que ya se revisaron se pueden ocultar con
+`--silenciar` o con `[validacion] silenciar`
 ([Silenciar observaciones](codigos.md#2-silenciar-observaciones)).
+
+### Varias planificaciones
+
+```powershell
+python evm_export.py validar --origen "C:\Programa\Programa.mpp" --config config.toml --planificacion INTERNO,CLIENTE
+```
+
+Con varias planificaciones separadas por comas, `validar` lee el archivo una vez y revisa cada
+planificación por separado, como si se ejecutara una vez por planificación: sus observaciones, su
+evaluación DCMA y su resultado. Al final, una tabla las compara lado a lado (tareas, inactivas, con
+`Visible = No`, revisadas, filas del libro, tareas con comienzo en cada línea base, tareas resumen con la
+línea base sin resumir, vínculos propios y con otras planificaciones, tareas críticas, fecha de estado,
+fin de la línea base y fin previsto, y observaciones) y lista sus diferencias: las filas del libro que
+solo están en una planificación y las filas comunes con otras fechas de plan (línea base) o con otro fin
+previsto. Los vínculos entre planificaciones se informan con `LOG-018` y `LOG-019`. El código de salida
+es 1 si alguna planificación tiene errores. Los demás comandos admiten una sola planificación
+([CFG-053](codigos.md#cfg-053)).
+
+### Informe de mejoras
+
+```powershell
+python evm_export.py validar --origen "C:\Programa\Programa.mpp" --config config.toml --informe
+```
+
+`--informe` escribe, además de la salida en pantalla, un documento Markdown para compartir la revisión
+(por defecto `<origen>_mejoras.md`; con `[[proyectos]]` se indica la ruta, `--informe C:\Revisión\mejoras.md`):
+
+1. **Resumen:** las cifras de cada planificación o archivo (las de la comparación de arriba) y las
+   mejoras de prioridad alta con más observaciones.
+2. **Mejoras por prioridad:** cada código de observación con su severidad, las tareas en las que aparece
+   y, del [catálogo](codigos.md), su causa y qué hacer. Prioridad **alta**: errores y advertencias que
+   cambian el libro (filas, % planificado, % ganado u horizonte; los que también informa `generar`);
+   **media**: advertencias de la calidad del cronograma que solo revisa `validar` (línea base, avance y
+   lógica); **baja**: observaciones informativas.
+3. **Evaluación DCMA de 14 puntos**, con una columna por planificación.
+4. **Comparación de planificaciones**, si se revisaron varias.
+
+El informe **no incluye nombres** de tareas, de empresas ni de calendarios, ni el título del proyecto: las
+tareas se identifican por su código EDT o, sin código, por su UniqueID, y en los textos de las
+observaciones generales los nombres se reemplazan por `…`. Las empresas de multi-empresa aparecen como
+«empresa A» y «empresa B». Así se puede compartir con quien no debe ver el contenido del cronograma. La
+salida en pantalla sí muestra los nombres. Los archivos `*_mejoras.md` están en el `.gitignore` del
+repositorio.
 
 ---
 
@@ -151,7 +233,7 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 | `--linea-base N` | 0 = Línea base, 1..10 = Línea base N. Por defecto, la que el proyecto usa para el valor acumulado. Con varios archivos no se admite: se indica en cada `[[proyectos]]`. |
 | `--nivel-max N` | Nivel máximo del código EDT. Por defecto, `nivel_maximo` de la configuración (3). Con `lista_edt`, las filas las decide la lista y el nivel solo se usa para completar los códigos con ceros ([Lista EDT](calculo-pv-ev.md#34-lista-edt-filas-definidas-en-un-archivo)). |
 | `--motor auto\|com\|xml` | Forma de lectura. `auto` decide por la extensión. |
-| `--migrar-desde libro.xlsx` | Copia al libro nuevo el BAC ingresado, el % ganado y el AC ya cargados, los métodos editados en la columna C, el análisis de desviaciones y la fecha de corte de un libro anterior ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). Con depuración de costes, también la previsión pegada en `PV-depuración` ([Depuración de costes](depuracion-costes.md#8-ciclo-de-ajuste)). |
+| `--migrar-desde libro.xlsx` | Copia al libro nuevo el BAC ingresado, el % ganado y el AC ya cargados, los métodos editados en la columna C, el análisis de desviaciones y la fecha de corte de un libro anterior ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). Con depuración de costes, también la previsión pegada en `PV-depuración` ([Depuración de costes](depuracion-costes.md#9-ciclo-de-ajuste)), y siempre el % planificado de las filas procesadas con `procesar-costes`. |
 | `--sobrescribir` | Reemplaza el libro de salida si ya existe. |
 | `--visible` | Muestra la ventana de MS Project mientras se lee (solo COM). No tiene relación con el campo `Visible`. |
 | `--silenciar CODIGOS` | Códigos de las observaciones que no se muestran, separados por comas (`LOG-004,FEC-007`, o `MET-004:1.2.1` para una sola fila); se puede repetir y se suma a `[validacion] silenciar` ([Silenciar observaciones](codigos.md#2-silenciar-observaciones)). |
@@ -159,7 +241,7 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 Ejemplo de salida con el proyecto de ejemplo (se omiten algunas líneas):
 
 ```text
-Exportador EVM 2.4.1
+Exportador EVM 2.5.0
 Leyendo ejemplos/programa_ejemplo.xml ...
 Proyecto: Programa de ejemplo EVM
   Planificación: INTERNO
@@ -168,12 +250,13 @@ Proyecto: Programa de ejemplo EVM
   Horizonte: 01/2026 a 12/2035 (120 meses)
   BAC: se debe ingresar el BAC de cada fila en la columna D de PV (celdas amarillas).
   [i] LIB-001 El PV y el EV de cada fila son el BAC × el % planificado y el % ganado (hojas % PV y % EV), que se calculan con la duración de la línea base de las tareas y el peso de los hitos. Se debe ingresar el BAC de cada fila en las celdas amarillas de la columna D de la hoja PV.
-  [i] EDT-017 INTERNO Planificación interna: Planificación 'INTERNO': se exportan las 51 tareas que dependen de 'Planificación interna'.
+  [i] EDT-017 Planificación 'INTERNO' («Planificación interna»): se exportan las 51 tareas que dependen de ella.
   [i] EDT-020 Se omitió 1 tarea sin código EDT que no depende de ningún elemento EDT: no forma parte de ninguna fila del libro.
   [i] EDT-022 14 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.
   [i] MET-005 1 fila sin método de medición definido (columna C).
   [!] MET-004 1.2.1 Licitación de ingeniería: Método 0/100 en un paquete de 3,6 meses (línea base), más de 1: el EV queda en 0 hasta que termina. Se recomienda dividir el paquete o usar un método de avance (% completado, hitos ponderados). Umbral: [validacion] meses_0_100.
   ...
+  Por alcance: generales: 5 informativas; en filas EDT: 6 advertencias.
 Libro generado: ...\EVM_Ejemplo.xlsx
 ```
 
@@ -232,7 +315,7 @@ python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config con
 Ejemplo de salida:
 
 ```text
-Exportador EVM 2.4.1
+Exportador EVM 2.5.0
 Leyendo ...\avance_2027-06.xml ...
 Fecha de corte: 30/06/2027 (mes 18 del horizonte)
 Observaciones por fila:
@@ -297,6 +380,56 @@ LOE.
 
 ---
 
+## `procesar-costes`: PV con el reparto del plan de costes
+
+```powershell
+python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx
+```
+
+En un libro generado con `depuracion_costes = true`, lee el plan de costes pegado en la hoja
+`PV-depuración` y lleva su reparto mensual al **% planificado** de cada fila de la empresa que se
+depura (hoja `% PV-EmpresaA`, o `% PV` en un libro de una sola empresa), **sin leer MS Project**:
+
+- Cada línea del plan se asigna a una fila del libro por su **EDT cliente**, con las mismas reglas
+  que la columna `Asignado a` de la hoja ([reglas](depuracion-costes.md#42-cómo-se-asigna-cada-línea)).
+- El % planificado de cada mes es el importe del mes dividido por el **EAC** de la fila (la suma de
+  sus líneas). El PV sigue siendo el BAC × el %: si el BAC de la fila coincide con su EAC, el PV de
+  cada mes es el importe del plan; si no, el plan da el reparto en el tiempo y el total es el BAC.
+- Las filas sin líneas en el plan conservan su % planificado (de MS Project o de un procesado
+  anterior), y la otra empresa no cambia.
+- Las filas procesadas conservan ese % al regenerar el libro con `--migrar-desde`, también en el libro
+  de entrega sin depuración, y `actualizar` no lo compara con la línea base de MS Project
+  ([Depuración de costes](depuracion-costes.md#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes)).
+
+Muestra las filas procesadas con su EAC y las observaciones: líneas sin fila del libro, importes
+después del horizonte, filas sin líneas en el plan e importes guardados como texto
+([DEP-012 a DEP-018](codigos.md#413-dep--depuración-de-costes)).
+
+```text
+Exportador EVM 2.5.0
+Hoja: PV-EmpresaA  |  Plan de costes: 19 líneas, 12 se suman (sin subtotales)  |  Total: 366
+Reparto del plan de costes en 4 de 5 filas de ingreso, 363 dentro del horizonte:
+  1.1.0        Dirección                                         EAC            157
+  1.2.1        Licitación                                        EAC             60
+  1.2.2        Obras                                             EAC             96
+  2.1.0        Básica                                            EAC             50
+  [!] DEP-014 1 línea de la hoja PV-depuración sin fila del libro, por 3,00: Componente sin EDT cliente encima (fila 8): sin EDT cliente encima. Su importe no forma parte del % planificado.
+  [i] DEP-016 Filas de ingreso de la hoja PV-EmpresaA sin líneas en el plan de costes (1): 1.0.0-D. Conservan su % planificado (de MS Project o de un procesado anterior).
+El PV de cada mes es el BAC × el % planificado (hoja '% PV-EmpresaA'): en las filas cuyo BAC coincide con el EAC, es el importe del plan de costes.
+Respaldo: C:\Programa\EVM_Depuracion.respaldo-20261106-101500.xlsx
+Libro actualizado: C:\Programa\EVM_Depuracion.xlsx
+```
+
+| Opción | Descripción |
+|---|---|
+| `--libro` | Libro generado con `depuracion_costes = true`, con el plan de costes pegado en la hoja `PV-depuración`. **Obligatoria.** |
+| `--simular` | Muestra el resultado sin modificar el libro. |
+| `--sin-respaldo` | No crea la copia de respaldo del libro. |
+| `--config` | Solo se usan `[validacion] silenciar` y `[exportacion] guardado_rapido`. |
+| `--silenciar CODIGOS` | Igual que en `generar`. |
+
+---
+
 ## `generar-fichas`: fichas de tareas para el cliente
 
 ```powershell
@@ -340,7 +473,7 @@ como predecesora y la de `1.2.1` muestra `1.2.3` como sucesora.
 Ejemplo de salida con el proyecto de ejemplo, que no tiene vínculos entre tareas:
 
 ```text
-Exportador EVM 2.4.1
+Exportador EVM 2.5.0
 Leyendo ejemplos/programa_ejemplo.xml ...
 Proyecto: Programa de ejemplo EVM
   Planificación: INTERNO
@@ -415,6 +548,9 @@ python evm_export.py generar-fichas --origen Programa.mpp --config config.toml -
 
 # Nueva línea base: libro nuevo conservando el historial
 python evm_export.py generar --origen Programa.mpp --config config.toml --salida EVM_Programa_LB2.xlsx --migrar-desde EVM_Programa.xlsx
+
+# PV de una empresa con el reparto de su plan de costes (pegado en la hoja PV-depuración)
+python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx
 
 # Varios archivos de MS Project ([[proyectos]] en la configuración): sin --origen
 python evm_export.py generar --config config.toml --salida EVM_Programa.xlsx

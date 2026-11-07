@@ -99,7 +99,7 @@ python evm_export.py generar --origen ejemplos\programa_ejemplo.xml --config con
 ```
 
 ```text
-Exportador EVM 2.4.1
+Exportador EVM 2.5.0
 Leyendo ejemplos\programa_ejemplo.xml ...
 Proyecto: Programa de ejemplo EVM
   Planificación: INTERNO
@@ -108,7 +108,7 @@ Proyecto: Programa de ejemplo EVM
   Horizonte: 01/2026 a 12/2035 (120 meses)
   BAC: se debe ingresar el BAC de cada fila en la columna D de PV (celdas amarillas).
   [i] LIB-001 El PV y el EV de cada fila son el BAC × el % planificado y el % ganado (hojas % PV y % EV), ...
-  [i] EDT-017 INTERNO Planificación interna: Planificación 'INTERNO': se exportan las 51 tareas que dependen de 'Planificación interna'.
+  [i] EDT-017 Planificación 'INTERNO' («Planificación interna»): se exportan las 51 tareas que dependen de ella.
   [i] EDT-020 Se omitió 1 tarea sin código EDT que no depende de ningún elemento EDT: no forma parte de ninguna fila del libro.
   [i] EDT-022 14 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.
   [i] MET-005 1 fila sin método de medición definido (columna C).
@@ -118,6 +118,7 @@ Proyecto: Programa de ejemplo EVM
   [!] MET-004 4.1.1 Pruebas en frío: Método 0/100 en un paquete de 2,7 meses (línea base), más de 1: ...
   [!] MET-004 4.1.2 Pruebas en caliente: Método 20/80 en un paquete de 2,7 meses (línea base), más de 2: ...
   [!] MET-004 4.2.1 Capacitación y entrega: Método 50/50 en un paquete de 2,7 meses (línea base), más de 2: ...
+  Por alcance: generales: 5 informativas; en filas EDT: 6 advertencias.
 Libro generado: ...\ejemplo.xlsx
 ```
 

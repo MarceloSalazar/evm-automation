@@ -35,17 +35,20 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 | `test_robustez_libro.py` | `actualizar`, `--migrar-desde`, libros modificados a mano, errores de la línea de comandos y del archivo de configuración. |
 | `test_proyectos_aleatorios.py` | Proyectos aleatorios de punta a punta (`generar`, varias fechas de corte, migración y recálculo). |
 | `test_analisis_desviaciones.py` | Hoja `Análisis de desviaciones`: lista calculada aparte, texto conservado y copiado al mes siguiente, `analizar` con AC cargado a mano, libros antiguos, `--migrar-desde` y recálculo de sus fórmulas con LibreOffice. |
-| `test_validar.py` | Comando `validar` y controles del archivo: códigos EDT (dependencia de la tarea superior, formato, orden, duplicados), fechas y duración, pesos, método frente a la duración, empresas, avance a la fecha de estado y fuera de secuencia, lógica del cronograma y evaluación DCMA (holgura, duración, tareas incumplidas, CPLI y BEI), lectura de duración, vínculos y delimitaciones (XML y COM) y columna `Tema` de la hoja `Validación`. |
+| `test_validar.py` | Comando `validar` y controles del archivo: códigos EDT (dependencia de la tarea superior, formato, orden, duplicados), fechas y duración, pesos, método frente a la duración, empresas, avance a la fecha de estado y fuera de secuencia, fecha de estado que no es fin de mes, lógica del cronograma y evaluación DCMA (holgura, duración, tareas incumplidas, CPLI y BEI), adelantos agrupados por tarea, varias rutas críticas, líneas base guardadas y línea base de las tareas resumen, lectura de duración, vínculos, delimitaciones, líneas base y opción de rutas críticas (XML y COM) y columna `Tema` de la hoja `Validación`. |
 | `test_fichas_tareas.py` | Comando `generar-fichas`: fichas de los elementos del libro, vínculos trasladados al elemento con ficha (internos, repetidos y con tareas sin ficha), fechas y duración de la línea base, documento Markdown, varios archivos y lectura de la duración de la línea base, las horas por día y la descripción (XML y COM). |
 | `test_plazo_tendencia.py` | Plazo según el cronograma (días laborables, fin previsto, holgura y crítica de cada fila, filas resumen y total), columnas de `Indicadores EDT`, secciones del `Resumen` y del `Cuadro de Mando`, libros de versiones anteriores, tendencia (mes anterior con datos y últimos 3 meses) y recálculo de sus fórmulas con LibreOffice. |
 | `test_lista_edt.py` | Lista EDT (`lista_edt`): lectura del archivo, filas definidas por la lista, códigos sin los ceros finales, códigos faltantes, ramas sin elemento listado, lista guardada en el libro y usada por `actualizar`. |
 | `test_ceros_intermedios.py` | Ceros del código EDT. Intermedios (`ignorar_ceros_intermedios`): nivel del código, filas del libro y fila `-D`, controles de los códigos, criterio guardado en el libro y usado por `actualizar`, `--migrar-desde` y línea de comandos. Finales (`1.2` = `1.2.0` = `1.2.0.0`): duplicados y asociación por código en `actualizar` y `--migrar-desde`. |
 | `test_progreso.py` | Versión en pantalla y barra de progreso (etapas, % de la etapa y del total, tiempo transcurrido, ETA que no sube en una etapa lenta y cuenta hacia atrás en una sin conteo, refresco, tiempo total, consola no interactiva). |
 | `test_registro_cambios.py` | Controles del cierre mensual de la norma EIA-748-E: registro de cambios del BAC y de los meses ya informados (referencia, detección, hoja `Registro de cambios`, `--simular` y `--migrar-desde`), coherencia del EV y el AC, análisis de desviaciones incompleto, acciones vencidas, meses sin informe, línea base de MS Project distinta de la del libro, EAC poco realista (TCPI frente al CPI) y peso del LOE en el BAC. |
+| `test_informe_mejoras.py` | `validar` como revisión de mejoras: informe de mejoras (`--informe`) sin nombres de tareas, de empresas ni de calendarios, prioridad de cada observación, evaluación DCMA de 14 puntos, varias planificaciones y su comparación, y controles del fin previsto fuera del horizonte, las líneas base incompletas y las tareas con calendario propio. |
+| `test_validacion_alcance.py` | Alcance de las observaciones (fila EDT, tarea de detalle, fuera del libro o general) y su fila del libro, por UniqueID o por código EDT; orden por prioridad, agrupación de las de detalle, hojas `Validación` y `Validación detalle` y consola de `generar` y `validar` (con y sin `--todas`). |
+| `test_color_filas.py` | Color de fondo de las filas según el nivel del código EDT (hojas mensuales, `Indicadores EDT` y tabla del `Cuadro de Mando`), con la lista EDT y con una planificación. |
 | `test_codigos.py` | Códigos de errores y advertencias: formato y numeración del catálogo, todo mensaje con un código del catálogo, todo código usado, `docs/codigos.md` al día y silenciar (configuración, `--silenciar`, hoja `Validación` y código de salida de `validar`). |
 | `test_varios_archivos.py` | Varios archivos de MS Project (`[[proyectos]]`): el libro combinado coincide, fila por fila, con el libro de cada archivo (también en multi-empresa, con UniqueID repetidos entre archivos); errores de configuración y de la línea de comandos, fechas de estado y `--migrar-desde`. |
 | `test_rendimiento.py` | Optimizaciones de la lectura de MS Project y de la escritura del libro: mismos estilos que openpyxl, celdas vacías de las hojas `% PV` y `% EV`, una sola lectura del libro, reparto por meses del calendario y lecturas de MS Project (vínculos y alias de los campos, solo cuando hacen falta). |
-| `test_review_fixes.py` | Regresiones de los problemas detectados en las revisiones del código: migración, `actualizar` y `analizar`, análisis de desviaciones, registro de cambios, mensajes y errores de la línea de comandos. |
+| `test_review_fixes.py` | Regresiones de los problemas detectados en las revisiones del código: migración, `actualizar` y `analizar` (tareas nuevas dentro de una fila), análisis de desviaciones, registro de cambios, fechas de plan de las filas, mensajes (horizonte, planificación, observaciones de fila agrupadas) y errores de la línea de comandos. |
 | `test_workbook_update.py` | Libro del proyecto de ejemplo: disposición de las hojas, ciclo de `actualizar`, respaldo, meses posteriores cargados, `--migrar-desde` y recálculo de las fórmulas con LibreOffice. |
 | `test_report_xml.py`, `test_timeline_methods.py` | Lectura del XML de ejemplo, filas EDT y % planificado; calendario, horizonte, fechas, redondeo, métodos de medición e indicadores. |
 | Resto | Cuadro de Mando, semáforo, multi-empresa, planificación, campo `Visible`, depuración de costes, calendario y lector COM simulado. |
@@ -75,8 +78,9 @@ El lector `.mpp` se prueba con objetos que simulan MS Project. En un PC con MS P
 opcionales de `test_msproject_real.py` (marca `msproject`) leen un proyecto real por automatización COM
 y comparan el resultado con el XML que MS Project guarda del mismo proyecto: estructura EDT, métodos,
 horizonte, % planificado de cada mes, % ganado acumulado a la fecha de corte (de cada empresa, en
-multi-empresa), plazo según el cronograma (fin previsto, holgura total y tareas críticas) y que MS
-Project quede como estaba (abierto o cerrado). Los dos libros reciben el mismo
+multi-empresa), plazo según el cronograma (fin previsto, holgura total y tareas críticas), la opción
+*Calcular varias rutas críticas*, las líneas base de las tareas, el calendario del proyecto (jornada de
+cada día de la semana y días laborables) y que MS Project quede como estaba (abierto o cerrado). Los dos libros reciben el mismo
 BAC en cada fila.
 
 1. En MS Project se abre el proyecto, se define *Proyecto > Fecha de estado* y se guarda el `.mpp`.
@@ -91,10 +95,11 @@ python -m pytest -m msproject -v
 
 Opcionales: `EVM_CONFIG` (archivo de configuración; por defecto `config.toml` si existe y, si no,
 `config.ejemplo.toml`), `EVM_LINEA_BASE` (línea base N) y `EVM_TOLERANCIA_PV` (diferencia admitida en el
-% planificado de cada mes; por defecto 0.005, es decir, 0,5 %). El motor XML reparte la duración de las
-tareas con el calendario del proyecto, y el motor COM con lunes a viernes y los `feriados` de la
-configuración, por eso se admite una pequeña diferencia. Los mensajes de las pruebas solo muestran
-códigos EDT y porcentajes.
+% planificado de cada mes; por defecto 0.005, es decir, 0,5 %). Los dos motores reparten la duración de
+las tareas con el calendario del proyecto; el motor COM no lee las excepciones que solo cambian el horario
+de un día laborable, por eso se admite una pequeña diferencia. Los mensajes de las pruebas solo muestran
+códigos EDT, UniqueID, fechas y porcentajes (con multi-empresa, «empresa A» y «empresa B»), y los datos
+del proyecto no aparecen si una prueba falla.
 
 El proyecto de ejemplo (`ejemplos/programa_ejemplo.xml`) y su generador se describen en el
 [tutorial](ejemplo-paso-a-paso.md). El segundo proyecto de ejemplo (`ejemplos/proyecto2_ejemplo.xml`,
@@ -117,7 +122,8 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/wbs.py` | Estructura EDT hasta el nivel máximo o el detalle que indique el campo `Visible` (o la lista EDT), % planificado de cada fila, combinación de varios archivos y horizonte. |
 | `evm/validation.py` | Controles del archivo de MS Project: códigos EDT, fechas y duración, pesos, método y empresas (hoja `Validación` y `validar`), avance a la fecha de estado y lógica del cronograma con los criterios DCMA (solo `validar`). |
 | `evm/percent.py` | Peso de cada tarea (duración de la línea base y `Peso hito`), % planificado y % ganado de cada fila y de cada empresa. |
-| `evm/cost_review.py` | Depuración de costes: hojas `PV-depuración`, `Depuración costes` y `_depuracion` (asignación con fórmulas de la previsión pegada) e indicador de alineamiento. |
+| `evm/cost_review.py` | Depuración de costes: hojas `PV-depuración`, `Depuración costes` y `_depuracion` (asignación con fórmulas de la previsión pegada, y la misma asignación en Python) e indicador de alineamiento. |
+| `evm/cost_plan.py` | Comando `procesar-costes`: reparto mensual del plan de costes de la hoja `PV-depuración` en la hoja `% PV` de la empresa. |
 | `evm/companies.py` | Multi-empresa: parte de cada empresa en cada tarea (columnas `Empresa` y `% Reparto`, con herencia de la tarea superior). |
 | `evm/timeline.py` | Horizonte mensual y utilidades de meses. |
 | `evm/workbook.py` | Escritura del libro Excel y de sus indicadores. |
@@ -132,6 +138,7 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/indicators.py` | Indicadores que se muestran en pantalla (mismos cálculos que la hoja `Resumen`), incluida la tendencia. |
 | `evm/schedule.py` | Plazo según el cronograma de MS Project: fin previsto, desvío de fin, holgura y camino crítico de cada fila y del proyecto. |
 | `evm/progress.py` | Barra de progreso de la consola (etapas de cada comando, %, tiempo transcurrido y ETA, refresco cada medio segundo). |
+| `evm/review.py` | Informe de mejoras de `validar` (`--informe`): observaciones por prioridad con la causa y qué hacer del catálogo, sin nombres; datos de cada revisión, evaluación DCMA y comparación de planificaciones (también en la consola). |
 | `evm/task_cards.py` | Comando `generar-fichas`: ficha de cada elemento EDT del libro (fechas y duración de la línea base, predecesoras y sucesoras) y documento Markdown. |
 | `instalador/` | Instalador de Windows: `construir.py`, especificación de PyInstaller, script de Inno Setup y consola ([3.2](#32-instalador-de-windows)). |
 
@@ -325,7 +332,10 @@ consultan para entender un mensaje y para silenciar los códigos que ya revisaro
    del área, los comandos en que aparece.
 3. **Usar el código en el programa**:
    - observación (consola y hoja `Validación`): `Issue("FEC-013", codigo_edt, nombre, mensaje)`; la
-     severidad y el tema se toman del catálogo (los códigos de severidad variable la indican);
+     severidad y el tema se toman del catálogo (los códigos de severidad variable la indican). Si la
+     observación es de una tarea, se indica su UniqueID (`uid=t.uid`, como hace `_issue` en
+     `evm/validation.py`): con él se asigna el alcance (fila EDT, tarea de detalle o fuera del libro) y la
+     fila del libro, también en las tareas sin código EDT. Sin `uid`, se busca la tarea por su código EDT;
    - error que detiene el programa: `raise ConfigError("CFG-052", mensaje)`, o la clase de
      `evm/messages.py` que corresponda (`InputError`, `MissingFileError`, `SaveError`...). No se
      lanzan `ValueError` ni `RuntimeError` con un mensaje para el usuario.

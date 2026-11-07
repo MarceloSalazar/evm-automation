@@ -11,9 +11,9 @@ from evm.model import CONSTRAINT_MSO, LINK_FF, LINK_FS, LINK_SF, LINK_SS, Link
 from evm.reader_xml import duration_minutes, read_xml
 from evm.validation import logic_checks, progress_checks, validate_part
 from evm.wbs import (SEV_ERROR, SEV_INFO, SEV_WARN, TOPIC_DATES, TOPIC_LOGIC, TOPIC_METHOD, TOPIC_PROGRESS,
-                     TOPIC_WBS, TOPIC_WEIGHTS, build_part, build_report)
+                     TOPIC_READ, TOPIC_WBS, TOPIC_WEIGHTS, build_part, build_report)
 
-from builders import P, T, by_name, tree
+from builders import P, T, by_name, tree, validation_rows
 from mspdi import NUMBER1, TEXT10, project_xml, task_xml, write_xml
 
 S, F = datetime(2026, 1, 5, 8), datetime(2026, 3, 27, 17)
@@ -701,12 +701,11 @@ def test_generar_writes_topic_and_new_checks(tmp_path):
     path = problem_xml(tmp_path)
     out = tmp_path / "libro.xlsx"
     assert main(["generar", "--origen", str(path), "--salida", str(out)]) == 0
-    ws = load_workbook(out)["Validación"]
-    assert [ws.cell(row=3, column=c).value for c in (2, 6)] == ["Código", "Tema"]
-    rows = [r for r in ws.iter_rows(min_row=4, values_only=True) if r[0]]
-    assert ("Error", "EDT-005", "1.14.2", "Mal") == rows[[r[2] for r in rows].index("1.14.2")][:4]
-    assert {r[5] for r in rows} >= {TOPIC_WBS}
-    assert not [r for r in rows if r[5] in (TOPIC_PROGRESS, TOPIC_LOGIC)]     # solo en validar
+    rows = validation_rows(out)
+    found = rows[[r["edt"] for r in rows].index("1.14.2")]
+    assert (found["severidad"], found["codigo"], found["tarea"]) == ("Error", "EDT-005", "Mal")
+    assert {r["tema"] for r in rows} >= {TOPIC_WBS}
+    assert not [r for r in rows if r["tema"] in (TOPIC_PROGRESS, TOPIC_LOGIC)]     # solo en validar
 
 
 def test_lead_allows_progress_before_the_predecessor_finishes():
@@ -751,3 +750,272 @@ def test_wbs_code_issues_are_capped_per_code(monkeypatch):
     assert edt5[-1].message.startswith("Y 4 observaciones más con este código: se muestran las primeras 3.")
     assert edt5[-1].severity == SEV_ERROR
     assert len([i for i in issues if i.id == "EDT-009"]) == 1                # sin exceso: sin línea de resumen
+
+
+# ----------------------------------------------------------------------------
+# Línea base de las tareas resumen, líneas base guardadas, rutas críticas y fecha de estado
+# ----------------------------------------------------------------------------
+def checks_of(tasks, cfg=None, status=None, **project_kw):
+    return validate_part(P(tasks, **project_kw), cfg or Config(), status=status).checks
+
+
+def test_summary_baseline_that_is_not_rolled_up():
+    """FEC-013 y FEC-014: la línea base de una tarea resumen debe ir del comienzo más temprano al fin más tardío de
+    la de sus tareas de detalle activas (también las de las ramas con Visible = No, como en MS Project)."""
+    late = datetime(2026, 4, 30, 17)
+    tasks = tree('''
+        1 Fase
+          1.1 Bien
+          1.2 Sin resumir
+            - B1
+            - B2
+          1.3 Invertida
+            - C1
+          1.4 Con inactiva
+            - D1
+            - D2
+          1.5 Con oculta
+            - E1
+            - E2
+    ''')
+    t = by_name(tasks)
+    t["Fase"].baseline_finish = late
+    t["B2"].baseline_start, t["B2"].baseline_finish = datetime(2026, 4, 1, 8), late
+    t["Invertida"].baseline_start, t["Invertida"].baseline_finish = F, S
+    t["D2"].baseline_finish, t["D2"].active = late, False         # inactiva: no cuenta
+    t["E2"].baseline_finish, t["E2"].visible = late, "No"          # fuera del libro, pero en la línea base
+    t["Con oculta"].baseline_finish = late
+    issues = checks_of(tasks)
+    details = {i.name: i.message for i in issues if i.id == "FEC-014"}
+    assert set(details) == {"Sin resumir", "Invertida"}
+    assert details["Sin resumir"] == ("Línea base de la tarea resumen: 05/01/2026 a 27/03/2026; de sus tareas de "
+                                      "detalle: 05/01/2026 a 30/04/2026.")
+    assert "27/03/2026 a 05/01/2026 (fin anterior al comienzo)" in details["Invertida"]
+    [summary] = [i for i in issues if i.id == "FEC-013"]
+    assert summary.severity == SEV_WARN and summary.topic == TOPIC_DATES
+    assert summary.message.startswith("2 tareas resumen tienen una línea base que no coincide con la de sus tareas "
+                                      "de detalle (1.2.0, 1.3.0)")
+
+
+def test_summary_baseline_is_checked_only_by_validar_and_with_baseline():
+    tasks = tree('''
+        1 Fase
+          - A
+    ''')
+    by_name(tasks)["Fase"].baseline_finish = datetime(2026, 2, 27, 17)
+    assert [i.id for i in checks_of(tasks) if i.id in ("FEC-013", "FEC-014")] == ["FEC-013", "FEC-014"]
+    assert not [i for i in checks_of(tasks, baseline_found=False) if i.id in ("FEC-013", "FEC-014")]
+    assert not [i for i in build_report(P(tasks), Config()).issues if i.id in ("FEC-013", "FEC-014")]
+
+
+def test_saved_baselines_are_listed():
+    tasks = tree('''
+        1 Fase
+          1.1 A
+    ''')
+    t = by_name(tasks)
+    t["Fase"].baselines, t["A"].baselines = (0, 1, 2), (0, 2)
+    issues = checks_of(tasks, baseline_number=1)
+    [line] = [i for i in issues if i.id == "LEC-024"]
+    assert line.severity == SEV_INFO and line.topic == TOPIC_READ
+    assert line.message == ("Líneas base guardadas en las tareas revisadas: Línea base (2 tareas), Línea base 1 (1 "
+                            "tarea) y Línea base 2 (2 tareas). El % planificado usa la Línea base 1, la que el proyecto "
+                            "usa para el valor acumulado (Archivo > Opciones > Avanzadas).")
+    issues = checks_of(tasks, Config(baseline=3), baseline_number=3)
+    [line] = [i for i in issues if i.id == "LEC-024"]
+    assert line.message.endswith("El % planificado usaría la Línea base 3, la indicada con linea_base o "
+                                 "--linea-base, que no está guardada (FEC-009).")
+    t["Fase"].baselines = t["A"].baselines = ()
+    assert not [i for i in checks_of(tasks) if i.id == "LEC-024"]          # sin datos de las líneas base
+    t["A"].baselines = (0,)
+    assert not [i for i in build_report(P(tasks), Config()).issues if i.id == "LEC-024"]      # solo validar
+
+
+def two_plans():
+    """Dos planificaciones con los mismos códigos EDT, elegidas por el nombre de su tarea (sin código EDT)."""
+    tasks = tree('''
+        - CLIENTE
+          1 Fase C
+            1.1 A C
+            1.2 B C
+        - INTERNO
+          1 Fase I
+            1.1 A I
+            1.2 Inactiva I
+            1.3 Oculta I
+            1.4 B I
+    ''')
+    t = by_name(tasks)
+    t["Inactiva I"].active = False
+    t["Oculta I"].visible = "No"
+    for name in ("A C", "B C", "A I", "Inactiva I", "Oculta I", "B I"):
+        t[name].baselines = (0,)
+    t["B C"].predecessors = [Link(t["A C"].uid, LINK_FS)]           # vínculo de CLIENTE
+    return tasks, t
+
+
+def test_only_the_configured_plan_is_read():
+    """Con planificacion = "INTERNO": las filas, las tareas revisadas, las inactivas (EDT-016), las líneas base
+    (LEC-024) y los vínculos (LOG-001) son solo los de INTERNO, aunque CLIENTE repita los mismos códigos EDT."""
+    tasks, t = two_plans()
+    cfg = Config(plan="INTERNO")
+    part = validate_part(P(tasks), cfg)
+    names = {x.name for x in part.scope.tasks()}
+    assert names == {"Fase I", "A I", "B I"}
+    rep = build_report(P(tasks), cfg)
+    assert {r.code: r.task.name for r in rep.rows} == {"1.0.0": "Fase I", "1.1.0": "A I", "1.4.0": "B I"}
+    assert {x.name for r in rep.rows for x in r.leaves} == {"A I", "B I"}
+    [inactive] = [i for i in rep.issues if i.id == "EDT-016"]
+    assert inactive.message == ("Se excluyó 1 tarea inactiva de la planificación INTERNO: no forma parte del % "
+                                "planificado.")
+    issues = part.issues + part.checks
+    [line] = [i for i in issues if i.id == "LEC-024"]
+    assert line.message.startswith("Líneas base guardadas en las tareas revisadas: Línea base (2 tareas).")
+    assert [i.id for i in issues if i.id == "LOG-001"] == ["LOG-001"]    # INTERNO no tiene vínculos
+    assert not [i for i in issues if i.id == "LOG-018"]
+    [inactive] = [i for i in build_report(P(tasks), Config()).issues if i.id == "EDT-016"]
+    assert inactive.message.startswith("Se excluyó 1 tarea inactiva: ")          # sin planificación: todas
+
+
+def test_links_with_another_plan_are_reported():
+    tasks, t = two_plans()
+    t["A I"].predecessors = [Link(t["B C"].uid, LINK_FS)]          # INTERNO depende de CLIENTE
+    t["B I"].predecessors = [Link(t["A I"].uid, LINK_FS), Link(t["Inactiva I"].uid, LINK_FS)]
+    issues = validate_part(P(tasks), Config(plan="INTERNO")).checks
+    [line] = [i for i in issues if i.id == "LOG-018"]
+    assert line.severity == SEV_WARN and line.topic == TOPIC_LOGIC
+    assert line.message.startswith("1 vínculo une 1 tarea de la planificación INTERNO con tareas de fuera de ella")
+    assert line.message.endswith("Al quitarlos, 1 tarea de detalle se quedaría sin predecesoras y 0 sin sucesoras "
+                                 "en la planificación.")
+    assert [(i.code, i.message) for i in issues if i.id == "LOG-019"] == [
+        ("1.1.0", "Vinculada con otra planificación: sucesora de 1.2 (UID 4).")]
+    assert not [i for i in issues if i.id == "LOG-001"]
+    other = validate_part(P(tasks), Config(plan="CLIENTE")).checks
+    [line] = [i for i in other if i.id == "LOG-018"]
+    assert line.message.endswith("0 tareas de detalle se quedarían sin predecesoras y 1 sin sucesoras en la "
+                                 "planificación.")
+    assert [(i.code, i.message) for i in other if i.id == "LOG-019"] == [
+        ("1.2.0", "Vinculada con otra planificación: predecesora de 1.1 (UID 7).")]
+    assert not [i for i in validate_part(P(tasks), Config()).checks if i.id in ("LOG-018", "LOG-019")]
+
+
+def test_multiple_critical_paths():
+    tasks = tree('''
+        1 Fase
+          1.1 A
+          1.2 B
+          1.3 C
+          1.4 Terminada
+    ''')
+    t = by_name(tasks)
+    t["A"].critical = t["B"].critical = t["Terminada"].critical = True
+    t["Terminada"].percent_complete = 100
+    [issue] = [i for i in logic(tasks, multiple_critical_paths=True) if i.id == "LOG-017"]
+    assert issue.severity == SEV_WARN and issue.topic == TOPIC_LOGIC
+    assert "«Calcular varias rutas críticas» está activada" in issue.message
+    assert "2 de las 3 tareas sin terminar (66,7 %) son críticas" in issue.message
+    for value in (False, None):
+        assert not [i for i in logic(tasks, multiple_critical_paths=value) if i.id == "LOG-017"]
+
+
+@pytest.mark.parametrize("status, expected", [
+    (date(2026, 11, 4), "La fecha de estado (04/11/2026) no es el último día del mes: «actualizar» cargará el avance "
+                        "en el mes 11/2026, con el PV acumulado del mes completo (ACT-018). Para informar 10/2026, se "
+                        "debe fijar la fecha de estado en el 31/10/2026 (Proyecto > Fecha de estado) o indicar "
+                        "--fecha-corte 2026-10-31; para informar 11/2026, en el 30/11/2026."),
+    (date(2026, 10, 31), None),
+    (date(2028, 2, 29), None),
+])
+def test_status_date_that_is_not_a_month_end(status, expected):
+    tasks = tree('''
+        1 Fase
+          1.1 A
+    ''')
+    found = [i for i in progress(tasks, status) if i.id == "AVA-018"]
+    if expected is None:
+        assert not found
+    else:
+        assert [(i.message, i.severity, i.topic) for i in found] == [(expected, SEV_WARN, TOPIC_PROGRESS)]
+
+
+def test_leads_are_reported_once_per_task():
+    tasks = tree('''
+        1 Fase
+          1.1 A
+          1.2 B
+          1.3 C
+          1.4 Con adelantos
+          1.5 Con uno
+    ''')
+    t = by_name(tasks)
+    t["Con adelantos"].predecessors = [Link(t[n].uid, LINK_FS, -480) for n in ("A", "B", "C")]
+    t["Con uno"].predecessors = [Link(t["A"].uid, LINK_FS, -480), Link(t["B"].uid, LINK_FS, 0)]
+    leads = {i.name: i.message for i in logic(tasks) if i.id == "LOG-006"}
+    assert leads["Con adelantos"] == ("3 vínculos con adelanto (posición negativa), desde 1.1.0 «A», 1.2.0 «B», "
+                                      "1.3.0 «C»: se recomienda no usar adelantos (DCMA).")
+    assert leads["Con uno"] == ("Vínculo con adelanto (posición negativa) desde 1.1.0 «A»: se recomienda no usar "
+                                "adelantos (DCMA).")
+
+
+def test_xml_reads_saved_baselines_and_critical_paths_option(tmp_path):
+    path = write_xml(tmp_path / "p.xml", project_xml([
+        task_xml(0, 0, "Proyecto", start=S, finish=F, baselines=[(0, S, F, 0)]),       # no cuenta
+        task_xml(1, 1, "A", wbs="1", start=S, finish=F, baselines=[(0, S, F, 0), (1, S, F, 0)]),
+        task_xml(2, 1, "B", wbs="2", start=S, finish=F,
+                 baselines=[(0, S, F, 0), (2, None, None, 0), (3, None, F, 0)]),    # solo el fin: no cuenta
+    ], header="<BaselineForEarnedValue>1</BaselineForEarnedValue><MultipleCriticalPaths>1</MultipleCriticalPaths>"))
+    p = read_xml(path, Config())
+    assert (p.baseline_number, p.multiple_critical_paths) == (1, True)
+    assert [x.baselines for x in p.tasks] == [(0, 1), (0,)]
+    path = write_xml(tmp_path / "q.xml", project_xml([task_xml(1, 1, "A", wbs="1", start=S, finish=F)],
+                                                       header="<MultipleCriticalPaths>0</MultipleCriticalPaths>"))
+    p = read_xml(path, Config())
+    assert (p.baseline_number, p.multiple_critical_paths, p.tasks[0].baselines) == (0, False, ())
+    p = read_xml(write_xml(tmp_path / "r.xml", project_xml([task_xml(1, 1, "A", wbs="1")])), Config())
+    assert p.multiple_critical_paths is None
+
+
+def test_com_reads_saved_baselines_and_critical_paths_option():
+    """Con COM, las líneas base de cada tarea se leen solo si se piden (validar): el comienzo de cada una."""
+    from test_reader_com_fake import FakeTask, d, make_session
+
+    a, b = FakeTask(1, 1, "A", "1"), FakeTask(2, 1, "B", "2", bl=False)
+    a.Baseline1Start, a.Baseline2Start, b.Baseline2Start = "NA", d(2026, 3, 2), d(2026, 3, 9)
+    session = make_session([a, b])
+    session.project.MultipleCriticalPaths = True
+    p = session.read_project(Config(), review=True)
+    assert [t.baselines for t in p.tasks] == [(0, 2), (2,)]
+    assert (p.baseline_number, p.multiple_critical_paths, p.baseline_found) == (0, True, True)
+    assert [t.baselines for t in make_session([a, b]).read_project(Config()).tasks] == [(), ()]
+    session = make_session([FakeTask(1, 1, "A", "1")])
+    session.project.MultipleCriticalPaths = False
+    assert session.read_project(Config()).multiple_critical_paths is False
+    assert make_session([FakeTask(1, 1, "A", "1")]).read_project(Config()).multiple_critical_paths is None
+
+
+def test_logic_checks_count_only_the_links_of_the_plan():
+    """Con una planificación, los controles de lógica solo cuentan los vínculos entre sus tareas: una tarea de
+    INTERNO cuya única sucesora es de CLIENTE no tiene sucesoras (LOG-005). Sin planificación, sí la tiene."""
+    tasks = tree('''
+        - CLIENTE
+          1 Fase C
+            1.1 A C
+        - INTERNO
+          1 Fase I
+            1.1 A I
+            1.2 B I
+            1.3 C I
+    ''')
+    t = by_name(tasks)
+    t["A I"].finish = datetime(2026, 2, 27, 17)
+    t["B I"].start, t["B I"].finish = datetime(2026, 3, 2, 8), datetime(2026, 3, 13, 17)
+    t["C I"].start = datetime(2026, 3, 2, 8)
+    t["B I"].predecessors = [Link(t["A I"].uid, LINK_FS)]
+    t["C I"].predecessors = [Link(t["A I"].uid, LINK_FS)]
+    t["A C"].predecessors = [Link(t["B I"].uid, LINK_SS)]          # CLIENTE replica a INTERNO
+    plan = logic(tasks, Config(plan="INTERNO"))
+    assert [i.name for i in plan if i.id == "LOG-005"] == ["B I"]
+    assert [i.id for i in plan if i.id == "LOG-009"] == []          # el vínculo CC de CLIENTE no cuenta
+    [line] = [i for i in plan if i.id == "LOG-018"]
+    assert line.message.startswith("1 vínculo une 1 tarea de la planificación INTERNO con tareas de fuera de ella")
+    assert "B I" not in [i.name for i in logic(tasks) if i.id == "LOG-005"]       # sin planificación

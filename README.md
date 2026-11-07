@@ -22,9 +22,10 @@ simulado.*
   compartir (con el cliente o entre las empresas que ejecutan el proyecto) sin importes.
 - Selección de la **planificación** a exportar cuando el proyecto tiene varias (por ejemplo `INTERNO` y
   `CLIENTE`).
-- **Revisión del archivo de MS Project** antes de exportar (comando `validar`, sin crear archivos):
-  códigos EDT, fechas y duración, pesos de los hitos, método de medición, avance a la fecha de estado y
-  lógica del cronograma (criterios DCMA).
+- **Revisión del archivo de MS Project** antes de exportar (comando `validar`): códigos EDT, fechas,
+  duración y línea base, pesos de los hitos, método de medición, avance a la fecha de estado y lógica del
+  cronograma, con la evaluación DCMA de 14 puntos. Revisa varias planificaciones a la vez y las compara, y
+  escribe un **informe de mejoras** por prioridad, sin nombres de tareas, para compartirlo.
 - Cálculo del **% ganado** de cada paquete a la fecha de corte, según su **método de medición** (0/100,
   50/50, hitos ponderados, % completado, % físico completado, unidades y LOE), y carga del valor del mes
   en el libro. El **AC** se carga a mano.
@@ -48,7 +49,8 @@ simulado.*
 - Opcional: **varios archivos de MS Project** en un mismo informe, cada uno con sus códigos EDT (por
   ejemplo, `1.0.0` a `8.0.0` en un archivo y `9.0.0` en otro).
 - Opcional: **depuración de costes**, para comparar el PV planificado de una empresa con la previsión
-  mensual de su plan de costes y alinear con ella las tareas e hitos de MS Project.
+  mensual de su plan de costes y alinear con ella las tareas e hitos de MS Project, o usar el reparto
+  del plan como PV de la empresa (comando `procesar-costes`).
 - Opcional: **fichas de tareas** para el cliente (comando `generar-fichas`), en un documento Markdown sin
   importes: fechas y duración de la línea base, predecesoras y sucesoras de cada elemento de la EDT.
 - Montos en **euros (EUR)** por defecto.
@@ -178,7 +180,7 @@ El [tutorial](docs/ejemplo-paso-a-paso.md) recorre el ciclo completo con 24 mese
 | Hojas del libro, reglas de uso y `--migrar-desde` | [El libro Excel](docs/libro-excel.md) |
 | Tablero, gráficos, fórmulas e interpretación | [Cuadro de Mando e indicadores](docs/cuadro-de-mando.md) |
 | Paquetes fuera de umbral: causa, impacto y acción correctiva | [Análisis de desviaciones](docs/analisis-desviaciones.md) |
-| `validar`, `generar`, `actualizar`, `analizar`, `generar-fichas` (fichas de tareas para el cliente) y sus opciones | [Comandos y opciones](docs/comandos.md) |
+| `validar`, `generar`, `actualizar`, `analizar`, `generar-fichas` (fichas de tareas para el cliente), `procesar-costes` (PV con el plan de costes) y sus opciones | [Comandos y opciones](docs/comandos.md) |
 | `config.toml` | [Configuración](docs/configuracion.md) |
 | Comando `validar`, hoja `Validación`, limitaciones y mensajes de error | [Validaciones y solución de problemas](docs/validaciones-y-problemas.md) |
 | Código de cada error y advertencia (`FEC-003`...), qué hacer y cómo silenciarlo | [Códigos de errores y advertencias](docs/codigos.md) |

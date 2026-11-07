@@ -10,13 +10,14 @@ Opcionales:
 - EVM_CONFIG: archivo de configuración (por defecto config.toml si existe; si no, config.ejemplo.toml).
 - EVM_LINEA_BASE: línea base a comparar (0..10), como --linea-base.
 - EVM_TOLERANCIA_PV: diferencia admitida en el % planificado de cada mes (por defecto 0.005, es decir,
-  0,5 %). El motor XML reparte la duración de las tareas con el calendario del proyecto; el motor COM, con
-  lunes a viernes y los feriados de la configuración.
+  0,5 %). Los dos motores reparten la duración de las tareas con el calendario del proyecto (COM no lee las
+  excepciones que solo cambian el horario de un día laborable).
 
 Antes de guardar el XML se debe definir la fecha de estado (Proyecto > Fecha de estado) y guardar el
 .mpp: ambos archivos deben ser el mismo proyecto con la misma fecha de estado. Los mensajes de las
-pruebas solo muestran códigos EDT y porcentajes, no nombres de tareas. Los dos libros reciben el mismo BAC
-en cada fila, como se ingresa a mano.
+pruebas solo muestran códigos EDT, UniqueID, fechas y porcentajes, no nombres de tareas ni de empresas (con
+multi-empresa, «empresa A» y «empresa B»); los objetos de las pruebas no muestran su contenido. Los dos libros
+reciben el mismo BAC en cada fila, como se ingresa a mano.
 """
 import contextlib
 import faulthandler
@@ -96,6 +97,13 @@ def quiet_faulthandler():
         faulthandler.enable()
 
 
+class Hidden(dict):
+    """Datos de las pruebas: si una prueba falla, pytest no muestra su contenido (nombres de tareas)."""
+
+    def __repr__(self) -> str:
+        return "<datos del proyecto>"
+
+
 def report(diffs: list[str], what: str) -> str:
     more = f"\n... y {len(diffs) - LIMIT} más" if len(diffs) > LIMIT else ""
     return f"{len(diffs)} diferencias en {what} (COM frente a XML):\n" + "\n".join(diffs[:LIMIT]) + more
@@ -109,7 +117,7 @@ def books(tmp_path_factory):
         assert Path(path).is_file(), f"No existe el archivo {path}"
     d = tmp_path_factory.mktemp("msproject")
     extra = ["--linea-base", os.environ["EVM_LINEA_BASE"]] if os.environ.get("EVM_LINEA_BASE") else []
-    result = {"was_running": ms_project_running()}
+    result = Hidden(was_running=ms_project_running())
     closed = []          # el MS Project iniciado por el programa terminó después de cada paso
     for engine, origin in (("com", MPP), ("xml", XML)):
         book = d / f"EVM_{engine}.xlsx"
@@ -153,8 +161,8 @@ def test_same_planned_percent(books):
     tol = float(os.environ.get("EVM_TOLERANCIA_PV", "0.005"))
     rows = by_row(com)
     diffs = []
-    for role, company in com.roles():
-        who = f" ({company})" if company else ""
+    for role, _company in com.roles():
+        who = f" (empresa {role})" if role else ""
         for r, months in com.pct_pv[role].items():
             other = xml.pct_pv[role][r]
             for i, (a, b) in enumerate(zip(months, other)):
@@ -174,8 +182,8 @@ def test_same_earned_percent_at_cutoff(books):
     idx = com.horizon.index(com.status_date)
     rows = by_row(com)
     diffs = []
-    for role, company in com.roles():
-        who = f" ({company})" if company else ""
+    for role, _company in com.roles():
+        who = f" (empresa {role})" if role else ""
         for r, months in com.pct_ev[role].items():
             x = sum(v or 0.0 for v in months[: idx + 1])
             y = sum(v or 0.0 for v in xml.pct_ev[role][r][: idx + 1])
@@ -187,8 +195,7 @@ def test_same_earned_percent_at_cutoff(books):
 def test_same_schedule(books):
     """Plazo según el cronograma (columnas Q a U de Indicadores EDT): fin previsto, holgura total y crítica leídos
     por COM (TotalSlack en minutos) y del XML (en décimas de minuto). El desvío se cuenta con el calendario del
-    XML o con lunes a viernes y los feriados de la configuración (.mpp): puede diferir si el calendario del
-    proyecto tiene otros días no laborables."""
+    proyecto, leído de cada archivo."""
     from openpyxl import load_workbook
 
     from evm.workbook import I_CRITICAL, I_FINISH, I_SLACK, SHEET_IND
@@ -202,6 +209,72 @@ def test_same_schedule(books):
             diffs.append(f"{s.code}: COM fin {a[0]}, holgura {a[1]}, crítica {a[2]} / XML fin {b[0]}, holgura "
                          f"{b[1]}, crítica {b[2]}")
     assert not diffs, report(diffs, "el plazo según el cronograma")
+
+
+@pytest.fixture(scope="module")
+def projects(books):
+    """El proyecto leído por COM (con las líneas base de cada tarea, como en validar) y del XML."""
+    from evm.config import load_config
+    from evm.reader_com import ComSession
+    from evm.reader_xml import read_xml
+
+    cfg = load_config(config_path())
+    if os.environ.get("EVM_LINEA_BASE"):
+        cfg.baseline = int(os.environ["EVM_LINEA_BASE"])
+    xml = read_xml(XML, cfg, links=False)
+    with ComSession(MPP) as session:
+        com = session.read_project(cfg, links=False, review=True)
+    if not books["was_running"]:
+        wait_until_closed()
+    return Hidden(com=com, xml=xml)
+
+
+def test_same_project_options_and_saved_baselines(projects):
+    """Opción Calcular varias rutas críticas (LOG-017), línea base que usa el % planificado y cantidad de tareas
+    con fecha de comienzo en cada línea base (LEC-024): los mismos con COM y con XML."""
+    com, xml = projects["com"], projects["xml"]
+    critical = (com.multiple_critical_paths, xml.multiple_critical_paths)
+    assert critical[0] is not None, "COM no leyó la opción MultipleCriticalPaths del proyecto."
+    assert critical[0] == critical[1], f"Calcular varias rutas críticas: COM {critical[0]} / XML {critical[1]}"
+    used = (com.baseline_number, xml.baseline_number)
+    assert used[0] == used[1], f"Línea base usada: COM {used[0]} / XML {used[1]}"
+
+    def counts(project) -> dict[int, int]:
+        out: dict[int, int] = {}
+        for t in project.tasks:
+            for n in t.baselines:
+                out[n] = out.get(n, 0) + 1
+        return dict(sorted(out.items()))
+
+    saved = (counts(com), counts(xml))
+    assert saved[0] == saved[1], f"Tareas con comienzo en cada línea base: COM {saved[0]} / XML {saved[1]}"
+    # Línea base usada incompleta (FEC-015, FEC-016) y tareas con calendario propio (FEC-017): las mismas tareas
+    n = xml.baseline_number
+    incomplete = (sorted(t.uid for t in com.tasks if n in t.incomplete_baselines),
+                  sorted(t.uid for t in xml.tasks if n in t.incomplete_baselines))
+    assert incomplete[0] == incomplete[1], f"Línea base incompleta (UID): COM {incomplete[0]} / XML {incomplete[1]}"
+    calendars = (sorted(t.uid for t in com.tasks if t.calendar), sorted(t.uid for t in xml.tasks if t.calendar))
+    assert calendars[0] == calendars[1], f"Tareas con calendario propio (UID): COM {calendars[0]} / XML {calendars[1]}"
+
+
+def test_same_calendar(projects):
+    """Calendario del proyecto: la jornada de cada día de la semana y los días laborables y no laborables entre la
+    primera y la última fecha de las tareas, leídos de MS Project (Project.Calendar) y del XML."""
+    com, xml = projects["com"].calendar, projects["xml"].calendar
+    assert com is not None, "COM no leyó el calendario del proyecto (LEC-025)."
+    names = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+    week = [f"{names[k]}: COM {com.weekly.get(k)} / XML {xml.weekly.get(k)}"
+            for k in range(7) if com.weekly.get(k) != xml.weekly.get(k)]
+    assert not week, report(week, "la jornada de los días de la semana (minutos desde las 00:00)")
+    tasks = projects["xml"].tasks
+    dates = [d for t in tasks for d in (t.baseline_start, t.baseline_finish, t.start, t.finish) if d is not None]
+    d, last, days = min(dates).date(), max(dates).date(), []
+    from datetime import timedelta
+    while d <= last:
+        if com.is_working_day(d) != xml.is_working_day(d):
+            days.append(f"{d:%d/%m/%Y}: laborable con COM {com.is_working_day(d)} / XML {xml.is_working_day(d)}")
+        d += timedelta(days=1)
+    assert not days, report(days, "los días laborables")
 
 
 def test_ms_project_is_left_as_found(books):

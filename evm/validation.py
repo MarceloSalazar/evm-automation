@@ -11,16 +11,17 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import replace
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from evm.config import Config, ConfigError
 from evm.fields import fmt_number, same_name
 from evm.methods import FIXED, LOE, MILESTONES, UNKNOWN, is_complete, is_started, parse_method
 from evm.model import (CONSTRAINT_FNLT, CONSTRAINT_MFO, CONSTRAINT_MSO, CONSTRAINT_SNLT, LINK_FF, LINK_FS, LINK_SF,
-                       LINK_SS, ProjectData, Task)
+                       LINK_SS, Link, ProjectData, Task)
 from evm.messages import SEV_ERROR, SEV_INFO, SEV_WARN, TOPIC_BOOK, Issue
 from evm.percent import calendar_for
 from evm.schedule import row_schedule, working_days
+from evm.timeline import last_of_month
 from evm.wbs import (KIND_RESIDUAL, PlanNotFound, Report, ReportPart, ReportRow, Scope, assemble_report, build_part,
                      code_key, iter_subtree, pad_code, plural, tagged_issues, task_name)
 from evm.workcalendar import WorkCalendar
@@ -42,12 +43,23 @@ DCMA_MISSED = 5.0               # % máximo de tareas incumplidas respecto de la
 DCMA_CPLI = 0.95                # índice de longitud del camino crítico mínimo
 DCMA_BEI = 0.95                 # índice de ejecución de la línea base mínimo
 
+# Evaluación DCMA de 14 puntos: punto -> (valor, umbral, cumple: True, False o None si no se evalúa)
+Metrics = dict[int, tuple[str, str, bool | None]]
+
 HARD_CONSTRAINTS = {
     CONSTRAINT_MSO: "Debe comenzar el",
     CONSTRAINT_MFO: "Debe finalizar el",
     CONSTRAINT_SNLT: "No comenzar después del",
     CONSTRAINT_FNLT: "No finalizar después del",
 }
+
+# Puntos de la evaluación DCMA: nombre y umbral (la tabla de validar y del informe de mejoras)
+DCMA_POINTS = {1: "Lógica (sin predecesoras o sucesoras)", 2: "Adelantos", 3: "Posiciones", 4: "Tipos de vínculo (FC)",
+               5: "Delimitaciones fijas", 6: "Holgura alta", 7: "Holgura negativa", 8: "Duración alta",
+               9: "Fechas no válidas", 10: "Recursos", 11: "Tareas incumplidas", 12: "Prueba del camino crítico",
+               13: "CPLI", 14: "BEI"}
+DCMA_THRESHOLDS = {1: "≤ 5 %", 2: "0", 3: "≤ 5 %", 4: "≥ 90 %", 5: "≤ 5 %", 6: "≤ 5 %", 7: "0", 8: "≤ 5 %", 9: "0",
+                   10: "—", 11: "≤ 5 %", 12: "—", 13: "≥ 0,95", 14: "≥ 0,95"}
 
 # Avance fuera de secuencia: tipo de vínculo -> (sigla, la sucesora debe estar terminada, la predecesora debe estar
 # terminada). Si no, basta que hayan comenzado.
@@ -101,7 +113,7 @@ def _label(t: Task, code_of: CodeOf) -> str:
 
 
 def _issue(id: str, t: Task, code_of: CodeOf, message: str) -> Issue:
-    return Issue(id, code_of(t), task_name(t, code_of), message)
+    return Issue(id, code_of(t), task_name(t, code_of), message, uid=t.uid)
 
 
 # ----------------------------------------------------------------------------
@@ -231,7 +243,8 @@ def wbs_checks(scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
             issues.append(Issue("EDT-008", code_of(parent) if parent is not None else "",
                                 parent.name if parent is not None else "",
                                 f"{under}, la numeración tiene saltos ({shown}): si no es intencional (p. ej. un "
-                                "paquete eliminado), se debe revisar el código."))
+                                "paquete eliminado), se debe revisar el código.",
+                                uid=parent.uid if parent is not None else None))
 
     # Códigos duplicados: sin los ceros finales, que son relleno (1.2, 1.2.0 y 1.2.0.0 son el mismo código)
     by_code: dict[str, list[Task]] = {}
@@ -246,7 +259,8 @@ def wbs_checks(scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
             names = ", ".join(f"«{t.name}» (Id {t.id}{f', {code_of(t)}' if several else ''})" for t in same[:5])
             more = f" y {len(same) - 5} más" if len(same) > 5 else ""
             issues.append(Issue("EDT-009", code_of(same[0]), same[0].name,
-                                f"Código EDT duplicado: lo tienen {len(same)} tareas ({names}{more}).{hint}"))
+                                f"Código EDT duplicado: lo tienen {len(same)} tareas ({names}{more}).{hint}",
+                                uid=same[0].uid))
     return _capped(bad_format + issues)
 
 
@@ -297,6 +311,11 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
     # --- Fechas y duración ----------------------------------------------------
     dates: list[Issue] = []
     for t in leaves:
+        if project.baseline_found and (t.baseline_start is None) != (t.baseline_finish is None):
+            dates.append(_issue("FEC-015", t, code_of,
+                                f"La línea base solo tiene el {'comienzo' if t.baseline_start else 'fin'} "
+                                f"({_day(t.baseline_start or t.baseline_finish)}): se toma como si durara 0 y no pesa "
+                                "en el % planificado de su fila."))
         if (project.baseline_found and t.baseline_start and t.baseline_finish
                 and t.baseline_finish < t.baseline_start):
             dates.append(_issue("FEC-001", t, code_of,
@@ -428,13 +447,152 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
             issues.append(_issue("EMP-001", t, code_of,
                                  f"Tiene '{cfg.split_field}' = {_num(t.split_a, 2)}, pero {who}: el reparto solo se "
                                  f"usa en las tareas '{cfg.company_both}'."))
+        shared = [t for t in leaves if same_name(_company_of(t), cfg.company_both)]
+        if "campo_reparto" in project.fields_found and shared and not any(t.split_a for t in tasks):
+            one = len(shared) == 1
+            issues.append(Issue("LEC-023", "", "",
+                                f"El campo '{project.fields_found['campo_reparto']}' existe, pero está vacío en todas "
+                                f"las tareas: {fmt_number(len(shared), 0)} {'tarea' if one else 'tareas'} de detalle "
+                                f"'{cfg.company_both}' se {'reparte' if one else 'reparten'} al "
+                                f"{_num(cfg.split_default, 2)} % para {cfg.company_a} ([multiempresa] "
+                                f"reparto_por_defecto). Se debe cargar el % de {cfg.company_a} en esas tareas o en su "
+                                "tarea superior, o confirmar que el reparto por defecto es el acordado."))
+    return issues
+
+
+def _company_of(t: Task) -> str:
+    """Empresa de la tarea: la suya o la de su tarea superior más cercana que la tenga."""
+    n: Task | None = t
+    while n is not None:
+        if (n.company or "").strip():
+            return n.company.strip()
+        n = n.parent
+    return ""
+
+
+# ----------------------------------------------------------------------------
+# Línea base (solo 'validar')
+# ----------------------------------------------------------------------------
+def _baseline_label(n: int) -> str:
+    return "Línea base" if n == 0 else f"Línea base {n}"
+
+
+def _series(items: list[str]) -> str:
+    """'a', 'a y b', 'a, b y c'."""
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " y " + items[-1]
+
+
+def _incomplete_baselines(project: ProjectData, scope: Scope, code_of: CodeOf) -> list[Issue]:
+    """FEC-016: tareas revisadas (también las resumen) con solo el comienzo o solo el fin en una línea base: la que
+    usa el % planificado (los dos lectores) y las demás (solo XML)."""
+    n = project.baseline_number
+    by_number: dict[int, list[Task]] = {}
+    for t in scope.tasks():
+        numbers = set(k for k in t.incomplete_baselines if k != n)
+        if project.baseline_found and (t.baseline_start is None) != (t.baseline_finish is None):
+            numbers.add(n)
+        for k in numbers:
+            by_number.setdefault(k, []).append(t)
+    if not by_number:
+        return []
+    found = list({t.uid: t for k in sorted(by_number) for t in by_number[k]}.values())
+    items = [f"{_baseline_label(k)}: {plural(len(v), 'tarea', 'tareas')}" for k, v in sorted(by_number.items())]
+    only = (" Con un .mpp solo se revisa la línea base que usa el % planificado." if project.backend == "com"
+            else "")
+    return [Issue("FEC-016", "", "",
+                  f"{plural(len(found), 'tarea tiene', 'tareas tienen')} una línea base incompleta, con solo el "
+                  f"comienzo o solo el fin ({_series(items)}): {_codes(found, code_of)}. Se debe guardar de nuevo la "
+                  f"línea base de esas tareas, o borrar la fecha suelta si esa línea base no se usa.{only}")]
+
+
+def baseline_checks(project: ProjectData, scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
+    """Líneas base guardadas y la que usa el % planificado (LEC-024), y tareas resumen exportadas cuya línea base no
+    coincide con la de sus tareas de detalle activas (FEC-013 y FEC-014): la del comienzo más temprano al fin más
+    tardío, como la resume MS Project. Las tareas de detalle se toman del árbol completo de MS Project, también las
+    de las ramas con Visible = No; las inactivas no cuentan, como en MS Project."""
+    issues: list[Issue] = []
+    used = _baseline_label(project.baseline_number)
+    # Tareas revisadas (de la planificación exportada) con fecha de comienzo en cada línea base
+    counts: dict[int, int] = {}
+    for t in scope.tasks():
+        for n in t.baselines:
+            counts[n] = counts.get(n, 0) + 1
+    if counts:
+        items = [f"{_baseline_label(n)} ({fmt_number(c, 0)} {'tarea' if c == 1 else 'tareas'})"
+                 for n, c in sorted(counts.items())]
+        how = ("la indicada con linea_base o --linea-base" if cfg.baseline is not None else
+               "la que el proyecto usa para el valor acumulado (Archivo > Opciones > Avanzadas)")
+        which = (f"El % planificado usa la {used}, {how}." if project.baseline_number in counts else
+                 f"El % planificado usaría la {used}, {how}, que no está guardada (FEC-009).")
+        issues.append(Issue("LEC-024", "", "", f"Líneas base guardadas en las tareas revisadas: {_series(items)}. "
+                                               f"{which}"))
+    issues += _incomplete_baselines(project, scope, code_of)
+    calendars = [t for t in scope.tasks() if t.calendar]
+    if calendars:
+        names = {t.calendar for t in calendars}
+        issues.append(Issue("FEC-017", "", "",
+                            f"{plural(len(calendars), 'tarea tiene', 'tareas tienen')} un calendario de tarea distinto "
+                            f"del calendario del proyecto ({plural(len(names), 'calendario', 'calendarios')}): MS "
+                            "Project calcula sus fechas con él, pero el programa reparte su duración entre los meses "
+                            f"con el calendario del proyecto ({_codes(calendars, code_of)})."))
+    if not project.baseline_found:
+        return issues
+
+    children: dict[int, list[Task]] = {}
+    for t in project.tasks:
+        if t.parent is not None:
+            children.setdefault(t.parent.uid, []).append(t)
+    spans: dict[int, tuple[datetime, datetime] | None] = {}
+
+    def span(t: Task) -> tuple[datetime, datetime] | None:
+        """Comienzo más temprano y fin más tardío de la línea base de las tareas de detalle activas de la rama."""
+        if t.uid in spans:
+            return spans[t.uid]
+        kids = children.get(t.uid)
+        if not kids:
+            dates = [d for d in (t.baseline_start, t.baseline_finish) if d is not None]
+            out = (min(dates), max(dates)) if dates else None
+        else:
+            found = [s for s in (span(c) for c in kids if c.active) if s is not None]
+            out = (min(s for s, _ in found), max(f for _, f in found)) if found else None
+        spans[t.uid] = out
+        return out
+
+    found: list[Task] = []
+    details: list[Issue] = []
+    for t in scope.tasks():
+        start, finish = t.baseline_start, t.baseline_finish
+        if not children.get(t.uid) or start is None or finish is None:
+            continue
+        detail = span(t)
+        if detail is None:
+            continue
+        inverted = finish < start
+        if not inverted and (start.date(), finish.date()) == (detail[0].date(), detail[1].date()):
+            continue
+        found.append(t)
+        details.append(_issue("FEC-014", t, code_of,
+                              f"Línea base de la tarea resumen: {_day(start)} a {_day(finish)}"
+                              f"{' (fin anterior al comienzo)' if inverted else ''}; de sus tareas de detalle: "
+                              f"{_day(detail[0])} a {_day(detail[1])}."))
+    if found:
+        issues.append(Issue("FEC-013", "", "",
+                            f"{plural(len(found), 'tarea resumen tiene', 'tareas resumen tienen')} una línea base "
+                            f"que no coincide con la de sus tareas de detalle ({_codes(found, code_of)}): no se "
+                            "resumió al guardar la línea base de sus tareas (Establecer línea base > Tareas "
+                            "seleccionadas, sin «Resumir líneas base») o se modificó a mano. MS Project muestra en "
+                            "ellas fechas de línea base que no corresponden a su detalle; el libro usa las de las "
+                            "tareas de detalle. Se debe guardar la línea base de esas tareas con «Resumir líneas "
+                            "base: Para todas las tareas de resumen»."))
+        issues += details[:LIMIT]
     return issues
 
 
 # ----------------------------------------------------------------------------
 # Avance a la fecha de estado (solo 'validar')
 # ----------------------------------------------------------------------------
-def _out_of_sequence(project: ProjectData, leaves: list[Task], code_of: CodeOf) -> list[Issue]:
+def _out_of_sequence(project: ProjectData, leaves: list[Task], code_of: CodeOf,
+                     members: set[int] | None = None) -> list[Issue]:
     """Avance que el vínculo con la predecesora todavía no permite: la sucesora comenzó (FC y CC) o terminó (FF y CF)
     y su predecesora no terminó (FC y FF) o no comenzó (CC y CF). Las predecesoras resumen no se revisan (LOG-010), ni
     los vínculos con adelanto, que permiten ese avance (LOG-006)."""
@@ -444,7 +602,7 @@ def _out_of_sequence(project: ProjectData, leaves: list[Task], code_of: CodeOf) 
     for t in leaves:
         if not is_started(t):
             continue
-        for link in t.predecessors:
+        for link in plan_links(t, members):          # con una planificación, solo sus vínculos
             p = by_uid.get(link.uid)
             rule = SEQUENCE.get(link.kind)
             if p is None or rule is None or p.children or not p.active or link.lag < 0:
@@ -490,15 +648,17 @@ def _missed_tasks(due: list[Task], code_of: CodeOf) -> Issue | None:
                  f"({_codes(missed, code_of)}).", SEV_WARN if share > DCMA_MISSED + 1e-9 else SEV_INFO)
 
 
-def _cpli(leaves: list[Task], status: date, calendar: WorkCalendar, minutes_per_day: float) -> Issue | None:
+def _cpli(leaves: list[Task], status: date, calendar: WorkCalendar,
+          minutes_per_day: float) -> tuple[Issue | None, float | None]:
     """Índice de longitud del camino crítico: (días que quedan hasta el fin previsto + holgura del proyecto frente al
-    fin de la línea base) / días que quedan. Sin trabajo pendiente después de la fecha de estado no se calcula."""
+    fin de la línea base) / días que quedan, con su observación. Sin trabajo pendiente después de la fecha de estado
+    no se calcula."""
     plan = row_schedule(leaves, calendar, minutes_per_day)
     if not plan.open_tasks or plan.finish is None or plan.baseline_finish is None or plan.variance is None:
-        return None
+        return None, None
     remaining = working_days(calendar, status, plan.finish)
     if remaining <= 0:
-        return None
+        return None, None
     cpli = (remaining - plan.variance) / remaining
     if plan.variance > 0:
         variance = f"{_days_text(plan.variance)} de atraso"
@@ -510,17 +670,18 @@ def _cpli(leaves: list[Task], status: date, calendar: WorkCalendar, minutes_per_
                  f"Índice de longitud del camino crítico (CPLI) = {_num(cpli, 2)}: quedan {_days_text(remaining)} "
                  f"hasta el fin previsto ({_day(plan.finish)}) y el fin de la línea base es el "
                  f"{_day(plan.baseline_finish)} ({variance}) (DCMA: al menos {_num(DCMA_CPLI, 2)}).",
-                 SEV_WARN if cpli < DCMA_CPLI - 1e-9 else SEV_INFO)
+                 SEV_WARN if cpli < DCMA_CPLI - 1e-9 else SEV_INFO), cpli
 
 
 def progress_checks(project: ProjectData, scope: Scope, code_of: CodeOf, status: date | None,
-                    calendar: WorkCalendar | None = None) -> list[Issue]:
+                    calendar: WorkCalendar | None = None, metrics: Metrics | None = None) -> list[Issue]:
     """Fechas reales coherentes entre sí, con el % completado y con los vínculos, avance actualizado a la fecha de
     estado e índices DCMA del avance (BEI, tareas incumplidas y CPLI). calendar: el que reparte la duración (cuenta
-    los días laborables del CPLI)."""
+    los días laborables del CPLI). metrics: si se indica, recibe los puntos 9, 11, 13 y 14 de la evaluación DCMA."""
     issues: list[Issue] = []
+    metrics = {} if metrics is None else metrics
     leaves = [t for t in scope.tasks() if not t.children]
-    issues += _out_of_sequence(project, leaves, code_of)
+    issues += _out_of_sequence(project, leaves, code_of, plan_members(project, scope))
     found: list[Issue] = []
     for t in leaves:
         if t.actual_finish and not t.actual_start:
@@ -541,6 +702,8 @@ def progress_checks(project: ProjectData, scope: Scope, code_of: CodeOf, status:
     has_progress = any(is_started(t) for t in leaves)
 
     if status is None:
+        for point in (9, 11, 13, 14):
+            metrics[point] = ("sin fecha de estado", DCMA_THRESHOLDS[point], None)
         issues += found[:LIMIT]
         if has_progress:
             issues.append(Issue("AVA-006", "", "",
@@ -553,9 +716,19 @@ def progress_checks(project: ProjectData, scope: Scope, code_of: CodeOf, status:
                                 "fecha se puede indicar con --fecha-corte)."))
         return issues
 
+    if status != last_of_month(status):
+        before = status.replace(day=1) - timedelta(days=1)
+        issues.append(Issue("AVA-018", "", "",
+                            f"La fecha de estado ({_day(status)}) no es el último día del mes: «actualizar» cargará "
+                            f"el avance en el mes {status:%m/%Y}, con el PV acumulado del mes completo (ACT-018). "
+                            f"Para informar {before:%m/%Y}, se debe fijar la fecha de estado en el {_day(before)} "
+                            f"(Proyecto > Fecha de estado) o indicar --fecha-corte {before:%Y-%m-%d}; para informar "
+                            f"{status:%m/%Y}, en el {_day(last_of_month(status))}."))
+    future: set[int] = set()
     for t in leaves:
         for label, when in (("Comienzo real", t.actual_start), ("Fin real", t.actual_finish)):
             if when and when.date() > status:
+                future.add(t.uid)
                 found.append(_issue("AVA-008", t, code_of,
                                      f"{label} ({_day(when)}) posterior a la fecha de estado ({_day(status)}): avance "
                                      "registrado en el futuro."))
@@ -573,6 +746,8 @@ def progress_checks(project: ProjectData, scope: Scope, code_of: CodeOf, status:
             found.append(_issue("AVA-010", t, code_of,
                                 f"Comienzo ({_day(t.start)}) anterior a la fecha de estado y no tiene avance ni "
                                 "Comienzo real."))
+    invalid = len(future | {t.uid for t in pending})
+    metrics[9] = (plural(invalid, "tarea", "tareas"), DCMA_THRESHOLDS[9], invalid == 0)
     if pending:
         issues.append(Issue("AVA-011", "", "",
                             f"{plural(len(pending), 'tarea tiene', 'tareas tienen')} trabajo pendiente programado "
@@ -589,10 +764,19 @@ def progress_checks(project: ProjectData, scope: Scope, code_of: CodeOf, status:
                                 f"según la línea base y no {'comenzó' if len(late) == 1 else 'comenzaron'} "
                                 f"({_codes(late, code_of)})."))
         due = [t for t in leaves if t.baseline_finish and t.baseline_finish.date() <= status]
+        if not due:
+            for point in (11, 14):
+                metrics[point] = ("ninguna tarea debía terminar", DCMA_THRESHOLDS[point], None)
         if due:
             done = sum(1 for t in leaves if is_complete(t))
             missed = [t for t in due if not is_complete(t)]
             bei = done / len(due)
+            metrics[14] = (_num(bei, 2), DCMA_THRESHOLDS[14], bei >= DCMA_BEI - 1e-9)
+            late_done = [t for t in due if is_complete(t) and t.actual_finish is not None
+                         and t.actual_finish.date() > t.baseline_finish.date()]
+            share = 100.0 * (len(missed) + len(late_done)) / len(due)
+            metrics[11] = (f"{len(missed) + len(late_done)} de {len(due)} ({_num(share)} %)", DCMA_THRESHOLDS[11],
+                           share <= DCMA_MISSED + 1e-9)
             detail = f" Sin terminar: {_codes(missed, code_of)}." if missed else ""
             issues.append(Issue("AVA-013", "", "",
                                 f"Índice de ejecución de la línea base (BEI) = {_num(bei, 2)}: {done} tareas "
@@ -601,9 +785,14 @@ def progress_checks(project: ProjectData, scope: Scope, code_of: CodeOf, status:
             missed = _missed_tasks(due, code_of)
             if missed is not None:
                 issues.append(missed)
-        cpli = _cpli(leaves, status, calendar or WorkCalendar(), project.minutes_per_day or 480.0)
+        cpli, value = _cpli(leaves, status, calendar or WorkCalendar(), project.minutes_per_day or 480.0)
         if cpli is not None:
             issues.append(cpli)
+        metrics[13] = ((_num(value, 2), DCMA_THRESHOLDS[13], value >= DCMA_CPLI - 1e-9) if value is not None else
+                       ("sin trabajo pendiente", DCMA_THRESHOLDS[13], None))
+    else:
+        for point in (11, 13, 14):
+            metrics[point] = ("sin línea base", DCMA_THRESHOLDS[point], None)
     return issues
 
 
@@ -611,24 +800,40 @@ def progress_checks(project: ProjectData, scope: Scope, code_of: CodeOf, status:
 # Lógica del cronograma (solo 'validar')
 # ----------------------------------------------------------------------------
 def logic_checks(project: ProjectData, scope: Scope, code_of: CodeOf,
-                 rows: list[ReportRow] | None = None) -> list[Issue]:
+                 rows: list[ReportRow] | None = None, metrics: Metrics | None = None) -> list[Issue]:
     """Vínculos, delimitaciones, holgura y duración de las tareas exportadas, según los criterios de la evaluación
-    DCMA. rows: filas del libro (la holgura alta y la duración alta no cuentan las tareas de las filas LOE)."""
+    DCMA. rows: filas del libro (la holgura alta y la duración alta no cuentan las tareas de las filas LOE).
+    metrics: si se indica, recibe los puntos 1 a 8 de la evaluación DCMA."""
     issues: list[Issue] = []
+    metrics = {} if metrics is None else metrics
     tasks = list(scope.tasks())
     detail = [t for t in tasks if not t.children]
     open_tasks = [t for t in detail if not is_complete(t)]
     by_uid = {t.uid: t for t in project.tasks}
+    in_scope = {t.uid for t in tasks}
+    # Con una planificación, solo los vínculos entre sus tareas (los de otras planificaciones, LOG-018)
+    members = plan_members(project, scope)
+    preds = {t.uid: plan_links(t, members) for t in project.tasks}
     successors: dict[int, list[Task]] = {}
-    links = 0
+    links = 0                           # vínculos de las tareas exportadas
     for t in project.tasks:
-        for link in t.predecessors:
+        for link in preds[t.uid]:
             successors.setdefault(link.uid, []).append(t)
-            links += 1
-
+            if t.uid in in_scope or link.uid in in_scope:
+                links += 1
     def pred_label(uid: int) -> str:
         p = by_uid.get(uid)
         return _label(p, code_of) if p is not None else f"una tarea de otro proyecto (UID {uid})"
+
+    def linked(t: Task, side: str) -> bool:
+        n: Task | None = t
+        while n is not None:                        # un vínculo de la tarea resumen alcanza a sus subtareas
+            if (preds.get(n.uid) if side == "pred" else successors.get(n.uid)):
+                return True
+            n = n.parent
+        return False
+
+    issues += _links_outside_plan(project, scope, by_uid, members, code_of, linked)
 
     if not links:
         if detail:
@@ -636,21 +841,20 @@ def logic_checks(project: ProjectData, scope: Scope, code_of: CodeOf,
                                 "El cronograma no tiene vínculos entre tareas: las fechas no se recalculan cuando "
                                 "cambian las duraciones o el avance. Se recomienda vincular las tareas (cada tarea "
                                 "con al menos una predecesora y una sucesora)."))
+            metrics[1] = ("sin vínculos", DCMA_THRESHOLDS[1], False)
+            for point in (2, 3, 4):
+                metrics[point] = ("sin vínculos", DCMA_THRESHOLDS[point], None)
     else:
-        def linked(t: Task, side: str) -> bool:
-            n: Task | None = t
-            while n is not None:                    # un vínculo de la tarea resumen alcanza a sus subtareas
-                if (n.predecessors if side == "pred" else successors.get(n.uid)):
-                    return True
-                n = n.parent
-            return False
-
         starts = [t.start for t in detail if t.start]
         finishes = [t.finish for t in detail if t.finish]
         first = min(starts) if starts else None     # comienzo y fin del proyecto: no necesitan predecesora o sucesora
         last = max(finishes) if finishes else None
         no_pred = [t for t in open_tasks if not linked(t, "pred") and t.start != first]
         no_succ = [t for t in open_tasks if not linked(t, "succ") and t.finish != last]
+        if open_tasks:
+            share = 100.0 * len({t.uid for t in no_pred + no_succ}) / len(open_tasks)
+            metrics[1] = (f"{_num(share)} % ({len(no_pred)} sin predecesoras, {len(no_succ)} sin sucesoras)",
+                          DCMA_THRESHOLDS[1], share <= DCMA_LOGIC + 1e-9)
         if no_pred or no_succ:
             share = _pct(len({t.uid for t in no_pred + no_succ}), len(open_tasks))
             issues.append(Issue("LOG-002", "", "",
@@ -671,20 +875,33 @@ def logic_checks(project: ProjectData, scope: Scope, code_of: CodeOf,
             issues += found[:LIMIT]
 
         # Las métricas DCMA cuentan los vínculos de las tareas de detalle (los de las resumen, LOG-010)
-        own = [(t, link) for t in detail for link in t.predecessors]
+        own = [(t, link) for t in detail for link in preds[t.uid]]
         found = []
-        for t, link in own:
-            if link.lag < 0:
+        for t in detail:
+            # Una línea por tarea con todas sus predecesoras con adelanto
+            leads = [link for link in preds[t.uid] if link.lag < 0]
+            if len(leads) == 1:
                 found.append(_issue("LOG-006", t, code_of,
-                                    f"Vínculo con adelanto (posición negativa) desde {pred_label(link.uid)}: se "
+                                    f"Vínculo con adelanto (posición negativa) desde {pred_label(leads[0].uid)}: se "
                                     "recomienda no usar adelantos (DCMA)."))
-            if link.kind == LINK_SF:
-                found.append(_issue("LOG-007", t, code_of,
-                                    f"Vínculo comienzo a fin (CF) desde {pred_label(link.uid)}: poco habitual; se "
-                                    "recomienda un vínculo fin a comienzo (FC)."))
+            elif leads:
+                shown = ", ".join(pred_label(link.uid) for link in leads[:5])
+                more = f" y {len(leads) - 5} más" if len(leads) > 5 else ""
+                found.append(_issue("LOG-006", t, code_of,
+                                    f"{len(leads)} vínculos con adelanto (posición negativa), desde {shown}{more}: se "
+                                    "recomienda no usar adelantos (DCMA)."))
+            for link in preds[t.uid]:
+                if link.kind == LINK_SF:
+                    found.append(_issue("LOG-007", t, code_of,
+                                        f"Vínculo comienzo a fin (CF) desde {pred_label(link.uid)}: poco habitual; se "
+                                        "recomienda un vínculo fin a comienzo (FC)."))
         issues += found[:LIMIT]
+        leads = sum(1 for _, link in own if link.lag < 0)
+        metrics[2] = (plural(leads, "vínculo", "vínculos"), DCMA_THRESHOLDS[2], leads == 0)
         if own:
             lags = [t for t, link in own if link.lag > 0]
+            share = 100.0 * len(lags) / len(own)
+            metrics[3] = (f"{len(lags)} ({_num(share)} %)", DCMA_THRESHOLDS[3], share <= DCMA_LAGS + 1e-9)
             if lags:
                 share = 100.0 * len(lags) / len(own)
                 issues.append(Issue("LOG-008", "", "",
@@ -694,16 +911,20 @@ def logic_checks(project: ProjectData, scope: Scope, code_of: CodeOf,
                                     "representar como tarea.", SEV_WARN if share > DCMA_LAGS else SEV_INFO))
             fs = sum(1 for _, link in own if link.kind == LINK_FS)
             share = 100.0 * fs / len(own)
+            metrics[4] = (f"{_num(share)} %", DCMA_THRESHOLDS[4], share >= DCMA_FS - 1e-9)
             if share < DCMA_FS - 1e-9:
                 issues.append(Issue("LOG-009", "", "",
                                     f"El {_num(share)} % de los vínculos son fin a comienzo (FC) (DCMA: al menos "
                                     f"{_num(DCMA_FS)} %)."))
         for t in tasks:
-            if t.children and (t.predecessors or successors.get(t.uid)):
+            if t.children and (preds[t.uid] or successors.get(t.uid)):
                 issues.append(_issue("LOG-010", t, code_of,
                                      "Tarea resumen con vínculos: se recomienda vincular sus tareas de detalle."))
 
     hard = [t for t in detail if t.constraint_type in HARD_CONSTRAINTS and not is_complete(t)]
+    if open_tasks:
+        share = 100.0 * len(hard) / len(open_tasks)
+        metrics[5] = (f"{len(hard)} ({_num(share)} %)", DCMA_THRESHOLDS[5], share <= DCMA_CONSTRAINTS + 1e-9)
     if hard:
         share = _pct(len(hard), len(open_tasks) or len(tasks))
         issues.append(Issue("LOG-011", "", "",
@@ -715,12 +936,97 @@ def logic_checks(project: ProjectData, scope: Scope, code_of: CodeOf,
             when = f" {_day(t.constraint_date)}" if t.constraint_date else ""
             issues.append(_issue("LOG-012", t, code_of,
                                  f"Delimitación «{HARD_CONSTRAINTS[t.constraint_type]}{when}»."))
-    issues += _float_and_duration(project, open_tasks, code_of, rows, bool(links))
+    issues += _float_and_duration(project, open_tasks, code_of, rows, bool(links), metrics)
+    if project.multiple_critical_paths:
+        critical = sum(1 for t in open_tasks if t.critical)
+        issues.append(Issue("LOG-017", "", "",
+                            "La opción «Calcular varias rutas críticas» está activada en MS Project: cada cadena de "
+                            "tareas tiene su propia ruta crítica y toda tarea sin sucesoras queda sin holgura. "
+                            f"{fmt_number(critical, 0)} de las {fmt_number(len(open_tasks), 0)} tareas sin terminar "
+                            f"({_pct(critical, len(open_tasks))} %) son críticas: la holgura y las tareas críticas "
+                            "(Indicadores EDT y paquetes críticos de «actualizar») no indican la ruta crítica del "
+                            "proyecto. Se recomienda desactivarla (Archivo > Opciones > Avanzadas) y vincular el final "
+                            "de cada rama con el hito de fin del proyecto."))
+    return issues
+
+
+def plan_members(project: ProjectData, scope: Scope) -> set[int] | None:
+    """UniqueID de las tareas de la planificación exportada, en el árbol completo de MS Project (también las inactivas
+    y las de Visible = No); None sin planificación."""
+    plan = scope.plan
+    if plan is None:
+        return None
+    out: set[int] = set()
+    for t in project.tasks:
+        n = t.parent
+        while n is not None:
+            if n is plan:
+                out.add(t.uid)
+                break
+            n = n.parent
+    return out
+
+
+def plan_links(t: Task, members: set[int] | None) -> list[Link]:
+    """Vínculos de la tarea con sus predecesoras de la misma planificación (todos, sin planificación)."""
+    if members is None:
+        return t.predecessors
+    if t.uid not in members:
+        return []
+    return [link for link in t.predecessors if link.uid in members]
+
+
+def _links_outside_plan(project: ProjectData, scope: Scope, by_uid: dict[int, Task], members: set[int] | None,
+                        code_of: CodeOf, linked: Callable[[Task, str], bool]) -> list[Issue]:
+    """LOG-018 y LOG-019: con una planificación (p. ej. INTERNO), vínculos entre sus tareas y tareas activas de fuera
+    de ella (otra planificación). MS Project calcula con ellos las fechas, la holgura y las tareas críticas; los
+    controles de lógica y de avance fuera de secuencia de la planificación no los cuentan. linked: si la tarea tiene
+    predecesora ('pred') o sucesora ('succ') en la planificación (también por su tarea resumen)."""
+    if members is None:
+        return []
+    count = 0
+    outside: dict[int, tuple[list[Task], list[Task]]] = {}      # tarea de la planificación -> (sucesoras, predecesoras)
+    for t in project.tasks:
+        for link in t.predecessors:
+            p = by_uid.get(link.uid)
+            if p is None or not t.active or not p.active:
+                continue
+            a, b = t.uid in members, p.uid in members
+            if a == b:
+                continue
+            count += 1
+            if b:                                   # p es de la planificación y su sucesora t, de otra
+                outside.setdefault(p.uid, ([], []))[0].append(t)
+            else:                                   # t es de la planificación y su predecesora p, de otra
+                outside.setdefault(t.uid, ([], []))[1].append(p)
+    if not count:
+        return []
+    tasks = [by_uid[uid] for uid in outside]
+    detail = [t for t in tasks if not t.children]
+    no_pred = [t for t in detail if outside[t.uid][1] and not linked(t, "pred")]
+    no_succ = [t for t in detail if outside[t.uid][0] and not linked(t, "succ")]
+
+    def others(found: list[Task]) -> str:
+        names = [f"{q.wbs or 'sin código'} (UID {q.uid})" for q in found[:5]]
+        return ", ".join(names) + (f" y {len(found) - 5} más" if len(found) > 5 else "")
+
+    issues = [Issue("LOG-018", "", "",
+                    f"{plural(count, 'vínculo une', 'vínculos unen')} {plural(len(tasks), 'tarea', 'tareas')} de la "
+                    f"planificación {scope.prefix} con tareas de fuera de ella (otras planificaciones): las "
+                    "planificaciones no son independientes. MS Project calcula con ellos las fechas, la holgura y "
+                    "las tareas críticas de la planificación, pero los controles de lógica y de avance fuera de "
+                    "secuencia no los cuentan. Al quitarlos, "
+                    f"{plural(len(no_pred), 'tarea de detalle se quedaría', 'tareas de detalle se quedarían')} sin "
+                    f"predecesoras y {len(no_succ)} sin sucesoras en la planificación.")]
+    for t in [x for x in project.tasks if x.uid in outside][:LIMIT]:
+        succ, pred = outside[t.uid]
+        parts = ([f"predecesora de {others(succ)}"] if succ else []) + ([f"sucesora de {others(pred)}"] if pred else [])
+        issues.append(_issue("LOG-019", t, code_of, f"Vinculada con otra planificación: {' y '.join(parts)}."))
     return issues
 
 
 def _float_and_duration(project: ProjectData, open_tasks: list[Task], code_of: CodeOf, rows: list[ReportRow] | None,
-                        linked: bool) -> list[Issue]:
+                        linked: bool, metrics: Metrics | None = None) -> list[Issue]:
     """Holgura alta, holgura negativa y duración alta de las tareas de detalle sin terminar (DCMA). La holgura total
     es la que calcula MS Project; la holgura alta no se revisa en un cronograma sin vínculos (LOG-001), en el que
     toda la holgura llega hasta el fin del proyecto."""
@@ -729,8 +1035,14 @@ def _float_and_duration(project: ProjectData, open_tasks: list[Task], code_of: C
     loe = {t.uid for r in rows or [] if r.is_input and parse_method(r.method).kind == LOE for t in r.leaves}
     with_slack = [(t, t.total_slack / per_day) for t in open_tasks if t.total_slack is not None]
 
+    metrics = {} if metrics is None else metrics
     counted = [(t, d) for t, d in with_slack if t.uid not in loe]
     high = sorted(((t, d) for t, d in counted if d > DCMA_DAYS + 1e-9), key=lambda x: -x[1])
+    if linked and counted:
+        share = 100.0 * len(high) / len(counted)
+        metrics[6] = (f"{len(high)} ({_num(share)} %)", DCMA_THRESHOLDS[6], share <= DCMA_HIGH_FLOAT + 1e-9)
+    elif not linked:
+        metrics[6] = ("sin vínculos", DCMA_THRESHOLDS[6], None)
     if linked and high:
         share = 100.0 * len(high) / len(counted)
         issues.append(Issue("LOG-013", "", "",
@@ -741,6 +1053,8 @@ def _float_and_duration(project: ProjectData, open_tasks: list[Task], code_of: C
                             SEV_WARN if share > DCMA_HIGH_FLOAT + 1e-9 else SEV_INFO))
 
     negative = sorted(((t, d) for t, d in with_slack if t.total_slack < -1e-6), key=lambda x: x[1])
+    if with_slack:
+        metrics[7] = (plural(len(negative), "tarea", "tareas"), DCMA_THRESHOLDS[7], not negative)
     if negative:
         share = 100.0 * len(negative) / len(with_slack)
         issues.append(Issue("LOG-014", "", "",
@@ -757,6 +1071,9 @@ def _float_and_duration(project: ProjectData, open_tasks: list[Task], code_of: C
         if not t.milestone and t.uid not in loe and minutes is not None:
             durations.append((t, minutes / per_day))
     long = sorted(((t, d) for t, d in durations if d > DCMA_DAYS + 1e-9), key=lambda x: -x[1])
+    if durations:
+        share = 100.0 * len(long) / len(durations)
+        metrics[8] = (f"{len(long)} ({_num(share)} %)", DCMA_THRESHOLDS[8], share <= DCMA_HIGH_DURATION + 1e-9)
     if long:
         share = 100.0 * len(long) / len(durations)
         source = "en la línea base" if project.baseline_found else "en el programa actual"
@@ -785,8 +1102,14 @@ def validate_part(project: ProjectData, cfg: Config, name: str = "", status: dat
         part = build_part(project, replace(cfg, plan=""), name)
     when = status or _as_date(project.status_date)
     part.issues[:0] = first
-    part.checks += progress_checks(project, part.scope, part.code_of, when, calendar_for(project, cfg))
-    part.checks += logic_checks(project, part.scope, part.code_of, part.rows)
+    part.checks += baseline_checks(project, part.scope, part.code_of, cfg)
+    part.checks += progress_checks(project, part.scope, part.code_of, when, calendar_for(project, cfg), part.dcma)
+    part.checks += logic_checks(project, part.scope, part.code_of, part.rows, part.dcma)
+    for point in DCMA_POINTS:                   # sin tareas sin terminar, sin holgura o sin duración leídas
+        part.dcma.setdefault(point, ("sin datos", DCMA_THRESHOLDS[point], None))
+    part.dcma[10] = ("no aplica (BAC en el libro)", DCMA_THRESHOLDS[10], None)
+    part.dcma[12] = ("prueba manual" + (" (sin varias rutas críticas)" if project.multiple_critical_paths else ""),
+                     DCMA_THRESHOLDS[12], None)
     return part
 
 

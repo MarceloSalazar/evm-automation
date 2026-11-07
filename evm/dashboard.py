@@ -30,7 +30,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 
 from evm.config import Config
-from evm.wbs import KIND_RESIDUAL, Report
+from evm.wbs import KIND_RESIDUAL, KIND_SUMMARY, Report
 from evm.workbook import (C_AC, C_ACN, C_DATE, C_EV, C_EVN, C_PVC, CURVE_FIRST_ROW, CUT_MONTH_CELL, DARK,
                           FILL_GREEN, FILL_HEADER, FILL_INPUT, FILL_RED, FILL_YELLOW, FMT_DATE, FMT_RATIO,
                           MONTHNUM_ROW, NAME_START, NAME_STATUS, ROW_BL_FINISH, ROW_CRITICAL, ROW_ES_FINISH,
@@ -539,7 +539,12 @@ def write_dashboard(ws, report: Report, cfg: Config, lay: _Layout, packages: lis
     ws.row_dimensions[hr].height = 18
     data = f"'{SHEET_CHARTDATA}'"
     bottom = Border(bottom=Side(style="thin", color="E7E6E6"))
+    # Como en las hojas del libro: el fondo según el nivel del código EDT (solo el nivel 1) y la negrita en las filas
+    # resumen
+    report_rows = {lay.r(x): x for x in report.rows}
     for k, pk in enumerate(packages):
+        row = report_rows[pk.row]
+        top = row.wbs_level == 1
         r = hr + 1 + k
         dr = D_FIRST_ROW + k
         code = _merge(ws, r, 12, 13, f"={data}!${col(P_CODE)}${dr}")
@@ -557,8 +562,8 @@ def write_dashboard(ws, report: Report, cfg: Config, lay: _Layout, packages: lis
         for c in range(12, 22):
             cell = ws.cell(row=r, column=c)
             cell.border = bottom
-            cell.font = Font(size=9, bold=pk.level == 1, color=DARK if pk.level == 1 else "000000")
-            if pk.level == 1:
+            cell.font = Font(size=9, bold=row.kind == KIND_SUMMARY, color=DARK if top else "000000")
+            if top:
                 cell.fill = FILL_LEVEL1
     if packages:
         last = hr + len(packages)

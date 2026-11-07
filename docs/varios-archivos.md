@@ -159,7 +159,7 @@ python evm_export.py generar --config config.toml --salida EVM_Programa.xlsx
 Ejemplo de salida con los dos archivos de ejemplo:
 
 ```text
-Exportador EVM 2.4.1
+Exportador EVM 2.5.0
 Leyendo P1: ...\ejemplos\programa_ejemplo.xml ...
 Leyendo P2: ...\ejemplos\proyecto2_ejemplo.xml ...
 Informe: Programa de ejemplo con dos proyectos
@@ -169,7 +169,7 @@ Informe: Programa de ejemplo con dos proyectos
   Horizonte: 01/2026 a 12/2035 (120 meses)
   BAC: se debe ingresar el BAC de cada fila en la columna D de PV (celdas amarillas).
   [i] LIB-001 El PV y el EV de cada fila son el BAC × el % planificado y el % ganado (hojas % PV y % EV), ...
-  [i] EDT-017 INTERNO Planificación interna: [P1] Planificación 'INTERNO': se exportan las 51 tareas que dependen de 'Planificación interna'.
+  [i] EDT-017 [P1] Planificación 'INTERNO' («Planificación interna»): se exportan las 51 tareas que dependen de ella.
   [i] EDT-020 [P1] Se omitió 1 tarea sin código EDT que no depende de ningún elemento EDT: no forma parte de ninguna fila del libro.
   [i] EDT-022 [P1] 14 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.
   [i] EDT-022 [P2] 4 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.
@@ -181,6 +181,7 @@ Informe: Programa de ejemplo con dos proyectos
   [!] MET-004 4.1.2 Pruebas en caliente: [P1] Método 20/80 en un paquete de 2,7 meses (línea base), más de 2: ...
   [!] MET-004 4.2.1 Capacitación y entrega: [P1] Método 50/50 en un paquete de 2,7 meses (línea base), más de 2: ...
   [!] MET-004 9.1.1 Diseño del camino: [P2] Método 50/50 en un paquete de 2,7 meses (línea base), más de 2: ...
+  Por alcance: generales: 6 informativas; en filas EDT: 7 advertencias.
 Libro generado: ...\EVM_Programa.xlsx
 ```
 
