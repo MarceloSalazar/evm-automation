@@ -95,7 +95,16 @@ python -m pytest -m msproject -v
 
 Opcionales: `EVM_CONFIG` (archivo de configuración; por defecto `config.toml` si existe y, si no,
 `config.ejemplo.toml`), `EVM_LINEA_BASE` (línea base N) y `EVM_TOLERANCIA_PV` (diferencia admitida en el
-% planificado de cada mes; por defecto 0.005, es decir, 0,5 %). Los dos motores reparten la duración de
+% planificado de cada mes; por defecto 0.005, es decir, 0,5 %).
+
+`test_msproject_cliente.py` (misma marca) prueba `generar-cliente` con el `.mpp` de `EVM_MPP`: genera el
+archivo del cliente en la carpeta temporal de pytest y comprueba que el origen no cambió, que quedan
+exactamente las tareas que se muestran, que el campo del cliente está vacío, que las fechas son las de la
+planificación interna (o el informe de control explica por qué no), que el registro y el informe no tienen
+nombres de tareas y que `--sobrescribir` reemplaza el archivo de solo lectura. Si está `EVM_MPP_XML`,
+compara además el cálculo con el `.mpp` y con el XML. Necesita en `EVM_CONFIG` las claves
+`[exportacion] planificacion` y `[cliente] campo`. Con `-s` muestra la carpeta con el archivo generado, el
+informe y el registro de diagnóstico. Los dos motores reparten la duración de
 las tareas con el calendario del proyecto; el motor COM no lee las excepciones que solo cambian el horario
 de un día laborable, por eso se admite una pequeña diferencia. Los mensajes de las pruebas solo muestran
 códigos EDT, UniqueID, fechas y porcentajes (con multi-empresa, «empresa A» y «empresa B»), y los datos

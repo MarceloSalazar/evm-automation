@@ -150,7 +150,7 @@ W_READ = "generar, actualizar, validar y generar-fichas (lectura de MS Project)"
 W_GV = "generar (hoja Validación) y validar"
 W_G = "generar (hoja Validación)"
 W_V = "validar"
-W_OUT = "generar, generar-fichas y validar --informe"
+W_OUT = "generar, generar-fichas, generar-cliente y validar --informe"
 W_BOOK = "actualizar, analizar, procesar-costes y generar --migrar-desde (lectura del libro)"
 W_MIG = "generar --migrar-desde (hoja Validación)"
 W_REVIEW = "generar con depuracion_costes (hoja Validación)"
@@ -159,6 +159,7 @@ W_ACT = "actualizar"
 W_AN = "actualizar y analizar"
 W_ROW = "actualizar (observaciones por fila)"
 W_FIC = "generar-fichas"
+W_CLI = "generar-cliente"
 
 
 @dataclass(frozen=True)
@@ -203,6 +204,8 @@ AREAS = {a.prefix: a for a in [
          "Carga del % ganado del mes: fecha de corte, filas del libro, BAC y observaciones por fila."),
     Area("FIC", "Fichas de tareas", TOPIC_BOOK, W_FIC,
          "Comando generar-fichas."),
+    Area("CLI", "Planificación para el cliente", TOPIC_BOOK, W_CLI,
+         "Comando generar-cliente: tareas que se muestran al cliente, resúmenes convertidos y vínculos nuevos."),
     Area("SIS", "Errores del sistema", TOPIC_BOOK, W_ALL,
          "Errores de archivos del sistema y errores inesperados del programa."),
 ]}
@@ -375,10 +378,11 @@ _CODES = [
           "Con varios archivos no hay un nombre de salida por defecto.",
           "Indicar el archivo a crear con --salida (o con --informe en validar).", W_OUT),
     _code("CFG-041", F, "Extensión del archivo de salida no válida",
-          "El libro se guarda como .xlsx; las fichas y el informe de mejoras de validar, como .md.",
-          "Indicar --salida (o --informe) con la extensión que corresponde.", W_OUT),
+          "El libro se guarda como .xlsx; las fichas, el informe de mejoras de validar y el informe de control de "
+          "generar-cliente, como .md; la planificación del cliente, como .mpp.",
+          "Indicar --salida (o --informe o --destino) con la extensión que corresponde.", W_OUT),
     _code("CFG-042", F, "El archivo de salida ya existe",
-          "El archivo de --salida (o de --informe) existe y no se indicó --sobrescribir.",
+          "El archivo de --salida (o de --informe o --destino) existe y no se indicó --sobrescribir.",
           "Usar --sobrescribir para reemplazarlo o indicar otro nombre. Para conservar los EV/AC cargados en un "
           "libro, se genera un archivo nuevo con --migrar-desde.", W_OUT),
     _code("CFG-043", F, "--migrar-desde igual a --salida",
@@ -425,6 +429,9 @@ _CODES = [
           "una por una, y con un solo archivo (sin [[proyectos]]).",
           "Indicar una sola planificación en planificacion o --planificacion; para revisar varias, usar validar "
           "--planificacion INTERNO,CLIENTE.", "generar, actualizar, validar y generar-fichas"),
+    _code("CFG-054", F, "Falta el campo del cliente",
+          "generar-cliente necesita el campo de MS Project que indica qué tareas se muestran al cliente.",
+          "Indicarlo en [cliente] campo, por ejemplo campo = \"Etiqueta Cliente\" (ver config.ejemplo.toml).", W_CLI),
 
     # --- LEC: lectura de MS Project -----------------------------------------------------------------------------
     _code("LEC-001", F, "No existe el archivo de origen",
@@ -519,6 +526,11 @@ _CODES = [
           "Comparar con el resultado del XML del mismo proyecto (Archivo > Guardar como > XML), que lee el "
           "calendario del archivo, y usar el XML si difieren.", "generar, actualizar, validar y generar-fichas con "
           "archivos .mpp"),
+    _code("LEC-026", F, "No se encontró el campo del cliente",
+          "El campo de [cliente] campo no existe en el archivo de MS Project, ni con ese nombre ni como alias: no se "
+          "puede saber qué tareas se muestran al cliente.",
+          "Revisar el nombre del campo en [cliente] campo (el alias, por ejemplo \"Etiqueta Cliente\", o el nombre, "
+          "por ejemplo \"Text15\").", W_CLI),
 
     # --- EDT: estructura y códigos EDT --------------------------------------------------------------------------
     _code("EDT-001", E, "Código EDT con formato no válido",
@@ -1329,6 +1341,87 @@ _CODES = [
     _code("FIC-004", W, "El archivo tiene errores",
           "El cronograma tiene errores (por ejemplo, códigos EDT duplicados) que pueden afectar las fichas.",
           "Revisarlo con validar."),
+
+    # --- CLI: planificación para el cliente (generar-cliente) ---------------------------------------------------
+    _code("CLI-001", F, "La planificación no es de primer nivel",
+          "generar-cliente parte de una tarea de primer nivel del esquema (la planificación, por ejemplo INTERNO) y "
+          "sus subtareas; la planificación indicada está debajo de otra tarea.",
+          "Indicar en planificacion una tarea de primer nivel, o dejarla vacía para usar todo el proyecto."),
+    _code("CLI-002", F, "Ninguna tarea se muestra al cliente",
+          "Ninguna tarea de la planificación tiene Sí en el campo de [cliente] campo (en ella y en todas sus tareas "
+          "superiores).",
+          "Revisar el campo configurado en [cliente] campo y marcar con Sí las tareas que debe ver el cliente, "
+          "empezando por las de primer nivel de la planificación."),
+    _code("CLI-003", W, "Valor no reconocido en el campo del cliente",
+          "El campo de [cliente] campo tiene un valor que no es Sí ni No (por ejemplo, un error de escritura): la "
+          "tarea no se muestra.",
+          "Corregir el valor (Sí o No). El informe de control indica las tareas."),
+    _code("CLI-004", W, "Tarea con Sí debajo de una tarea sin Sí",
+          "La tarea tiene Sí, pero una tarea superior no: no se muestra, con sus subtareas. Una tarea solo se muestra "
+          "si ella y todas sus tareas superiores tienen Sí.",
+          "Si se debe mostrar, poner Sí también en sus tareas superiores; si no, quitarle el Sí."),
+    _code("CLI-005", I, "Resúmenes que pasan a ser tareas",
+          "No se muestra ninguna subtarea del resumen: en el archivo del cliente pasa a ser una tarea con sus fechas, "
+          "su duración, su avance y sus líneas base, y recibe los vínculos de sus subtareas.",
+          "Ninguna, si el cliente no debe ver ese detalle. El informe de control los lista."),
+    _code("CLI-006", I, "Vínculos nuevos en la planificación del cliente",
+          "Vínculos que reemplazan a los que pasan por tareas ocultas (puentes) o que pasan de una subtarea a su "
+          "resumen convertido. Si un vínculo retrasaría a su sucesora respecto de la planificación interna, su "
+          "posición se ajusta a las fechas actuales.",
+          "Ninguna. El informe de control indica cada vínculo, su tipo y su posición."),
+    _code("CLI-007", W, "Vínculos que no se crean",
+          "El vínculo puente uniría un resumen con una de sus subtareas, o cerraría un ciclo con los vínculos que ya "
+          "tienen las tareas: MS Project no lo admite.",
+          "Revisar en el informe de control la lógica de esas tareas en la planificación interna."),
+    _code("CLI-008", I, "Resúmenes que cambian de fechas",
+          "Una subtarea que no se muestra fija el comienzo o el fin del resumen: en el archivo del cliente, el resumen "
+          "va de la primera a la última de las subtareas que se muestran.",
+          "Ninguna, si es lo esperado. El informe de control indica las fechas."),
+    _code("CLI-009", F, "Varios archivos en generar-cliente",
+          "La configuración tiene secciones [[proyectos]]: generar-cliente trabaja con un solo archivo de MS Project.",
+          "Usar una configuración sin [[proyectos]] e indicar el archivo con --origen."),
+    _code("CLI-010", F, "La generación necesita el archivo .mpp",
+          "El archivo del cliente se genera con MS Project a partir de una copia del .mpp de la planificación "
+          "interna. Con un XML o con 'activo' solo se puede simular.",
+          "Indicar en --origen el archivo .mpp, o usar --simular para ver los cambios sin generar el archivo."),
+    _code("CLI-011", F, "El destino es el archivo de origen",
+          "--destino indica el mismo archivo que --origen: la planificación interna nunca se modifica.",
+          "Indicar otro archivo en --destino (por defecto, <origen>_cliente.mpp)."),
+    _code("CLI-012", W, "El origen está abierto en MS Project",
+          "El archivo de la planificación interna está abierto en MS Project: se copia la versión guardada en el "
+          "disco, sin los cambios que no se guardaron.",
+          "Guardar el archivo en MS Project y volver a generar el archivo del cliente si había cambios sin guardar."),
+    _code("CLI-013", I, "Fechas fijadas en el archivo del cliente",
+          "Sin las tareas ocultas, MS Project adelantaba estas tareas: su comienzo se fijó con la delimitación «No "
+          "comenzar antes del» en la fecha de la planificación interna ([cliente] fijar_fechas).",
+          "Ninguna. El informe de control lista las tareas."),
+    _code("CLI-014", W, "Fechas distintas de la planificación interna",
+          "Después de recalcular, estas tareas del archivo del cliente no tienen las fechas de la planificación "
+          "interna y no se pudieron fijar: están comenzadas o terminadas, tienen otra delimitación, se atrasan, o "
+          "fijar_fechas = false.",
+          "Revisar en el informe de control el motivo de cada tarea y, si hace falta, la lógica de la planificación "
+          "interna."),
+    _code("CLI-015", W, "Vínculos que MS Project no aceptó",
+          "MS Project rechazó un vínculo nuevo (por ejemplo, porque cerraría un ciclo con un resumen).",
+          "Revisar en el informe de control el error de cada vínculo. Las fechas de sus tareas se comparan igual."),
+    _code("CLI-016", I, "Vínculos creados por MS Project al borrar tareas",
+          "Al borrar las tareas ocultas, MS Project vinculó las tareas de alrededor (vinculación automática). Esos "
+          "vínculos no son de la planificación interna y se quitaron.",
+          "Ninguna."),
+    _code("CLI-017", W, "No se pudo quitar el nombre del campo del cliente",
+          "Los valores del campo se vaciaron en todas las tareas, pero MS Project no permitió quitar su nombre "
+          "(alias): el cliente puede ver el campo, vacío, en la lista de campos.",
+          "Quitar el nombre a mano en el archivo del cliente (Proyecto > Campos personalizados) o revisar el "
+          "registro de diagnóstico."),
+    _code("CLI-018", F, "Error de MS Project al generar el archivo del cliente",
+          "MS Project devolvió un error en uno de los pasos (borrar tareas, vincular, recalcular, guardar...) o el "
+          "resultado no es el esperado (por ejemplo, quedan tareas que no se muestran). No se genera el archivo del "
+          "cliente; la planificación interna no se modifica.",
+          "Volver a ejecutar con --registro RUTA y revisar el paso y el error en el registro de diagnóstico."),
+    _code("CLI-019", W, "Resúmenes convertidos con datos sin restaurar",
+          "Al pasar de resumen a tarea, MS Project cambió la duración, el avance o una línea base del resumen y no "
+          "aceptó el valor original.",
+          "Revisar esas tareas en el archivo del cliente (el informe de control indica el dato)."),
 
     # --- SIS: errores del sistema -------------------------------------------------------------------------------
     _code("SIS-001", F, "Error inesperado",

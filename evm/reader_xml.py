@@ -126,9 +126,10 @@ def _resolve(name: str, defs: dict[int, tuple[str, str]]) -> tuple[str, object] 
     return None
 
 
-def read_xml(path: str | Path, cfg: Config, links: bool = True) -> ProjectData:
-    """links: lee los vínculos y las delimitaciones de las tareas (solo los usan validar y generar-fichas; como con
-    COM, donde son varias llamadas a MS Project por tarea)."""
+def read_xml(path: str | Path, cfg: Config, links: bool = True, client: bool = False) -> ProjectData:
+    """links: lee los vínculos y las delimitaciones de las tareas (solo los usan validar, generar-fichas y
+    generar-cliente; como con COM, donde son varias llamadas a MS Project por tarea). client: lee el campo de
+    [cliente] campo (generar-cliente)."""
     path = Path(path)
     try:
         tree = ET.parse(path)
@@ -178,6 +179,9 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True) -> ProjectData:
     if cfg.description_field and description_ref is None:
         warnings.append(Issue("LEC-014", message=f"No se encontró el campo de descripción '{cfg.description_field}' en "
                                                  "el XML: las fichas de tareas no tienen descripción."))
+    client_ref = _resolve(cfg.client_field, defs) if client and cfg.client_field else None
+    if client_ref is not None:
+        found["cliente"] = cfg.client_field
     company_ref = split_ref = None
     if cfg.multi_enabled:
         company_ref = _resolve(cfg.company_field, defs)
@@ -281,7 +285,9 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True) -> ProjectData:
             weight = parse_number(value_of(weight_ref))
         company = value_of(company_ref).strip() if company_ref is not None else ""
         split_a = parse_number(value_of(split_ref)) if split_ref is not None else None
-        predecessors = [Link(r.integer(lk, "PredecessorUID", -1), r.integer(lk, "Type", 1), r.num(lk, "LinkLag"))
+        # <LinkLag> está en décimas de minuto
+        predecessors = [Link(r.integer(lk, "PredecessorUID", -1), r.integer(lk, "Type", 1), r.num(lk, "LinkLag") / 10,
+                             r.integer(lk, "LagFormat", 7))
                         for lk in el.findall(r.q("PredecessorLink"))] if links else []
 
         task = Task(
@@ -304,7 +310,7 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True) -> ProjectData:
             calendar=own_calendar,
             method=value_of(method_ref).strip(), milestone_weight=weight,
             company=company, split_a=split_a, visible=value_of(visible_ref).strip(),
-            description=value_of(description_ref).strip(),
+            description=value_of(description_ref).strip(), client_mark=value_of(client_ref).strip(),
         )
         tasks.append(task)
 

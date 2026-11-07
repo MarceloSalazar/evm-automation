@@ -33,7 +33,8 @@ cómo **silenciar** las observaciones que ya se revisaron y no se quieren volver
    13. [Depuración de costes](#413-dep--depuración-de-costes)
    14. [Actualizar y analizar](#414-act--actualizar-y-analizar)
    15. [Fichas de tareas](#415-fic--fichas-de-tareas)
-   16. [Errores del sistema](#416-sis--errores-del-sistema)
+   16. [Planificación para el cliente](#416-cli--planificación-para-el-cliente)
+   17. [Errores del sistema](#417-sis--errores-del-sistema)
 
 ---
 
@@ -102,8 +103,8 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 
 | Área | Nombre | Tema en la hoja Validación | Dónde aparecen | Códigos |
 |---|---|---|---|---|
-| [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 53 |
-| [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 25 |
+| [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 54 |
+| [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 26 |
 | [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 22 |
 | [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 10 |
 | [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 17 |
@@ -117,7 +118,8 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 18 |
 | [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 51 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
-| [SIS](#416-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
+| [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 19 |
+| [SIS](#417-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
 
 ---
 
@@ -182,6 +184,7 @@ Archivo de configuración, opciones de la línea de comandos, horizonte y códig
 | [CFG-051](#cfg-051) | Error (detiene el programa) | No existe la carpeta de salida |
 | [CFG-052](#cfg-052) | Advertencia | Fin previsto posterior al último mes |
 | [CFG-053](#cfg-053) | Error (detiene el programa) | Varias planificaciones fuera de validar |
+| [CFG-054](#cfg-054) | Error (detiene el programa) | Falta el campo del cliente |
 
 #### CFG-001
 
@@ -497,7 +500,7 @@ Con `[[proyectos]]`, `--origen` debe ser NOMBRE=RUTA, con el nombre de uno de lo
 
 #### CFG-040
 
-**Falta `--salida` con varios archivos** · Error (detiene el programa) · generar, generar-fichas y validar `--informe` · no se puede silenciar
+**Falta `--salida` con varios archivos** · Error (detiene el programa) · generar, generar-fichas, generar-cliente y validar `--informe` · no se puede silenciar
 
 Con varios archivos no hay un nombre de salida por defecto.
 
@@ -505,17 +508,17 @@ Con varios archivos no hay un nombre de salida por defecto.
 
 #### CFG-041
 
-**Extensión del archivo de salida no válida** · Error (detiene el programa) · generar, generar-fichas y validar `--informe` · no se puede silenciar
+**Extensión del archivo de salida no válida** · Error (detiene el programa) · generar, generar-fichas, generar-cliente y validar `--informe` · no se puede silenciar
 
-El libro se guarda como .xlsx; las fichas y el informe de mejoras de validar, como .md.
+El libro se guarda como .xlsx; las fichas, el informe de mejoras de validar y el informe de control de generar-cliente, como .md; la planificación del cliente, como .mpp.
 
-**Qué hacer:** Indicar `--salida` (o `--informe`) con la extensión que corresponde.
+**Qué hacer:** Indicar `--salida` (o `--informe` o `--destino`) con la extensión que corresponde.
 
 #### CFG-042
 
-**El archivo de salida ya existe** · Error (detiene el programa) · generar, generar-fichas y validar `--informe` · no se puede silenciar
+**El archivo de salida ya existe** · Error (detiene el programa) · generar, generar-fichas, generar-cliente y validar `--informe` · no se puede silenciar
 
-El archivo de `--salida` (o de `--informe`) existe y no se indicó `--sobrescribir`.
+El archivo de `--salida` (o de `--informe` o `--destino`) existe y no se indicó `--sobrescribir`.
 
 **Qué hacer:** Usar `--sobrescribir` para reemplazarlo o indicar otro nombre. Para conservar los EV/AC cargados en un libro, se genera un archivo nuevo con `--migrar-desde`.
 
@@ -585,7 +588,7 @@ Resumen de las observaciones que no se muestran por `[validacion] silenciar` o `
 
 #### CFG-051
 
-**No existe la carpeta de salida** · Error (detiene el programa) · generar, generar-fichas y validar `--informe` · no se puede silenciar
+**No existe la carpeta de salida** · Error (detiene el programa) · generar, generar-fichas, generar-cliente y validar `--informe` · no se puede silenciar
 
 La carpeta del archivo indicado en `--salida` no existe.
 
@@ -606,6 +609,14 @@ El fin previsto del cronograma actual (las fechas de las tareas de las filas del
 Se indicaron varias planificaciones separadas por comas (p. ej. INTERNO,CLIENTE): solo validar las revisa, una por una, y con un solo archivo (sin `[[proyectos]]`).
 
 **Qué hacer:** Indicar una sola planificación en planificacion o `--planificacion`; para revisar varias, usar validar `--planificacion` INTERNO,CLIENTE.
+
+#### CFG-054
+
+**Falta el campo del cliente** · Error (detiene el programa) · generar-cliente · no se puede silenciar
+
+generar-cliente necesita el campo de MS Project que indica qué tareas se muestran al cliente.
+
+**Qué hacer:** Indicarlo en [cliente] campo, por ejemplo campo = "Etiqueta Cliente" (ver `config.ejemplo.toml`).
 
 ---
 
@@ -640,6 +651,7 @@ Apertura del archivo .mpp o .xml y campos configurados que no se encuentran o es
 | [LEC-023](#lec-023) | Advertencia | Campo de reparto vacío |
 | [LEC-024](#lec-024) | Info | Líneas base guardadas |
 | [LEC-025](#lec-025) | Advertencia | Calendario del proyecto no leído |
+| [LEC-026](#lec-026) | Error (detiene el programa) | No se encontró el campo del cliente |
 
 #### LEC-001
 
@@ -840,6 +852,14 @@ Líneas base guardadas y la que usa el % planificado: la cantidad de tareas revi
 Con un .mpp, MS Project no devolvió el calendario del proyecto (la jornada de cada día de la semana y los días no laborables) como se esperaba: el % planificado se reparte con un calendario de lunes a viernes, de 8:00 a 12:00 y de 13:00 a 17:00, y los feriados de la configuración.
 
 **Qué hacer:** Comparar con el resultado del XML del mismo proyecto (Archivo > Guardar como > XML), que lee el calendario del archivo, y usar el XML si difieren.
+
+#### LEC-026
+
+**No se encontró el campo del cliente** · Error (detiene el programa) · generar-cliente · no se puede silenciar
+
+El campo de [cliente] campo no existe en el archivo de MS Project, ni con ese nombre ni como alias: no se puede saber qué tareas se muestran al cliente.
+
+**Qué hacer:** Revisar el nombre del campo en [cliente] campo (el alias, por ejemplo "Etiqueta Cliente", o el nombre, por ejemplo "Text15").
 
 ---
 
@@ -2886,7 +2906,187 @@ El cronograma tiene errores (por ejemplo, códigos EDT duplicados) que pueden af
 
 ---
 
-### 4.16 SIS · Errores del sistema
+### 4.16 CLI · Planificación para el cliente
+
+Comando generar-cliente: tareas que se muestran al cliente, resúmenes convertidos y vínculos nuevos.
+
+| Código | Severidad | Descripción |
+|---|---|---|
+| [CLI-001](#cli-001) | Error (detiene el programa) | La planificación no es de primer nivel |
+| [CLI-002](#cli-002) | Error (detiene el programa) | Ninguna tarea se muestra al cliente |
+| [CLI-003](#cli-003) | Advertencia | Valor no reconocido en el campo del cliente |
+| [CLI-004](#cli-004) | Advertencia | Tarea con Sí debajo de una tarea sin Sí |
+| [CLI-005](#cli-005) | Info | Resúmenes que pasan a ser tareas |
+| [CLI-006](#cli-006) | Info | Vínculos nuevos en la planificación del cliente |
+| [CLI-007](#cli-007) | Advertencia | Vínculos que no se crean |
+| [CLI-008](#cli-008) | Info | Resúmenes que cambian de fechas |
+| [CLI-009](#cli-009) | Error (detiene el programa) | Varios archivos en generar-cliente |
+| [CLI-010](#cli-010) | Error (detiene el programa) | La generación necesita el archivo .mpp |
+| [CLI-011](#cli-011) | Error (detiene el programa) | El destino es el archivo de origen |
+| [CLI-012](#cli-012) | Advertencia | El origen está abierto en MS Project |
+| [CLI-013](#cli-013) | Info | Fechas fijadas en el archivo del cliente |
+| [CLI-014](#cli-014) | Advertencia | Fechas distintas de la planificación interna |
+| [CLI-015](#cli-015) | Advertencia | Vínculos que MS Project no aceptó |
+| [CLI-016](#cli-016) | Info | Vínculos creados por MS Project al borrar tareas |
+| [CLI-017](#cli-017) | Advertencia | No se pudo quitar el nombre del campo del cliente |
+| [CLI-018](#cli-018) | Error (detiene el programa) | Error de MS Project al generar el archivo del cliente |
+| [CLI-019](#cli-019) | Advertencia | Resúmenes convertidos con datos sin restaurar |
+
+#### CLI-001
+
+**La planificación no es de primer nivel** · Error (detiene el programa) · generar-cliente · no se puede silenciar
+
+generar-cliente parte de una tarea de primer nivel del esquema (la planificación, por ejemplo INTERNO) y sus subtareas; la planificación indicada está debajo de otra tarea.
+
+**Qué hacer:** Indicar en planificacion una tarea de primer nivel, o dejarla vacía para usar todo el proyecto.
+
+#### CLI-002
+
+**Ninguna tarea se muestra al cliente** · Error (detiene el programa) · generar-cliente · no se puede silenciar
+
+Ninguna tarea de la planificación tiene Sí en el campo de [cliente] campo (en ella y en todas sus tareas superiores).
+
+**Qué hacer:** Revisar el campo configurado en [cliente] campo y marcar con Sí las tareas que debe ver el cliente, empezando por las de primer nivel de la planificación.
+
+#### CLI-003
+
+**Valor no reconocido en el campo del cliente** · Advertencia · generar-cliente · se puede silenciar
+
+El campo de [cliente] campo tiene un valor que no es Sí ni No (por ejemplo, un error de escritura): la tarea no se muestra.
+
+**Qué hacer:** Corregir el valor (Sí o No). El informe de control indica las tareas.
+
+#### CLI-004
+
+**Tarea con Sí debajo de una tarea sin Sí** · Advertencia · generar-cliente · se puede silenciar
+
+La tarea tiene Sí, pero una tarea superior no: no se muestra, con sus subtareas. Una tarea solo se muestra si ella y todas sus tareas superiores tienen Sí.
+
+**Qué hacer:** Si se debe mostrar, poner Sí también en sus tareas superiores; si no, quitarle el Sí.
+
+#### CLI-005
+
+**Resúmenes que pasan a ser tareas** · Info · generar-cliente · se puede silenciar
+
+No se muestra ninguna subtarea del resumen: en el archivo del cliente pasa a ser una tarea con sus fechas, su duración, su avance y sus líneas base, y recibe los vínculos de sus subtareas.
+
+**Qué hacer:** Ninguna, si el cliente no debe ver ese detalle. El informe de control los lista.
+
+#### CLI-006
+
+**Vínculos nuevos en la planificación del cliente** · Info · generar-cliente · se puede silenciar
+
+Vínculos que reemplazan a los que pasan por tareas ocultas (puentes) o que pasan de una subtarea a su resumen convertido. Si un vínculo retrasaría a su sucesora respecto de la planificación interna, su posición se ajusta a las fechas actuales.
+
+**Qué hacer:** Ninguna. El informe de control indica cada vínculo, su tipo y su posición.
+
+#### CLI-007
+
+**Vínculos que no se crean** · Advertencia · generar-cliente · se puede silenciar
+
+El vínculo puente uniría un resumen con una de sus subtareas, o cerraría un ciclo con los vínculos que ya tienen las tareas: MS Project no lo admite.
+
+**Qué hacer:** Revisar en el informe de control la lógica de esas tareas en la planificación interna.
+
+#### CLI-008
+
+**Resúmenes que cambian de fechas** · Info · generar-cliente · se puede silenciar
+
+Una subtarea que no se muestra fija el comienzo o el fin del resumen: en el archivo del cliente, el resumen va de la primera a la última de las subtareas que se muestran.
+
+**Qué hacer:** Ninguna, si es lo esperado. El informe de control indica las fechas.
+
+#### CLI-009
+
+**Varios archivos en generar-cliente** · Error (detiene el programa) · generar-cliente · no se puede silenciar
+
+La configuración tiene secciones `[[proyectos]]`: generar-cliente trabaja con un solo archivo de MS Project.
+
+**Qué hacer:** Usar una configuración sin `[[proyectos]]` e indicar el archivo con `--origen`.
+
+#### CLI-010
+
+**La generación necesita el archivo .mpp** · Error (detiene el programa) · generar-cliente · no se puede silenciar
+
+El archivo del cliente se genera con MS Project a partir de una copia del .mpp de la planificación interna. Con un XML o con 'activo' solo se puede simular.
+
+**Qué hacer:** Indicar en `--origen` el archivo .mpp, o usar `--simular` para ver los cambios sin generar el archivo.
+
+#### CLI-011
+
+**El destino es el archivo de origen** · Error (detiene el programa) · generar-cliente · no se puede silenciar
+
+`--destino` indica el mismo archivo que `--origen`: la planificación interna nunca se modifica.
+
+**Qué hacer:** Indicar otro archivo en `--destino` (por defecto, <origen>_cliente.mpp).
+
+#### CLI-012
+
+**El origen está abierto en MS Project** · Advertencia · generar-cliente · se puede silenciar
+
+El archivo de la planificación interna está abierto en MS Project: se copia la versión guardada en el disco, sin los cambios que no se guardaron.
+
+**Qué hacer:** Guardar el archivo en MS Project y volver a generar el archivo del cliente si había cambios sin guardar.
+
+#### CLI-013
+
+**Fechas fijadas en el archivo del cliente** · Info · generar-cliente · se puede silenciar
+
+Sin las tareas ocultas, MS Project adelantaba estas tareas: su comienzo se fijó con la delimitación «No comenzar antes del» en la fecha de la planificación interna ([cliente] fijar_fechas).
+
+**Qué hacer:** Ninguna. El informe de control lista las tareas.
+
+#### CLI-014
+
+**Fechas distintas de la planificación interna** · Advertencia · generar-cliente · se puede silenciar
+
+Después de recalcular, estas tareas del archivo del cliente no tienen las fechas de la planificación interna y no se pudieron fijar: están comenzadas o terminadas, tienen otra delimitación, se atrasan, o fijar_fechas = false.
+
+**Qué hacer:** Revisar en el informe de control el motivo de cada tarea y, si hace falta, la lógica de la planificación interna.
+
+#### CLI-015
+
+**Vínculos que MS Project no aceptó** · Advertencia · generar-cliente · se puede silenciar
+
+MS Project rechazó un vínculo nuevo (por ejemplo, porque cerraría un ciclo con un resumen).
+
+**Qué hacer:** Revisar en el informe de control el error de cada vínculo. Las fechas de sus tareas se comparan igual.
+
+#### CLI-016
+
+**Vínculos creados por MS Project al borrar tareas** · Info · generar-cliente · se puede silenciar
+
+Al borrar las tareas ocultas, MS Project vinculó las tareas de alrededor (vinculación automática). Esos vínculos no son de la planificación interna y se quitaron.
+
+**Qué hacer:** Ninguna.
+
+#### CLI-017
+
+**No se pudo quitar el nombre del campo del cliente** · Advertencia · generar-cliente · se puede silenciar
+
+Los valores del campo se vaciaron en todas las tareas, pero MS Project no permitió quitar su nombre (alias): el cliente puede ver el campo, vacío, en la lista de campos.
+
+**Qué hacer:** Quitar el nombre a mano en el archivo del cliente (Proyecto > Campos personalizados) o revisar el registro de diagnóstico.
+
+#### CLI-018
+
+**Error de MS Project al generar el archivo del cliente** · Error (detiene el programa) · generar-cliente · no se puede silenciar
+
+MS Project devolvió un error en uno de los pasos (borrar tareas, vincular, recalcular, guardar...) o el resultado no es el esperado (por ejemplo, quedan tareas que no se muestran). No se genera el archivo del cliente; la planificación interna no se modifica.
+
+**Qué hacer:** Volver a ejecutar con `--registro` RUTA y revisar el paso y el error en el registro de diagnóstico.
+
+#### CLI-019
+
+**Resúmenes convertidos con datos sin restaurar** · Advertencia · generar-cliente · se puede silenciar
+
+Al pasar de resumen a tarea, MS Project cambió la duración, el avance o una línea base del resumen y no aceptó el valor original.
+
+**Qué hacer:** Revisar esas tareas en el archivo del cliente (el informe de control indica el dato).
+
+---
+
+### 4.17 SIS · Errores del sistema
 
 Errores de archivos del sistema y errores inesperados del programa.
 

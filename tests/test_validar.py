@@ -599,7 +599,7 @@ def test_xml_reads_schedule_fields(tmp_path):
     a, b = p.tasks
     assert (a.duration, a.estimated, a.manual, a.constraint_type) == (28800, True, True, CONSTRAINT_MSO)
     assert a.constraint_date == datetime(2026, 1, 5, 8) and a.predecessors == []
-    assert b.duration == 0 and b.predecessors == [Link(1, LINK_SS, -4800)]
+    assert b.duration == 0 and b.predecessors == [Link(1, LINK_SS, -480)]      # <LinkLag> en décimas de minuto
     assert p.fields_found == {"metodo": "Método EVM", "peso_hito": "Peso hito"}
 
 

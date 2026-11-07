@@ -18,7 +18,19 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Nuevas funciones
 
-- Ninguna.
+- **Planificación para el cliente (`generar-cliente`).** Genera, a partir del `.mpp` de la planificación
+  interna, el `.mpp` que se entrega al cliente: solo las tareas con `Sí` (`Si` o `S`) en el campo de
+  `[cliente] campo` y en sus tareas superiores, los resúmenes sin tareas visibles convertidos en tareas, los
+  vínculos de sus subtareas pasados al resumen y vínculos puente en lugar de los caminos por tareas
+  ocultas. MS Project trabaja sobre una copia (la planificación interna no se modifica), recalcula y fija
+  con *No comenzar antes del* las fechas que se adelantarían; el campo del cliente se vacía y el archivo
+  queda de solo lectura. Con `--simular` (también con el XML) solo calcula los cambios. Escribe un informe
+  de control interno, sin nombres de tareas. Nueva sección `[cliente]` de la configuración, códigos
+  `CFG-054`, `LEC-026` y `CLI-001` a `CLI-019`, documento
+  [Planificación para el cliente](docs/generar-cliente.md) y pruebas con MS Project real
+  (`tests/test_msproject_cliente.py`).
+- **Registro de diagnóstico en un archivo (`--registro RUTA`).** Todos los comandos pueden escribir el
+  registro completo, con fecha y hora y el detalle de los errores, sin cambiar lo que muestra la consola.
 
 ### Correcciones
 

@@ -253,9 +253,9 @@ def test_generar_and_actualizar_do_not_read_links(tmp_path, monkeypatch):
     seen = []
     original = reader.read_xml
 
-    def spy(path, cfg, links=True):
+    def spy(path, cfg, links=True, client=False):
         seen.append(links)
-        return original(path, cfg, links=links)
+        return original(path, cfg, links=links, client=client)
 
     monkeypatch.setattr(reader, "read_xml", spy)
     path = write_xml(tmp_path / "p.xml", project_xml([

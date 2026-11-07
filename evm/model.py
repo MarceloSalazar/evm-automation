@@ -26,7 +26,10 @@ class Link:
 
     uid: int                            # UniqueID de la predecesora
     kind: int = LINK_FS                 # LINK_FF, LINK_FS, LINK_SF o LINK_SS
-    lag: float = 0.0                    # posición (negativa = adelanto); solo se usa su signo
+    lag: float = 0.0                    # posición en minutos (negativa = adelanto)
+    # Formato de la posición (<LagFormat> del XML, LagType de COM; 7 = días, 8 = días transcurridos, 19 = %...). Con
+    # COM solo se lee en generar-cliente
+    lag_format: int = 7
 
 
 @dataclass
@@ -83,6 +86,7 @@ class Task:
     split_a: float | None = None        # multi-empresa: % de la empresa A en tareas "Ambas"
     visible: str = ""                   # campo "Visible": "Sí", "No" o vacío (texto tal como está en MS Project)
     description: str = ""               # campo de descripción de las fichas de tareas (p. ej. las notas)
+    client_mark: str = ""               # campo de [cliente] campo (solo generar-cliente): "Sí" = la ve el cliente
 
     # Estructura (la completa wbs.build_tree)
     parent: "Task | None" = field(default=None, repr=False)

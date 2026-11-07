@@ -155,6 +155,11 @@ class Config:
     # silenciar (y --silenciar): códigos de las observaciones que no se muestran ('FEC-003' o 'FEC-003:1.2.3')
     silence: list[str] = field(default_factory=list)
 
+    # [cliente] -- planificación para el cliente (generar-cliente)
+    client_field: str = ""                # campo: "Sí" = la tarea se muestra al cliente (con sus superiores en Sí)
+    client_plan_name: str = "CLIENTE"     # nombre de la tarea de la planificación en el archivo ("" = el suyo)
+    client_fix_dates: bool = True         # fija con "No comenzar antes del" las fechas que cambian al quitar tareas
+
     # [[proyectos]] -- varios archivos de MS Project en un mismo libro (vacío = un solo archivo)
     projects: list[ProjectSpec] = field(default_factory=list)
     title: str = ""                       # [exportacion] titulo: título del informe ("" = nombre del proyecto)
@@ -460,6 +465,11 @@ def load_config(path: str | Path | None) -> Config:
     cfg.company_both = _get(mul, "ambas", cfg.company_both, str).strip()
     cfg.split_field = _get(mul, "campo_reparto", cfg.split_field, str).strip()
     cfg.split_default = _get(mul, "reparto_por_defecto", cfg.split_default, float)
+
+    cli = _section(data, "cliente")
+    cfg.client_field = _get(cli, "campo", cfg.client_field, str).strip()
+    cfg.client_plan_name = _get(cli, "nombre_planificacion", cfg.client_plan_name, str).strip()
+    cfg.client_fix_dates = _get(cli, "fijar_fechas", cfg.client_fix_dates, bool)
 
     cfg.projects = _projects(data, path.parent)
 

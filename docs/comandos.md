@@ -2,12 +2,13 @@
 
 [Inicio](../README.md) › [Documentación](README.md) › Comandos y opciones
 
-El programa tiene seis comandos: `validar` (revisa el archivo de MS Project sin crear ningún
+El programa tiene siete comandos: `validar` (revisa el archivo de MS Project sin crear ningún
 archivo), `generar` (crea el libro con el % planificado de cada mes), `actualizar` (carga el % ganado
 de un mes), `analizar` (actualiza la hoja `Análisis de desviaciones` sin leer MS Project),
-`generar-fichas` (crea un documento con la ficha de cada tarea para el cliente) y `procesar-costes`
+`generar-fichas` (crea un documento con la ficha de cada tarea para el cliente), `procesar-costes`
 (lleva el reparto mensual del plan de costes de una empresa al % planificado, en un libro con
-[depuración de costes](depuracion-costes.md)). El BAC y el AC se ingresan a mano en el libro
+[depuración de costes](depuracion-costes.md)) y `generar-cliente` (genera el `.mpp` del cliente a partir
+de la planificación interna; ver [Planificación para el cliente](generar-cliente.md)). El BAC y el AC se ingresan a mano en el libro
 ([Cálculo del PV y el EV](calculo-pv-ev.md)). La ayuda se obtiene con:
 
 ```powershell
@@ -18,13 +19,16 @@ python evm_export.py actualizar --help
 python evm_export.py analizar --help
 python evm_export.py generar-fichas --help
 python evm_export.py procesar-costes --help
+python evm_export.py generar-cliente --help
 ```
 
 Con el [instalador de Windows](../README.md#opción-1-instalador-para-windows-sin-python), el programa se
 ejecuta con `evm_export` en lugar de `python evm_export.py` (por ejemplo, `evm_export generar --help`).
 
 Para ver mensajes de diagnóstico se agrega `-v` **antes** del comando:
-`python evm_export.py -v generar ...`
+`python evm_export.py -v generar ...`. Para guardarlos en un archivo, con la fecha y la hora y el detalle
+técnico de los errores, sin cambiar lo que muestra la consola: `python evm_export.py --registro
+diagnostico.log generar ...`.
 
 Todos los comandos muestran en la primera línea la versión del programa (`Exportador EVM 2.5.0`). En
 una consola, mientras trabajan, muestran también una barra de progreso con el % del total, el tiempo
@@ -521,6 +525,21 @@ El documento se abre con cualquier editor o visor de Markdown (por ejemplo, Visu
 enviarlo en Word o PDF se puede convertir, por ejemplo, con [Pandoc](https://pandoc.org/):
 `pandoc Fichas_Programa.md -o Fichas_Programa.docx`. Los títulos de las fichas pasan a ser títulos de
 Word, con los que se puede insertar un índice.
+
+---
+
+## `generar-cliente`: planificación para el cliente
+
+```powershell
+python evm_export.py generar-cliente --origen "C:\Programa\INTERNO.mpp" --config config.toml --destino "C:\Entregas\CLIENTE 2026-10.mpp"
+```
+
+Genera, a partir de la planificación interna, el `.mpp` que se entrega al cliente: solo las tareas con
+`Sí` en el campo de `[cliente] campo` (y en sus tareas superiores), con la lógica rehecha sin las tareas
+ocultas y las mismas fechas. La planificación interna no se modifica: MS Project trabaja sobre una copia.
+El archivo del cliente queda de solo lectura, y junto a él se escribe un informe de control interno
+(`<destino>_control.md`). Con `--simular` solo calcula los cambios y escribe el informe; admite el XML. Ver
+[Planificación para el cliente](generar-cliente.md).
 
 ---
 
