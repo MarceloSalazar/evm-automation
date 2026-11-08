@@ -30,7 +30,7 @@ Para ver mensajes de diagnóstico se agrega `-v` **antes** del comando:
 técnico de los errores, sin cambiar lo que muestra la consola: `python evm_export.py --registro
 diagnostico.log generar ...`.
 
-Todos los comandos muestran en la primera línea la versión del programa (`Exportador EVM 2.5.0`). En
+Todos los comandos muestran en la primera línea la versión del programa (`Exportador EVM 2.6.0`). En
 una consola, mientras trabajan, muestran también una barra de progreso con el % del total, el tiempo
 transcurrido, el tiempo restante estimado (ETA), la tarea en curso y el % de esa tarea:
 
@@ -110,7 +110,7 @@ Ejemplo de salida con el avance simulado del proyecto de ejemplo a junio de 2027
 [tutorial](ejemplo-paso-a-paso.md#2-configuración); se omiten algunas líneas):
 
 ```text
-Exportador EVM 2.5.0
+Exportador EVM 2.6.0
 Leyendo avance.xml ...
 Validación: Programa de ejemplo EVM
   Planificación: INTERNO  |  Línea base  |  Fecha de estado: 30/06/2027
@@ -245,7 +245,7 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 Ejemplo de salida con el proyecto de ejemplo (se omiten algunas líneas):
 
 ```text
-Exportador EVM 2.5.0
+Exportador EVM 2.6.0
 Leyendo ejemplos/programa_ejemplo.xml ...
 Proyecto: Programa de ejemplo EVM
   Planificación: INTERNO
@@ -319,7 +319,7 @@ python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config con
 Ejemplo de salida:
 
 ```text
-Exportador EVM 2.5.0
+Exportador EVM 2.6.0
 Leyendo ...\avance_2027-06.xml ...
 Fecha de corte: 30/06/2027 (mes 18 del horizonte)
 Observaciones por fila:
@@ -414,7 +414,7 @@ después del horizonte, filas sin línea en el plan, sin importes o sin BAC, EDT
 importes guardados como texto ([DEP-012 a DEP-020](codigos.md#413-dep--depuración-de-costes)).
 
 ```text
-Exportador EVM 2.5.0
+Exportador EVM 2.6.0
 Cálculos del plan de costes: 16 líneas de la hoja PV-depuración (sumas, EAC y BAC de las EDT cliente)
 Hoja: PV-EmpresaA  |  Plan de costes: 9 líneas de EDT cliente, 3 con fila de ingreso  |  Importe leído: 278
 Plan de costes en 3 de 5 filas de ingreso, 278 dentro del horizonte:
@@ -482,7 +482,7 @@ como predecesora y la de `1.2.1` muestra `1.2.3` como sucesora.
 Ejemplo de salida con el proyecto de ejemplo, que no tiene vínculos entre tareas:
 
 ```text
-Exportador EVM 2.5.0
+Exportador EVM 2.6.0
 Leyendo ejemplos/programa_ejemplo.xml ...
 Proyecto: Programa de ejemplo EVM
   Planificación: INTERNO

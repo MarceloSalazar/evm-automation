@@ -18,6 +18,20 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Nuevas funciones
 
+- Ninguna.
+
+### Correcciones
+
+- Ninguna.
+
+### Otros
+
+- Ninguna.
+
+## [2.6.0] - 2026-11-08 · Planificación para el cliente y plan de costes por EDT cliente
+
+### Nuevas funciones
+
 - **Planificación para el cliente (`generar-cliente`).** Genera, a partir del `.mpp` de la planificación
   interna, el `.mpp` que se entrega al cliente: el cliente ve las tareas con `Sí` (`Si` o `S`) en el campo
   de `[cliente] campo` y en sus tareas superiores. Por defecto (`[cliente] actividad_interna = true`), las
@@ -64,7 +78,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Otros
 
-- Ninguna.
+- Presentación: la versión en la portada. Capturas de la hoja `PV-depuración` actualizadas.
+- Instalador de Windows de nuevo en la publicación, con las funciones de las versiones 2.5.0 y 2.6.0.
 
 ## [2.5.0] - 2026-11-07 · Observaciones por prioridad, plan de costes en tres niveles y revisión de mejoras con validar
 
@@ -830,7 +845,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.5.0...HEAD
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.6.0...HEAD
+[2.6.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.1...v2.5.0
 [2.4.1]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.3.0...v2.4.0
