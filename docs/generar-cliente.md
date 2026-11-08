@@ -221,7 +221,8 @@ carpeta de destino y MS Project trabaja sobre la copia.
    vínculos nuevos (`CLI-015` si MS Project rechaza alguno).
 4. Vacía el campo del cliente en todas las tareas y quita su nombre (`CLI-017` si no puede). Con varias
    planificaciones, renombra además la interna.
-5. Recalcula y compara las fechas de cada tarea con las de la planificación interna. Fija con *No comenzar
+5. Recalcula y compara las fechas de cada tarea con las de la planificación interna (también las inactivas:
+   MS Project las sigue programando con sus predecesoras). Fija con *No comenzar
    antes del* las tareas sin comenzar que se adelantan (`CLI-013`) y quita los vínculos nuevos de las que
    se atrasan; repite el cálculo hasta que no hay cambios. Sin «Otras tareas», las que siguen distintas
    (comenzadas, con otra delimitación...) se informan (`CLI-014`) y se compara el % completado de cada

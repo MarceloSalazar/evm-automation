@@ -525,14 +525,16 @@ class _Writer:
     def _dates(self) -> None:
         """Recalcula y compara las fechas de cada tarea que se muestra (sin los resúmenes) con las de la planificación
         interna. Fija las que se adelantan (sin comenzar, sin otra delimitación) con «No comenzar antes del» y quita
-        los vínculos nuevos de las que se atrasan; repite hasta que no hay cambios."""
+        los vínculos nuevos de las que se atrasan; repite hasta que no hay cambios. También las tareas inactivas:
+        MS Project las sigue programando con sus predecesoras (aunque no muevan a sus sucesoras), así que se adelantan
+        si se borra una predecesora oculta."""
         progress.stage("fechas", "Cálculo y comparación de las fechas")
         collapsed = {t.uid for t in self.plan.collapsed}
         if self.plan.internal_activity:      # todas las tareas de detalle que quedan (las demás se comparan al final)
             keep = self.plan.remaining
-            targets = [t for t in self.plan.tasks if t.uid in keep and _active(t) and not t.children]
+            targets = [t for t in self.plan.tasks if t.uid in keep and not t.children]
         else:
-            targets = [t for t in self.plan.tasks if t.uid in self.plan.shown and _active(t)
+            targets = [t for t in self.plan.tasks if t.uid in self.plan.shown
                        and (t.uid in collapsed or not t.children)]
         fix = self.cfg.client_fix_dates
         fixed: dict[int, Task] = {}

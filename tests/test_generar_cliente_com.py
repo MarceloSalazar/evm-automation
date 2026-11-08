@@ -332,6 +332,17 @@ def test_generates_the_client_file_from_a_copy(tmp_path):
     assert result.comparison.generated and result.comparison.book.only_internal
 
 
+def test_inactive_task_that_moves_is_fixed(tmp_path):
+    """MS Project sigue programando una tarea inactiva con sus predecesoras: sin la oculta de la que depende, se
+    adelanta, y se fija como las demás."""
+    app, t = build()
+    t["c"].Active = False
+    _, _, plan, result = run(tmp_path, app)
+    assert 11 in plan.shown
+    assert [x.uid for x in result.fixed] == [11] and t["c"].ConstraintType == 4
+    assert t["c"].Start == d(8) and result.differences == []
+
+
 def test_single_plan_without_plan_task(tmp_path):
     """Una sola planificación, sin tarea de planificación: [exportacion] planificacion vacía, todo el proyecto."""
     p = FakeProject()
