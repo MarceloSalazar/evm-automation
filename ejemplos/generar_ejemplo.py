@@ -628,12 +628,12 @@ def fill_book(book_path: Path, status: date | None = None, projects: dict[str, i
 
 
 def fill_review(wb, meta: dict) -> int:
-    """Libro con depuración de costes: escribe en la hoja PV-depuración (si está vacía) una previsión ficticia de
-    la empresa, como la pegaría desde su plan de costes: el PV planificado de cada paquete con algunos meses
-    desplazados y algunos totales distintos del BAC. Cada EDT cliente lleva el total de sus líneas de EDT interna:
-    personal propio y subcontratas (PER01, SUB01...), hitos de pago en un paquete (HP-01...), subtareas en otro (y en
-    los paquetes «Otras tareas», XRF01...) y, en otro, una EDT interna (GPR03) con sus componentes de coste. Devuelve
-    la cantidad de líneas escritas."""
+    """Libro con depuración de costes: escribe en la hoja PV-depuración (si está vacía) un plan de costes ficticio de
+    la empresa, como lo escribiría en la hoja: el PV planificado de cada paquete con algunos meses desplazados y
+    algunos totales distintos del BAC. Cada EDT cliente lleva la suma de sus líneas: personal propio y subcontratas
+    (PER01, SUB01...), hitos de pago en un paquete (HP-01...), subtareas en otro (XRF01...) y, en otro, una EDT interna
+    (GPR03) con sus componentes de coste; las EDT cliente de los resúmenes, la suma de las de sus filas. Las filas
+    «Otras tareas» no tienen EDT cliente propia. Devuelve la cantidad de líneas escritas."""
     from evm import cost_review
     from evm.timeline import round_preserving_total
     from evm.workbook import FIRST_MONTH_COL, PCT_PREFIX, read_structure
@@ -649,9 +649,12 @@ def fill_review(wb, meta: dict) -> int:
     months = int(meta["meses"])
     shifts = [0, 1, 0, -1, 2, 0, 1, 0]
     scales = [1.0, 1.0, 0.95, 1.0, 1.0, 1.08, 1.0, 1.0]
-    lines: list[list] = []
+    structure = [s for s in read_structure(wb) if s.kind != "residual"]
+    # Líneas de EDT interna de cada paquete: código (None en un componente de coste), actividad, importes por mes
+    items_of: dict[int, list[tuple[str | None, str, list]]] = {}
+    total_of: dict[int, list[float]] = {}           # fila del libro -> importe de cada mes de su EDT cliente
     k = 0
-    for s in read_structure(wb):
+    for s in structure:
         bac = pv.cell(row=s.row, column=4).value
         if not s.is_input or not isinstance(bac, (int, float)) or bac <= 0:
             continue
@@ -660,12 +663,8 @@ def fill_review(wb, meta: dict) -> int:
         for i, v in enumerate(shares):
             moved[min(months - 1, max(0, i + shifts[k % len(shifts)]))] += v * bac * scales[k % len(scales)]
         values = round_preserving_total(moved, 0)
-        code, name = s.code, s.name
-        if s.kind == "residual":
-            code, name = s.code[:-2], s.name.replace("Otras tareas de ", "Subtareas de ")
-        # Líneas de EDT interna: código (None en un componente de coste), actividad, importes por mes
         items: list[tuple[str | None, str, list]] = []
-        if s.kind == "residual" or k == 4:  # subtareas
+        if k == 4:                          # subtareas
             parts = [values[:], [0.0] * months]
             for i, v in enumerate(values):
                 parts[0][i], parts[1][i] = round(v * 0.6), v - round(v * 0.6)
@@ -683,12 +682,23 @@ def fill_review(wb, meta: dict) -> int:
             items = [(f"PER{k + 1:02d}", "Personal propio", own),
                      (f"SUB{k + 1:02d}", "Subcontratas", [v - o for v, o in zip(values, own)])]
         leaves = items                      # líneas que se suman en la EDT cliente
-        if k == 2 and s.kind != "residual":     # EDT interna (subtotal) con sus componentes de coste (columna D)
+        if k == 2:                          # EDT interna (subtotal) con sus componentes de coste (columna D)
             items = [(f"GPR{k + 1:02d}", "Gestión del paquete", values)] + [(None, d, p) for _c, d, p in leaves]
-        total = [sum(p[i] for _c, _d, p in leaves) for i in range(months)]
-        lines.append([code, name, None, None, sum(total), sum(total)] + total)
-        lines += [[None, None, c, d, sum(p), sum(p)] + p for c, d, p in items]
+        items_of[s.row] = items
+        total_of[s.row] = [sum(p[i] for _c, _d, p in leaves) for i in range(months)]
         k += 1
+    for s in reversed(structure):           # resúmenes: la suma de las EDT cliente de sus filas
+        if s.parent_row is not None and s.row in total_of:
+            parent = total_of.setdefault(s.parent_row, [0.0] * months)
+            for i, v in enumerate(total_of[s.row]):
+                parent[i] += v
+    lines: list[list] = []
+    for s in structure:
+        total = total_of.get(s.row)
+        if total is None:
+            continue
+        lines.append([s.code, s.name, None, None, sum(total), sum(total)] + total)
+        lines += [[None, None, c, d, sum(p), sum(p)] + p for c, d, p in items_of.get(s.row, [])]
     for r, line in enumerate(lines, start=first):
         for c, v in enumerate(line, start=1):
             if v not in (None, 0, 0.0):

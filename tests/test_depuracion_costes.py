@@ -1,4 +1,4 @@
-"""Depuración de costes: filas «(coste)» con la previsión pegada en la hoja PV-depuración."""
+"""Depuración de costes: hoja PV-depuración, filas «(coste)» y comando procesar-costes."""
 import zipfile
 from datetime import date, datetime
 
@@ -13,7 +13,8 @@ from evm.messages import InputError
 from evm.migrate import plan_migration, prior_from_book
 from evm.update import indicators_for, read_book, run_analysis, run_update
 from evm.wbs import SEV_INFO, SEV_WARN, build_report
-from evm.workbook import COLOR_COST, FILL_COST, KIND_COST, SHEET_STRUCT, read_structure, write_workbook
+from evm.workbook import (COLOR_COST, FILL_COST, FILL_INPUT, KIND_COST, SHEET_STRUCT, read_structure,
+                          write_workbook)
 
 from builders import P, T, issues_with, rows_by_code
 
@@ -78,51 +79,48 @@ def paste(path, lines: list[list]) -> None:
     wb.save(path)
 
 
+
+
 def python_status(lines: list[list], wb) -> list:
-    """Columna 'Asignado a' según la asignación en Python de procesar-costes (cost_review.assign_lines)."""
+    """Columna 'Asignado a' según la lectura en Python de procesar-costes (cost_review.read_lines)."""
     structure = read_structure(wb)
     code = {s.row: s.code for s in structure}
     out = []
-    for x in cr.assign_lines(lines, cr.structure_table(structure)):
-        if not (x.numeric or x.child):
+    for x in cr.read_lines(lines, cr.structure_table(structure)):
+        if x.state == cr.STATE_OTHER:
             out.append(None)
-        elif x.subtotal:
-            out.append(cr.STATUS_SUBTOTAL)
-        elif x.target > 0:
-            out.append(code[x.target])
         else:
-            out.append(cr.STATUS_SUMMARY if x.target == cr.NO_ROW else cr.STATUS_NONE)
+            out.append(code[x.match] if x.state == cr.STATE_READ else cr.STATUS_OF[x.state])
     return out
 
 
 # Plan de costes en tres niveles, como el de la empresa: EDT cliente, EDT interna (GPR00) y componentes de coste
-# (solo la columna D)
-PLAN = [
-    [None, None, None, "Componente sin EDT cliente encima", None, None, 3],
-    ["1.0.0", "Gestión", None, None, 317, None],                                 # subtotal: códigos más detallados
-    ["1.1.0", "Dirección", None, None, 150, 157],                                # subtotal: EDT interna debajo
-    [None, None, "GPR00", "Lanzamiento", 150, 157, 31, 30, 39, 35, 22],          # subtotal de sus componentes
-    [None, None, None, "Costes indirectos X", 30, 40, 10, 9, 8, 7, 6],           # -> 1.1.0
-    [None, None, None, "Costes de gestión Y", 60, 77, 11, 11, 22, 22, 11],
-    [None, None, None, "Costes indirectos Y", 30, 19, 5, 5, 4, 3, 2],
-    [None, None, None, "Otros", 30, 21, 5, 5, 5, 3, 3],
-    ["1.2.1", "Licitación", None, None, 60, 60],                                 # subtotal
-    [None, None, "GPR01", "Pliegos", 40, 40],                                    # subtotal, sin importes propios
-    [None, None, None, "Personal", 30, 30, 10, 10, 10],                          # -> 1.2.1
-    [None, None, None, "Viajes", 10, 10, None, 10],
-    [None, None, "GPR02", "EDT interna sin componentes", 20, 20, None, None, 20],  # -> 1.2.1
-    ["1.2.2", "Obras", "GPR03", "Obra civil", None, None, 99],                   # subtotal con importes propios
-    ["1.2.2", "Obras", None, "Hormigón", None, None, 40, 40],                    # componente con la EDT cliente
-    [None, None, None, "Acero", None, None, 9],                                  # -> 1.2.2
-    [None, None, None, "Componente sin importes"],
-    [None, None, "GPR04", None, None, None, 7],                                  # -> 1.2.2
-    ["2.1", "Básica", None, None, 50, 50],                                       # subtotal: componente debajo
-    [None, None, None, "Componente sin EDT interna", 50, 50, None, 25, 25],      # -> 2.1.0
+# (solo la columna D). PLAN_DATA tiene solo los datos (celdas amarillas); calc_plan hace los cálculos (naranjas).
+PLAN_DATA = [   # EDT cliente, actividad EDT, EDT interna, actividad interna o componente, BAC, EAC, meses
+    ["1.0.0", "Gestión"],                                                        # resumen del libro
+    ["1.1.0", "Dirección"],                                                      # -> 1.1.0
+    [None, None, "GPR00", "Lanzamiento"],
+    [None, None, None, "Costes indirectos X", 30, None, 10, 9, 8, 7, 6],
+    [None, None, None, "Costes de gestión Y", 60, None, 11, 11, 22, 22, 11],
+    ["1.2.0", "Contratos"],                                                      # resumen del libro
+    ["1.2.1", "Licitación"],                                                     # -> 1.2.1
+    [None, None, "GPR01", "Pliegos"],
+    [None, None, None, "Personal", 30, None, 10, 10, 10],
+    [None, None, None, "Viajes", 10, None, None, 10],
+    [None, None, "GPR02", "EDT interna sin componentes", 20, None, None, None, 20],
+    ["1.2.1.5", "Licitación, detalle", None, None, None, None, 5],               # incluida en 1.2.1
+    ["1.2.2", "Obras", None, None, None, None, 56, 40],                          # -> 1.2.2, sin EDT interna
+    ["1.2.7", "Código de un resumen", None, None, None, None, 5],                # sin fila del libro
+    [None, "Nota sin código"],
+    ["2.0.0", "Ingeniería", None, None, None, None, None, 25, 25],               # resumen sin detalle
+    ["9.9", "Código inexistente", None, None, None, None, 7],                    # sin fila del libro
 ]
-PLAN_STATUS = [cr.STATUS_NONE, cr.STATUS_SUBTOTAL, cr.STATUS_SUBTOTAL, cr.STATUS_SUBTOTAL, "1.1.0", "1.1.0",
-               "1.1.0", "1.1.0", cr.STATUS_SUBTOTAL, cr.STATUS_SUBTOTAL, "1.2.1", "1.2.1", "1.2.1",
-               cr.STATUS_SUBTOTAL, "1.2.2", "1.2.2", None, "1.2.2", cr.STATUS_SUBTOTAL, "2.1.0"]
-PLAN_COST = {"1.1.0": [31, 30, 39, 35, 22], "1.2.1": [10, 20, 30], "1.2.2": [56, 40], "2.1.0": [0, 25, 25]}
+PLAN_STATUS = [cr.STATUS_SUMMARY, "1.1.0", None, None, None, cr.STATUS_SUMMARY, "1.2.1", None, None, None, None,
+               cr.STATUS_INCLUDED, "1.2.2", cr.STATUS_NONE, None, cr.STATUS_SUMMARY_EMPTY, cr.STATUS_NONE]
+PLAN_COST = {"1.1.0": [21, 20, 30, 29, 17], "1.2.1": [15, 20, 30], "1.2.2": [56, 40]}
+PLAN_EAC = [283, 117, 117, 40, 77, 166, 65, 40, 30, 10, 20, 5, 96, 5, None, 50, 7]
+PLAN = cr.calc_plan(PLAN_DATA)[0]           # con los cálculos hechos
+BAC_A = {"1.1.0": 117.0, "1.2.1": 65.0, "1.2.2": 100.0, "2.1.0": 50.0, "1.0.0-D": 10.0}
 
 
 def months(*pairs) -> list:
@@ -140,11 +138,13 @@ def test_config_keys_and_defaults(tmp_path):
     assert Config().cost_review is False and Config().cost_review_threshold == 10
     path = tmp_path / "c.toml"
     path.write_text('[exportacion]\ndepuracion_costes = true\ndepuracion_empresa = "empresab"\n'
-                    'depuracion_alineamiento = true\ndepuracion_umbral = 15\n\n[multiempresa]\nactivar = true\n',
+                    'depuracion_alineamiento = true\ndepuracion_umbral = 15\ndepuracion_calculos = true\n\n'
+                    '[multiempresa]\nactivar = true\n',
                     encoding="utf-8")
     cfg = load_config(path)
     assert cfg.cost_review and cfg.cost_review_company == "EmpresaB" and cfg.cost_review_role == "B"
-    assert cfg.cost_review_alignment and cfg.cost_review_threshold == 15
+    assert cfg.cost_review_alignment and cfg.cost_review_threshold == 15 and cfg.cost_review_calcs
+    assert Config().cost_review_calcs is False
     assert config().cost_review_role == "A"                      # por defecto, la empresa A
     assert config(multi=False).cost_review_role == ""            # una sola empresa: la hoja PV
     assert config(review=False).cost_review_role is None
@@ -180,8 +180,10 @@ def test_cost_rows_below_every_row_and_hidden_rows_elsewhere(tmp_path):
         cost = pv_a.cell(row=row + 1, column=2)
         assert pv_a.cell(row=row + 1, column=1).value == code and cost.value.endswith(" (coste)"), code
         assert cost.fill.fgColor.rgb.endswith(FILL_COST.fgColor.rgb[-6:])
-        assert pv_a.cell(row=row + 1, column=4).value.startswith("=SUM(")
+    # Filas de ingreso: los meses y el EAC de su EDT cliente; resúmenes: la suma de sus filas
     assert pv_a.cell(row=r["1.2.1"] + 1, column=7).value == cr.paste_sum(0, r["1.2.1"])
+    assert pv_a.cell(row=r["1.2.1"] + 1, column=4).value == cr.paste_eac(r["1.2.1"])
+    assert pv_a.cell(row=r["1.2.0"] + 1, column=4).value == f"=SUM(D{r['1.2.1'] + 1},D{r['1.2.2'] + 1})"
     assert pv_a.cell(row=r["1.2.0"] + 1, column=7).value == f"=SUM(G{r['1.2.1'] + 1},G{r['1.2.2'] + 1})"
     assert pv_a.row_dimensions[r["1.2.1"] + 1].outline_level == 3            # un nivel más que la EDT
     for sheet in ("PV", "PV-EmpresaB", "% PV-EmpresaA", "EV-EmpresaA", "AC", "Indicadores EDT"):
@@ -237,32 +239,51 @@ def test_lookup_of_book_codes(tmp_path):
     entries, nonnumeric, repeated = cr.lookup_rows(rep)
     by = rows_by_code(rep)
     assert entries["1.2.1"] == (by["1.2.1"], by["1.2.1"])
-    assert entries["1"] == (cr.NO_ROW, by["1.0.0-D"])          # resumen: lo que depende va a «Otras tareas»
-    assert entries["1.2"] == (cr.NO_ROW, cr.NO_ROW)            # resumen sin fila propia
+    assert entries["1"] == (cr.NO_ROW, by["1.0.0"]) and entries["1.2"] == (cr.NO_ROW, by["1.2.0"])     # resúmenes
     assert "1.0.0-D" not in entries and not nonnumeric and not repeated
     path = tmp_path / "libro.xlsx"                              # la misma tabla, con las filas de la hoja
     make_book(path, config())
     r = rows(load_workbook(path))
     table = cr.structure_table(read_structure(load_workbook(path)))
-    assert table["1.2.1"] == (r["1.2.1"], r["1.2.1"]) and table["1"] == (cr.NO_ROW, r["1.0.0-D"])
-    assert table["1.2"] == (cr.NO_ROW, cr.NO_ROW) and len(table) == len(entries)
+    assert table["1.2.1"] == (r["1.2.1"], r["1.2.1"]) and table["1"] == (cr.NO_ROW, r["1.0.0"])
+    assert len(table) == len(entries)
 
 
-def test_three_level_plan_is_assigned_in_python(tmp_path):
-    """EDT cliente, EDT interna y componentes de coste: la EDT interna con componentes es un subtotal."""
+def test_plan_calculations_and_reading_in_python(tmp_path):
+    """Los componentes se suman en su EDT interna, las EDT interna en su EDT cliente y cada EDT cliente en la de su
+    código superior; solo se leen las EDT cliente con fila de ingreso del libro."""
+    plan = cr.plan_lines(PLAN_DATA)
+    assert [x.kind for x in plan[:5]] == [cr.KIND_CLIENT, cr.KIND_CLIENT, cr.KIND_INTERNAL, cr.KIND_COMPONENT,
+                                          cr.KIND_COMPONENT]
+    assert plan[0].children == [1, 5] and plan[1].children == [2] and plan[2].children == [3, 4]
+    assert plan[6].children == [7, 10, 11] and plan[5].children == [6, 12, 13] and plan[14].kind == ""
+    assert plan[15].parent is None and plan[16].parent is None
+    done = PLAN
+    assert [line[cr.P_EAC - 1] for line in done] == PLAN_EAC
+    assert done[2][cr.P_BAC - 1] == 90 and done[7][cr.P_BAC - 1] == 40      # BAC de la EDT interna: sus componentes
+    assert done[0][cr.P_FIRST_MONTH - 1:cr.P_FIRST_MONTH + 4] == [97, 80, 60, 29, 17]
+    assert done[3] == PLAN_DATA[3][:cr.P_EAC - 1] + [40] + PLAN_DATA[3][cr.P_EAC:]     # los datos no cambian
     path = tmp_path / "libro.xlsx"
     make_book(path, config())
     wb = load_workbook(path)
     assert python_status(PLAN, wb) == PLAN_STATUS
-    lines = cr.assign_lines(PLAN, cr.structure_table(read_structure(wb)))
+    lines = cr.read_lines(PLAN, cr.structure_table(read_structure(wb)))
     r = rows(wb)
     for code, expected in PLAN_COST.items():
-        got = [sum((x.months[i] or 0) for x in lines if x.target == r[code] and i < len(x.months))
-               for i in range(len(expected))]
-        assert got == expected, code
-    assert lines[3].subtotal and lines[3].int_code and lines[4].component and lines[4].internal_row == lines[3].row
-    assert lines[12].int_code and not lines[12].subtotal          # EDT interna sin componentes: se suma
-    assert not lines[16].counted                                   # componente sin importes: se ignora
+        line = next(x for x in lines if x.state == cr.STATE_READ and x.match == r[code])
+        assert [v or 0 for v in line.months[:len(expected)]] == expected, code
+    assert [x.key for x in lines if x.state in cr.UNREAD] == ["1.2.7", "2", "9.9"]
+
+
+def test_plan_lines_of_internal_codes_and_repeated_clients():
+    plan = cr.plan_lines([["1.1", "A"], ["1.1", "A", "GPR01", "Con la EDT cliente repetida"], [None, None, None, "X"],
+                          [None, None, "XRF01"], ["XRF02", "Código no numérico en A"], [None, None, None, "Y"]])
+    assert [x.kind for x in plan] == [cr.KIND_CLIENT, cr.KIND_INTERNAL, cr.KIND_COMPONENT, cr.KIND_INTERNAL,
+                                      cr.KIND_INTERNAL, cr.KIND_COMPONENT]
+    assert plan[0].children == [1, 3, 4] and plan[1].children == [2] and plan[4].children == [5]
+    lines = cr.read_lines([["1.1", "A", None, None, None, None, 5], ["1.1.0", "A", None, None, None, None, 7]],
+                          {"1.1": (9, 9)})
+    assert [(x.state, x.match, x.repeated) for x in lines] == [(cr.STATE_READ, 9, True)] * 2
 
 
 # ----------------------------------------------------------------------------
@@ -282,7 +303,7 @@ def test_migration_keeps_the_pasted_forecast_and_the_bac(tmp_path):
     ws = load_workbook(new)[cr.SHEET_PASTE]
     assert [ws.cell(row=cr.P_FIRST, column=c).value for c in range(1, 9)] == LINES[0]
     assert [ws.cell(row=cr.P_FIRST + 1, column=c).value for c in range(1, 5)] == LINES[1][:4]
-    assert issues_with(rep, f"Se conservó el contenido de la hoja {cr.SHEET_PASTE} (2 líneas)")
+    assert issues_with(rep, f"Se conservó el contenido de la hoja {cr.SHEET_PASTE} (2 líneas).")
     assert read_book(new).bac_role["A"][rows(load_workbook(new))["1.1.0"]] == 1234.0
 
     # Libro de entrega: sin depuración, conserva el BAC y no traslada la previsión
@@ -293,6 +314,28 @@ def test_migration_keeps_the_pasted_forecast_and_the_bac(tmp_path):
     book = read_book(final)
     assert book.bac_role["A"][rows(load_workbook(final))["1.1.0"]] == 1234.0
     assert sorted(s.row for s in book.structure) == list(range(5, 5 + len(book.structure)))
+
+
+def test_migration_rewrites_the_plan_formulas(tmp_path):
+    """La hoja con los cálculos del plan (fórmulas) pasa con sus datos, y las fórmulas se vuelven a escribir, también
+    si cambia el mes 1 del horizonte."""
+    old = tmp_path / "old.xlsx"
+    make_book(old, config())
+    set_bac(old, "PV-EmpresaA", BAC_A)
+    paste(old, PLAN_DATA)
+    run_cost_plan(config(cost_review_calcs=True), old, backup=False)
+    later = tmp_path / "later.xlsx"
+    rep = make_book(later, config(start_month=date(2027, 2, 1)), prior_from_book(old, "Programa"))
+    assert issues_with(rep, "se volvieron a escribir las fórmulas de los cálculos del plan")
+    ws = load_workbook(later)[cr.SHEET_PASTE]
+    r1 = cr.P_FIRST + 1                             # 1.1.0: suma de su EDT interna (fila siguiente)
+    assert ws.cell(row=r1, column=cr.P_FIRST_MONTH).value == f"=SUM(G{r1 + 1})"
+    assert ws.cell(row=r1 + 1, column=cr.P_FIRST_MONTH).value == f"=SUM(G{r1 + 2}:G{r1 + 3})"
+    assert ws.cell(row=r1, column=cr.P_BAC).value.startswith("=IF(")
+    # Los datos (amarillo) se conservan, desplazados un mes: el mes 1 anterior queda fuera
+    assert [ws.cell(row=r1 + 2, column=c).value for c in range(cr.P_FIRST_MONTH, cr.P_FIRST_MONTH + 4)] == [9, 8, 7, 6]
+    assert ws.cell(row=r1 + 2, column=cr.P_BAC).fill.fgColor.rgb.endswith(FILL_INPUT.fgColor.rgb[-6:])
+    assert ws.cell(row=r1, column=cr.P_EAC).fill.fgColor.rgb.endswith(cr.FILL_CALC.fgColor.rgb[-6:])
 
 
 def test_migration_shifts_months_and_checks_the_company(tmp_path):
@@ -363,80 +406,100 @@ def test_migration_adds_the_eac_column_of_a_version_2_4_paste(tmp_path):
 # ----------------------------------------------------------------------------
 # Fórmulas de Excel (LibreOffice)
 # ----------------------------------------------------------------------------
+def status_and_notes(ws, n: int) -> tuple[list, list]:
+    status_col = cr.P_FIRST_MONTH + cr.paste_months(24) + 1
+    return ([ws.cell(row=cr.P_FIRST + k, column=status_col).value or None for k in range(n)],
+            [ws.cell(row=cr.P_FIRST + k, column=status_col + 1).value or None for k in range(n)])
+
+
 @pytest.mark.libreoffice
-def test_pasted_lines_are_assigned_to_book_rows(tmp_path, recalc):
+def test_client_lines_are_read_into_the_cost_rows(tmp_path, recalc):
+    """Con los cálculos hechos: las filas «(coste)» leen los meses y el EAC de las líneas de EDT cliente."""
     path = tmp_path / "libro.xlsx"
     make_book(path, config(cost_review_alignment=True))
-    set_bac(path, "PV-EmpresaA", {"1.1.0": 200.0, "1.2.1": 50.0, "1.2.2": 60.0, "1.0.0-D": 10.0, "2.1.0": 400.0})
-    lines = [   # EDT cliente, actividad, EDT interna, actividad interna, BAC, EAC, meses
-        [None, None, "ABC00", "EDT interna sin EDT cliente encima", None, None, *months((1, 3))],
-        ["1", "Gestión (cabecera, sin importes)"],
-        [None, None, "XRF01", "Subtarea suelta de Gestión", None, None, *months((3, 10))],     # -> 1.0.0-D
-        ["1.1", "Dirección", None, None, 200, None, 100, 100, "50"],                          # 1.1 = 1.1.0; texto
-        [1.2, "Contratos (subtotal con importes propios)", None, None, None, None, *months((1, 999))],
-        ["1.2.1.5", "Licitación, tarea de detalle", None, None, None, None, *months((1, 50))],  # -> 1.2.1
-        ["1.2.2", "Obras (BAC distinto del EAC: no se compara)", None, None, 70, 60, *months((2, 30), (3, 30))],
-        [None, None, "ABC01", "Personal propio", 30, 30, *months((2, 30))],                   # -> 1.2.2
-        [None, None, "ABC02", "Subcontratas", None, None, *months((3, 30))],
-        [None, None, None, None, None],
-        [None, None, None, "Nota sin código ni importes"],
-        ["2.1", "Básica", None, None, 400, None, *months((2, 200), (30, 200))],             # EDT cliente repetida
-        ["2.1", "Básica", "ABC03", "Ingeniería", None, None, *months((2, 150), (30, 200))],  # mes 30: fuera
-        ["2.1", "Básica", "ABC04", "Revisión", None, None, *months((2, 50))],
-        ["1.2.7", "Tarea de un resumen sin fila propia", None, None, None, None, *months((1, 5))],
-        ["9.9", "Código inexistente", None, None, None, None, *months((1, 7))],
-        ["1", "Gestión", "ABC05", "Gastos generales", None, None, *months((3, 4))],           # -> 1.0.0-D
-        ["1.2.1", "Licitación", "ABC06", "Pliegos", 6, 6, *months((2, 6))],                   # sin línea de subtotal
-        ["1.2.1", "Licitación", "ABC07", "Ofertas", 4, 4, *months((3, 4))],
-    ]
-    paste(path, lines)
+    set_bac(path, "PV-EmpresaA", BAC_A)
+    paste(path, PLAN)
     wb = load_workbook(path)
     wb[cr.SHEET_CHART][cr.G_SELECT] = "1.2.0"
     wb.save(path)
     wv = load_workbook(recalc(path), data_only=True)
     ws = wv[cr.SHEET_PASTE]
-    status_col = cr.P_FIRST_MONTH + cr.paste_months(24) + 1
-    status = [ws.cell(row=cr.P_FIRST + k, column=status_col).value or None for k in range(len(lines))]
-    assert status == [cr.STATUS_NONE, cr.STATUS_SUBTOTAL, "1.0.0-D", "1.1.0", cr.STATUS_SUBTOTAL, "1.2.1",
-                      cr.STATUS_SUBTOTAL, "1.2.2", "1.2.2", None, None, cr.STATUS_SUBTOTAL, "2.1.0", "2.1.0",
-                      cr.STATUS_SUMMARY, cr.STATUS_NONE, "1.0.0-D", "1.2.1", "1.2.1"]
-    assert status == python_status(lines, wb)
-    obs = [ws.cell(row=cr.P_FIRST + k, column=status_col + 1).value for k in range(len(lines))]
-    assert "Sin EDT cliente" in obs[0] and "como texto" in obs[3] and "Subtotal distinto" in obs[4]
-    assert "fuera del horizonte" in obs[12]
-    assert not any(obs[k] for k in (1, 2, 5, 6, 7, 8, 11, 13, 16, 17, 18))
-    pasted = 3 + 10 + 200 + 50 + 60 + 400 + 5 + 7 + 4 + 10
-    assert ws.cell(row=cr.P_TOTAL_ROW, column=cr.P_EAC).value == pytest.approx(pasted)
-    assert ws.cell(row=cr.P_MISSING_ROW, column=cr.P_EAC).value == pytest.approx(3 + 200 + 5 + 7)
-
+    status, notes = status_and_notes(ws, len(PLAN))
+    assert status == PLAN_STATUS == python_status(PLAN, wb)
+    assert not any(notes)
+    controls = [ws.cell(row=r, column=cr.P_EAC).value for r in (cr.P_TOTAL_ROW, cr.P_ASSIGNED_ROW, cr.P_MISSING_ROW)]
+    assert controls == [117 + 65 + 96, 0, 5 + 50 + 7]
     pv_a = wv["PV-EmpresaA"]
     r = rows(wb)
 
-    def cost(code: str) -> list:
-        return [pv_a.cell(row=r[code] + 1, column=7 + i).value or 0 for i in range(3)]
+    def cost(code: str, n: int = 5) -> list:
+        return [pv_a.cell(row=r[code] + 1, column=7 + i).value or 0 for i in range(n)]
 
-    assert cost("1.1.0") == [100, 100, 0] and cost("1.2.1") == [50, 6, 4] and cost("1.2.2") == [0, 30, 30]
-    assert cost("1.0.0-D") == [0, 0, 14] and cost("2.1.0") == [0, 200, 0]
-    assert cost("1.2.0") == [50, 36, 34] and cost("1.0.0") == [150, 136, 48]
+    for code, expected in PLAN_COST.items():
+        assert cost(code, len(expected)) == expected, code
+        assert pv_a.cell(row=r[code] + 1, column=4).value == sum(expected), code      # EAC de la línea
+    assert cost("2.1.0") == [0] * 5 and cost("1.0.0-D") == [0] * 5
+    assert cost("1.2.0", 3) == [71, 60, 30] and pv_a.cell(row=r["1.2.0"] + 1, column=4).value == 65 + 96
+    assert cost("1.0.0") == [92, 80, 60, 29, 17]
     total = max(r.values()) + 2
-    assert pv_a.cell(row=total + 1, column=4).value == pytest.approx(pasted - 3 - 200 - 5 - 7)
-    assert pv_a.cell(row=r["1.2.2"] + 1, column=4).value == 60
-    # Indicador: diferencia de BAC y diferencia máxima acumulada en % del BAC
+    assert pv_a.cell(row=total + 1, column=4).value == 117 + 65 + 96
+    # Indicador: diferencia entre el EAC y el BAC, en % del BAC
     last = 7 + 24
     assert pv_a.cell(row=r["1.1.0"] + 1, column=last + 1).value == pytest.approx(0)
-    assert pv_a.cell(row=r["2.1.0"] + 1, column=last + 1).value == pytest.approx(-0.5)
-    assert 0 < pv_a.cell(row=r["2.1.0"] + 1, column=last + 2).value <= 1
-    assert pv_a.cell(row=r["1.1.0"], column=last + 1).value is None
-
+    assert pv_a.cell(row=r["1.2.2"] + 1, column=last + 1).value == pytest.approx(-0.04)
     chart = wv[cr.SHEET_CHART]
-    assert chart["B5"].value == pytest.approx(110) and chart["B6"].value == pytest.approx(120)
-    assert chart.cell(row=cr.G_FIRST + 2, column=cr.G_COSTC).value == pytest.approx(120)
+    assert chart["B5"].value == pytest.approx(165) and chart["B6"].value == pytest.approx(161)
+    assert chart.cell(row=cr.G_FIRST + 2, column=cr.G_COSTC).value == pytest.approx(161)
     assert chart["C4"].value == "Contratos"
 
 
 @pytest.mark.libreoffice
-def test_example_forecast_is_fully_assigned(tmp_path, generator, recalc):
-    """El ayudante del ejemplo pega una previsión ficticia (hitos de pago y subtareas) que se asigna completa."""
+def test_line_notes_and_controls(tmp_path, recalc):
+    path = tmp_path / "libro.xlsx"
+    make_book(path, config())
+    lines = [
+        ["1.1", "Dirección", None, None, None, None, 100, "50", *[None] * 27, 20],   # texto; mes 30: fuera
+        ["1.1.0", "Dirección (repetida)", None, None, None, None, 1],
+        ["1.2.1", "Licitación", None, None, None, None, 6],
+    ]
+    paste(path, lines)
+    ws = load_workbook(recalc(path), data_only=True)[cr.SHEET_PASTE]
+    status, notes = status_and_notes(ws, 3)
+    assert status == ["1.1.0", "1.1.0", "1.2.1"] == python_status(lines, load_workbook(path))
+    assert "repetida" in notes[0] and "como texto" in notes[0] and "fuera del horizonte" in notes[0]
+    assert "repetida" in notes[1] and notes[2] is None
+    controls = [ws.cell(row=r, column=cr.P_EAC).value for r in (cr.P_TOTAL_ROW, cr.P_ASSIGNED_ROW, cr.P_MISSING_ROW)]
+    assert controls == [107, 20, 0]
+
+
+@pytest.mark.libreoffice
+def test_plan_formulas_match_python(tmp_path, recalc):
+    """procesar-costes --calculos: las fórmulas que escribe dan lo mismo que los cálculos en Python, y el BAC de cada
+    EDT cliente es el de la hoja PV-EmpresaA."""
+    path = tmp_path / "libro.xlsx"
+    make_book(path, config())
+    set_bac(path, "PV-EmpresaA", BAC_A)
+    paste(path, PLAN_DATA)
+    res = run_cost_plan(config(cost_review_calcs=True), path, backup=False)
+    assert res.calculated == 16
+    wv = load_workbook(recalc(path), data_only=True)
+    ws = wv[cr.SHEET_PASTE]
+    n = cr.P_FIRST_MONTH + 4
+    got = [[ws.cell(row=cr.P_FIRST + k, column=c).value or None for c in range(cr.P_FIRST_MONTH, n + 1)]
+           for k in range(len(PLAN))]
+    assert got == [[v or None for v in (line + [None] * n)[cr.P_FIRST_MONTH - 1:n]] for line in PLAN]
+    assert [ws.cell(row=cr.P_FIRST + k, column=cr.P_EAC).value for k in range(len(PLAN))] == PLAN_EAC
+    bac = [ws.cell(row=cr.P_FIRST + k, column=cr.P_BAC).value for k in range(len(PLAN))]
+    assert bac[:3] == [117 + 65 + 100 + 10, 117, 90] and bac[6] == 65 and bac[12] == 100 and bac[15] == 50
+    assert {bac[11], bac[13], bac[16]} <= {"", None}                    # EDT cliente sin fila del libro
+    assert status_and_notes(ws, len(PLAN))[0] == PLAN_STATUS
+    assert ws.cell(row=cr.P_TOTAL_ROW, column=cr.P_EAC).value == 117 + 65 + 96
+
+
+@pytest.mark.libreoffice
+def test_example_forecast_is_fully_read(tmp_path, generator, recalc):
+    """El ayudante del ejemplo escribe un plan de costes ficticio (hitos de pago, subtareas, EDT interna con
+    componentes y EDT cliente de los resúmenes) que se lee completo."""
     xml = tmp_path / "base.xml"
     generator.write(generator.build_plans(), xml, None)
     cfg = config(milestone_weight_field="Peso hito", method_field="Método EVM", plan="INTERNO")
@@ -450,105 +513,115 @@ def test_example_forecast_is_fully_assigned(tmp_path, generator, recalc):
     generator.fill_book(path)
     ws = load_workbook(path)[cr.SHEET_PASTE]
     codes = [ws.cell(row=cr.P_FIRST + k, column=cr.P_INT_CODE).value for k in range(cr.P_LINES)]
-    assert {"PER01", "HP-01", "XRF01"} <= set(codes)
-    assert "GPR03" in codes                                     # EDT interna con componentes de coste
+    assert {"PER01", "HP-01", "XRF01", "GPR03"} <= set(codes)
     wv = load_workbook(recalc(path), data_only=True)
     pa = wv[cr.SHEET_PASTE]
     assert pa.cell(row=cr.P_TOTAL_ROW, column=cr.P_EAC).value > 0
     assert pa.cell(row=cr.P_MISSING_ROW, column=cr.P_EAC).value == pytest.approx(0)
-    obs_col = cr.P_FIRST_MONTH + cr.paste_months(24) + 2
-    assert not any(pa.cell(row=cr.P_FIRST + k, column=obs_col).value for k in range(cr.P_LINES))   # todo cuadra
+    status, notes = status_and_notes(pa, cr.P_LINES)
+    assert not any(notes) and cr.STATUS_SUMMARY in status and cr.STATUS_NONE not in status
     total = max(rows(load_workbook(path)).values()) + 2
     assert wv["PV-EmpresaA"].cell(row=total + 1, column=4).value == pytest.approx(
         pa.cell(row=cr.P_TOTAL_ROW, column=cr.P_EAC).value)
 
 
-@pytest.mark.libreoffice
-def test_three_level_plan_formulas_match_python(tmp_path, recalc):
-    """Las fórmulas de la hoja _depuracion y la asignación en Python de procesar-costes dan lo mismo."""
-    path = tmp_path / "libro.xlsx"
-    make_book(path, config())
-    paste(path, PLAN)
-    wv = load_workbook(recalc(path), data_only=True)
-    ws = wv[cr.SHEET_PASTE]
-    status_col = cr.P_FIRST_MONTH + cr.paste_months(24) + 1
-    assert [ws.cell(row=cr.P_FIRST + k, column=status_col).value or None for k in range(len(PLAN))] == PLAN_STATUS
-    obs = [ws.cell(row=cr.P_FIRST + k, column=status_col + 1).value for k in range(len(PLAN))]
-    assert "Sin EDT cliente" in obs[0] and "Subtotal distinto" in obs[13]      # GPR03: 99 frente a 89
-    assert not any(obs[k] for k in range(1, len(PLAN)) if k != 13)
-    pv_a = wv["PV-EmpresaA"]
-    r = rows(load_workbook(path))
-    for code, expected in PLAN_COST.items():
-        assert [pv_a.cell(row=r[code] + 1, column=7 + i).value or 0 for i in range(len(expected))] == expected, code
-    assert ws.cell(row=cr.P_TOTAL_ROW, column=cr.P_EAC).value == pytest.approx(3 + 157 + 60 + 96 + 50)
-    assert ws.cell(row=cr.P_MISSING_ROW, column=cr.P_EAC).value == pytest.approx(3)
-
-
 # ----------------------------------------------------------------------------
 # procesar-costes
 # ----------------------------------------------------------------------------
-def processed_book(tmp_path):
-    """Libro de depuración con el BAC de EmpresaA y el plan de costes PLAN pegado (sin procesar)."""
+def processed_book(tmp_path, lines=PLAN):
+    """Libro de depuración con el BAC de EmpresaA y el plan de costes (sin procesar)."""
     path = tmp_path / "libro.xlsx"
     make_book(path, config())
-    set_bac(path, "PV-EmpresaA", {"1.1.0": 157.0, "1.2.1": 50.0, "1.2.2": 96.0, "2.1.0": 50.0, "1.0.0-D": 10.0})
+    set_bac(path, "PV-EmpresaA", BAC_A)
     set_bac(path, "PV-EmpresaB", {"1.1.0": 100.0, "2.1.0": 100.0})
-    paste(path, PLAN)
+    paste(path, lines)
     return path
 
 
-def test_procesar_costes_writes_the_plan_distribution(tmp_path):
+def test_procesar_costes_writes_the_plan_amounts(tmp_path):
     path = processed_book(tmp_path)
     before = read_book(path)
     res = run_cost_plan(config(), path)
-    assert res.backup is not None and res.backup.exists()
-    assert res.sheet == "PV-EmpresaA" and [c for c, _n, _t in res.rows] == ["1.1.0", "1.2.1", "1.2.2", "2.1.0"]
-    assert res.lines == 19 and res.inputs == 5
-    assert res.total == pytest.approx(3 + 157 + 60 + 96 + 50) and res.assigned == pytest.approx(157 + 60 + 96 + 50)
+    assert res.backup is not None and res.backup.exists() and res.calculated is None
+    assert res.sheet == "PV-EmpresaA" and [c for c, _n, _t in res.rows] == ["1.1.0", "1.2.1", "1.2.2"]
+    assert res.lines == 9 and res.counted == 3 and res.inputs == 5
+    assert res.total == pytest.approx(117 + 65 + 96) and res.assigned == pytest.approx(117 + 65 + 96)
     book = read_book(path)
     r = rows(load_workbook(path))
     pct = book.pct_pv["A"]
-    assert pct[r["1.1.0"]][:6] == pytest.approx([31 / 157, 30 / 157, 39 / 157, 35 / 157, 22 / 157, 0])
-    # PV = BAC × %: con el BAC igual al EAC, el importe del plan; con otro BAC, el reparto del plan
+    assert pct[r["1.2.2"]][:3] == pytest.approx([0.56, 0.40, 0])           # importe / BAC (100, no el EAC 96)
+    # PV = BAC × %: el importe del plan, aunque el BAC no coincida con el EAC
     pv_a = {s.code: [book.bac_role["A"][s.row] * v for v in pct[s.row]] for s in book.input_rows}
-    assert pv_a["1.1.0"][:5] == pytest.approx([31, 30, 39, 35, 22])
-    assert pv_a["1.2.1"][:3] == pytest.approx([50 * 10 / 60, 50 * 20 / 60, 50 * 30 / 60])
-    # Sin líneas en el plan: conserva el % de MS Project; la otra empresa no cambia
-    assert pct[r["1.0.0-D"]] == before.pct_pv["A"][r["1.0.0-D"]] and book.pct_pv["B"] == before.pct_pv["B"]
+    for code, expected in PLAN_COST.items():
+        assert pv_a[code][:len(expected)] == pytest.approx(expected), code
+    # Sin línea en el plan: conserva el % de MS Project; la otra empresa no cambia
+    assert pct[r["1.0.0-D"]] == before.pct_pv["A"][r["1.0.0-D"]] and pct[r["2.1.0"]] == before.pct_pv["A"][r["2.1.0"]]
+    assert book.pct_pv["B"] == before.pct_pv["B"]
     marks = {s.code: s.plan_pv for s in book.structure}
-    assert marks["1.1.0"] == ("A",) and marks["1.0.0-D"] == ()
+    assert marks["1.1.0"] == ("A",) and marks["2.1.0"] == () and marks["1.0.0-D"] == ()
     wb = load_workbook(path)
     assert "procesar-costes" in wb["% PV-EmpresaA"]["A1"].value
     assert "procesar-costes" not in wb["% PV-EmpresaB"]["A1"].value
     assert wb["% PV-EmpresaA"].cell(row=r["1.1.0"], column=7).font.color.rgb.endswith(COLOR_COST)
-    assert {"DEP-014", "DEP-016"} <= {i.id for i in res.warnings}
-    assert "Componente sin EDT cliente encima (fila 8)" in next(i.message for i in res.warnings if i.id == "DEP-014")
+    by = {i.id: i.message for i in res.warnings}
+    assert set(by) == {"DEP-014", "DEP-016"}
+    assert "1.2.7 (fila 21): sin fila del libro" in by["DEP-014"]
+    assert "2.0.0 (fila 23): resumen sin detalle" in by["DEP-014"]
+    assert "(2): 1.0.0-D, 2.1.0" in by["DEP-016"]
+
+
+def test_procesar_costes_with_calculations(tmp_path):
+    """--calculos: escribe las fórmulas del plan en la hoja PV-depuración y usa sus resultados."""
+    path = processed_book(tmp_path, PLAN_DATA)
+    res = run_cost_plan(config(cost_review_calcs=True), path, backup=False)
+    assert res.calculated == 16 and [c for c, _n, _t in res.rows] == ["1.1.0", "1.2.1", "1.2.2"]
+    book = read_book(path)
+    r = rows(load_workbook(path))
+    assert [book.bac_role["A"][r["1.1.0"]] * v for v in book.pct_pv["A"][r["1.1.0"]][:5]] == pytest.approx(
+        PLAN_COST["1.1.0"])
+    ws = load_workbook(path)[cr.SHEET_PASTE]
+    first = cr.P_FIRST
+    assert ws.cell(row=first, column=cr.P_FIRST_MONTH).value == f"=SUM(G{first + 1},G{first + 5})"
+    assert ws.cell(row=first + 3, column=cr.P_EAC).value == f"=SUM(G{first + 3}:DV{first + 3})"
+    assert ws.cell(row=first + 3, column=cr.P_FIRST_MONTH).value == 10                  # dato: no cambia
+    assert ws.cell(row=first + 14, column=cr.P_EAC).value is None                       # línea solo con descripción
+    # Sin --calculos y sin los cálculos hechos: solo 1.2.2 tiene importes en su línea de EDT cliente
+    (tmp_path / "sin").mkdir()
+    res = run_cost_plan(config(), processed_book(tmp_path / "sin", PLAN_DATA), backup=False)
+    assert [c for c, _n, _t in res.rows] == ["1.2.2"]
+    assert "(2): 1.1.0, 1.2.1" in next(i.message for i in res.warnings if i.id == "DEP-017")
 
 
 def test_procesar_costes_notices(tmp_path):
     path = tmp_path / "libro.xlsx"
     make_book(path, config())
+    set_bac(path, "PV-EmpresaA", {"1.1.0": 150.0, "1.2.2": 10.0})
     paste(path, [
         ["1.1", "Dirección", None, None, None, None, *months((1, 100), (30, 50))],     # mes 30: fuera del horizonte
-        ["1.2.1", "Licitación", None, None, None, None, 10, -10],                     # suma 0
+        ["1.1.0", "Dirección", None, None, None, None],                               # repetida
+        ["1.2.1", "Licitación", None, None, None, None, 10],                          # sin BAC
+        ["1.2.2", "Obras"],                                                           # sin importes
         ["2.1", "Básica", None, None, None, None, "40", "=10+5", 20],                  # texto y fórmula sin valor
     ])
+    set_bac(path, "PV-EmpresaA", {"2.1.0": 40.0})
     res = run_cost_plan(config(), path, backup=False)
     by = {i.id: i.message for i in res.warnings}
-    assert "50,00" in by["DEP-015"] and "(1.1.0)" in by["DEP-015"] and "1.2.1" in by["DEP-017"]
+    assert "50,00" in by["DEP-015"] and "(1.1.0)" in by["DEP-015"] and "(1): 1.2.1" in by["DEP-019"]
+    assert "(1): 1.2.2" in by["DEP-017"] and "--calculos" in by["DEP-017"] and "1.1" in by["DEP-020"]
     assert "importes guardados como texto" in by["DEP-018"] and "1 celda tiene una fórmula" in by["DEP-018"]
     book = read_book(path)
     r = rows(load_workbook(path))
-    assert sum(book.pct_pv["A"][r["1.1.0"]]) == pytest.approx(100 / 150)      # lo posterior no se reparte
-    assert book.pct_pv["A"][r["2.1.0"]][:3] == pytest.approx([0, 0, 1])
-    assert {s.code: s.plan_pv for s in book.structure}["1.2.1"] == ()
+    assert sum(book.pct_pv["A"][r["1.1.0"]]) == pytest.approx(100 / 150)      # lo posterior no se lee
+    assert book.pct_pv["A"][r["2.1.0"]][:3] == pytest.approx([0, 0, 0.5])
+    marks = {s.code: s.plan_pv for s in book.structure}
+    assert marks["1.2.1"] == () and marks["1.2.2"] == () and marks["2.1.0"] == ("A",)
 
 
 def test_procesar_costes_simulation_and_errors(tmp_path):
     path = processed_book(tmp_path)
     data = path.read_bytes()
-    res = run_cost_plan(config(), path, dry_run=True)
-    assert res.dry_run and res.backup is None and len(res.rows) == 4 and path.read_bytes() == data
+    res = run_cost_plan(config(cost_review_calcs=True), path, dry_run=True)
+    assert res.dry_run and res.backup is None and len(res.rows) == 3 and path.read_bytes() == data
     empty = tmp_path / "vacio.xlsx"
     make_book(empty, config())
     with pytest.raises(InputError) as exc:
@@ -562,29 +635,29 @@ def test_procesar_costes_simulation_and_errors(tmp_path):
 
 
 def test_procesar_costes_command(tmp_path, capsys):
-    path = processed_book(tmp_path)
-    assert main(["procesar-costes", "--libro", str(path), "--sin-respaldo"]) == 0
+    path = processed_book(tmp_path, PLAN_DATA)
+    assert main(["procesar-costes", "--libro", str(path), "--sin-respaldo", "--calculos"]) == 0
     out = capsys.readouterr().out
-    assert "Reparto del plan de costes en 4 de 5 filas de ingreso" in out and "DEP-014" in out
-    assert "1.1.0" in out and "Libro actualizado" in out
+    assert "Cálculos del plan de costes: 16 líneas" in out and "Plan de costes en 3 de 5 filas de ingreso" in out
+    assert "DEP-014" in out and "1.1.0" in out and "Libro actualizado" in out
     plain = tmp_path / "sin_depuracion.xlsx"
     make_book(plain, config(review=False))
     assert main(["procesar-costes", "--libro", str(plain)]) == 2
     assert "DEP-012" in capsys.readouterr().err
 
 
-def test_delivery_book_keeps_the_plan_distribution(tmp_path):
+def test_delivery_book_keeps_the_plan_amounts(tmp_path):
     path = processed_book(tmp_path)
     run_cost_plan(config(), path, backup=False)
     processed = read_book(path)
     old = rows(load_workbook(path))
     final = tmp_path / "final.xlsx"                 # libro de entrega: sin depuración
     rep = make_book(final, config(review=False), prior_from_book(path, "Programa"))
-    assert issues_with(rep, "reparto del plan de costes (procesar-costes) en 4 filas de la hoja % PV-EmpresaA",
+    assert issues_with(rep, "reparto del plan de costes (procesar-costes) en 3 filas de la hoja % PV-EmpresaA",
                        SEV_INFO)
     book = read_book(final)
     new = rows(load_workbook(final))
-    for code in ("1.1.0", "1.2.1", "1.2.2", "2.1.0", "1.0.0-D"):    # 1.0.0-D: el de MS Project
+    for code in ("1.1.0", "1.2.1", "1.2.2", "2.1.0", "1.0.0-D"):    # 2.1.0 y 1.0.0-D: el de MS Project
         assert book.pct_pv["A"][new[code]] == pytest.approx(processed.pct_pv["A"][old[code]]), code
     assert {s.code: s.plan_pv for s in book.structure}["1.1.0"] == ("A",)
     assert "procesar-costes" in load_workbook(final)["% PV-EmpresaA"]["A1"].value
@@ -596,7 +669,7 @@ def test_delivery_book_keeps_the_plan_distribution(tmp_path):
         [pct[0] + pct[1], pct[2], pct[3], pct[4]])
 
 
-def test_update_does_not_compare_the_plan_distribution_with_ms_project(tmp_path):
+def test_update_does_not_compare_the_plan_amounts_with_ms_project(tmp_path):
     path = processed_book(tmp_path)
     run_cost_plan(config(), path, backup=False)
     res = run_update(P(tasks()), config(), path, date(2027, 2, 28), backup=False)

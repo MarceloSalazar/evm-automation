@@ -126,6 +126,7 @@ class Config:
     cost_review_company: str = ""         # depuracion_empresa: empresa_a o empresa_b ("" = empresa_a)
     cost_review_alignment: bool = False   # depuracion_alineamiento: indicador de alineamiento
     cost_review_threshold: float = 10.0   # depuracion_umbral: % del BAC a partir del cual se resalta un mes
+    cost_review_calcs: bool = False       # depuracion_calculos: procesar-costes escribe los cálculos del plan
 
     # [metodos] -- None = lista por defecto
     methods_list: list[str] | None = None
@@ -435,6 +436,7 @@ def load_config(path: str | Path | None) -> Config:
     cfg.cost_review_company = _get(exp, "depuracion_empresa", cfg.cost_review_company, str).strip()
     cfg.cost_review_alignment = _get(exp, "depuracion_alineamiento", cfg.cost_review_alignment, bool)
     cfg.cost_review_threshold = _get(exp, "depuracion_umbral", cfg.cost_review_threshold, float)
+    cfg.cost_review_calcs = _get(exp, "depuracion_calculos", cfg.cost_review_calcs, bool)
 
     met = _section(data, "metodos")
     lista = met.get("lista")

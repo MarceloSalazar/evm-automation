@@ -460,6 +460,8 @@ def cmd_analizar(args) -> int:
 def cmd_procesar_costes(args) -> int:
     cfg = load_config(args.config)
     _add_silence(cfg, args)
+    if args.calculos:
+        cfg.cost_review_calcs = True
     from evm.cost_plan import run_cost_plan
     from evm.update import book_meta
     meta = book_meta(args.libro)
@@ -471,17 +473,20 @@ def cmd_procesar_costes(args) -> int:
         res = run_cost_plan(cfg, args.libro, backup=not args.sin_respaldo, dry_run=args.simular)
     decimals = int(res.book.meta.get("decimales") or 0)
     money = lambda v: fmt_number(v, decimals)       # noqa: E731
-    print(f"Hoja: {res.sheet}  |  Plan de costes: {plural(res.lines, 'línea', 'líneas')}, "
-          f"{res.counted} se suman (sin subtotales)  |  Total: {money(res.total)}")
-    print(f"Reparto del plan de costes en {len(res.rows)} de {plural(res.inputs, 'fila', 'filas')} de ingreso, "
+    if res.calculated is not None:
+        print(f"Cálculos del plan de costes: {plural(res.calculated, 'línea', 'líneas')} de la hoja PV-depuración "
+              "(sumas, EAC y BAC de las EDT cliente)" + (" (no se escriben en la simulación)" if args.simular else ""))
+    print(f"Hoja: {res.sheet}  |  Plan de costes: {plural(res.lines, 'línea', 'líneas')} de EDT cliente, "
+          f"{res.counted} con fila de ingreso  |  Importe leído: {money(res.total)}")
+    print(f"Plan de costes en {len(res.rows)} de {plural(res.inputs, 'fila', 'filas')} de ingreso, "
           f"{money(res.assigned)} dentro del horizonte:")
     for code, name, eac in res.rows[:15]:
         print(f"  {code:<12} {name[:48]:<48}  EAC {money(eac):>14}")
     if len(res.rows) > 15:
         print(f"  ... y {len(res.rows) - 15} filas más.")
     _print_notices(_silence(cfg).apply(res.warnings))
-    print(f"El PV de cada mes es el BAC × el % planificado (hoja '% {res.sheet}'): en las filas cuyo BAC coincide con "
-          "el EAC, es el importe del plan de costes.")
+    print(f"% planificado (hoja '% {res.sheet}') = importe del mes / BAC: el PV de cada mes (BAC × %) es el importe "
+          "del plan de costes.")
     if args.simular:
         print("Simulación: no se modificó el libro.")
     else:
@@ -979,12 +984,16 @@ def build_parser() -> argparse.ArgumentParser:
     silence_option(n)
     n.set_defaults(func=cmd_analizar)
 
-    c = sub.add_parser("procesar-costes", help="lleva el reparto mensual del plan de costes pegado en la hoja "
-                                               "PV-depuración al %% planificado de cada fila de la empresa que se "
-                                               "depura (el PV es el BAC × ese %%)")
+    c = sub.add_parser("procesar-costes", help="lleva el importe mensual del plan de costes de la hoja PV-depuración "
+                                               "(líneas de EDT cliente) al %% planificado de cada fila de la empresa "
+                                               "que se depura: el PV (BAC × %%) es el importe del plan")
     c.add_argument("--libro", required=True, help="libro .xlsx generado con depuracion_costes = true")
+    c.add_argument("--calculos", action="store_true",
+                   help="escribe antes en la hoja PV-depuración las fórmulas de los cálculos del plan: sumas de los "
+                        "componentes y de las EDT interna, EAC y BAC de las EDT cliente (como [exportacion] "
+                        "depuracion_calculos = true)")
     c.add_argument("--config", help="archivo de configuración: solo se usan [validacion] silenciar y [exportacion] "
-                                    "guardado_rapido")
+                                    "guardado_rapido y depuracion_calculos")
     c.add_argument("--simular", action="store_true", help="muestra el resultado sin modificar el libro")
     c.add_argument("--sin-respaldo", action="store_true", help="no crea copia de respaldo del libro")
     silence_option(c)

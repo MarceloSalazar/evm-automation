@@ -582,9 +582,8 @@ def _write_cost_row(ws, report: Report, cfg: Config, lay: _Layout, row: ReportRo
                     total_name: str = "") -> None:
     """Depuración de costes: fila «(coste)» c, debajo de la fila de la EDT (row; None = fila TOTAL).
 
-    Filas de ingreso: cada mes suma la previsión pegada en la hoja PV-depuración para la fila. Subtotales y TOTAL:
-    suma de las filas «(coste)» de sus hijos. Columna D: suma de los meses (se compara con el BAC de la fila de
-    arriba).
+    Filas de ingreso: los meses y, en la columna D, el EAC de su línea de EDT cliente en la hoja PV-depuración (se
+    compara con el BAC de la fila de arriba). Subtotales y TOTAL: suma de las filas «(coste)» de sus hijos.
     """
     from evm import cost_review
     money = money_format(cfg.decimals)
@@ -608,7 +607,9 @@ def _write_cost_row(ws, report: Report, cfg: Config, lay: _Layout, row: ReportRo
             value = _sum_formula(col(lay.first_col + i), children, block, cost=True)
         ws.cell(row=c, column=lay.first_col + i, value=value).number_format = month_money
     span = f"{col(lay.first_col)}{c}:{col(lay.last_col)}{c}"
-    ws.cell(row=c, column=COL_BAC, value=f"=SUM({span})").number_format = money
+    eac = (cost_review.paste_eac(r) if row is not None and row.is_input
+           else _sum_formula(col(COL_BAC), children, block, cost=True))
+    ws.cell(row=c, column=COL_BAC, value=eac).number_format = money
     ws.cell(row=c, column=lay.total_col, value=f"=SUM({span})").number_format = money
     font = FONT_COST_BOLD if row is None or row.kind == KIND_SUMMARY else FONT_COST
     for c_ in range(1, lay.total_col + 1):
@@ -1517,7 +1518,7 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
         ws_chart, ws_paste = review
         pasted = prior.review_rows if prior is not None and prior.review_keep else None
         cost_review.write_helper(wb[cost_review.SHEET_HELPER], report, lay, cfg)
-        cost_review.write_paste(ws_paste, report, cfg, lay, pasted)
+        cost_review.write_paste(ws_paste, report, cfg, lay, pasted, calcs=bool(pasted) and prior.review_calcs)
         cost_review.write_chart_sheet(ws_chart, report, cfg, lay)
         cost_review.add_chart(wb, lay.months, max(plan_end, cost_review.last_paste_month(ws_paste, lay.months)),
                               cfg.currency or report.currency or "")

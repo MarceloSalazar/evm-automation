@@ -115,7 +115,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [LOG](#410-log--lógica-del-cronograma) | Lógica del cronograma | Lógica del cronograma | validar | 19 |
 | [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) | 15 |
 | [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 20 |
-| [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 18 |
+| [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 20 |
 | [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 51 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
 | [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 33 |
@@ -2240,12 +2240,14 @@ Hoja PV-depuración, su traslado con `--migrar-desde` y el reparto del plan de c
 | [DEP-010](#dep-010) | Info o Advertencia | Reparto del plan de costes conservado |
 | [DEP-011](#dep-011) | Advertencia | Reparto del plan de costes no combinado |
 | [DEP-012](#dep-012) | Error (detiene el programa) | Libro sin depuración de costes |
-| [DEP-013](#dep-013) | Error (detiene el programa) | Plan de costes sin líneas asignadas |
-| [DEP-014](#dep-014) | Advertencia | Líneas del plan de costes sin fila del libro |
+| [DEP-013](#dep-013) | Error (detiene el programa) | Plan de costes sin líneas leídas |
+| [DEP-014](#dep-014) | Advertencia | Líneas de EDT cliente sin leer |
 | [DEP-015](#dep-015) | Advertencia | Plan de costes después del horizonte |
-| [DEP-016](#dep-016) | Info | Filas sin líneas en el plan de costes |
-| [DEP-017](#dep-017) | Advertencia | Filas cuyo plan de costes suma 0 |
-| [DEP-018](#dep-018) | Advertencia | Importes del plan de costes que no se suman |
+| [DEP-016](#dep-016) | Info | Filas sin línea en el plan de costes |
+| [DEP-017](#dep-017) | Advertencia | Filas sin importes en el plan de costes |
+| [DEP-018](#dep-018) | Advertencia | Importes del plan de costes que no se leen |
+| [DEP-019](#dep-019) | Advertencia | Filas sin BAC |
+| [DEP-020](#dep-020) | Advertencia | EDT cliente repetida en el plan de costes |
 
 #### DEP-001
 
@@ -2345,51 +2347,67 @@ procesar-costes necesita un libro generado con depuracion_costes = true, con el 
 
 #### DEP-013
 
-**Plan de costes sin líneas asignadas** · Error (detiene el programa) · procesar-costes · no se puede silenciar
+**Plan de costes sin líneas leídas** · Error (detiene el programa) · procesar-costes · no se puede silenciar
 
-Ninguna línea de la hoja PV-depuración se asigna a una fila de ingreso del libro: la hoja está vacía o sus códigos no son los del libro.
+Ninguna línea de EDT cliente de la hoja PV-depuración tiene el código de una fila de ingreso del libro: la hoja está vacía o sus códigos no son los del libro.
 
-**Qué hacer:** Pegar el plan de costes desde la celda A8 y revisar la columna 'Asignado a'.
+**Qué hacer:** Escribir el plan de costes desde la celda A8 y revisar la columna 'Asignado a'.
 
 #### DEP-014
 
-**Líneas del plan de costes sin fila del libro** · Advertencia · procesar-costes · se puede silenciar
+**Líneas de EDT cliente sin leer** · Advertencia · procesar-costes · se puede silenciar
 
-Líneas que se suman pero no tienen fila en el libro (código inexistente, resumen sin fila propia o sin EDT cliente encima): su importe no forma parte del % planificado.
+Líneas de EDT cliente con importes que no se leen: su código no es el de una fila del libro, o es el de un resumen del libro y ninguna línea de un código inferior se lee. Su importe no forma parte del % planificado.
 
-**Qué hacer:** Corregir los códigos en el plan de costes, o agregar las filas al libro (p. ej. con lista_edt).
+**Qué hacer:** Corregir los códigos en el plan de costes, agregar las filas al libro (p. ej. con lista_edt) o detallar el resumen con las EDT cliente de sus filas.
 
 #### DEP-015
 
 **Plan de costes después del horizonte** · Advertencia · procesar-costes · se puede silenciar
 
-El plan de costes tiene importes en meses posteriores al horizonte del libro: no forman parte del % planificado, que en esas filas no suma 100 %.
+El plan de costes tiene importes en meses posteriores al horizonte del libro: no forman parte del % planificado.
 
 **Qué hacer:** Ampliar el horizonte del libro (meses) o revisar el plan de costes.
 
 #### DEP-016
 
-**Filas sin líneas en el plan de costes** · Info · procesar-costes · se puede silenciar
+**Filas sin línea en el plan de costes** · Info · procesar-costes · se puede silenciar
 
-Filas de ingreso de la empresa sin líneas en el plan de costes: conservan su % planificado, de MS Project o de un procesado anterior.
+Filas de ingreso de la empresa sin línea de EDT cliente en el plan de costes: conservan su % planificado, de MS Project o de un procesado anterior.
 
 **Qué hacer:** Ninguna, si la empresa no tiene costes en esas filas.
 
 #### DEP-017
 
-**Filas cuyo plan de costes suma 0** · Advertencia · procesar-costes · se puede silenciar
+**Filas sin importes en el plan de costes** · Advertencia · procesar-costes · se puede silenciar
 
-Las líneas asignadas a la fila suman 0: no hay reparto que aplicar y la fila conserva su % planificado.
+La línea de EDT cliente de la fila no tiene importes en los meses (p. ej. faltan los cálculos del plan): la fila conserva su % planificado.
 
-**Qué hacer:** Revisar los importes de esas filas en el plan de costes.
+**Qué hacer:** Completar los cálculos del plan (o ejecutar procesar-costes `--calculos`) y revisar los importes.
 
 #### DEP-018
 
-**Importes del plan de costes que no se suman** · Advertencia · procesar-costes · se puede silenciar
+**Importes del plan de costes que no se leen** · Advertencia · procesar-costes · se puede silenciar
 
-Importes guardados como texto, o celdas con fórmula sin valor calculado (el plan se pegó sin pegado especial > valores y el libro no se guardó en Excel).
+Importes guardados como texto, o celdas con fórmula sin valor calculado (el libro no se guardó en Excel después de escribirlas).
 
-**Qué hacer:** Pegar el plan de costes con pegado especial > valores.
+**Qué hacer:** Escribir números; abrir y guardar el libro en Excel, o ejecutar procesar-costes `--calculos`.
+
+#### DEP-019
+
+**Filas sin BAC** · Advertencia · procesar-costes · se puede silenciar
+
+El % planificado es el importe del plan dividido por el BAC de la fila: una fila sin BAC no se puede procesar y conserva su % planificado.
+
+**Qué hacer:** Ingresar el BAC en la columna D de la hoja PV de la empresa y ejecutar de nuevo procesar-costes.
+
+#### DEP-020
+
+**EDT cliente repetida en el plan de costes** · Advertencia · procesar-costes · se puede silenciar
+
+Dos o más líneas de EDT cliente tienen el mismo código: se suman sus importes.
+
+**Qué hacer:** Revisar el plan de costes: cada EDT cliente debería tener una sola línea.
 
 ---
 

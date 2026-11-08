@@ -183,6 +183,17 @@ def build_review_book(work: Path) -> Path:
     run("evm_export.py", "generar", "--origen", str(Path("ejemplos") / "programa_ejemplo.xml"), "--config", str(cfg),
         "--salida", str(book))
     example_helper().fill_book(book)            # BAC de cada fila y previsión pegada en PV-depuración
+    # Cálculos del plan (fórmulas en naranja, datos en amarillo), como procesar-costes --calculos pero sin llevar el
+    # plan al % planificado: las capturas comparan el PV planificado con la previsión
+    from openpyxl import load_workbook
+    from evm import cost_review
+    from evm.workbook import read_meta
+    wb = load_workbook(book)
+    meta = read_meta(wb)
+    rows, _fmt = cost_review.read_paste(wb[cost_review.SHEET_PASTE], meta["meses"])
+    cost_review.write_calcs(wb[cost_review.SHEET_PASTE], cost_review.plan_lines(rows), meta["meses"],
+                            str(meta["depuracion_hoja"]), meta["fila_total"], int(meta["decimales"] or 0))
+    wb.save(book)
     return book
 
 

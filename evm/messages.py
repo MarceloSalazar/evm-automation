@@ -1115,29 +1115,39 @@ _CODES = [
           "procesar-costes necesita un libro generado con depuracion_costes = true, con el plan de costes pegado en la "
           "hoja PV-depuración.",
           "Generar el libro con depuracion_costes = true (y --migrar-desde para conservar el BAC).", W_PROC),
-    _code("DEP-013", F, "Plan de costes sin líneas asignadas",
-          "Ninguna línea de la hoja PV-depuración se asigna a una fila de ingreso del libro: la hoja está vacía o sus "
-          "códigos no son los del libro.",
-          "Pegar el plan de costes desde la celda A8 y revisar la columna 'Asignado a'.", W_PROC),
-    _code("DEP-014", W, "Líneas del plan de costes sin fila del libro",
-          "Líneas que se suman pero no tienen fila en el libro (código inexistente, resumen sin fila propia o sin EDT "
-          "cliente encima): su importe no forma parte del % planificado.",
-          "Corregir los códigos en el plan de costes, o agregar las filas al libro (p. ej. con lista_edt).", W_PROC),
+    _code("DEP-013", F, "Plan de costes sin líneas leídas",
+          "Ninguna línea de EDT cliente de la hoja PV-depuración tiene el código de una fila de ingreso del libro: la "
+          "hoja está vacía o sus códigos no son los del libro.",
+          "Escribir el plan de costes desde la celda A8 y revisar la columna 'Asignado a'.", W_PROC),
+    _code("DEP-014", W, "Líneas de EDT cliente sin leer",
+          "Líneas de EDT cliente con importes que no se leen: su código no es el de una fila del libro, o es el de un "
+          "resumen del libro y ninguna línea de un código inferior se lee. Su importe no forma parte del % "
+          "planificado.",
+          "Corregir los códigos en el plan de costes, agregar las filas al libro (p. ej. con lista_edt) o detallar "
+          "el resumen con las EDT cliente de sus filas.", W_PROC),
     _code("DEP-015", W, "Plan de costes después del horizonte",
           "El plan de costes tiene importes en meses posteriores al horizonte del libro: no forman parte del % "
-          "planificado, que en esas filas no suma 100 %.",
+          "planificado.",
           "Ampliar el horizonte del libro (meses) o revisar el plan de costes.", W_PROC),
-    _code("DEP-016", I, "Filas sin líneas en el plan de costes",
-          "Filas de ingreso de la empresa sin líneas en el plan de costes: conservan su % planificado, de MS Project o "
-          "de un procesado anterior.",
+    _code("DEP-016", I, "Filas sin línea en el plan de costes",
+          "Filas de ingreso de la empresa sin línea de EDT cliente en el plan de costes: conservan su % planificado, "
+          "de MS Project o de un procesado anterior.",
           "Ninguna, si la empresa no tiene costes en esas filas.", W_PROC),
-    _code("DEP-017", W, "Filas cuyo plan de costes suma 0",
-          "Las líneas asignadas a la fila suman 0: no hay reparto que aplicar y la fila conserva su % planificado.",
-          "Revisar los importes de esas filas en el plan de costes.", W_PROC),
-    _code("DEP-018", W, "Importes del plan de costes que no se suman",
-          "Importes guardados como texto, o celdas con fórmula sin valor calculado (el plan se pegó sin pegado "
-          "especial > valores y el libro no se guardó en Excel).",
-          "Pegar el plan de costes con pegado especial > valores.", W_PROC),
+    _code("DEP-017", W, "Filas sin importes en el plan de costes",
+          "La línea de EDT cliente de la fila no tiene importes en los meses (p. ej. faltan los cálculos del plan): "
+          "la fila conserva su % planificado.",
+          "Completar los cálculos del plan (o ejecutar procesar-costes --calculos) y revisar los importes.", W_PROC),
+    _code("DEP-018", W, "Importes del plan de costes que no se leen",
+          "Importes guardados como texto, o celdas con fórmula sin valor calculado (el libro no se guardó en Excel "
+          "después de escribirlas).",
+          "Escribir números; abrir y guardar el libro en Excel, o ejecutar procesar-costes --calculos.", W_PROC),
+    _code("DEP-019", W, "Filas sin BAC",
+          "El % planificado es el importe del plan dividido por el BAC de la fila: una fila sin BAC no se puede "
+          "procesar y conserva su % planificado.",
+          "Ingresar el BAC en la columna D de la hoja PV de la empresa y ejecutar de nuevo procesar-costes.", W_PROC),
+    _code("DEP-020", W, "EDT cliente repetida en el plan de costes",
+          "Dos o más líneas de EDT cliente tienen el mismo código: se suman sus importes.",
+          "Revisar el plan de costes: cada EDT cliente debería tener una sola línea.", W_PROC),
 
     # --- ACT: actualizar y analizar -----------------------------------------------------------------------------
     _code("ACT-001", F, "El libro es de un solo archivo",

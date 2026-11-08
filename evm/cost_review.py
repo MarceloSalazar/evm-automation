@@ -1,29 +1,28 @@
 """Depuración de costes: PV planificado de una empresa frente a su previsión de costes.
 
-Mientras dura el ajuste del cronograma, la empresa pega en la hoja PV-depuración su plan de costes (EDT cliente,
-actividad EDT, EDT interna, actividad interna o componente de coste, BAC, EAC y un importe por mes). Con fórmulas de
-Excel, cada línea pegada se asigna a una fila del libro y la hoja PV de la empresa muestra, debajo de cada fila, su
-fila «(coste)» con la previsión. La hoja 'Depuración costes' compara las dos curvas acumuladas de un elemento EDT. El
-comando procesar-costes (evm/cost_plan.py) lleva el reparto mensual del plan al % planificado de cada fila, con las
-mismas reglas (assign_lines). Al terminar, el libro de entrega se genera sin depuración (con --migrar-desde, que
-conserva el BAC y el % planificado del plan de costes).
+Mientras dura el ajuste del cronograma, la empresa escribe o pega en la hoja PV-depuración su plan de costes en tres
+niveles: EDT cliente, EDT interna y componente de coste, con el BAC, el EAC y un importe por mes. Los importes se
+suman hacia arriba (cálculos que hace el usuario, o procesar-costes con --calculos: calc_plan): los componentes en su
+EDT interna, las EDT interna en su EDT cliente y cada EDT cliente en la de su código superior. El EAC de cada línea es
+la suma de sus meses y el BAC de la EDT cliente se lee de la hoja PV de la empresa.
 
-Reglas de asignación de cada línea pegada, en tres niveles:
-- EDT cliente (columna A) con código numérico (2.3.4.1): su fila del libro; un código más detallado que el libro
-  (2.3.4.1.5) va a la fila de la que depende. Los ceros finales no cuentan (1.2 = 1.2.0) y se admite el código
-  convertido en número por Excel;
-- EDT interna (código en la columna C, como GPR01, o código no numérico en la columna A, como XRF01): pertenece al
-  último código numérico de las líneas anteriores;
-- componente de coste (solo la columna D, sin código en C): pertenece a la última EDT interna de arriba, de la misma
-  EDT cliente, o a la EDT cliente si no tiene EDT interna;
-- una línea de EDT interna o un componente que repite la EDT cliente en la columna A pertenece a esa EDT cliente,
-  como si la columna A estuviera vacía;
-- una línea con otras que dependen de ella es un subtotal y no se suma: la EDT cliente (sin EDT interna) con EDT
-  interna, componentes o códigos más detallados debajo, y la EDT interna con componentes de coste debajo.
+Solo se leen las líneas de EDT cliente (código numérico en la columna A, sin nada en C ni en D) cuyo código, sin los
+ceros finales (1.2 = 1.2.0), es el de una fila de ingreso del libro. Con fórmulas de Excel, la hoja PV de la empresa
+muestra debajo de cada fila su fila «(coste)», con los meses y el EAC de esa línea; la hoja 'Depuración costes' compara
+las dos curvas acumuladas de un elemento EDT. El comando procesar-costes (evm/cost_plan.py) lee las mismas líneas
+(read_lines) y lleva su importe de cada mes al % planificado. Al terminar, el libro de entrega se genera sin depuración
+(con --migrar-desde, que conserva el BAC y el % planificado del plan de costes).
+
+Estado de cada línea de EDT cliente:
+- leída: su código es el de una fila de ingreso del libro;
+- resumen: su código es el de una fila resumen del libro, que suma sus filas; si ninguna línea de un código inferior
+  se lee, su importe queda sin leer;
+- incluida: sin fila del libro, pero una línea de un código superior se lee (el plan tiene más detalle que el libro);
+- sin fila del libro: su importe queda sin leer.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 
 from openpyxl.chart import LineChart, Reference
@@ -38,7 +37,7 @@ from evm.messages import Issue
 from evm.wbs import KIND_RESIDUAL, Report, plural
 from evm.workbook import (BORDER, COLOR_COST, FILL_COST, FILL_HEADER, FILL_INPUT, FILL_RED, FILL_TOTAL, FMT_MONTH,
                           FMT_PCT, FONT_BOLD, FONT_HEADER, FONT_NOTE, FONT_TITLE, HEADER_ROW, SHEET_PV, _header,
-                          _Layout, col, company_sheet, money_format, put_text)
+                          _Layout, col, company_sheet, money_format, money_format_hide_zero, put_text)
 
 SHEET_PASTE = "PV-depuración"           # previsión pegada por la empresa
 SHEET_CHART = "Depuración costes"       # gráfico comparativo
@@ -59,27 +58,36 @@ LEGACY_BAC_HEADER = "BAC (total)"
 FIRST_MONTH_OF = {FORMAT_CURRENT: P_FIRST_MONTH, FORMAT_NO_EAC: 6, FORMAT_LEGACY: 4}
 
 # Hoja _depuracion: columnas por línea pegada (filas P_FIRST a P_LAST, alineadas con PV-depuración)
-(H_TEXT, H_NUM, H_NORM, H_TOTAL, H_CHILD, H_GROUP, H_EFF, H_PARENT, H_COUNT, H_TRUNC, H_TARGET, H_HORIZON,
- H_SUBDIFF, H_INT, H_ICODE, H_COMP, H_SUB) = range(1, 18)
-# Tabla de códigos del libro (desde la fila 2): código sin ceros finales, fila si el código coincide y fila si la
-# línea depende del código. Un resumen del libro sin fila propia lleva -1 (la línea queda sin asignar).
-L_KEY, L_EXACT, L_PREFIX = 19, 20, 21
+(H_TEXT, H_NUM, H_NORM, H_CLIENT, H_TOTAL, H_HORIZON, H_MATCH, H_ROW, H_ABOVE, H_BELOW, H_REPEAT,
+ H_STATE) = range(1, 13)
+# Tabla de códigos del libro (desde la fila 2): código sin ceros finales, fila si es de ingreso (-1 si es un resumen)
+# y fila de la hoja (para leer su BAC)
+L_KEY, L_EXACT, L_ROW = 14, 15, 16
 NO_ROW = -1
 # Lista del selector de la hoja 'Depuración costes' (desde la fila 2) y fila elegida
-S_CODE, S_ROW = 23, 24
-SELECTED = "$Z$1"
+S_CODE, S_ROW = 18, 19
+SELECTED = "$U$1"
 # Indicador de alineamiento: diferencia acumulada (previsión - PV planificado) por mes, en la fila de cada elemento
-CUM_FIRST = 28
+CUM_FIRST = 23
+
+# Estado de cada línea (H_STATE): no es de EDT cliente, leída, resumen con líneas inferiores leídas, resumen sin
+# ellas, incluida en una línea superior leída y sin fila del libro
+STATE_OTHER, STATE_READ, STATE_SUMMARY, STATE_SUMMARY_EMPTY, STATE_INCLUDED, STATE_MISSING = range(6)
+STATUS_SUMMARY = "Resumen: suma de sus filas"
+STATUS_SUMMARY_EMPTY = "Resumen sin detalle en el plan"
+STATUS_INCLUDED = "Incluida en su EDT cliente superior"
+STATUS_NONE = "Sin fila del libro"
+STATUS_OF = {STATE_SUMMARY: STATUS_SUMMARY, STATE_SUMMARY_EMPTY: STATUS_SUMMARY_EMPTY,
+             STATE_INCLUDED: STATUS_INCLUDED, STATE_MISSING: STATUS_NONE}
+UNREAD = (STATE_SUMMARY_EMPTY, STATE_MISSING)       # su importe no llega a ninguna fila del libro
 
 # Hoja 'Depuración costes'
 G_SELECT = "B4"
 G_HEADER_ROW, G_FIRST = 11, 12
 (G_NUM, G_DATE, G_PV, G_PVC, G_COST, G_COSTC, G_DIFF) = range(1, 8)
-STATUS_SUBTOTAL = "Subtotal (no se suma)"
-STATUS_SUMMARY = "Resumen sin fila propia"
-STATUS_NONE = "Sin fila del libro"
 FILL_OUTSIDE = PatternFill("solid", fgColor="7F7F7F")     # meses posteriores al horizonte del libro
 FILL_ALERT = PatternFill("solid", fgColor="F28B82", bgColor="F28B82")   # se distingue del naranja de «(coste)»
+FILL_CALC = PatternFill("solid", fgColor="FFBF00")        # PV-depuración: cálculos del plan (naranja)
 
 
 def paste_months(months: int) -> int:
@@ -114,74 +122,34 @@ def norm_code(code) -> str | None:
 
 
 def code_table(rows) -> tuple[dict[str, tuple[object, object]], list, list[str]]:
-    """Códigos del libro que pueden recibir la previsión: {código sin ceros finales: (fila exacta, fila de lo que
-    depende del código)}, con la fila o NO_ROW. rows: (código, tipo, ¿de ingreso?, fila, fila «Otras tareas» de un
-    resumen o None) de cada fila de la EDT. Devuelve también las filas con código no numérico y los códigos
-    repetidos."""
+    """Códigos del libro que pueden recibir el plan de costes: {código sin ceros finales: (fila si es de ingreso o
+    NO_ROW si es un resumen, fila)}. rows: (código, tipo, ¿de ingreso?, fila) de cada fila de la EDT. Devuelve también
+    las filas con código no numérico y los códigos repetidos. Las filas «Otras tareas» no tienen código propio."""
     entries: dict[str, tuple[object, object]] = {}
     nonnumeric = []
     repeated: list[str] = []
-    for code, kind, is_input, row, residual in rows:
+    for code, kind, is_input, row in rows:
         if kind == KIND_RESIDUAL:
-            continue                    # recibe lo que depende de su resumen sin fila propia
+            continue
         key = norm_code(code)
         if key is None:
             nonnumeric.append(row)
             continue
-        value = (row, row) if is_input else (NO_ROW, NO_ROW if residual is None else residual)
         if key in entries:
             repeated.append(code)
             continue
-        entries[key] = value
+        entries[key] = (row if is_input else NO_ROW, row)
     return entries, nonnumeric, repeated
 
 
 def lookup_rows(report: Report) -> tuple[dict[str, tuple[object, object]], list, list[str]]:
     """code_table con las filas de la EDT del informe (ReportRow)."""
-    return code_table((r.code, r.kind, r.is_input, r, next((c for c in r.children if c.kind == KIND_RESIDUAL), None))
-                      for r in report.rows)
+    return code_table((r.code, r.kind, r.is_input, r) for r in report.rows)
 
 
 def structure_table(structure) -> dict[str, tuple[int, int]]:
     """code_table con las filas de la hoja _estructura de un libro (StructRow): números de fila de las hojas."""
-    residual: dict[int, int] = {}
-    for s in structure:
-        if s.kind == KIND_RESIDUAL and s.parent_row is not None:
-            residual.setdefault(s.parent_row, s.row)
-    return code_table((s.code, s.kind, s.is_input, s.row, residual.get(s.row)) for s in structure)[0]
-
-
-# ----------------------------------------------------------------------------
-# Asignación en Python (procesar-costes): las mismas reglas que las fórmulas de la hoja _depuracion
-# ----------------------------------------------------------------------------
-@dataclass
-class PasteLine:
-    row: int                            # fila de la hoja PV-depuración
-    values: list                        # columnas A a la del último mes
-    text: str = ""                      # EDT cliente como texto (H_TEXT)
-    key: str | None = None              # EDT cliente numérica sin ceros finales (H_NORM); None si no es numérica
-    child: bool = False                 # línea con contenido que no es una EDT cliente numérica (H_CHILD)
-    internal: bool = False              # algo en la columna C o en la D (H_INT)
-    int_code: bool = False              # EDT interna: código en la columna C o no numérico en la A (H_ICODE)
-    component: bool = False             # componente de coste (H_COMP)
-    group: int = 0                      # fila de la EDT cliente de la que depende (H_GROUP)
-    internal_row: int = 0               # fila de la EDT interna de la que depende (H_SUB)
-    effective: str = ""                 # código con que se asigna (H_EFF)
-    subtotal: bool = False              # H_PARENT
-    counted: bool = False               # H_COUNT
-    target: int = 0                     # fila del libro; NO_ROW: resumen sin fila propia; 0: ninguna (H_TARGET)
-
-    @property
-    def numeric(self) -> bool:
-        return self.key is not None
-
-    @property
-    def months(self) -> list:
-        return self.values[P_FIRST_MONTH - 1:]
-
-    @property
-    def total(self) -> float:
-        return sum(v for v in self.months if is_amount(v))
+    return code_table((s.code, s.kind, s.is_input, s.row) for s in structure)[0]
 
 
 def is_amount(value) -> bool:
@@ -197,59 +165,199 @@ def _cell_text(value) -> str:
     return str(value).replace(",", ".").strip()
 
 
-def _prefix_row(key: str, table: dict[str, tuple[object, object]]) -> object:
-    """Fila de la que depende un código más detallado que el libro: la del código más largo de la tabla que es un
-    prefijo, por segmentos ('2.3.4.1.5' -> '2.3.4.1' -> '2.3.4'...); 0 si no hay (_trunc_chain)."""
-    parts = key.split(".")
-    for k in range(len(parts) - 1, 0, -1):
-        found = table.get(".".join(parts[:k]))
-        if found is not None:
-            return found[1]
-    return 0
+def _cells(values: list) -> tuple[str, str, str]:
+    """Columnas A (EDT cliente), C (EDT interna) y D (actividad interna o componente) de una línea, como texto."""
+    v = list(values) + [None] * P_INT_DESC
+    return _cell_text(v[P_CODE - 1]), _cell_text(v[P_INT_CODE - 1]), _cell_text(v[P_INT_DESC - 1])
 
 
-def assign_lines(rows: list[list], table: dict[str, tuple[object, object]]) -> list[PasteLine]:
-    """Asigna las líneas pegadas (columnas A a la del último mes, desde la fila P_FIRST) a las filas del libro, con
-    las mismas reglas que las fórmulas de la hoja _depuracion. table: code_table del libro."""
+# ----------------------------------------------------------------------------
+# Lectura en Python (procesar-costes): las mismas reglas que las fórmulas de la hoja _depuracion
+# ----------------------------------------------------------------------------
+@dataclass
+class PasteLine:
+    row: int                            # fila de la hoja PV-depuración
+    values: list                        # columnas A a la del último mes
+    key: str | None = None              # EDT cliente sin ceros finales (H_NORM); None si la línea no es de EDT cliente
+    match: int = 0                      # fila de ingreso del libro; NO_ROW: resumen; 0: ninguna (H_MATCH)
+    book_row: int = 0                   # fila del libro con el código, de ingreso o resumen (H_ROW)
+    state: int = STATE_OTHER            # H_STATE
+    repeated: bool = False              # otra línea de EDT cliente con el mismo código (H_REPEAT)
+
+    @property
+    def client(self) -> bool:
+        return self.key is not None
+
+    @property
+    def months(self) -> list:
+        return self.values[P_FIRST_MONTH - 1:]
+
+    @property
+    def total(self) -> float:
+        return sum(v for v in self.months if is_amount(v))
+
+
+def read_lines(rows: list[list], table: dict[str, tuple[object, object]]) -> list[PasteLine]:
+    """Líneas de la hoja PV-depuración (columnas A a la del último mes, desde la fila P_FIRST) con la fila del libro
+    de las de EDT cliente y su estado, con las mismas reglas que las fórmulas de la hoja _depuracion. table:
+    code_table del libro."""
     lines = [PasteLine(P_FIRST + k, list(values)) for k, values in enumerate(rows)]
-    by_row = {x.row: x for x in lines}
-    prev: PasteLine | None = None
     for x in lines:
-        v = x.values + [None] * (P_FIRST_MONTH - 1 - len(x.values))
-        x.text = _cell_text(v[P_CODE - 1])
-        x.key = norm_code(x.text) if x.text else None
-        int_code = bool(_cell_text(v[P_INT_CODE - 1]))
-        x.internal = int_code or bool(_cell_text(v[P_INT_DESC - 1]))
-        x.child = not x.numeric and (bool(x.text) or int_code or any(is_amount(a) for a in v[P_BAC - 1:]))
-        x.int_code = int_code or (not x.numeric and bool(x.text))
-        x.component = not x.int_code and x.internal and (x.child or x.numeric)
-        prev_group = prev.group if prev else 0
-        if not x.numeric:
-            x.group = prev_group
-        elif x.internal and prev_group > 0 and by_row[prev_group].key == x.key:
-            x.group = prev_group        # EDT interna o componente que repite la EDT cliente de su grupo
+        a, c, d = _cells(x.values)
+        key = norm_code(a) if a else None
+        if key is not None and not c and not d:
+            x.key = key
+            x.match, x.book_row = table.get(key, (0, 0))
+    clients = [x for x in lines if x.client]
+    read = {x.key for x in clients if x.match > 0}
+    counts: dict[str, int] = {}
+    for x in clients:
+        counts[x.key] = counts.get(x.key, 0) + 1
+    for x in clients:
+        parts = x.key.split(".")
+        x.repeated = counts[x.key] > 1
+        if x.match > 0:
+            x.state = STATE_READ
+        elif x.match == NO_ROW:
+            below = any(k.startswith(x.key + ".") for k in read)
+            x.state = STATE_SUMMARY if below else STATE_SUMMARY_EMPTY
         else:
-            x.group = x.row
-        if x.int_code:
-            x.internal_row = x.row
-        elif prev is not None and x.group == prev_group:
-            x.internal_row = prev.internal_row
-        x.effective = x.key if x.numeric else (by_row[x.group].key if x.group > 0 else "")
-        prev = x
-    for x in lines:
-        if x.int_code:
-            x.subtotal = any(y.internal_row == x.row and y.component for y in lines)
-        elif x.numeric and not x.internal:
-            x.subtotal = any(y.group == x.row and (y.child or (y.numeric and y.internal)) for y in lines) or any(
-                y.key is not None and y.key.startswith(x.key + ".") for y in lines)
-        x.counted = not x.subtotal and (x.numeric or x.child)
-        if x.counted and x.effective:
-            found = table.get(x.effective)
-            if found is None:
-                x.target = _prefix_row(x.effective, table)
-            else:
-                x.target = found[0] if x.numeric and not x.internal else found[1]
+            above = any(".".join(parts[:k]) in read for k in range(1, len(parts)))
+            x.state = STATE_INCLUDED if above else STATE_MISSING
     return lines
+
+
+# ----------------------------------------------------------------------------
+# Cálculos del plan de costes (procesar-costes --calculos)
+# ----------------------------------------------------------------------------
+KIND_CLIENT, KIND_INTERNAL, KIND_COMPONENT = "cliente", "interna", "componente"
+
+
+@dataclass
+class PlanLine:
+    kind: str                           # KIND_CLIENT, KIND_INTERNAL, KIND_COMPONENT o "" (vacía o solo descripción)
+    key: str | None = None              # EDT cliente sin ceros finales
+    parent: int | None = None           # índice de la línea de la que depende
+    children: list[int] = field(default_factory=list)
+
+
+def plan_lines(rows: list[list]) -> list[PlanLine]:
+    """Nivel de cada línea y la línea de la que depende: el componente de coste (solo la columna D), de la última EDT
+    interna de arriba, de la misma EDT cliente, o de la EDT cliente si no tiene EDT interna; la EDT interna (código en
+    C, o no numérico en A), de la última EDT cliente de arriba; la EDT cliente, de la del código superior más largo
+    que esté en el plan (1.2.1 de 1.2 o de 1)."""
+    out: list[PlanLine] = []
+    client = internal = None
+    first_of: dict[str, int] = {}
+    for k, values in enumerate(rows):
+        a, c, d = _cells(values)
+        key = norm_code(a) if a else None
+        if key is not None and not c and not d:
+            out.append(PlanLine(KIND_CLIENT, key))
+            first_of.setdefault(key, k)
+            client, internal = k, None
+        elif c or (a and key is None):
+            out.append(PlanLine(KIND_INTERNAL, parent=client))
+            internal = k
+        elif d:
+            out.append(PlanLine(KIND_COMPONENT, parent=internal if internal is not None else client))
+        else:
+            out.append(PlanLine(""))
+    for x in out:
+        if x.kind == KIND_CLIENT:
+            parts = x.key.split(".")
+            x.parent = next((first_of[".".join(parts[:j])] for j in range(len(parts) - 1, 0, -1)
+                             if ".".join(parts[:j]) in first_of), None)
+    for k, x in enumerate(out):
+        if x.parent is not None:
+            out[x.parent].children.append(k)
+    return out
+
+
+def calc_plan(rows: list[list]) -> tuple[list[list], list[PlanLine]]:
+    """Cálculos del plan: los meses (y el BAC de la EDT interna) de cada línea con otras debajo son la suma de esas
+    líneas, y el EAC de cada línea es la suma de sus meses. Devuelve las líneas con los importes calculados y el nivel
+    de cada una (para escribir las fórmulas)."""
+    plan = plan_lines(rows)
+    width = max([len(v) for v in rows] + [P_FIRST_MONTH])
+    out = [list(values) + [None] * (width - len(values)) for values in rows]
+    done: set[int] = set()
+
+    def amount(k: int, c: int) -> float:
+        v = out[k][c]
+        return v if is_amount(v) else 0.0
+
+    def compute(k: int) -> None:
+        if k in done:
+            return
+        done.add(k)
+        x = plan[k]
+        if not x.children:
+            return
+        for j in x.children:
+            compute(j)
+        columns = list(range(P_FIRST_MONTH - 1, width))
+        if x.kind == KIND_INTERNAL:
+            columns.insert(0, P_BAC - 1)
+        for c in columns:
+            out[k][c] = sum(amount(j, c) for j in x.children)
+
+    for k in range(len(plan)):
+        compute(k)
+    for k, x in enumerate(plan):
+        if x.kind:
+            out[k][P_EAC - 1] = sum(amount(k, c) for c in range(P_FIRST_MONTH - 1, width))
+    return out, plan
+
+
+def _refs(letter: str, rows: list[int]) -> str:
+    """Celdas de las filas indicadas, con las consecutivas en un rango: 'G12:G15,G17'."""
+    refs: list[str] = []
+    start = prev = None
+    for r in sorted(rows) + [None]:
+        if r is not None and prev is not None and r == prev + 1:
+            prev = r
+            continue
+        if start is not None:
+            refs.append(f"{letter}{start}" if start == prev else f"{letter}{start}:{letter}{prev}")
+        start = prev = r
+    return ",".join(refs)
+
+
+def write_calcs(ws, plan: list[PlanLine], months: int, sheet: str, total_row: int, decimals: int) -> int:
+    """Escribe en la hoja PV-depuración las fórmulas de los cálculos del plan (celdas naranjas): EAC = suma de los
+    meses; meses (y BAC de la EDT interna) de cada línea con otras debajo = suma de esas líneas; BAC de la EDT cliente
+    = el de su fila de la hoja PV de la empresa (sheet). Las celdas de ingreso quedan en amarillo. Devuelve la cantidad
+    de líneas calculadas."""
+    n_paste = paste_months(months)
+    first, last = col(P_FIRST_MONTH), col(P_FIRST_MONTH + n_paste - 1)
+    book_row = f"'{SHEET_HELPER}'!{col(H_ROW)}"
+    money, month_money = money_format(decimals), money_format_hide_zero(decimals)
+    done = 0
+    for k, x in enumerate(plan):
+        if not x.kind:
+            continue
+        done += 1
+        r = P_FIRST + k
+        rows = [P_FIRST + j for j in x.children]
+        cells: dict[int, tuple[str | None, PatternFill]] = {P_EAC: (f"=SUM({first}{r}:{last}{r})", FILL_CALC)}
+        if x.kind == KIND_CLIENT:
+            cells[P_BAC] = (f"=IF({book_row}{r}>0,INDEX('{sheet}'!$D$1:$D${total_row + 1},{book_row}{r}),\"\")",
+                            FILL_CALC)
+        elif rows and x.kind == KIND_INTERNAL:
+            cells[P_BAC] = (f"=SUM({_refs(col(P_BAC), rows)})", FILL_CALC)
+        else:
+            cells[P_BAC] = (None, FILL_INPUT)
+        for i in range(n_paste):
+            c_ = P_FIRST_MONTH + i
+            cells[c_] = (f"=SUM({_refs(col(c_), rows)})", FILL_CALC) if rows else (None, FILL_INPUT)
+        for c_, (formula, fill) in cells.items():
+            cell = ws.cell(row=r, column=c_)
+            if formula is not None:
+                cell.value = formula
+            cell.fill = fill
+            cell.number_format = month_money if c_ >= P_FIRST_MONTH else money
+    return done
 
 
 def review_issues(report: Report) -> list[Issue]:
@@ -277,12 +385,22 @@ def review_issues(report: Report) -> list[Issue]:
     return issues
 
 
-def paste_sum(i: int, r: int) -> str:
-    """Fórmula del mes i (base 0) de la fila «(coste)» de la fila de ingreso r: suma de las líneas pegadas asignadas
-    a la fila."""
-    L = col(P_FIRST_MONTH + i)
+def _read_sum(column: int, r: int) -> str:
+    """Suma de una columna de la hoja PV-depuración en las líneas de EDT cliente de la fila de ingreso r."""
+    L = col(column)
     return (f"=SUMIFS('{SHEET_PASTE}'!${L}${P_FIRST}:${L}${P_LAST},"
-            f"'{SHEET_HELPER}'!${col(H_TARGET)}${P_FIRST}:${col(H_TARGET)}${P_LAST},{r})")
+            f"'{SHEET_HELPER}'!${col(H_MATCH)}${P_FIRST}:${col(H_MATCH)}${P_LAST},{r})")
+
+
+def paste_sum(i: int, r: int) -> str:
+    """Fórmula del mes i (base 0) de la fila «(coste)» de la fila de ingreso r: el importe del mes de su línea de EDT
+    cliente en la hoja PV-depuración."""
+    return _read_sum(P_FIRST_MONTH + i, r)
+
+
+def paste_eac(r: int) -> str:
+    """Fórmula de la columna D de la fila «(coste)» de la fila de ingreso r: el EAC de su línea de EDT cliente."""
+    return _read_sum(P_EAC, r)
 
 
 # ----------------------------------------------------------------------------
@@ -293,8 +411,8 @@ def _threshold(cfg: Config) -> float:
 
 
 def alignment_cells(ws, cfg: Config, lay: _Layout, r: int, c: int) -> None:
-    """Columnas del indicador en la fila «(coste)» c: diferencia de BAC y diferencia máxima acumulada entre las dos
-    curvas, en % del BAC de la fila r."""
+    """Columnas del indicador en la fila «(coste)» c: diferencia entre el EAC y el BAC y diferencia máxima acumulada
+    entre las dos curvas, en % del BAC de la fila r."""
     first, last = col(CUM_FIRST), col(CUM_FIRST + lay.months - 1)
     cum = f"'{SHEET_HELPER}'!${first}{r}:${last}{r}"
     values = {lay.total_col + 1: f'=IF(N($D{r})=0,"",($D{c}-$D{r})/$D{r})',
@@ -310,7 +428,7 @@ def alignment_format(ws, report: Report, cfg: Config, lay: _Layout) -> None:
     """Encabezados del indicador y resaltado: meses cuya diferencia acumulada supera el umbral y diferencias de BAC o
     acumuladas que lo superan."""
     th = cfg.cost_review_threshold
-    _header(ws, HEADER_ROW, [(lay.total_col + 1, "Dif. BAC (% del BAC)"),
+    _header(ws, HEADER_ROW, [(lay.total_col + 1, "Dif. EAC (% del BAC)"),
                              (lay.total_col + 2, f"Dif. máx. acumulada (umbral {fmt_number(th, trim=True)} %)")])
     ws.row_dimensions[HEADER_ROW].height = 30
     for c_ in (lay.total_col + 1, lay.total_col + 2):
@@ -341,32 +459,25 @@ def _digits_removed(ref: str) -> str:
     return out
 
 
-def _trunc_chain(ref: str, depth: int, keys: str, prefix: str) -> str:
-    """Fila de la que depende el código ref (sin contar el código completo): el código más largo de la tabla del
-    libro que es un prefijo de ref, por segmentos ('2.3.4.1.5' -> '2.3.4.1' -> '2.3.4' -> ...); 0 si no hay."""
-    out = "0"
-    for k in range(1, depth + 1):
-        part = f'LEFT({ref},FIND("|",SUBSTITUTE({ref},".","|",{k}))-1)'
-        out = f"IFERROR(INDEX({prefix},MATCH({part},{keys},0)),{out})"
-    return out
+def _prefix_part(ref: str, k: int) -> str:
+    """Los k primeros segmentos del código ref ('1.2.3', k = 2 -> '1.2'); error si tiene k segmentos o menos."""
+    return f'LEFT({ref},FIND("|",SUBSTITUTE({ref},".","|",{k}))-1)'
 
 
 def write_helper(ws, report: Report, lay: _Layout, cfg: Config) -> None:
-    """Hoja oculta _depuracion: asignación de cada línea pegada, tabla de códigos del libro, lista del selector y
-    diferencias acumuladas del indicador."""
+    """Hoja oculta _depuracion: fila del libro y estado de cada línea pegada, tabla de códigos del libro, lista del
+    selector y diferencias acumuladas del indicador."""
     rs = review_sheet(report)
     n_paste = paste_months(lay.months)
     last_paste = col(P_FIRST_MONTH + n_paste - 1)
     last_horizon = col(P_FIRST_MONTH + lay.months - 1)
     paste = f"'{SHEET_PASTE}'"
-    heads = {H_TEXT: "codigo", H_NUM: "numerico", H_NORM: "codigo_normalizado", H_TOTAL: "total_linea",
-             H_CHILD: "subtarea", H_GROUP: "fila_grupo", H_EFF: "codigo_efectivo", H_PARENT: "subtotal",
-             H_COUNT: "se_suma", H_TRUNC: "fila_por_dependencia", H_TARGET: "fila_libro", H_HORIZON: "total_horizonte",
-             H_SUBDIFF: "dif_subtotal", H_INT: "columna_c_o_d", H_ICODE: "edt_interna", H_COMP: "componente",
-             H_SUB: "fila_edt_interna"}
+    heads = {H_TEXT: "codigo", H_NUM: "numerico", H_NORM: "codigo_normalizado", H_CLIENT: "edt_cliente",
+             H_TOTAL: "total_linea", H_HORIZON: "total_horizonte", H_MATCH: "fila_ingreso", H_ROW: "fila_libro",
+             H_ABOVE: "superior_leida", H_BELOW: "inferior_leida", H_REPEAT: "repetida", H_STATE: "estado"}
     for c_, text in heads.items():
         ws.cell(row=P_FIRST - 1, column=c_, value=text)
-    tables = {L_KEY: "edt", L_EXACT: "fila_exacta", L_PREFIX: "fila_dependencia", S_CODE: "selector", S_ROW: "fila",
+    tables = {L_KEY: "edt", L_EXACT: "fila_ingreso", L_ROW: "fila", S_CODE: "selector", S_ROW: "fila",
               CUM_FIRST - 1: "fila_libro"}
     for c_, text in tables.items():
         ws.cell(row=1, column=c_, value=text)
@@ -376,61 +487,44 @@ def write_helper(ws, report: Report, lay: _Layout, cfg: Config) -> None:
     def row_number(value) -> int:
         return value if value == NO_ROW else lay.r(value)
 
-    for i, (key, (exact, prefix)) in enumerate(entries.items(), start=2):
+    for i, (key, (exact, row)) in enumerate(entries.items(), start=2):
         put_text(ws, i, L_KEY, key)
         ws.cell(row=i, column=L_EXACT, value=row_number(exact))
-        ws.cell(row=i, column=L_PREFIX, value=row_number(prefix))
+        ws.cell(row=i, column=L_ROW, value=row_number(row))
     n_keys = max(2, len(entries) + 1)
     keys = f"${col(L_KEY)}$2:${col(L_KEY)}${n_keys}"
     exact_rng = f"${col(L_EXACT)}$2:${col(L_EXACT)}${n_keys}"
-    prefix_rng = f"${col(L_PREFIX)}$2:${col(L_PREFIX)}${n_keys}"
+    row_rng = f"${col(L_ROW)}$2:${col(L_ROW)}${n_keys}"
     depth = max([key.count(".") + 1 for key in entries] + [1])
 
     def rng(c_: int) -> str:
         return f"${col(c_)}${P_FIRST}:${col(c_)}${P_LAST}"
 
-    norm = f"${col(H_NORM)}$1:${col(H_NORM)}${P_LAST}"
     for r in range(P_FIRST, P_LAST + 1):
-        a, b, cn, d, e, f, g, h, i_, j, k, n, ic = (
-            f"{col(x)}{r}" for x in (H_TEXT, H_NUM, H_NORM, H_TOTAL, H_CHILD, H_GROUP, H_EFF, H_PARENT, H_COUNT,
-                                     H_TRUNC, H_TARGET, H_INT, H_ICODE))
-        prev = f"{col(H_GROUP)}{r - 1}"
-        int_code = f'LEN(TRIM({paste}!{col(P_INT_CODE)}{r}&""))>0'
+        a, b, cn, cl, m, above, below = (f"{col(x)}{r}" for x in (H_TEXT, H_NUM, H_NORM, H_CLIENT, H_MATCH, H_ABOVE,
+                                                                   H_BELOW))
+        # Una línea de código superior leída (comparación de textos: COUNTIFS tomaría '1.10' como 1,1)
+        read_above = "+".join(f"IFERROR(SUMPRODUCT(({rng(H_NORM)}={_prefix_part(cn, k)})*({rng(H_MATCH)}>0)),0)"
+                              for k in range(1, depth + 1))
         cells = {
             H_TEXT: f'=TRIM(SUBSTITUTE({paste}!A{r}&"",",","."))',
             H_NUM: (f'=IF({a}="",0,IF(AND(LEN({_digits_removed(a)})=0,LEFT({a},1)<>".",RIGHT({a},1)<>".",'
                     f'ISERROR(FIND("..",{a}))),1,0))'),
             H_NORM: (f'=IF({b}=1,LEFT({a},LEN({a})-2*SUMPRODUCT(--(RIGHT({a},{{2,4,6,8,10,12,14,16,18}})'
                      f'=REPT(".0",{{1,2,3,4,5,6,7,8,9}})))),"")'),
+            # Línea de EDT cliente: código numérico en A, sin EDT interna ni componente
+            H_CLIENT: (f'=IF(AND({b}=1,LEN(TRIM({paste}!{col(P_INT_CODE)}{r}&""))=0,'
+                       f'LEN(TRIM({paste}!{col(P_INT_DESC)}{r}&""))=0),1,0)'),
             H_TOTAL: f"=SUM({paste}!{col(P_FIRST_MONTH)}{r}:{last_paste}{r})",
-            H_CHILD: (f'=IF(AND({b}=0,OR({a}<>"",{int_code},'
-                      f'COUNT({paste}!{col(P_BAC)}{r}:{last_paste}{r})>0)),1,0)'),
-            # Grupo: la línea numérica de la que dependen las líneas siguientes. Una línea de EDT interna que repite
-            # la EDT cliente de su grupo sigue en ese grupo.
-            H_GROUP: (f"=IF({b}=1,ROW(),0)" if r == P_FIRST else
-                      f"=IF({b}=1,IF(AND({n}=1,{prev}>0),IF(INDEX({norm},{prev})={cn},{prev},ROW()),ROW()),{prev})"),
-            H_EFF: f'=IF({b}=1,{cn},IF({f}>0,INDEX({norm},{f}),""))',
-            # Subtotal: la EDT interna con componentes de coste debajo, o la EDT cliente con líneas que dependen de
-            # ella (EDT interna, componentes o códigos más detallados)
-            H_PARENT: (f'=IF({ic}=1,IF(COUNTIFS({rng(H_SUB)},ROW(),{rng(H_COMP)},1)>0,1,0),'
-                       f'IF(AND({b}=1,{n}=0),IF(OR(COUNTIFS({rng(H_GROUP)},ROW(),{rng(H_CHILD)},1)>0,'
-                       f'COUNTIFS({rng(H_GROUP)},ROW(),{rng(H_NUM)},1,{rng(H_INT)},1)>0,'
-                       f'COUNTIF({rng(H_NORM)},{cn}&".*")>0),1,0),0))'),
-            H_COUNT: f"=IF({h}=1,0,IF(OR({b}=1,{e}=1),1,0))",
-            H_TRUNC: f'=IF({g}="",0,{_trunc_chain(g, depth, keys, prefix_rng)})',
-            H_TARGET: (f'=IF({i_}=0,0,IF({g}="",0,IF(AND({b}=1,{n}=0),'
-                       f'IFERROR(INDEX({exact_rng},MATCH({g},{keys},0)),{j}),'
-                       f'IFERROR(INDEX({prefix_rng},MATCH({g},{keys},0)),{j}))))'),
             H_HORIZON: f"=SUM({paste}!{col(P_FIRST_MONTH)}{r}:{last_horizon}{r})",
-            H_SUBDIFF: (f'=IF({h}=1,{d}-IF({ic}=1,SUMIFS({rng(H_TOTAL)},{rng(H_COUNT)},1,{rng(H_SUB)},ROW()),'
-                        f'SUMIFS({rng(H_TOTAL)},{rng(H_COUNT)},1,{rng(H_GROUP)},ROW())'
-                        f'+SUMIFS({rng(H_TOTAL)},{rng(H_COUNT)},1,{rng(H_EFF)},{cn}&".*")),0)'),
-            H_INT: f'=IF(OR({int_code},LEN(TRIM({paste}!{col(P_INT_DESC)}{r}&""))>0),1,0)',
-            H_ICODE: f'=IF(OR({int_code},AND({b}=0,{a}<>"")),1,0)',
-            H_COMP: f"=IF(AND({ic}=0,{n}=1,OR({e}=1,{b}=1)),1,0)",
-            # Fila de la última EDT interna de arriba, en la misma EDT cliente
-            H_SUB: (f"=IF({ic}=1,ROW(),0)" if r == P_FIRST else
-                    f"=IF({ic}=1,ROW(),IF({f}={prev},{col(H_SUB)}{r - 1},0))"),
+            H_MATCH: f"=IF({cl}=1,IFERROR(INDEX({exact_rng},MATCH({cn},{keys},0)),0),0)",
+            H_ROW: f"=IF({cl}=1,IFERROR(INDEX({row_rng},MATCH({cn},{keys},0)),0),0)",
+            H_ABOVE: f"=IF(AND({cl}=1,{m}=0),IF({read_above}>0,1,0),0)",
+            H_BELOW: f'=IF({m}={NO_ROW},IF(COUNTIFS({rng(H_NORM)},{cn}&".*",{rng(H_MATCH)},">0")>0,1,0),0)',
+            H_REPEAT: f"=IF({cl}=1,IF(SUMPRODUCT(({rng(H_NORM)}={cn})*({rng(H_CLIENT)}=1))>1,1,0),0)",
+            H_STATE: (f"=IF({cl}=0,{STATE_OTHER},IF({m}>0,{STATE_READ},IF({m}={NO_ROW},"
+                      f"IF({below}=1,{STATE_SUMMARY},{STATE_SUMMARY_EMPTY}),"
+                      f"IF({above}=1,{STATE_INCLUDED},{STATE_MISSING}))))"),
         }
         for c_, v in cells.items():
             ws.cell(row=r, column=c_, value=v)
@@ -459,9 +553,11 @@ def selector_range(report: Report) -> str:
     return f"'{SHEET_HELPER}'!${col(S_CODE)}$2:${col(S_CODE)}${len(report.rows) + 2}"
 
 
-def write_paste(ws, report: Report, cfg: Config, lay: _Layout, rows: list[list] | None = None) -> None:
-    """Hoja PV-depuración: el bloque de la previsión de la empresa (desde A8), los encabezados de los meses y los
-    controles de la asignación. rows: líneas trasladadas del libro anterior (--migrar-desde)."""
+def write_paste(ws, report: Report, cfg: Config, lay: _Layout, rows: list[list] | None = None,
+                calcs: bool = False) -> None:
+    """Hoja PV-depuración: el bloque del plan de costes de la empresa (desde A8), los encabezados de los meses y los
+    controles de la lectura. rows: líneas trasladadas del libro anterior (--migrar-desde); calcs: la hoja anterior
+    tenía fórmulas, que se vuelven a escribir con write_calcs."""
     company = review_company(report)
     rs = review_sheet(report)
     money = money_format(cfg.decimals)
@@ -474,30 +570,32 @@ def write_paste(ws, report: Report, cfg: Config, lay: _Layout, rows: list[list] 
     ws.cell(row=1, column=1, value="Plan de costes para la depuración del PV" +
             (f"  -  {company}" if company else "")).font = FONT_TITLE
     ws.cell(row=2, column=1, value=(
-        f"Pegar desde la celda A{P_FIRST} (pegado especial > valores): EDT cliente, actividad EDT, EDT interna, "
-        f"actividad interna o componente de coste, BAC, EAC y un importe por mes, con el mes 1 en la columna "
-        f"{col(P_FIRST_MONTH)}. Cada línea se suma en la última EDT cliente de arriba. Las líneas con otras debajo son "
-        "subtotales y no se suman: la EDT cliente con EDT interna o códigos más detallados, y la EDT interna (p. ej. "
-        "GPR01) con componentes de coste (solo la columna D).")).font = FONT_NOTE
+        f"Pegar o escribir desde la celda A{P_FIRST}: EDT cliente, actividad EDT, EDT interna, actividad interna o "
+        f"componente de coste, BAC, EAC y un importe por mes, con el mes 1 en la columna {col(P_FIRST_MONTH)}. Los "
+        "importes se suman hacia arriba: los componentes de coste en su EDT interna y las EDT interna en su EDT "
+        f"cliente; el EAC es la suma de los meses y el BAC de la EDT cliente, el de la hoja {rs} (celdas naranjas: "
+        "cálculos, que hace procesar-costes --calculos; amarillas: datos). Solo se leen las líneas de EDT cliente "
+        f"cuyo código es una fila de la hoja {rs}.")).font = FONT_NOTE
 
-    labels = [(P_TOTAL_ROW, "Total pegado (sin subtotales)",
-               f"=SUMIFS({helper}!${col(H_TOTAL)}${P_FIRST}:${col(H_TOTAL)}${P_LAST},"
-               f"{helper}!${col(H_COUNT)}${P_FIRST}:${col(H_COUNT)}${P_LAST},1)"),
-              (P_ASSIGNED_ROW, "Asignado a filas del libro (meses del horizonte)",
-               f"=SUMIFS({helper}!${col(H_HORIZON)}${P_FIRST}:${col(H_HORIZON)}${P_LAST},"
-               f"{helper}!${col(H_TARGET)}${P_FIRST}:${col(H_TARGET)}${P_LAST},\">0\")"),
-              (P_MISSING_ROW, "Sin asignar (sin fila del libro o fuera del horizonte)",
-               f"={control}{P_TOTAL_ROW}-{control}{P_ASSIGNED_ROW}")]
+    def by_state(column: int, *states: int) -> str:
+        return "+".join(f"SUMIFS({helper}!${col(column)}${P_FIRST}:${col(column)}${P_LAST},"
+                        f"{helper}!${col(H_STATE)}${P_FIRST}:${col(H_STATE)}${P_LAST},{s})" for s in states)
+
+    labels = [(P_TOTAL_ROW, "Leído en filas del libro (meses del horizonte)", "=" + by_state(H_HORIZON, STATE_READ)),
+              (P_ASSIGNED_ROW, "Leído después del horizonte (no forma parte del PV)",
+               f"={by_state(H_TOTAL, STATE_READ)}-{control}{P_TOTAL_ROW}"),
+              (P_MISSING_ROW, "Sin leer: EDT cliente sin fila del libro o resumen sin detalle",
+               "=" + by_state(H_TOTAL, *UNREAD))]
     for r, label, formula in labels:
         ws.cell(row=r, column=P_DESC, value=label).font = FONT_BOLD
         cell = ws.cell(row=r, column=P_EAC, value=formula)
         cell.number_format = money
         cell.border = BORDER
-    ws.conditional_formatting.add(f"{control}{P_MISSING_ROW}", FormulaRule(
-        formula=[f"ABS({control}{P_MISSING_ROW})>0.5"], fill=FILL_RED))
+    ws.conditional_formatting.add(f"{control}{P_ASSIGNED_ROW}:{control}{P_MISSING_ROW}", FormulaRule(
+        formula=[f"ABS({control}{P_ASSIGNED_ROW})>0.5"], fill=FILL_RED))
     ws.cell(row=P_TOTAL_ROW, column=P_FIRST_MONTH,
             value=f"Resultado: filas «(coste)» de la hoja {rs} y hoja '{SHEET_CHART}'; el comando procesar-costes "
-                  "lleva el reparto mensual al % planificado.").font = FONT_NOTE
+                  "lleva el importe de cada mes al % planificado.").font = FONT_NOTE
     ws.cell(row=P_MISSING_ROW, column=P_FIRST_MONTH,
             value=f"Fila del libro de cada línea: columnas {col(status_col)} ('Asignado a') y {col(obs_col)} "
                   "('Observación'), a la derecha de los meses.").font = FONT_NOTE
@@ -522,8 +620,7 @@ def write_paste(ws, report: Report, cfg: Config, lay: _Layout, rows: list[list] 
         ws.column_dimensions[col(c_)].number_format = money
     if n_paste > lay.months:
         ws.cell(row=P_HEADER_ROW, column=P_FIRST_MONTH + lay.months).comment = Comment(
-            f"Meses posteriores al horizonte del libro ({lay.months} meses): no se asignan a las filas del libro.",
-            "evm_export")
+            f"Meses posteriores al horizonte del libro ({lay.months} meses): no forman parte del PV.", "evm_export")
     ws.column_dimensions[col(P_CODE)].number_format = "@"
     ws.column_dimensions[col(P_INT_CODE)].number_format = "@"
     ws.column_dimensions[col(P_BAC)].number_format = money
@@ -533,35 +630,35 @@ def write_paste(ws, report: Report, cfg: Config, lay: _Layout, rows: list[list] 
         for c_, v in enumerate(values, start=1):
             if v is not None and c_ < status_col:
                 cell = put_text(ws, P_FIRST + k, c_, v)
-                if c_ >= P_BAC and isinstance(v, (int, float)) and not isinstance(v, bool):
+                if c_ >= P_BAC and is_amount(v):
                     cell.number_format = money
+    if rows and calcs:
+        write_calcs(ws, plan_lines(rows[:P_LINES]), lay.months, rs, lay.total_row, cfg.decimals)
 
     for r in range(P_FIRST, P_LAST + 1):
-        h = {x: f"{helper}!{col(x)}{r}" for x in (H_NUM, H_CHILD, H_GROUP, H_PARENT, H_TARGET, H_TOTAL, H_SUBDIFF,
-                                                  H_HORIZON)}
-        ws.cell(row=r, column=status_col, value=(
-            f'=IF(AND({h[H_NUM]}=0,{h[H_CHILD]}=0),"",IF({h[H_PARENT]}=1,"{STATUS_SUBTOTAL}",IF({h[H_TARGET]}>0,'
-            f'INDEX(\'{rs}\'!$A$1:$A${lay.total_row + 1},{h[H_TARGET]}),IF({h[H_TARGET]}={NO_ROW},'
-            f'"{STATUS_SUMMARY}","{STATUS_NONE}"))))'))
-        s = f"{col(status_col)}{r}"
+        h = {x: f"{helper}!{col(x)}{r}" for x in (H_STATE, H_MATCH, H_REPEAT, H_TOTAL, H_HORIZON)}
+        choices = [(STATE_READ, f"INDEX('{rs}'!$A$1:$A${lay.total_row + 1},{h[H_MATCH]})")]
+        choices += [(s, f'"{text}"') for s, text in STATUS_OF.items()]
+        formula = '""'                  # STATE_OTHER: líneas de EDT interna y componentes, que no se leen
+        for s, value in reversed(choices):
+            formula = f"IF({h[H_STATE]}={s},{value},{formula})"
+        ws.cell(row=r, column=status_col, value=f"={formula}")
         ws.cell(row=r, column=obs_col, value=(
-            f'=IF({s}="","",TRIM(IF(AND({h[H_NUM]}=0,{h[H_GROUP]}=0),"Sin EDT cliente en las líneas anteriores. ","")'
-            f'&IF(AND({h[H_PARENT]}=1,{h[H_TOTAL]}<>0,ABS({h[H_SUBDIFF]})>0.5),'
-            f'"Subtotal distinto de la suma de sus líneas. ","")'
-            f'&IF(AND({h[H_TARGET]}>0,ABS({h[H_TOTAL]}-{h[H_HORIZON]})>0.5),'
-            f'"Importes fuera del horizonte del libro. ","")'
+            f'=IF({h[H_STATE]}<>{STATE_READ},"",TRIM(IF({h[H_REPEAT]}=1,"EDT cliente repetida: se suman sus '
+            f'líneas. ","")&IF(ABS({h[H_TOTAL]}-{h[H_HORIZON]})>0.5,"Importes fuera del horizonte del libro. ","")'
             f'&IF(SUMPRODUCT(ISTEXT({amounts}{r}:{last_paste}{r})*(LEN({amounts}{r}:{last_paste}{r})>0))>0,'
             f'"Importes guardados como texto: no se suman. ","")))'))
-    status = f"{col(status_col)}{P_FIRST}"
-    obs = f"{col(obs_col)}{P_FIRST}"
+    status = f"${col(status_col)}{P_FIRST}"
+    obs = f"${col(obs_col)}{P_FIRST}"
     area = f"{col(status_col)}{P_FIRST}:{col(obs_col)}{P_LAST}"
-    ws.conditional_formatting.add(area, FormulaRule(
-        formula=[f'OR(${status}="{STATUS_NONE}",${status}="{STATUS_SUMMARY}",${obs}<>"")'], fill=FILL_RED))
-    ws.conditional_formatting.add(f"A{P_FIRST}:{col(P_EAC)}{P_LAST}", FormulaRule(
-        formula=[f'${status}="{STATUS_SUBTOTAL}"'], fill=FILL_TOTAL, font=Font(italic=True, color="595959")))
+    unread = ",".join(f'{status}="{STATUS_OF[s]}"' for s in UNREAD)
+    ws.conditional_formatting.add(area, FormulaRule(formula=[f'OR({unread},{obs}<>"")'], fill=FILL_RED))
+    ws.conditional_formatting.add(f"A{P_FIRST}:{col(P_INT_DESC)}{P_LAST}", FormulaRule(
+        formula=[f'OR({status}="{STATUS_SUMMARY}",{status}="{STATUS_INCLUDED}")'], fill=FILL_TOTAL,
+        font=Font(italic=True, color="595959")))
 
     for c_, w in {P_CODE: 12, P_DESC: 34, P_INT_CODE: 12, P_INT_DESC: 34, P_BAC: 14, P_EAC: 14, status_col - 1: 3,
-                  status_col: 20, obs_col: 60}.items():
+                  status_col: 34, obs_col: 60}.items():
         ws.column_dimensions[col(c_)].width = w
     ws.row_dimensions[P_HEADER_ROW].height = 30
     ws.freeze_panes = ws.cell(row=P_FIRST, column=P_FIRST_MONTH)
@@ -578,9 +675,10 @@ def write_chart_sheet(ws, report: Report, cfg: Config, lay: _Layout) -> None:
             (f" de {company}" if company else "")).font = FONT_TITLE
     ws.cell(row=2, column=1, value=(
         f"Se elige el elemento EDT en la celda {G_SELECT} (TOTAL o un código de la hoja {rs}). PV planificado: BAC × "
-        f"% planificado de MS Project. Previsión: fila «(coste)», con lo pegado en la hoja {SHEET_PASTE}. El objetivo "
-        "es que los dos BAC coincidan y que las curvas se parezcan; se ajustan en MS Project las tareas, sus fechas "
-        "y el peso de los hitos, y se regenera el libro con --migrar-desde.")).font = FONT_NOTE
+        f"% planificado. Previsión: fila «(coste)», con los meses y el EAC de la EDT cliente en la hoja {SHEET_PASTE}. "
+        "El objetivo es que el EAC coincida con el BAC y que las curvas se parezcan: se ajusta el plan de costes, o en "
+        "MS Project las tareas, sus fechas y el peso de los hitos (y se regenera el libro con --migrar-desde); "
+        "procesar-costes lleva el plan al % planificado.")).font = FONT_NOTE
     ws.cell(row=2, column=1).alignment = Alignment(wrap_text=True, vertical="top")
     ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=8)
     ws.row_dimensions[2].height = 45
@@ -602,8 +700,8 @@ def write_chart_sheet(ws, report: Report, cfg: Config, lay: _Layout) -> None:
     diff = f"${col(G_DIFF)}${G_FIRST}:${col(G_DIFF)}${end}"
     rows = [
         (5, "BAC (fila de porcentaje)", f"=N(INDEX('{rs}'!$D$1:$D${lay.total_row + 1},{sel}))", money),
-        (6, "Previsión (fila «(coste)»)", f"=N(INDEX('{rs}'!$D$1:$D${lay.total_row + 1},{sel}+1))", money),
-        (7, "Diferencia: previsión - BAC", "=B6-B5", money),
+        (6, "EAC (fila «(coste)»)", f"=N(INDEX('{rs}'!$D$1:$D${lay.total_row + 1},{sel}+1))", money),
+        (7, "Diferencia: EAC - BAC", "=B6-B5", money),
         (8, "Diferencia máxima acumulada", f"=MAX(MAX({diff}),-MIN({diff}))", money),
     ]
     for r, label, formula, fmt in rows:
@@ -717,6 +815,29 @@ def read_paste(ws, months: int) -> tuple[list[list], str]:
     if fmt != FORMAT_CURRENT:
         rows = [values[:P_EAC - 1] + [_months_total(values[P_EAC - 1:])] + values[P_EAC - 1:] for values in rows]
     return rows, fmt
+
+
+def resolve_formulas(path, rows: list[list], months: int) -> tuple[list[list], int, list[tuple[int, int]]]:
+    """Cambia las fórmulas de las líneas de la hoja PV-depuración (read_paste) por el valor que calculó Excel.
+    Devuelve las líneas, la cantidad de celdas con fórmula y las celdas (línea, columna, desde 0) sin valor calculado
+    (el libro no se guardó en Excel después de escribirlas)."""
+    cells = [(k, c) for k, values in enumerate(rows) for c, v in enumerate(values)
+             if isinstance(v, str) and v.startswith("=")]
+    if not cells:
+        return rows, 0, []
+    from openpyxl import load_workbook
+    wv = load_workbook(path, data_only=True, read_only=True)
+    try:
+        cached, _fmt = read_paste(wv[SHEET_PASTE], months)
+    finally:
+        wv.close()
+    missing = []
+    for k, c in cells:
+        value = cached[k][c] if k < len(cached) and c < len(cached[k]) else None
+        if value is None:
+            missing.append((k, c))
+        rows[k][c] = value
+    return rows, len(cells), missing
 
 
 def _months_total(values: list) -> float | None:

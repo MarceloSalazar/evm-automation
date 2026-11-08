@@ -388,48 +388,53 @@ LOE.
 
 ```powershell
 python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx
+python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx --calculos
 ```
 
-En un libro generado con `depuracion_costes = true`, lee el plan de costes pegado en la hoja
-`PV-depuración` y lleva su reparto mensual al **% planificado** de cada fila de la empresa que se
-depura (hoja `% PV-EmpresaA`, o `% PV` en un libro de una sola empresa), **sin leer MS Project**:
+En un libro generado con `depuracion_costes = true`, lee el plan de costes de la hoja `PV-depuración` y
+lleva el importe de cada mes al **% planificado** de cada fila de la empresa que se depura (hoja
+`% PV-EmpresaA`, o `% PV` en un libro de una sola empresa), **sin leer MS Project**:
 
-- Cada línea del plan se asigna a una fila del libro por su **EDT cliente**, con las mismas reglas
-  que la columna `Asignado a` de la hoja ([reglas](depuracion-costes.md#42-cómo-se-asigna-cada-línea)).
-- El % planificado de cada mes es el importe del mes dividido por el **EAC** de la fila (la suma de
-  sus líneas). El PV sigue siendo el BAC × el %: si el BAC de la fila coincide con su EAC, el PV de
-  cada mes es el importe del plan; si no, el plan da el reparto en el tiempo y el total es el BAC.
-- Las filas sin líneas en el plan conservan su % planificado (de MS Project o de un procesado
-  anterior), y la otra empresa no cambia.
+- Con `--calculos`, primero escribe en la hoja las fórmulas de los cálculos del plan: las sumas de los
+  componentes de coste en su EDT interna y de las EDT interna en su EDT cliente, el EAC de cada línea y
+  el BAC de cada EDT cliente, leído de la hoja PV de la empresa
+  ([cálculos del plan](depuracion-costes.md#43-cálculos-del-plan-celdas-naranjas)).
+- Lee solo las **líneas de EDT cliente** cuyo código es el de una fila de ingreso de la hoja PV de la
+  empresa ([qué líneas se leen](depuracion-costes.md#42-qué-líneas-se-leen)).
+- El % planificado de cada mes es el importe del mes dividido por el **BAC** de la fila: el PV (BAC × %)
+  es el importe del plan.
+- Las filas sin línea en el plan, sin BAC o con la línea sin importes conservan su % planificado (de
+  MS Project o de un procesado anterior), y la otra empresa no cambia.
 - Las filas procesadas conservan ese % al regenerar el libro con `--migrar-desde`, también en el libro
   de entrega sin depuración, y `actualizar` no lo compara con la línea base de MS Project
   ([Depuración de costes](depuracion-costes.md#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes)).
 
-Muestra las filas procesadas con su EAC y las observaciones: líneas sin fila del libro, importes
-después del horizonte, filas sin líneas en el plan e importes guardados como texto
-([DEP-012 a DEP-018](codigos.md#413-dep--depuración-de-costes)).
+Muestra las filas procesadas con su EAC y las observaciones: líneas de EDT cliente sin leer, importes
+después del horizonte, filas sin línea en el plan, sin importes o sin BAC, EDT cliente repetidas e
+importes guardados como texto ([DEP-012 a DEP-020](codigos.md#413-dep--depuración-de-costes)).
 
 ```text
 Exportador EVM 2.5.0
-Hoja: PV-EmpresaA  |  Plan de costes: 19 líneas, 12 se suman (sin subtotales)  |  Total: 366
-Reparto del plan de costes en 4 de 5 filas de ingreso, 363 dentro del horizonte:
-  1.1.0        Dirección                                         EAC            157
-  1.2.1        Licitación                                        EAC             60
+Cálculos del plan de costes: 16 líneas de la hoja PV-depuración (sumas, EAC y BAC de las EDT cliente)
+Hoja: PV-EmpresaA  |  Plan de costes: 9 líneas de EDT cliente, 3 con fila de ingreso  |  Importe leído: 278
+Plan de costes en 3 de 5 filas de ingreso, 278 dentro del horizonte:
+  1.1.0        Dirección                                         EAC            117
+  1.2.1        Licitación                                        EAC             65
   1.2.2        Obras                                             EAC             96
-  2.1.0        Básica                                            EAC             50
-  [!] DEP-014 1 línea de la hoja PV-depuración sin fila del libro, por 3,00: Componente sin EDT cliente encima (fila 8): sin EDT cliente encima. Su importe no forma parte del % planificado.
-  [i] DEP-016 Filas de ingreso de la hoja PV-EmpresaA sin líneas en el plan de costes (1): 1.0.0-D. Conservan su % planificado (de MS Project o de un procesado anterior).
-El PV de cada mes es el BAC × el % planificado (hoja '% PV-EmpresaA'): en las filas cuyo BAC coincide con el EAC, es el importe del plan de costes.
-Respaldo: C:\Programa\EVM_Depuracion.respaldo-20261106-101500.xlsx
+  [!] DEP-014 3 líneas de EDT cliente de la hoja PV-depuración sin leer, por 62,00: 1.2.7 (fila 21): sin fila del libro, 2.0.0 (fila 23): resumen sin detalle en el plan, 9.9 (fila 24): sin fila del libro. Su importe no forma parte del % planificado.
+  [i] DEP-016 Filas de ingreso de la hoja PV-EmpresaA sin línea de EDT cliente en el plan de costes (2): 1.0.0-D, 2.1.0. Conservan su % planificado (de MS Project o de un procesado anterior).
+% planificado (hoja '% PV-EmpresaA') = importe del mes / BAC: el PV de cada mes (BAC × %) es el importe del plan de costes.
+Respaldo: C:\Programa\EVM_Depuracion.respaldo-20261108-101500.xlsx
 Libro actualizado: C:\Programa\EVM_Depuracion.xlsx
 ```
 
 | Opción | Descripción |
 |---|---|
-| `--libro` | Libro generado con `depuracion_costes = true`, con el plan de costes pegado en la hoja `PV-depuración`. **Obligatoria.** |
-| `--simular` | Muestra el resultado sin modificar el libro. |
+| `--libro` | Libro generado con `depuracion_costes = true`, con el plan de costes en la hoja `PV-depuración`. **Obligatoria.** |
+| `--calculos` | Escribe antes los cálculos del plan en la hoja `PV-depuración` (fórmulas en las celdas naranjas). Equivale a `[exportacion] depuracion_calculos = true` para esta ejecución. |
+| `--simular` | Muestra el resultado sin modificar el libro (con `--calculos`, tampoco escribe los cálculos). |
 | `--sin-respaldo` | No crea la copia de respaldo del libro. |
-| `--config` | Solo se usan `[validacion] silenciar` y `[exportacion] guardado_rapido`. |
+| `--config` | Solo se usan `[validacion] silenciar` y `[exportacion] guardado_rapido` y `depuracion_calculos`. |
 | `--silenciar CODIGOS` | Igual que en `generar`. |
 
 ---
@@ -571,8 +576,8 @@ python evm_export.py generar-fichas --origen Programa.mpp --config config.toml -
 # Nueva línea base: libro nuevo conservando el historial
 python evm_export.py generar --origen Programa.mpp --config config.toml --salida EVM_Programa_LB2.xlsx --migrar-desde EVM_Programa.xlsx
 
-# PV de una empresa con el reparto de su plan de costes (pegado en la hoja PV-depuración)
-python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx
+# PV de una empresa con su plan de costes (hoja PV-depuración), con los cálculos del plan
+python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx --calculos
 
 # Varios archivos de MS Project ([[proyectos]] en la configuración): sin --origen
 python evm_export.py generar --config config.toml --salida EVM_Programa.xlsx

@@ -8,7 +8,7 @@ from evm import changes
 from evm.analysis import A_CODE, A_KEY, A_MONTH, A_NAME, A_ORIGIN, SHEET_ANALYSIS, TEXT_COLS, read_entries
 from evm.config import ConfigError
 from evm.cost_review import (FORMAT_CURRENT, FORMAT_LEGACY, FORMAT_NO_EAC, SHEET_PASTE, month_offset, paste_months,
-                             read_paste, review_company, shift_rows)
+                             read_paste, resolve_formulas, review_company, shift_rows)
 from evm.fields import same_name
 from evm.messages import SEV_INFO, SEV_WARN, Issue
 from evm.methods import is_undefined
@@ -96,6 +96,7 @@ class PriorData:
     review_company: str = ""
     review_start: date | None = None
     review_format: str = FORMAT_CURRENT
+    review_calcs: bool = False          # la hoja tenía fórmulas (cálculos del plan): se vuelven a escribir
     review_keep: bool = False
     # Registro de cambios: filas de la hoja y referencia de la última ejecución (con las claves del libro nuevo
     # después de plan_migration)
@@ -153,6 +154,8 @@ def prior_from_book(path, project_name: str) -> PriorData:
     analysis = read_entries(wb[SHEET_ANALYSIS]) if SHEET_ANALYSIS in wb.sheetnames else []
     review_rows, review_format = (read_paste(wb[SHEET_PASTE], book.horizon.months) if SHEET_PASTE in wb.sheetnames
                                   else ([], FORMAT_CURRENT))
+    # Las fórmulas pasan con su valor calculado: el libro nuevo vuelve a escribir las de los cálculos del plan
+    review_rows, review_formulas, _missing = resolve_formulas(path, review_rows, book.horizon.months)
     change_log = changes.read_rows(wb[changes.SHEET_LOG]) if changes.SHEET_LOG in wb.sheetnames else []
     reference = changes.read_reference(wb)
     wb.close()
@@ -164,7 +167,8 @@ def prior_from_book(path, project_name: str) -> PriorData:
                      ignore_interior_zeros=book_ignores_interior_zeros(book.meta),
                      project_names=names, analysis=analysis, review_rows=review_rows,
                      review_company=str(book.meta.get("depuracion_empresa") or ""), review_start=book.horizon.start,
-                     review_format=review_format, change_log=change_log, reference=reference,
+                     review_format=review_format, review_calcs=review_formulas > 0, change_log=change_log,
+                     reference=reference,
                      overwritten=list(book.formula_values))
 
 
@@ -238,7 +242,8 @@ def _migrate_review(report: Report, prior: PriorData) -> list[Issue]:
                       f"libro nuevo depura {company or 'un libro de una sola empresa'}. Se debe pegar la previsión "
                       "de nuevo.")]
     prior.review_keep = True
-    issues = [Issue("DEP-006", "", "", f"Se conservó el contenido de la hoja {SHEET_PASTE} ({lines}).")]
+    calcs = "; se volvieron a escribir las fórmulas de los cálculos del plan" if prior.review_calcs else ""
+    issues = [Issue("DEP-006", "", "", f"Se conservó el contenido de la hoja {SHEET_PASTE} ({lines}){calcs}.")]
     if prior.review_format == FORMAT_LEGACY:
         issues.append(Issue("DEP-007", "", "", f"La hoja {SHEET_PASTE} del libro anterior tenía el formato sin EDT "
                                               "interna: los códigos numéricos quedaron como EDT cliente y los demás "
