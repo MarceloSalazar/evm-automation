@@ -8,6 +8,7 @@ from datetime import date, datetime
 import pytest
 
 from evm.cli import main
+from evm.client_check import client_model, compare_tasks, predict
 from evm.client_plan import (ORIGIN_BRIDGE, ORIGIN_SUMMARY, SKIP_CYCLE, SKIP_LINKED, SKIP_SUMMARY, build_client_plan,
                              render_control, rollup_percent, working_minutes)
 from evm.config import Config, load_config
@@ -22,7 +23,10 @@ from mspdi import project_xml, task_xml, write_xml
 
 TEXT15 = TASK_TEXT_IDS[15]
 DAY = 480.0                                    # minutos de un día laborable (calendario estándar)
-CFG = Config(plan="INTERNO", client_field="Etiqueta Cliente")
+# Borrado de las tareas que no se muestran (actividad_interna = false) y «Otras tareas» (por defecto)
+CFG = Config(plan="INTERNO", client_field="Etiqueta Cliente", client_internal_activity=False)
+# El código EDT de las pruebas está en un campo de texto: se puede quitar de las «Otras tareas»
+ANON = Config(plan="INTERNO", client_field="Etiqueta Cliente", wbs_field="Text5")
 
 
 def d(day: int, hour: int = 8) -> datetime:
@@ -318,6 +322,127 @@ def test_converted_summary_weighs_by_its_own_duration():
     assert "1 resumen convertido" in change.reason
 
 
+# ----------------------------------------------------------------------------
+# actividad_interna: las tareas que no se muestran quedan como «Otras tareas»
+# ----------------------------------------------------------------------------
+def internal_case():
+    """Fase 1 con A (Sí, 2 días al 100 %), Interna (No, 3 días al 100 %) y B (Sí, 2 días al 0 %), encadenadas; una
+    tarea inactiva que no se muestra y la planificación CLIENTE."""
+    tasks = [task(1, 1, "INTERNO", mark="", wbs="INTERNO"),
+             task(2, 2, "Fase", wbs="1", start=d(5), finish=d(13, 17)),
+             task(3, 3, "A", wbs="1.1", start=d(5), finish=d(6, 17), duration=2 * DAY, percent_complete=100),
+             task(4, 3, "Interna", "No", wbs="1.2", start=d(7), finish=d(9, 17), duration=3 * DAY,
+                  percent_complete=100),
+             task(5, 3, "B", wbs="1.3", start=d(12), finish=d(13, 17), duration=2 * DAY),
+             task(6, 3, "Inactiva", "", wbs="1.4", start=d(12), finish=d(12, 17), duration=DAY, active=False),
+             task(7, 1, "CLIENTE", wbs=""), task(8, 2, "Copia")]
+    link(tasks[2], tasks[3])
+    link(tasks[3], tasks[4])
+    link(tasks[5], tasks[4])
+    return tasks
+
+
+def test_internal_activity_keeps_the_hidden_tasks():
+    plan = plan_of(internal_case(), ANON)
+    assert plan.internal_activity and plan.codes_removed
+    assert [t.uid for t in plan.anonymous] == [4] and [t.uid for t in plan.dropped] == [6]
+    assert [t.uid for t in plan.delete_roots] == [7, 6]             # otra planificación e inactiva oculta
+    assert plan.remaining == {1, 2, 3, 4, 5}
+    assert (plan.kept_links, plan.removed_links) == (2, 1) and plan.kept_pairs == {(3, 4), (4, 5)}
+    assert plan.new_links == [] and plan.collapsed == [] and plan.progress_changes == []
+    issues = {i.id: i.message for i in plan.issues()}
+    assert "1 tarea que no se muestra queda como «Otras tareas» (sin nombre ni código EDT)" in issues["CLI-022"]
+    assert "1 tarea inactiva se quita" in issues["CLI-022"]
+
+
+def test_internal_activity_keeps_the_percent_and_the_book():
+    """Con «Otras tareas», el % del proyecto y el libro EVM son los de la planificación interna; la fila de la tarea
+    interna, sin código, pasa a la fila -D de su resumen (mismas tareas y valores) y se avisa."""
+    plan = plan_of(internal_case(), ANON)
+    model = client_model(plan)
+    t = {x.uid: x for x in model.tasks}
+    assert sorted(t) == [1, 2, 3, 4, 5]
+    assert (t[4].name, t[4].wbs, t[4].client_mark, t[4].percent_complete) == ("Otras tareas", "", "", 100)
+    assert (t[1].name, t[3].name, t[3].wbs) == ("CLIENTE", "A", "1.1")
+    comp = predict(plan, ANON)
+    assert comp.percent_internal == comp.percent_client == pytest.approx(500 / 7)      # (2 × 100 + 3 × 100) / 7
+    book = comp.book
+    assert (book.same, book.deviations, book.leaves_internal, book.leaves_client) == (2, 0, 3, 3)
+    assert [(a.code, b.code) for a, b in book.moved] == [("1.2.0", "1.0.0-D")] and book.d_rows == ["1.0.0-D"]
+    plan.comparison = comp
+    issues = {i.id: i.message for i in plan.issues()}
+    assert "CLI-023" not in issues and "CLI-024" not in issues
+    assert "1 fila -D («Otras tareas de …»): 1.0.0-D (antes 1.2.0)" in issues["CLI-025"]
+
+
+def test_without_internal_activity_the_deviations_are_reported():
+    plan = plan_of(internal_case())
+    plan.comparison = comp = predict(plan, CFG)
+    assert comp.percent_internal == pytest.approx(500 / 7) and comp.percent_client == pytest.approx(50)
+    book = comp.book
+    assert [r.code for r in book.only_internal] == ["1.2.0"] and book.where["1.2.0"] == []
+    assert (book.same, book.deviations, book.leaves_client) == (2, 1, 2)
+    issues = {i.id: i.message for i in plan.issues()}
+    assert "sería 50 % en el archivo del cliente y es 71,4 % en la planificación interna" in issues["CLI-023"]
+    assert "1 fila del libro EVM del cliente tendría otras tareas o valores" in issues["CLI-024"]
+    text = render_control(plan, "INTERNO.mpp", date(2026, 11, 8), "Simulación")
+    assert "| 1.2.0 | — (sus tareas: ninguna) | 1 / 0 |" in text
+
+
+def test_merged_rows_show_where_their_tasks_are():
+    """Si no se muestra ningún elemento EDT de un resumen, su fila reúne las tareas de las filas internas."""
+    tasks = [task(1, 1, "INTERNO", mark="", wbs="INTERNO"), task(2, 2, "Fase", wbs="1"),
+             task(3, 3, "X", "No", wbs="1.1", duration=DAY), task(4, 3, "Y", "No", wbs="1.2", duration=DAY),
+             task(5, 2, "Otra", wbs="2", duration=DAY)]
+    plan = plan_of(tasks, ANON)
+    book = predict(plan, ANON).book
+    assert sorted(r.code for r in book.only_internal) == ["1.1.0", "1.2.0"]
+    assert [r.code for r in book.only_client] == ["1.0.0"]
+    assert book.where == {"1.1.0": ["1.0.0"], "1.2.0": ["1.0.0"], "1.0.0": ["1.1.0", "1.2.0"]}
+
+
+def test_compare_tasks_reports_each_change():
+    plan = plan_of(internal_case(), ANON)
+    model = client_model(plan)
+    t = {x.uid: x for x in model.tasks}
+    t[5].start, t[4].percent_complete = d(14), 40
+    model.tasks.remove(t[3])
+    diffs, checked = compare_tasks(plan, model)
+    assert checked == 5
+    found = {x.task.uid: x.fields for x in diffs}
+    assert found[3] == [("Tarea", "Sí", "No está")]
+    assert found[4] == [("% completado", "100 %", "40 %")]
+    assert found[5] == [("Comienzo", "12/01/2026 08:00", "14/01/2026 08:00")]
+
+
+def test_codes_in_a_builtin_field_cannot_be_removed():
+    cfg = Config(plan="INTERNO", client_field="Etiqueta Cliente", wbs_field="EDT")
+    plan = plan_of(internal_case(), cfg)
+    assert not plan.codes_removed and client_model(plan).tasks[3].wbs == "1.2"
+    assert "conservan su código EDT" in {i.id: i.message for i in plan.issues()}["CLI-027"]
+
+
+def test_inactive_hidden_tasks_are_kept_when_the_book_includes_them():
+    cfg = Config(plan="INTERNO", client_field="Etiqueta Cliente", wbs_field="Text5", include_inactive=True)
+    plan = plan_of(internal_case(), cfg)
+    assert plan.dropped == [] and [t.uid for t in plan.anonymous] == [4, 6]
+
+
+def test_control_report_with_internal_activity():
+    tasks = internal_case()
+    for x in tasks[1:]:
+        x.name = f"Confidencial{x.uid}"
+    plan = plan_of(tasks, ANON)
+    plan.comparison = predict(plan, ANON)
+    text = render_control(plan, "INTERNO.mpp", date(2026, 11, 8), "Simulación")
+    assert "Confidencial" not in text
+    assert "| **Tareas que no se muestran** | Quedan como «Otras tareas»" in text
+    assert "| Quedan como «Otras tareas» | 1 (0 resúmenes; sin código EDT) |" in text
+    assert "## Comparación con la planificación interna" in text and "| 1.0.0-D | 1.2.0 |" in text
+    assert "## Ramas que no se muestran" in text and "| 1.2 (UID 4) | 1 | 0 |" in text
+    assert "## Vínculos nuevos" not in text
+
+
 def test_working_minutes_signed():
     cal = WorkCalendar()
     assert working_minutes(cal, d(9, 17), d(12)) == 0
@@ -392,19 +517,23 @@ def test_com_reads_the_client_field_and_lag_format():
 
 def test_config_client_section(tmp_path):
     path = tmp_path / "c.toml"
-    path.write_text('[cliente]\ncampo = "Etiqueta Cliente"\nnombre_planificacion = "OBRA"\nfijar_fechas = false\n',
-                    encoding="utf-8")
+    path.write_text('[cliente]\ncampo = "Etiqueta Cliente"\nnombre_planificacion = "OBRA"\nfijar_fechas = false\n'
+                    'actividad_interna = false\nfiltrar_vista = true\n', encoding="utf-8")
     cfg = load_config(path)
     assert (cfg.client_field, cfg.client_plan_name, cfg.client_fix_dates) == ("Etiqueta Cliente", "OBRA", False)
-    assert (Config().client_field, Config().client_plan_name, Config().client_fix_dates) == ("", "CLIENTE", True)
+    assert (cfg.client_internal_activity, cfg.client_filter) == (False, True)
+    default = Config()
+    assert (default.client_field, default.client_plan_name, default.client_fix_dates) == ("", "CLIENTE", True)
+    assert (default.client_internal_activity, default.client_filter) == (True, False)
 
 
 # ----------------------------------------------------------------------------
 # Comando
 # ----------------------------------------------------------------------------
-def write_config(tmp_path, field="Etiqueta Cliente"):
+def write_config(tmp_path, field="Etiqueta Cliente", extra=""):
     path = tmp_path / "c.toml"
-    path.write_text(f'[exportacion]\nplanificacion = "INTERNO"\n\n[cliente]\ncampo = "{field}"\n', encoding="utf-8")
+    path.write_text(f'[exportacion]\nplanificacion = "INTERNO"\n\n[cliente]\ncampo = "{field}"\n{extra}',
+                    encoding="utf-8")
     return str(path)
 
 
@@ -413,8 +542,12 @@ def test_cli_generar_cliente_simulation(tmp_path, capsys):
     cfg = write_config(tmp_path)
     assert main(["generar-cliente", "--origen", str(path), "--config", cfg, "--simular"]) == 0
     out = capsys.readouterr().out
-    assert "Se muestran: 2" in out and "No se muestran: 1" in out and "1 nuevos" in out
-    assert "Simulación: no se generó el archivo del cliente." in out
+    assert "Se muestran: 2" in out and "No se muestran: 1" in out
+    assert "Tareas que no se muestran: 1 como «Otras tareas», 0 inactivas se quitan" in out
+    assert "% completado del proyecto: 0 % (interno) y 0 % (cliente)" in out
+    # El campo EDT es el de MS Project: las «Otras tareas» conservan su código y el libro es el mismo
+    assert "Libro EVM: 3 filas iguales, 0 con otro código, 0 con otras tareas o valores" in out
+    assert "CLI-027" in out and "Simulación: no se generó el archivo del cliente." in out
     report = tmp_path / "interno_cliente_control.md"
     assert report.is_file() and "Oculta" not in report.read_text(encoding="utf-8")
     assert not (tmp_path / "interno_cliente.mpp").exists()
@@ -424,6 +557,15 @@ def test_cli_generar_cliente_simulation(tmp_path, capsys):
     assert main(["generar-cliente", "--origen", str(path), "--config", cfg, "--simular", "--sobrescribir",
                  "--destino", str(tmp_path / "cliente.mpp")]) == 0
     assert (tmp_path / "cliente_control.md").is_file()
+
+
+def test_cli_generar_cliente_simulation_deleting_hidden_tasks(tmp_path, capsys):
+    path = client_xml(tmp_path)
+    cfg = write_config(tmp_path, extra="actividad_interna = false\n")
+    assert main(["generar-cliente", "--origen", str(path), "--config", cfg, "--simular"]) == 0
+    out = capsys.readouterr().out
+    assert "Tareas que no se muestran: se borran (actividad_interna = false)" in out and "1 nuevos" in out
+    assert "Libro EVM: 2 filas iguales, 0 con otro código, 1 con otras tareas o valores" in out and "CLI-024" in out
 
 
 def test_cli_generar_cliente_errors(tmp_path, capsys):

@@ -19,16 +19,21 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 ### Nuevas funciones
 
 - **Planificación para el cliente (`generar-cliente`).** Genera, a partir del `.mpp` de la planificación
-  interna, el `.mpp` que se entrega al cliente: solo las tareas con `Sí` (`Si` o `S`) en el campo de
-  `[cliente] campo` y en sus tareas superiores, los resúmenes sin tareas visibles convertidos en tareas, los
-  vínculos de sus subtareas pasados al resumen y vínculos puente en lugar de los caminos por tareas
-  ocultas. MS Project trabaja sobre una copia (la planificación interna no se modifica), recalcula y fija
-  con *No comenzar antes del* las fechas que se adelantarían; el campo del cliente se vacía y el archivo
-  queda de solo lectura. Con `--simular` (también con el XML) solo calcula los cambios. Comprueba el %
-  completado de cada tarea: los resúmenes convertidos y las tareas de detalle lo conservan, y avisa de los
-  resúmenes cuyo % cambia porque MS Project ya no cuenta el avance de sus tareas ocultas. Escribe un informe
-  de control interno, sin nombres de tareas. Nueva sección `[cliente]` de la configuración, códigos
-  `CFG-054`, `LEC-026` y `CLI-001` a `CLI-021`, documento
+  interna, el `.mpp` que se entrega al cliente: el cliente ve las tareas con `Sí` (`Si` o `S`) en el campo
+  de `[cliente] campo` y en sus tareas superiores. Por defecto (`[cliente] actividad_interna = true`), las
+  demás quedan como «Otras tareas», sin nombre ni código EDT, notas ni campos de texto que no use el libro
+  EVM, pero con sus fechas, su avance, sus líneas base y sus vínculos: el % completado de cada tarea, de los
+  resúmenes y del proyecto, y el libro EVM, son los de la planificación interna. Con `filtrar_vista = true`,
+  el archivo se abre con un filtro que las oculta. Con `actividad_interna = false`, se borran: los
+  resúmenes sin tareas visibles pasan a ser tareas, los vínculos de sus subtareas pasan al resumen y los
+  caminos por tareas ocultas se reemplazan por vínculos puente; se avisa de los resúmenes cuyo % cambia. En
+  los dos casos compara la planificación del cliente con la interna: el % completado del proyecto, el libro
+  EVM fila a fila (y avisa de las filas -D que vería el cliente) y, con «Otras tareas», los datos de cada
+  tarea. MS Project trabaja sobre una copia (la planificación interna no se modifica), recalcula y fija con
+  *No comenzar antes del* las fechas que se adelantarían; el campo del cliente se vacía y el archivo queda
+  de solo lectura. Con `--simular` (también con el XML) solo calcula los cambios y la comparación. Escribe
+  un informe de control interno, sin nombres de tareas. Nueva sección `[cliente]` de la configuración,
+  códigos `CFG-054`, `LEC-026` y `CLI-001` a `CLI-029`, documento
   [Planificación para el cliente](docs/generar-cliente.md) y pruebas con MS Project real
   (`tests/test_msproject_cliente.py`).
 - **Registro de diagnóstico en un archivo (`--registro RUTA`).** Todos los comandos pueden escribir el

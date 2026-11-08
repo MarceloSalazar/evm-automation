@@ -237,7 +237,7 @@ reparto_por_defecto = 50
 [cliente]
 # Planificación para el cliente (comando generar-cliente; ver
 # docs/generar-cliente.md): a partir de la planificación interna, genera el .mpp
-# que se entrega al cliente solo con las tareas que debe ver.
+# que se entrega al cliente, en el que ve sus tareas con el avance de siempre.
 #
 # Campo de texto de MS Project que indica, tarea por tarea, si el cliente la ve
 # (por ejemplo "Text15", o su alias "Etiqueta Cliente"):
@@ -253,9 +253,26 @@ reparto_por_defecto = 50
 # (planificacion vacía) no se usa.
 nombre_planificacion = "CLIENTE"
 
-# Fechas que cambian al quitar las tareas ocultas: true = se fijan con la
-# delimitación "No comenzar antes del" en la fecha de la planificación interna (y
-# se informan); false = solo se informan.
+# Tareas que no se muestran:
+#   true   quedan como "Otras tareas": sin nombre ni código EDT (si el código está
+#          en un campo personalizado, [campos] edt), notas ni campos de texto que
+#          no use el libro EVM; con sus fechas, su avance, sus líneas base y sus
+#          vínculos. El % completado de las tareas, de los resúmenes y del
+#          proyecto, y el libro EVM, son los de la planificación interna. Las
+#          inactivas se quitan.
+#   false  se borran: la lógica se rehace con vínculos puente, y el % completado
+#          de los resúmenes y del proyecto, y el libro EVM, pueden cambiar (se
+#          avisa con el detalle en el informe de control).
+actividad_interna = true
+
+# Solo con actividad_interna = true: el archivo del cliente se abre con un filtro
+# de la vista que oculta las "Otras tareas" (el % completado no cambia; el
+# cliente puede quitar el filtro).
+filtrar_vista = false
+
+# Fechas que cambian al quitar tareas: true = se fijan con la delimitación "No
+# comenzar antes del" en la fecha de la planificación interna (y se informan);
+# false = solo se informan.
 fijar_fechas = true
 
 # Varios archivos de MS Project en un mismo libro (ver docs/varios-archivos.md).

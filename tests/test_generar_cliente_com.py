@@ -24,7 +24,9 @@ from evm.reader_com import ComSession
 
 UTC = timezone.utc
 FIELD = TASK_TEXT_IDS[15]
-CFG = Config(plan="INTERNO", client_field="Etiqueta Cliente")
+# Borrado de las tareas que no se muestran (actividad_interna = false); ANON: «Otras tareas» (por defecto)
+CFG = Config(plan="INTERNO", client_field="Etiqueta Cliente", client_internal_activity=False)
+ANON = Config(plan="INTERNO", client_field="Etiqueta Cliente", wbs_field="Text5")
 PROJECT_START = datetime(2026, 1, 5, 8, tzinfo=UTC)
 # Errores de MS Project simulados: citan el nombre de una tarea, que no debe llegar al registro ni a los mensajes
 DELETE_ERROR = "No se puede borrar «Secreta»."
@@ -74,7 +76,7 @@ class FakeTask:
         self.ActualStart = actual_start or "NA"
         self.ActualFinish = "NA"
         self.ConstraintType, self.ConstraintDate = 0, "NA"
-        self.Text15 = mark
+        self.Text15, self.Text5 = mark, wbs
         self.span = finish - start
 
     @property
@@ -217,6 +219,7 @@ class FakeApp:
         self.names = {FIELD: "Etiqueta Cliente"}
         self.saved = 0
         self.rename_fails = False
+        self.filters, self.applied, self.filter_fails = {}, [], False
         self.Projects = FakeProjects(["copia.mpp"] + ([source_open] if source_open else []))
 
     def CustomFieldGetName(self, fid):
@@ -229,6 +232,14 @@ class FakeApp:
 
     def FieldNameToFieldConstant(self, name, kind):
         raise RuntimeError("no existe")
+
+    def FilterEdit(self, **kw):
+        if self.filter_fails:
+            raise RuntimeError("no se puede")
+        self.filters[kw["Name"]] = kw
+
+    def FilterApply(self, Name):
+        self.applied.append(Name)
 
     def CalculateProject(self):
         self.project.calculate()
@@ -272,6 +283,7 @@ def build(source_open=""):
     t["r2"] = p.add(8, 3, "R2", "2.2", "No", start=d(7), finish=d(8, 17), duration=960)
     t["b"] = p.add(9, 2, "B", "3", "Sí", start=d(9), finish=d(9, 17), duration=480)
     t["sola"] = p.add(10, 2, "Solo oculta", "4", "No", start=d(7), finish=d(7, 17), duration=480)
+    t["sola"].ConstraintType, t["sola"].ConstraintDate = 4, d(7)      # sin predecesoras: comienza el 7 por su delimitación
     t["c"] = p.add(11, 2, "C", "5", "Sí", start=d(8), finish=d(8, 17), duration=480)
     t["cliente"] = p.add(12, 1, "CLIENTE", mark="Sí")
     t["copia"] = p.add(13, 2, "Copia", "1", "Sí", start=d(5), finish=d(6, 17), duration=960)
@@ -310,7 +322,9 @@ def test_generates_the_client_file_from_a_copy(tmp_path):
     assert [x.uid for x in result.fixed] == [11] and t["c"].ConstraintType == 4
     assert t["c"].Start == d(8) and result.differences == []
     assert (app.Calculation, p.AutoLinkTasks) == (-1, True)                    # opciones restauradas
-    assert {i.id for i in result.issues(plan)} == {"CLI-013"}
+    # Sin las tareas ocultas, el libro EVM del cliente pierde sus filas: se avisa
+    assert {i.id for i in result.issues(plan)} == {"CLI-013", "CLI-024"}
+    assert result.comparison.generated and result.comparison.book.only_internal
 
 
 def test_single_plan_without_plan_task(tmp_path):
@@ -326,7 +340,7 @@ def test_single_plan_without_plan_task(tmp_path):
     p.link(a1, oculta)
     p.link(oculta, a3)
     app = FakeApp(p)
-    _, destino, plan, result = run(tmp_path, app, cfg=Config(client_field="Etiqueta Cliente"))
+    _, destino, plan, result = run(tmp_path, app, cfg=Config(client_field="Etiqueta Cliente", client_internal_activity=False))
     assert plan.root is None and plan.outside == []
     assert [x.UniqueID for x in p.live] == [1, 2, 4, 7] and fase.Name == "Fase"
     assert [(x.From.UniqueID, x.To.UniqueID, x.Lag) for x in p.links] == [(2, 4, 1440)]
@@ -400,7 +414,8 @@ def test_rejected_link_is_reported(tmp_path):
 
 def test_without_fixing_dates_they_are_reported(tmp_path):
     app, t = build()
-    cfg = Config(plan="INTERNO", client_field="Etiqueta Cliente", client_fix_dates=False)
+    cfg = Config(plan="INTERNO", client_field="Etiqueta Cliente", client_fix_dates=False,
+                 client_internal_activity=False)
     _, _, plan, result = run(tmp_path, app, cfg=cfg)
     assert result.fixed == [] and t["c"].ConstraintType == 0
     [change] = result.differences
@@ -445,6 +460,139 @@ def test_field_name_that_cannot_be_removed(tmp_path):
     assert "CLI-017" in {i.id for i in result.issues(plan)}
 
 
+# ----------------------------------------------------------------------------
+# actividad_interna (por defecto): las tareas que no se muestran quedan como «Otras tareas»
+# ----------------------------------------------------------------------------
+def test_internal_activity_keeps_hidden_tasks_as_other_tasks(tmp_path):
+    app, t = build()
+    t["oculta"].Notes, t["oculta"].Text3, t["oculta"].Text10 = "Detalle interno", "Responsable", "0/100"
+    t["oculta"].Hyperlink = "Oferta"
+    t["oculta"]._pct, t["oculta"].ActualStart = 100, d(7)
+    t["a1"].Notes = "Nota visible"
+    cfg = Config(plan="INTERNO", client_field="Etiqueta Cliente", wbs_field="Text5", method_field="Text10")
+    _, destino, plan, result = run(tmp_path, app, cfg=cfg)
+    p = app.project
+    assert [x.UniqueID for x in p.live] == list(range(1, 12))          # sin la planificación CLIENTE
+    hidden = {4, 7, 8, 10}
+    assert {x.UniqueID for x in p.live if x.Name == "Otras tareas"} == hidden
+    assert all(x.Text5 == "" for x in p.live if x.UniqueID in hidden)
+    assert (t["a1"].Name, t["a1"].Text5, t["a1"].Notes) == ("A1", "1.1", "Nota visible")    # las que se muestran
+    o = t["oculta"]
+    assert (o.Notes, o.Text3, o.Hyperlink, o.Text10, o.PercentComplete) == ("", "", "", "0/100", 100)
+    assert t["root"].Name == "CLIENTE" and all(x.Text15 == "" for x in p.live)
+    # Se conservan todos los vínculos de la planificación (el que iba a la otra planificación desaparece con ella)
+    links = sorted((x.From.UniqueID, x.To.UniqueID) for x in p.links)
+    assert links == [(3, 4), (4, 5), (7, 8), (8, 9), (10, 11)] and result.removed_links == []
+    assert result.fixed == [] and result.anonymized == 4 and result.codes_removed and result.not_cleared == {}
+    comp = result.comparison
+    assert comp.generated and comp.percent_internal == comp.percent_client and comp.tasks == []
+    assert comp.checked == 11
+    ids = {i.id for i in plan.issues() + result.issues(plan)}
+    assert "CLI-022" in ids and not ids & {"CLI-023", "CLI-026", "CLI-027", "CLI-028"}
+    # Libro EVM (se avisa, CLI-024 y CLI-025): 1.2 pasa a la fila 1.0.0-D; el resumen 2 pierde los códigos de sus dos
+    # subtareas y su fila reúne las de 2.1 y 2.2; 4 (de primer nivel) queda sin código y fuera del libro del cliente
+    book = comp.book
+    assert [(a.code, b.code) for a, b in book.moved] == [("1.2.0", "1.0.0-D")]
+    assert book.where == {"2.1.0": ["2.0.0"], "2.2.0": ["2.0.0"], "4.0.0": [], "2.0.0": ["2.1.0", "2.2.0"]}
+    assert (book.leaves_internal, book.leaves_client) == (8, 7)
+    assert "CLI-024" in ids and "CLI-025" in ids and destino.read_bytes() == b"archivo del cliente"
+
+
+def test_internal_activity_removes_inactive_hidden_tasks(tmp_path):
+    app, t = build()
+    t["sola"].Active = False
+    _, _, plan, result = run(tmp_path, app, cfg=ANON)
+    assert [x.uid for x in plan.dropped] == [10] and 10 not in {x.UniqueID for x in app.project.live}
+    assert result.anonymized == 3 and result.comparison.tasks == []
+
+
+def test_internal_activity_reports_tasks_that_change(tmp_path):
+    """Si una tarea del archivo del cliente no conserva sus fechas, la comparación final lo indica (CLI-026)."""
+    app, t = build()
+    calculate = app.project.calculate
+
+    def late():
+        calculate()
+        t["b"].Start = d(12)
+
+    app.project.calculate = late
+    _, _, plan, result = run(tmp_path, app, cfg=ANON)
+    [diff] = result.comparison.tasks
+    assert diff.task.uid == 9 and diff.fields[0][0] == "Comienzo"
+    assert "CLI-026" in {i.id for i in result.issues(plan)}
+
+
+def test_internal_activity_field_that_cannot_be_cleared(tmp_path):
+    app, t = build()
+
+    class Formula(FakeTask):
+        @property
+        def Text7(self):
+            return "calculado"
+
+        @Text7.setter
+        def Text7(self, value):
+            raise RuntimeError(-2147352567, "Ocurrió una excepción.", (0, "MSProject", "Campo calculado", None, 0, 0),
+                               None)
+
+    t["oculta"].__class__ = Formula
+    _, _, plan, result = run(tmp_path, app, cfg=ANON)
+    assert result.not_cleared["Text7"][0] == 1 and "Campo calculado" in result.not_cleared["Text7"][1]
+    assert t["oculta"].Name == "Otras tareas"
+    assert "Text7 (1)" in {i.id: i.message for i in result.issues(plan)}["CLI-027"]
+
+
+def test_comparison_error_still_delivers_the_file(tmp_path, monkeypatch):
+    import evm.client_writer as writer
+
+    def broken(*args, **kw):
+        raise ZeroDivisionError("prueba")
+
+    monkeypatch.setattr(writer, "compare", broken)
+    app, _ = build()
+    _, destino, plan, result = run(tmp_path, app, cfg=ANON)
+    assert destino.read_bytes() == b"archivo del cliente"
+    assert "ZeroDivisionError" in result.comparison.book.error
+    assert "CLI-029" in {i.id for i in result.issues(plan)}
+
+
+def test_view_filter(tmp_path):
+    app, _ = build()
+    cfg = Config(plan="INTERNO", client_field="Etiqueta Cliente", wbs_field="Text5", client_filter=True)
+    _, _, plan, result = run(tmp_path, app, cfg=cfg)
+    assert result.filter_applied and app.filters["Tareas del cliente"]["Value"] == "Otras tareas"
+    assert app.applied == ["Tareas del cliente"]
+    app, _ = build()
+    app.filter_fails = True
+    _, _, plan, result = run(tmp_path, app, cfg=cfg, overwrite=True)
+    assert result.filter_applied is False and "CLI-028" in {i.id for i in result.issues(plan)}
+
+
+def test_cli_generates_other_tasks(tmp_path, monkeypatch, capsys):
+    import evm.client_writer as writer
+    app, _ = build()
+    for x in app.project.live:
+        if x.Name not in ("INTERNO", "CLIENTE"):
+            x.Name = f"Confidencial{x.UniqueID}"
+    monkeypatch.setattr(writer, "ComSession", fake_session(app))
+    source = tmp_path / "interno.mpp"
+    source.write_bytes(b"planificacion interna")
+    cfg = tmp_path / "c.toml"
+    cfg.write_text('[campos]\nedt = "Text5"\n\n[exportacion]\nplanificacion = "INTERNO"\n\n[cliente]\n'
+                   'campo = "Etiqueta Cliente"\n', encoding="utf-8")
+    log = tmp_path / "registro.log"
+    assert main(["--registro", str(log), "generar-cliente", "--origen", str(source), "--config", str(cfg)]) == 0
+    out = capsys.readouterr().out
+    assert "Tareas que no se muestran: 4 como «Otras tareas», 0 inactivas se quitan" in out
+    assert "% completado del proyecto: 0 % (interno) y 0 % (cliente)" in out and "Tareas comparadas: 11" in out
+    report = (tmp_path / "interno_cliente_control.md").read_text(encoding="utf-8")
+    assert "Archivo del cliente leído en MS Project después de guardarlo." in report
+    assert "| Tareas que quedan como «Otras tareas» | 4 |" in report
+    text = log.read_text(encoding="utf-8")
+    assert "Paso: tareas internas" in text and "Comparación: % completado del proyecto" in text
+    assert "Confidencial" not in text and "Confidencial" not in report
+
+
 def test_com_error_text_hides_quoted_names():
     exc = RuntimeError(-2147352567, "Ocurrió una excepción.", (0, "MSProject", "La tarea 'Montaje' y «Pruebas» "
                                                                "forman un ciclo.", None, 0, 0), None)
@@ -461,7 +609,7 @@ def test_cli_generates_with_log_file(tmp_path, monkeypatch, capsys):
     source = tmp_path / "interno.mpp"
     source.write_bytes(b"planificacion interna")
     cfg = tmp_path / "c.toml"
-    cfg.write_text('[exportacion]\nplanificacion = "INTERNO"\n\n[cliente]\ncampo = "Etiqueta Cliente"\n',
+    cfg.write_text('[exportacion]\nplanificacion = "INTERNO"\n\n[cliente]\ncampo = "Etiqueta Cliente"\nactividad_interna = false\n',
                    encoding="utf-8")
     log = tmp_path / "registro.log"
     assert main(["--registro", str(log), "generar-cliente", "--origen", str(source), "--config", str(cfg)]) == 0
@@ -492,7 +640,7 @@ def test_ms_project_error_is_logged_without_names(tmp_path, monkeypatch, capsys)
     source = tmp_path / "interno.mpp"
     source.write_bytes(b"planificacion interna")
     cfg = tmp_path / "c.toml"
-    cfg.write_text('[exportacion]\nplanificacion = "INTERNO"\n\n[cliente]\ncampo = "Etiqueta Cliente"\n',
+    cfg.write_text('[exportacion]\nplanificacion = "INTERNO"\n\n[cliente]\ncampo = "Etiqueta Cliente"\nactividad_interna = false\n',
                    encoding="utf-8")
     log = tmp_path / "registro.log"
     assert main(["--registro", str(log), "generar-cliente", "--origen", str(source), "--config", str(cfg)]) == 2

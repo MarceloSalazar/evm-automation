@@ -98,11 +98,16 @@ Opcionales: `EVM_CONFIG` (archivo de configuración; por defecto `config.toml` s
 % planificado de cada mes; por defecto 0.005, es decir, 0,5 %).
 
 `test_msproject_cliente.py` (misma marca) prueba `generar-cliente` con el `.mpp` de `EVM_MPP`: genera el
-archivo del cliente en la carpeta temporal de pytest y comprueba que el origen no cambió, que quedan
-exactamente las tareas que se muestran, que el campo del cliente está vacío, que las fechas son las de la
-planificación interna (o el informe de control explica por qué no), que las tareas de detalle y los
-resúmenes convertidos conservan su % completado y que el de los demás resúmenes es el previsto, que el registro y el informe no tienen
-nombres de tareas y que `--sobrescribir` reemplaza el archivo de solo lectura. Si está `EVM_MPP_XML`,
+archivo del cliente en la carpeta temporal de pytest con la configuración de `EVM_CONFIG` y comprueba que el
+origen no cambió, que quedan exactamente las tareas esperadas y que el campo del cliente está vacío. Con
+`actividad_interna = true` (por defecto) comprueba que las «Otras tareas» no tienen nombre ni código EDT,
+que todas las tareas conservan sus fechas, su avance, su duración y su línea base, y que el % completado
+del proyecto y cada fila del libro EVM coinciden con la planificación interna. Con `actividad_interna =
+false`, que las fechas son las de la planificación interna (o el informe de control explica por qué no),
+que las tareas de detalle y los resúmenes convertidos conservan su % completado y que el de los demás
+resúmenes es el previsto. Genera además el archivo con el otro valor de `actividad_interna`, y comprueba
+que el registro y el informe no tienen nombres de tareas y que `--sobrescribir` reemplaza el archivo de
+solo lectura. Si está `EVM_MPP_XML`,
 compara además el cálculo con el `.mpp` y con el XML. Necesita en `EVM_CONFIG` la clave `[cliente] campo`
 y, si el archivo tiene una sola planificación, `[exportacion] planificacion` vacía o sin indicar. Con `-s` muestra la carpeta con el archivo generado, el
 informe y el registro de diagnóstico. Los dos motores reparten la duración de

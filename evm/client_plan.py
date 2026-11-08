@@ -7,6 +7,14 @@ Reglas (docs/generar-cliente.md):
   sus tareas superiores de la planificación. Con No, vacío u otro valor, la tarea no se muestra, con toda su rama.
 - La tarea de la planificación (por ejemplo INTERNO) se conserva y se renombra ([cliente] nombre_planificacion). Las
   tareas de otras planificaciones se quitan, con sus vínculos.
+
+Con [cliente] actividad_interna = true (por defecto), las tareas que no se muestran se conservan como «Otras tareas»:
+sin nombre ni código EDT, con sus fechas, su duración, su avance, sus líneas base y sus vínculos. Así el % completado de
+cada tarea, de los resúmenes y del proyecto, y el libro EVM, son los de la planificación interna. Solo se quitan las
+inactivas, que no cuentan en ningún cálculo.
+
+Con actividad_interna = false, las tareas que no se muestran se borran:
+
 - Un resumen que se muestra sin ninguna subtarea mostrada pasa a ser una tarea (resumen convertido): conserva sus
   fechas, su duración, su avance y sus líneas base, y representa a sus subtareas en la lógica.
 - Los vínculos entre tareas mostradas se conservan. Los de las subtareas de un resumen convertido pasan al resumen.
@@ -30,11 +38,11 @@ from datetime import date, datetime
 from pathlib import Path
 
 from evm.config import Config, ConfigError
-from evm.fields import fmt_number, plain_text
+from evm.fields import builtin_kind, fmt_number, is_spanish_wbs_name, plain_text
 from evm.messages import EvmError, Issue
 from evm.model import LINK_FF, LINK_FS, LINK_SF, LINK_SS, Link, ProjectData, Task
 from evm.percent import calendar_for
-from evm.wbs import Scope, build_tree, plural, select_scope
+from evm.wbs import Scope, build_tree, iter_subtree, plural, select_scope
 from evm.workcalendar import WorkCalendar
 
 START, FINISH = "C", "F"
@@ -54,6 +62,9 @@ ORIGIN_BRIDGE = "puente"        # vínculo que reemplaza un camino que pasa por 
 SKIP_LINKED = "ya están vinculadas"
 SKIP_SUMMARY = "resumen y subtarea"
 SKIP_CYCLE = "cerraría un ciclo"
+
+# actividad_interna: nombre de las tareas que no se muestran en el archivo del cliente
+INTERNAL_NAME = "Otras tareas"
 
 MARK_YES, MARK_NO, MARK_EMPTY, MARK_OTHER = "Sí", "No", "vacío", "otro valor"
 # Valores del campo del cliente (sin tildes ni mayúsculas): solo Sí, Si y S muestran la tarea. Un valor que no es Sí
@@ -141,6 +152,13 @@ class WriteResult:
     rounds: int = 0                                             # cálculos de MS Project hasta fijar las fechas
     summary_percent: dict[int, float] = field(default_factory=dict)  # % de cada resumen según MS Project (UID)
     progress_tasks: list[ProgressChange] = field(default_factory=list)  # tareas que no conservan su % completado
+    # actividad_interna: tareas que quedan como «Otras tareas», datos que MS Project no dejó quitar (campo -> tareas y
+    # primer error), si se quitaron los códigos EDT y si se aplicó el filtro de la vista (None = no se pidió)
+    anonymized: int = 0
+    not_cleared: dict[str, tuple[int, str]] = field(default_factory=dict)
+    codes_removed: bool = True
+    filter_applied: bool | None = None
+    comparison: "Comparison | None" = None   # archivo del cliente frente a la planificación interna (evm.client_check)
 
     def issues(self, plan: "ClientPlan") -> list[Issue]:
         """Observaciones de la escritura del archivo del cliente."""
@@ -175,6 +193,16 @@ class WriteResult:
             what = plural(len(self.progress_tasks), "tarea no conserva", "tareas no conservan")
             out.append(Issue("CLI-021", message=f"{what} su % completado de la planificación interna en el archivo "
                                                 "del cliente: ver el informe de control."))
+        if self.not_cleared:
+            fields = ", ".join(f"{name} ({n})" for name, (n, _error) in sorted(self.not_cleared.items()))
+            out.append(Issue("CLI-027", message=f"MS Project no dejó quitar algunos datos de las «{INTERNAL_NAME}» "
+                                                f"(campo y tareas): {fields}. Ver el informe de control."))
+        if self.filter_applied is False:
+            out.append(Issue("CLI-028", message="No se pudo crear el filtro de la vista ([cliente] filtrar_vista): el "
+                                                "archivo del cliente se abre con todas las tareas, también las "
+                                                f"«{INTERNAL_NAME}»."))
+        if self.comparison is not None:
+            out += self.comparison.issues()
         return out
 
 
@@ -202,6 +230,11 @@ class ClientPlan:
     skipped: list[SkippedLink] = field(default_factory=list)
     span_changes: list[SpanChange] = field(default_factory=list)
     progress_changes: list[ProgressChange] = field(default_factory=list)   # resúmenes con otro % completado
+    # actividad_interna: las tareas que no se muestran quedan como «Otras tareas» (False = se borran)
+    internal_activity: bool = False
+    dropped: list[Task] = field(default_factory=list)           # actividad_interna: ocultas inactivas (se quitan)
+    codes_removed: bool = True                                  # actividad_interna: «Otras tareas» sin código EDT
+    comparison: "Comparison | None" = None      # previsión del % del proyecto y del libro EVM (evm.client_check)
 
     @property
     def root(self) -> Task | None:
@@ -212,11 +245,37 @@ class ClientPlan:
         return [t for t in self.tasks if t.uid not in self.shown]
 
     @property
+    def anonymous(self) -> list[Task]:
+        """actividad_interna: tareas que no se muestran y quedan como «Otras tareas»."""
+        if not self.internal_activity:
+            return []
+        gone = {t.uid for t in self.dropped}
+        return [t for t in self.hidden if t.uid not in gone]
+
+    @property
+    def hidden_branches(self) -> list[Task]:
+        """La tarea de más arriba de cada rama que no se muestra."""
+        return [t for t in self.hidden if t.parent is None or t.parent is self.root or t.parent.uid in self.shown]
+
+    @property
+    def remaining(self) -> set[int]:
+        """UID de las tareas del archivo del cliente (con la tarea de la planificación)."""
+        root = {self.root.uid} if self.root is not None else set()
+        if self.internal_activity:
+            gone = {t.uid for t in self.dropped}
+            return {t.uid for t in self.tasks if t.uid not in gone} | root
+        return set(self.shown) | root
+
+    @property
     def delete_roots(self) -> list[Task]:
         """Tareas que se borran en MS Project (al borrar una tarea se borra su rama): las de otras planificaciones de
-        primer nivel y la tarea de más arriba de cada rama oculta."""
+        primer nivel y la tarea de más arriba de cada rama oculta (con actividad_interna, de cada rama oculta e
+        inactiva)."""
         top = [t for t in self.outside if t.parent is None]
-        return top + [t for t in self.hidden if t.parent is None or t.parent is self.root or t.parent.uid in self.shown]
+        if self.internal_activity:
+            gone = {t.uid for t in self.dropped}
+            return top + [t for t in self.dropped if t.parent is None or t.parent.uid not in gone]
+        return top + self.hidden_branches
 
     def ref(self, t: Task) -> str:
         """Tarea en el informe, sin su nombre: código EDT y UID (o número de esquema y UID, si no tiene código)."""
@@ -235,6 +294,16 @@ class ClientPlan:
             what = plural(self.orphan_count, "tarea con Sí no se muestra", "tareas con Sí no se muestran")
             where = ", ".join(self.ref(t) for t in self.orphans[:10]) + (" y más" if len(self.orphans) > 10 else "")
             out.append(Issue("CLI-004", message=f"{what} porque una tarea superior no tiene Sí: {where}."))
+        if self.internal_activity and self.hidden:
+            what = plural(len(self.anonymous), "tarea que no se muestra queda", "tareas que no se muestran quedan")
+            code = "sin nombre ni código EDT" if self.codes_removed else "sin nombre"
+            gone = (f"; {plural(len(self.dropped), 'tarea inactiva se quita', 'tareas inactivas se quitan')}"
+                    if self.dropped else "")
+            out.append(Issue("CLI-022", message=f"{what} como «{INTERNAL_NAME}» ({code}), con sus fechas, su avance y "
+                                                f"sus vínculos{gone}."))
+            if not self.codes_removed:
+                out.append(Issue("CLI-027", message="El campo EDT configurado es el de MS Project (EDT o número de "
+                                                    f"esquema): las «{INTERNAL_NAME}» conservan su código EDT."))
         if self.collapsed:
             out.append(Issue("CLI-005", message=f"{plural(len(self.collapsed), 'resumen pasa', 'resúmenes pasan')} a "
                                                 "ser tareas: no se muestra ninguna de sus subtareas."))
@@ -256,6 +325,8 @@ class ClientPlan:
         if self.span_changes:
             out.append(Issue("CLI-008", message=f"{plural(len(self.span_changes), 'resumen cambia', 'resúmenes cambian')} "
                                                 "de fechas: las fija una subtarea que no se muestra."))
+        if self.comparison is not None:
+            out += self.comparison.issues()
         return out
 
 
@@ -332,6 +403,38 @@ def rollup_percent(leaves: list[Task]) -> float | None:
     return 100.0 if all(t.percent_complete >= 100 for t in leaves) else 0.0
 
 
+def removable_codes(wbs_field: str) -> bool:
+    """El código EDT se puede quitar de una tarea si está en un campo personalizado (no en los campos EDT o número de
+    esquema de MS Project). Con COM, evm.client_writer lo confirma con el campo que encuentra en el archivo."""
+    return builtin_kind(wbs_field) is None and not is_spanish_wbs_name(wbs_field)
+
+
+def _internal_activity(plan: ClientPlan, cfg: Config, in_scope: set[int]) -> None:
+    """actividad_interna: las tareas que no se muestran se conservan (como «Otras tareas»), salvo las inactivas, que no
+    cuentan en el cálculo de fechas, del % completado ni del libro EVM (con [exportacion] incluir_inactivas, también
+    se conservan). Se conservan todos los vínculos entre las tareas que quedan."""
+    plan.internal_activity = True
+    plan.codes_removed = removable_codes(cfg.wbs_field)
+    if not cfg.include_inactive:
+        plan.dropped = [t for t in plan.tasks if t.uid not in plan.shown and not _active(t)]
+    gone = {t.uid for t in plan.dropped}
+    by_uid = {t.uid: t for t in plan.project.tasks}
+    kept = in_scope | ({plan.root.uid} if plan.root is not None else set())     # también los de la planificación
+    for t in plan.project.tasks:
+        for lk in t.predecessors:
+            p = by_uid.get(lk.uid)
+            if p is None:
+                continue
+            if t.uid in kept and p.uid in kept:
+                if t.uid in gone or p.uid in gone:
+                    plan.removed_links += 1
+                else:
+                    plan.kept_links += 1
+                    plan.kept_pairs.add((p.uid, t.uid))
+            elif t.uid in kept or p.uid in kept:
+                plan.outside_links += 1
+
+
 @dataclass
 class _Candidate:
     pred: Task
@@ -382,6 +485,9 @@ def build_client_plan(project: ProjectData, cfg: Config) -> ClientPlan:
     if not plan.shown:
         raise EvmError("CLI-002", f"Ninguna tarea de la planificación tiene Sí en '{cfg.client_field}' (también en sus "
                                   "tareas superiores): no hay nada que mostrar al cliente.")
+    if cfg.client_internal_activity:
+        _internal_activity(plan, cfg, in_scope)
+        return plan
     plan.collapsed = [t for t in tasks if t.uid in plan.shown and t.children
                       and not any(c.uid in plan.shown for c in t.children)]
     collapsed = {t.uid for t in plan.collapsed}
@@ -594,12 +700,16 @@ def render_control(plan: ClientPlan, source: str, today: date, result: str,
     marks = plan.marks
     hidden_detail = (f"No: {marks[MARK_NO]}, sin valor: {marks[MARK_EMPTY]}, otro valor: {marks[MARK_OTHER]}, con Sí "
                      f"debajo de una tarea que no se muestra: {plan.orphan_count}")
-    bridges = [x for x in plan.new_links if x.origin == ORIGIN_BRIDGE]
-    by_kind = Counter(LINK_NAMES[x.kind] for x in plan.new_links)
     plan_text = "todo el proyecto"
     if plan.root is not None:
         plan_text = plan.scope.prefix + (f" (en el archivo del cliente: {plan.new_name})"
                                          if plan.new_name and plan.new_name != plan.root.name else "")
+    if plan.internal_activity:
+        mode = (f"Quedan como «{INTERNAL_NAME}», con sus fechas, su avance y sus vínculos (actividad_interna = true): "
+                "el % completado y el libro EVM son los de la planificación interna")
+    else:
+        mode = ("Se borran (actividad_interna = false): el % completado de los resúmenes y del proyecto, y el libro "
+                "EVM, pueden cambiar")
     lines = [
         "# Planificación para el cliente: informe de control",
         "",
@@ -608,6 +718,7 @@ def render_control(plan: ClientPlan, source: str, today: date, result: str,
         f"| **Origen** | {_cell(Path(source).name)} |",
         f"| **Planificación** | {_cell(plan_text)} |",
         f"| **Campo** | {_cell(plan.field_name)}: solo se muestran las tareas con Sí (y con Sí en sus tareas superiores) |",
+        f"| **Tareas que no se muestran** | {mode} |",
         f"| **Fecha de estado** | {_d(p.status_date)} |",
         f"| **Resultado** | {_cell(result)} |",
         f"| **Fecha de emisión** | {today:%d/%m/%Y} |",
@@ -623,6 +734,28 @@ def render_control(plan: ClientPlan, source: str, today: date, result: str,
         f"| Se muestran | {len(plan.shown)} |",
         f"| No se muestran | {hidden} ({hidden_detail}; incluye sus subtareas) |" if hidden else "| No se muestran | 0 |",
         f"| Tareas de otras planificaciones (se quitan) | {len(plan.outside)} |",
+    ]
+    if plan.internal_activity:
+        summaries = sum(1 for t in plan.anonymous if t.children)
+        codes = "sin código EDT" if plan.codes_removed else "con su código EDT"
+        lines += [
+            f"| Quedan como «{INTERNAL_NAME}» | {len(plan.anonymous)} ({summaries} resúmenes; {codes}) |",
+            f"| Tareas que no se muestran inactivas (se quitan) | {len(plan.dropped)} |",
+            f"| Vínculos que se conservan | {plan.kept_links} |",
+            f"| Vínculos con tareas inactivas que se quitan (desaparecen) | {plan.removed_links} |",
+            f"| Vínculos con otras planificaciones (desaparecen) | {plan.outside_links} |",
+            "",
+        ]
+    else:
+        lines += _delete_rows(plan)
+    return _report_body(plan, lines, per_day, issues, outcome)
+
+
+def _delete_rows(plan: ClientPlan) -> list[str]:
+    """Filas del resumen del informe con actividad_interna = false."""
+    bridges = [x for x in plan.new_links if x.origin == ORIGIN_BRIDGE]
+    by_kind = Counter(LINK_NAMES[x.kind] for x in plan.new_links)
+    return [
         f"| Resúmenes que pasan a ser tareas | {len(plan.collapsed)} |",
         f"| Vínculos que se conservan | {plan.kept_links} |",
         f"| Vínculos que desaparecen con las tareas ocultas o dentro de un resumen convertido | {plan.removed_links} |",
@@ -638,11 +771,31 @@ def render_control(plan: ClientPlan, source: str, today: date, result: str,
         f"| Resúmenes que cambian de fechas | {len(plan.span_changes)} |",
         "",
     ]
+
+
+def _report_body(plan: ClientPlan, lines: list[str], per_day: float, issues: list[Issue] | None,
+                 outcome: WriteResult | None) -> str:
+    from evm.client_check import comparison_lines
     if issues is None:
         issues = plan.issues() + (outcome.issues(plan) if outcome is not None else [])
     if issues:
         lines += ["## Observaciones", ""]
         lines += [f"- **{i.id}** ({i.severity}): {_cell(i.message)}" for i in issues]
+        lines.append("")
+    comparison = outcome.comparison if outcome is not None and outcome.comparison is not None else plan.comparison
+    if comparison is not None:
+        lines += comparison_lines(plan, comparison, per_day)
+    if plan.internal_activity and plan.hidden:
+        gone = {t.uid for t in plan.dropped}
+        sizes = {}
+        for t in plan.hidden_branches:
+            branch = list(iter_subtree(t))
+            sizes[t.uid] = (sum(1 for x in branch if x.uid not in gone), sum(1 for x in branch if x.uid in gone))
+        lines += ["## Ramas que no se muestran", "",
+                  f"La tarea de más arriba de cada rama que no se muestra: en el archivo del cliente, sus tareas activas "
+                  f"quedan como «{INTERNAL_NAME}» y las inactivas se quitan.", "",
+                  f"| Tarea | Tareas como «{INTERNAL_NAME}» | Tareas inactivas (se quitan) |", "|---|---:|---:|"]
+        lines += [f"| {plan.ref(t)} | {sizes[t.uid][0]} | {sizes[t.uid][1]} |" for t in plan.hidden_branches]
         lines.append("")
     if plan.orphans:
         lines += ["## Tareas con Sí que no se muestran", "",
@@ -757,11 +910,25 @@ def _outcome_lines(plan: ClientPlan, out: WriteResult, per_day: float) -> list[s
              f"| Archivo del cliente | {_cell(Path(out.path).name)} (de solo lectura) |",
              f"| Origen abierto en MS Project | {source_open} |",
              f"| Cálculos de MS Project | {out.rounds} |",
-             f"| Tareas con el comienzo fijado (No comenzar antes del) | {len(out.fixed)} |",
-             f"| Tareas con fechas distintas de la planificación interna | {len(out.differences)} |",
-             f"| Vínculos nuevos que MS Project no aceptó | {len(out.rejected)} |",
-             f"| Vínculos que MS Project creó al borrar tareas (se quitaron) | {len(out.removed_links)} |",
-             f"| Nombre del campo del cliente | {field_name} (valores vaciados) |", ""]
+             f"| Tareas con el comienzo fijado (No comenzar antes del) | {len(out.fixed)} |"]
+    if plan.internal_activity:
+        filtered = {None: "No (filtrar_vista = false)", True: "Sí: oculta las «Otras tareas»",
+                    False: "No se pudo crear"}[out.filter_applied]
+        lines += [f"| Tareas que quedan como «{INTERNAL_NAME}» | {out.anonymized} |",
+                  f"| Código EDT de las «{INTERNAL_NAME}» | {'Quitado' if out.codes_removed else 'Se conserva'} |",
+                  f"| Campos que MS Project no dejó quitar | {len(out.not_cleared)} |",
+                  f"| Filtro de la vista | {filtered} |"]
+    else:
+        lines += [f"| Tareas con fechas distintas de la planificación interna | {len(out.differences)} |",
+                  f"| Vínculos nuevos que MS Project no aceptó | {len(out.rejected)} |"]
+    lines += [f"| Vínculos que MS Project creó al borrar tareas (se quitaron) | {len(out.removed_links)} |",
+              f"| Nombre del campo del cliente | {field_name} (valores vaciados) |", ""]
+    if out.not_cleared:
+        lines += [f"### Datos de las «{INTERNAL_NAME}» que no se pudieron quitar", "",
+                  "MS Project no aceptó vaciar el campo (por ejemplo, un campo calculado con una fórmula): el cliente "
+                  "puede ver su valor.", "", "| Campo | Tareas | Error de MS Project |", "|---|---:|---|"]
+        lines += [f"| {_cell(name)} | {n} | {_cell(error)} |" for name, (n, error) in sorted(out.not_cleared.items())]
+        lines.append("")
     if out.fixed:
         lines += ["### Fechas fijadas", "",
                   "Sin las tareas ocultas, MS Project las adelantaba: se fijó su comienzo con la delimitación «No "

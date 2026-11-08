@@ -205,7 +205,8 @@ AREAS = {a.prefix: a for a in [
     Area("FIC", "Fichas de tareas", TOPIC_BOOK, W_FIC,
          "Comando generar-fichas."),
     Area("CLI", "Planificación para el cliente", TOPIC_BOOK, W_CLI,
-         "Comando generar-cliente: tareas que se muestran al cliente, resúmenes convertidos y vínculos nuevos."),
+         "Comando generar-cliente: tareas que se muestran al cliente, «Otras tareas», resúmenes convertidos, "
+         "vínculos nuevos y comparación con la planificación interna."),
     Area("SIS", "Errores del sistema", TOPIC_BOOK, W_ALL,
          "Errores de archivos del sistema y errores inesperados del programa."),
 ]}
@@ -1434,6 +1435,55 @@ _CODES = [
           "Una tarea de detalle o un resumen convertido tiene en el archivo del cliente otro % completado que en la "
           "planificación interna (por ejemplo, porque MS Project no aceptó el avance al convertir el resumen).",
           "Revisar esas tareas en el archivo del cliente y el registro de diagnóstico (--registro)."),
+    _code("CLI-022", I, "Tareas que quedan como «Otras tareas»",
+          "Con [cliente] actividad_interna = true, las tareas que no se muestran quedan en el archivo del cliente como "
+          "«Otras tareas»: sin nombre, código EDT, notas, hipervínculo ni campos de texto (salvo los que usa el libro "
+          "EVM), con sus fechas, su duración, su avance, sus líneas base y sus vínculos. Así el % completado de cada "
+          "tarea, de los resúmenes y del proyecto, y el libro EVM, son los de la planificación interna. Las tareas "
+          "inactivas que no se muestran se quitan: no cuentan en ningún cálculo.",
+          "Ninguna. Con filtrar_vista = true, el archivo se abre con un filtro que oculta las «Otras tareas»."),
+    _code("CLI-023", W, "% completado del proyecto distinto",
+          "El % completado del proyecto, calculado como MS Project (con la duración de las tareas de detalle), no es "
+          "el mismo en el archivo del cliente: con actividad_interna = false se borran las tareas que no se muestran, "
+          "y su avance deja de contar.",
+          "Usar actividad_interna = true (por defecto) para que coincida, o mostrar las tareas que explican el avance "
+          "(Sí en el campo del cliente). Si ocurre con actividad_interna = true, revisar el registro de diagnóstico."),
+    _code("CLI-024", W, "Filas del libro EVM con otras tareas o valores",
+          "Una fila de ingreso del libro EVM del cliente no tiene las mismas tareas de detalle, el mismo % planificado "
+          "de cada mes o el mismo % ganado que en el libro de la planificación interna (o solo está en uno de los dos "
+          "libros). Ocurre al borrar las tareas que no se muestran (actividad_interna = false). Con «Otras tareas», "
+          "ocurre si no se muestra ningún elemento EDT de un resumen (su fila reúne las de esos elementos) o si no se "
+          "muestra un elemento EDT que no depende de ninguno que se muestre: sin su código, sus tareas no forman parte "
+          "de ninguna fila del libro del cliente.",
+          "Revisar la lista del informe de control, que indica en qué fila del otro libro están las tareas de cada "
+          "fila. Para que coincidan, usar actividad_interna = true (por defecto) y mostrar esos elementos EDT (Sí en "
+          "el campo del cliente) o ubicarlos debajo de un elemento que se muestre."),
+    _code("CLI-025", W, "Filas -D en el libro EVM del cliente",
+          "El libro EVM del cliente tiene filas -D («Otras tareas de …»): tareas sin código EDT dentro de un elemento "
+          "EDT que tiene filas propias, por ejemplo las de un elemento que no se muestra, cuyo código se quitó. Sus "
+          "valores son los mismos, pero el cliente ve esas filas en su libro.",
+          "Para que no aparezcan, mostrar ese elemento EDT (Sí en el campo del cliente) o reorganizar la EDT para que "
+          "las tareas internas no queden junto a elementos EDT que se muestran. El informe de control indica la fila "
+          "interna de cada fila -D."),
+    _code("CLI-026", W, "Tareas con datos distintos en el archivo del cliente",
+          "Con actividad_interna = true, cada tarea del archivo del cliente debe tener las fechas, el avance, la "
+          "duración y la línea base de la planificación interna; estas tareas no los tienen después de guardar el "
+          "archivo.",
+          "Revisar la lista del informe de control y el registro de diagnóstico (--registro)."),
+    _code("CLI-027", W, "Datos de las «Otras tareas» que no se quitaron",
+          "MS Project no dejó vaciar un campo de las «Otras tareas» (por ejemplo, un campo calculado con una fórmula), "
+          "o el campo EDT configurado es el de MS Project (EDT o número de esquema) y su código no se puede quitar: el "
+          "cliente puede ver esos datos.",
+          "Revisar el campo en el archivo del cliente. Para quitar los códigos, usar un campo EDT personalizado "
+          "([campos] edt, por ejemplo un campo de texto)."),
+    _code("CLI-028", W, "No se pudo crear el filtro de la vista",
+          "Con [cliente] filtrar_vista = true, MS Project no aceptó crear o aplicar el filtro que oculta las «Otras "
+          "tareas»: el archivo del cliente se abre con todas las tareas.",
+          "Revisar el registro de diagnóstico (--registro). El % completado y el libro EVM no cambian."),
+    _code("CLI-029", W, "No se pudo comparar el libro EVM",
+          "El libro EVM de la planificación interna o el del cliente no se pudo calcular para compararlos (por ejemplo, "
+          "por un error de configuración del libro).",
+          "Revisar el error indicado: es el mismo que daría generar con esa configuración."),
 
     # --- SIS: errores del sistema -------------------------------------------------------------------------------
     _code("SIS-001", F, "Error inesperado",

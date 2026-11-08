@@ -5,18 +5,29 @@ sobre esa copia:
 
 1. Abre la copia (sin macros) y la lee como el resto del programa.
 2. Calcula los cambios (evm.client_plan.build_client_plan).
-3. Con el cálculo manual y sin la vinculación automática de tareas:
+3. Con el cálculo manual y sin la vinculación automática de tareas, con [cliente] actividad_interna = true (por
+   defecto):
+   - borra las tareas de otras planificaciones y las tareas inactivas que no se muestran, y comprueba que quedan
+     exactamente las demás;
+   - quita los vínculos que MS Project haya creado al borrar tareas;
+   - deja las tareas que no se muestran como «Otras tareas»: sin nombre, código EDT, notas, hipervínculo, contacto ni
+     campos de texto o códigos de esquema (salvo los que usa el libro EVM: método, Visible, empresa y reparto);
+   con actividad_interna = false:
    - guarda los datos de los resúmenes que pasan a ser tareas (duración, avance, fechas reales, líneas base 0 a 10);
    - borra las tareas de otras planificaciones y las ramas que no se muestran, y comprueba que quedan exactamente las
      tareas que se muestran;
    - restaura los datos de los resúmenes convertidos;
    - quita los vínculos que MS Project haya creado al borrar tareas y crea los vínculos nuevos;
-   - vacía el campo del cliente en todas las tareas y quita su nombre (alias), y renombra la planificación.
+   en los dos casos, vacía el campo del cliente en todas las tareas, quita su nombre (alias) y renombra la
+   planificación.
 4. Recalcula y compara las fechas de cada tarea con las de la planificación interna. Con [cliente] fijar_fechas, fija
    con «No comenzar antes del» las tareas sin comenzar que se adelantan, y quita los vínculos nuevos de las que se
    atrasan; repite el cálculo hasta que no hay más cambios.
-5. Guarda la copia, la cierra, la mueve al destino y la marca como de solo lectura: el archivo del cliente no se
-   edita, se vuelve a generar en cada entrega.
+5. Con actividad_interna y [cliente] filtrar_vista, aplica a la vista un filtro que oculta las «Otras tareas».
+6. Guarda la copia, la lee de nuevo y la compara con la planificación interna (evm.client_check): % completado del
+   proyecto, libro EVM fila a fila y, con actividad_interna, los datos de cada tarea.
+7. Cierra la copia, la mueve al destino y la marca como de solo lectura: el archivo del cliente no se edita, se vuelve
+   a generar en cada entrega.
 
 El registro de diagnóstico (-v o --registro) indica cada paso con los UID y los códigos EDT de las tareas, nunca sus
 nombres.
@@ -34,7 +45,8 @@ from datetime import datetime
 from pathlib import Path
 
 from evm import progress
-from evm.client_plan import (ClientPlan, DateChange, ProgressChange, WriteResult, build_client_plan,
+from evm.client_check import BookComparison, Comparison, compare
+from evm.client_plan import (INTERNAL_NAME, ClientPlan, DateChange, ProgressChange, WriteResult, build_client_plan,
                               require_client_field)
 from evm.config import Config, ConfigError
 from evm.fields import field_id, parse_custom_name
@@ -48,6 +60,14 @@ PJ_MANUAL = 0                   # PjCalculation: cálculo manual
 CONSTRAINT_SNET = 4             # pjSNET: No comenzar antes del
 MAX_ROUNDS = 4                  # cálculos de MS Project para fijar las fechas
 _BASELINE_FIELDS = ("Start", "Finish", "Duration")
+# actividad_interna: datos que se quitan de las «Otras tareas» (salvo los campos que usa el libro EVM)
+_CLEARED_FIELDS = ([f"Text{i}" for i in range(1, 31)] + [f"OutlineCode{i}" for i in range(1, 11)]
+                   + ["Contact", "Hyperlink", "HyperlinkAddress", "HyperlinkSubAddress", "Notes"])
+_BUILTIN_CODES = {"WBS", "OutlineNumber"}
+FILTER_NAME = "Tareas del cliente"
+# Filtro «Nombre no es igual a Otras tareas», con los nombres en inglés y en español (MS Project en español puede
+# pedir el nombre del campo y la comparación en su idioma)
+_FILTER_TESTS = (("Name", "does not equal"), ("Nombre", "no es igual a"))
 _QUOTED = re.compile(r"[\"'«“‘][^\"'»”’]*[\"'»”’]")
 
 
@@ -140,19 +160,33 @@ class _Writer:
         return self.plan.ref(t) if t is not None else f"UID {uid}"
 
     # -- pasos ------------------------------------------------------------------------------------------------------
+    def _steps(self) -> list[tuple[str, object]]:
+        if self.plan.internal_activity:
+            steps = [("índice de tareas", self._index),
+                     ("borrado de tareas", self._delete),
+                     ("comprobación de las tareas", self._check_tasks),
+                     ("vínculos", self._links),
+                     ("tareas internas", self._anonymize)]
+        else:
+            steps = [("índice de tareas", self._index),
+                     ("datos de los resúmenes convertidos", self._snapshot),
+                     ("borrado de tareas", self._delete),
+                     ("comprobación de las tareas", self._check_tasks),
+                     ("restauración de los resúmenes convertidos", self._restore),
+                     ("vínculos", self._links)]
+        steps += [("campo del cliente", self._clear_field),
+                  ("nombre de la planificación", self._rename_root),
+                  ("fechas", self._dates)]
+        if not self.plan.internal_activity:
+            steps.append(("avance", self._progress))
+        elif self.cfg.client_filter:
+            steps.append(("filtro de la vista", self._filter))
+        return steps
+
     def run(self) -> None:
         saved = self._options_off()
         try:
-            for step, action in (("índice de tareas", self._index),
-                                 ("datos de los resúmenes convertidos", self._snapshot),
-                                 ("borrado de tareas", self._delete),
-                                 ("comprobación de las tareas", self._check_tasks),
-                                 ("restauración de los resúmenes convertidos", self._restore),
-                                 ("vínculos", self._links),
-                                 ("campo del cliente", self._clear_field),
-                                 ("nombre de la planificación", self._rename_root),
-                                 ("fechas", self._dates),
-                                 ("avance", self._progress)):
+            for step, action in self._steps():
                 self.step = step
                 log.info("Paso: %s", step)
                 action()
@@ -227,19 +261,22 @@ class _Writer:
                 continue
             log.debug("Se borra %s y su rama", self._ref(t.uid))
             com.Delete()
-        log.info("Ramas borradas: %d (%d tareas de otras planificaciones y %d de la planificación que no se "
-                 "muestran)", len(roots), len(self.plan.outside), len(self.plan.hidden))
+        what = "inactivas que no se muestran" if self.plan.internal_activity else "que no se muestran"
+        gone = self.plan.dropped if self.plan.internal_activity else self.plan.hidden
+        log.info("Ramas borradas: %d (%d tareas de otras planificaciones y %d de la planificación %s)", len(roots),
+                 len(self.plan.outside), len(gone), what)
         self._index()
 
     def _check_tasks(self) -> None:
-        """Deben quedar exactamente las tareas que se muestran (y la tarea de la planificación): si no, el archivo no
-        se guarda."""
-        expected = set(self.plan.shown) | ({self.plan.root.uid} if self.plan.root is not None else set())
+        """Deben quedar exactamente las tareas del archivo del cliente (las que se muestran o, con actividad_interna,
+        todas salvo las inactivas que no se muestran, y la tarea de la planificación): si no, el archivo no se
+        guarda."""
+        expected = self.plan.remaining
         found = set(self.com)
         extra, missing = sorted(found - expected), sorted(expected - found)
         if extra or missing:
             log.error("Tareas que sobran: %s; tareas que faltan: %s", extra[:50], missing[:50])
-            raise ProjectAppError("CLI-018", f"Después de borrar las tareas ocultas quedan {len(found)} tareas y se "
+            raise ProjectAppError("CLI-018", f"Después de borrar las tareas quedan {len(found)} tareas y se "
                                              f"esperaban {len(expected)} ({len(extra)} que sobran y {len(missing)} que "
                                              "faltan): no se generó el archivo del cliente. Los UID están en el "
                                              "registro de diagnóstico.")
@@ -342,6 +379,80 @@ class _Writer:
         log.info("Vínculos nuevos: %d creados, %d no aceptados", len(self.plan.new_links) - len(self.r.rejected),
                  len(self.r.rejected))
 
+    def _attr(self, name: str) -> str | None:
+        """Propiedad de la tarea de MS Project para un campo configurado (por ejemplo 'Text10'), o None."""
+        ref = self.s._resolve_field(name) if name else None
+        return str(ref[1]) if ref is not None and ref[0] == "attr" else None
+
+    def _anonymize(self) -> None:
+        """Las tareas que no se muestran quedan como «Otras tareas»: sin nombre, sin código EDT (si está en un campo
+        personalizado), sin notas, hipervínculo ni contacto, y sin los campos de texto y códigos de esquema que no usa
+        el libro EVM. Conservan las fechas, la duración, el avance, las líneas base, los vínculos y los recursos."""
+        cfg = self.cfg
+        keep = {self._attr(name) for name in (cfg.method_field, cfg.visible_field, cfg.milestone_weight_field)}
+        if cfg.multi_enabled:
+            keep |= {self._attr(cfg.company_field), self._attr(cfg.split_field)}
+        keep.discard(None)
+        wbs = self.s._resolve_field(cfg.wbs_field) or ("attr", "WBS")
+        code_fid = None
+        if wbs[0] == "attr":
+            self.r.codes_removed = str(wbs[1]) not in _BUILTIN_CODES
+            keep.discard(str(wbs[1]))
+        else:
+            code_fid = int(wbs[1])
+        self.plan.codes_removed = self.r.codes_removed
+        fields = [name for name in _CLEARED_FIELDS if name not in keep]
+        log.info("«%s»: campo EDT %s (%s); se conservan %s", INTERNAL_NAME, wbs[1],
+                 "se quita" if self.r.codes_removed else "no se puede quitar", sorted(keep) or "ningún campo")
+        cleared: dict[str, int] = {}
+        problems: dict[str, tuple[int, str]] = {}
+
+        def clear(com, name: str, action) -> None:
+            try:
+                action()
+                cleared[name] = cleared.get(name, 0) + 1
+            except Exception as exc:
+                n, first = problems.get(name, (0, com_error_text(exc)))
+                problems[name] = (n + 1, first)
+
+        targets = self.plan.anonymous
+        progress.stage("anonimizar", f"Tareas que no se muestran como «{INTERNAL_NAME}»")
+        for i, t in enumerate(targets, start=1):
+            progress.step(i, len(targets), "tareas")
+            com = self.com[t.uid]
+            clear(com, "Name", lambda: setattr(com, "Name", INTERNAL_NAME))
+            for name in fields:
+                value = _get(com, name)
+                if value is None or str(value) == "":
+                    continue
+                clear(com, name, lambda name=name: setattr(com, name, ""))
+            if code_fid is not None:
+                clear(com, "EDT", lambda: com.SetField(code_fid, ""))
+        self.r.anonymized = len(targets)
+        self.r.not_cleared = problems
+        log.info("Tareas como «%s»: %d; datos quitados por campo: %s", INTERNAL_NAME, len(targets),
+                 ", ".join(f"{k} {v}" for k, v in sorted(cleared.items())) or "ninguno")
+        for name, (n, error) in sorted(problems.items()):
+            log.warning("MS Project no dejó vaciar %s en %d tareas: %s", name, n, error)
+
+    def _filter(self) -> None:
+        """Filtro de la vista que oculta las «Otras tareas» (con sus resúmenes, que también lo son): el archivo se
+        abre con él. Si MS Project no lo acepta, el archivo se genera igual (CLI-028)."""
+        for field_name, test in _FILTER_TESTS:
+            try:
+                self.app.FilterEdit(Name=FILTER_NAME, TaskFilter=True, Create=True, OverwriteExisting=True,
+                                    FieldName=field_name, Test=test, Value=INTERNAL_NAME, ShowInMenu=True,
+                                    ShowSummaryTasks=True)
+                self.app.FilterApply(Name=FILTER_NAME)
+            except Exception as exc:
+                log.debug("Filtro con %s / %s: %s", field_name, test, com_error_text(exc))
+                continue
+            self.r.filter_applied = True
+            log.info("Filtro de la vista «%s» aplicado (%s %s «%s»)", FILTER_NAME, field_name, test, INTERNAL_NAME)
+            return
+        self.r.filter_applied = False
+        log.warning("No se pudo crear el filtro de la vista «%s»", FILTER_NAME)
+
     def _field_id(self) -> int | None:
         ref = self.s._resolve_field(self.cfg.client_field)
         if ref is None:
@@ -399,8 +510,12 @@ class _Writer:
         los vínculos nuevos de las que se atrasan; repite hasta que no hay cambios."""
         progress.stage("fechas", "Cálculo y comparación de las fechas")
         collapsed = {t.uid for t in self.plan.collapsed}
-        targets = [t for t in self.plan.tasks if t.uid in self.plan.shown and _active(t)
-                   and (t.uid in collapsed or not t.children)]
+        if self.plan.internal_activity:      # todas las tareas de detalle que quedan (las demás se comparan al final)
+            keep = self.plan.remaining
+            targets = [t for t in self.plan.tasks if t.uid in keep and _active(t) and not t.children]
+        else:
+            targets = [t for t in self.plan.tasks if t.uid in self.plan.shown and _active(t)
+                       and (t.uid in collapsed or not t.children)]
         fix = self.cfg.client_fix_dates
         fixed: dict[int, Task] = {}
         for rounds in range(1, MAX_ROUNDS + 1):
@@ -441,6 +556,9 @@ class _Writer:
             self.r.rounds += 1
             self._calculate()
         self.r.fixed = list(fixed.values())
+        if self.plan.internal_activity:      # la comparación final (evm.client_check) revisa cada tarea
+            log.info("Fechas: %d fijadas", len(self.r.fixed))
+            return
         for t in targets:
             com = self.com[t.uid]
             start, finish = _dt(_get(com, "Start")), _dt(_get(com, "Finish"))
@@ -497,6 +615,19 @@ class _Writer:
                  changed, len(self.r.progress_tasks))
 
 
+def _log_comparison(plan: ClientPlan, result: WriteResult) -> None:
+    c = result.comparison
+    b = c.book
+    log.info("Comparación: %% completado del proyecto %s (interno) y %s (cliente); libro EVM: %d filas iguales, %d con "
+             "otro código, %d con otras tareas o valores, %d solo en el interno, %d solo en el del cliente%s; tareas "
+             "comparadas %d, con datos distintos %d", c.percent_internal, c.percent_client, b.same, len(b.moved),
+             len(b.different), len(b.only_internal), len(b.only_client), f" ({b.error})" if b.error else "",
+             c.checked, len(c.tasks))
+    for d in c.tasks[:200]:
+        log.debug("Datos distintos %s: %s", plan.ref(d.task),
+                  "; ".join(f"{label} {a} -> {v}" for label, a, v in d.fields))
+
+
 def _writable(path: Path) -> None:
     if path.exists():
         os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
@@ -538,6 +669,16 @@ def generate_client(origen: str | Path, destino: str | Path, cfg: Config, *, vis
             progress.stage("guardar", "Guardado del archivo del cliente")
             s.save()
             log.info("Copia guardada")
+            progress.stage("comparar:", "Comparación con la planificación interna")
+            try:
+                client = s.read_project(cfg, links=False)
+                result.comparison = compare(plan, client, cfg, generated=True)
+            except Exception as exc:        # el archivo ya está guardado: se entrega con el aviso CLI-029
+                log.debug("Error en la comparación: %s %s\n%s", type(exc).__name__, com_error_text(exc),
+                          "".join(traceback.format_tb(exc.__traceback__)))
+                result.comparison = Comparison(True, None, None, BookComparison(
+                    error=f"error inesperado ({type(exc).__name__}); el detalle está en el registro de diagnóstico"))
+            _log_comparison(plan, result)
         done = True
     finally:
         if not done:

@@ -534,12 +534,15 @@ Word, con los que se puede insertar un índice.
 python evm_export.py generar-cliente --origen "C:\Programa\INTERNO.mpp" --config config.toml --destino "C:\Entregas\CLIENTE 2026-10.mpp"
 ```
 
-Genera, a partir de la planificación interna, el `.mpp` que se entrega al cliente: solo las tareas con
-`Sí` en el campo de `[cliente] campo` (y en sus tareas superiores), con la lógica rehecha sin las tareas
-ocultas y las mismas fechas. La planificación interna no se modifica: MS Project trabaja sobre una copia.
-El archivo del cliente queda de solo lectura, y junto a él se escribe un informe de control interno
-(`<destino>_control.md`). Con `--simular` solo calcula los cambios y escribe el informe; admite el XML. Ver
-[Planificación para el cliente](generar-cliente.md).
+Genera, a partir de la planificación interna, el `.mpp` que se entrega al cliente: el cliente ve las
+tareas con `Sí` en el campo de `[cliente] campo` (y en sus tareas superiores). Por defecto, las demás
+quedan como «Otras tareas», sin nombre ni código EDT, con sus fechas y su avance: el % completado y el
+libro EVM son los de la planificación interna. Con `[cliente] actividad_interna = false` se borran, y la
+lógica se rehace sin ellas. El comando compara el % completado del proyecto y el libro EVM con los de la
+planificación interna y avisa de las diferencias. La planificación interna no se modifica: MS Project
+trabaja sobre una copia. El archivo del cliente queda de solo lectura, y junto a él se escribe un informe
+de control interno (`<destino>_control.md`). Con `--simular` solo calcula los cambios y la comparación, y
+escribe el informe; admite el XML. Ver [Planificación para el cliente](generar-cliente.md).
 
 ---
 

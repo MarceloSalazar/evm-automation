@@ -3,9 +3,9 @@
 [Inicio](../README.md) › [Documentación](README.md) › Planificación para el cliente
 
 El comando `generar-cliente` obtiene, a partir de la **planificación interna**, la planificación que se
-entrega al cliente: un archivo `.mpp` con solo las tareas que el cliente debe ver, con la misma lógica, las
-mismas fechas y el mismo avance. Así se mantiene **una sola planificación**: la del cliente no se edita a
-mano. Se vuelve a generar en cada entrega, junto con su libro EVM.
+entrega al cliente: un archivo `.mpp` en el que el cliente ve sus tareas, con la misma lógica, las mismas
+fechas y el mismo avance. Así se mantiene **una sola planificación**: la del cliente no se edita a mano. Se
+vuelve a generar en cada entrega, junto con su libro EVM.
 
 ---
 
@@ -13,9 +13,9 @@ mano. Se vuelve a generar en cada entrega, junto con su libro EVM.
 
 1. [Preparación en MS Project](#1-preparación-en-ms-project)
 2. [Qué tareas ve el cliente](#2-qué-tareas-ve-el-cliente)
-3. [Resúmenes sin tareas visibles](#3-resúmenes-sin-tareas-visibles)
-4. [Lógica del cronograma](#4-lógica-del-cronograma)
-5. [Avance de los resúmenes](#5-avance-de-los-resúmenes)
+3. [Las tareas que no se muestran: «Otras tareas»](#3-las-tareas-que-no-se-muestran-otras-tareas)
+4. [Borrar las tareas que no se muestran](#4-borrar-las-tareas-que-no-se-muestran)
+5. [Comparación con la planificación interna](#5-comparación-con-la-planificación-interna)
 6. [Uso](#6-uso)
 7. [Cómo se genera el archivo](#7-cómo-se-genera-el-archivo)
 8. [Informe de control](#8-informe-de-control)
@@ -27,6 +27,9 @@ mano. Se vuelve a generar en cada entrega, junto con su libro EVM.
 
 - Un campo personalizado de texto (por ejemplo *Texto15*, con el alias `Etiqueta Cliente`) indica, tarea
   por tarea, si el cliente la ve: `Sí` o `No`. Se configura en `[cliente] campo`.
+- El código EDT está en un campo personalizado (`[campos] edt`, por ejemplo *Texto5*): así se puede quitar
+  de las tareas que el cliente no ve. Si es el campo EDT de MS Project, esas tareas conservan su código
+  (`CLI-027`).
 - El archivo tiene **una sola planificación**, la interna: `[exportacion] planificacion` se deja vacía (o
   sin la clave), y el comando usa todo el proyecto.
 - Solo si el archivo tuviera varias planificaciones (por ejemplo, tareas de primer nivel `INTERNO` y
@@ -48,7 +51,62 @@ hasta que se marca.
 | Valor no reconocido (por ejemplo `Sí, revisar` o `X`) | No se muestra | `CLI-003` |
 | `Sí` debajo de una tarea sin `Sí` | No se muestra | `CLI-004` |
 
-## 3. Resúmenes sin tareas visibles
+Qué pasa con las tareas que no se muestran lo decide `[cliente] actividad_interna`:
+
+| `actividad_interna` | Tareas que no se muestran | % completado y libro EVM |
+|---|---|---|
+| `true` (por defecto) | Quedan como «Otras tareas», sin nombre ni código EDT (apartado 3) | Los de la planificación interna |
+| `false` | Se borran (apartado 4) | Pueden cambiar: se avisa con el detalle |
+
+## 3. Las tareas que no se muestran: «Otras tareas»
+
+MS Project calcula el % completado de un resumen, y el del proyecto, con la duración de **todas** sus
+tareas de detalle: la duración realizada (duración × % completado) dividida por la duración total. El
+libro EVM también calcula cada fila con sus tareas de detalle: el % planificado de cada mes sale de las
+fechas de la línea base de cada una, y el % ganado, de su avance. Si se borraran las tareas internas, su
+duración y su avance dejarían de contar, y los % cambiarían. Por eso, con `actividad_interna = true`, las
+tareas que no se muestran se conservan, pero sin lo que dice qué son:
+
+| Se quita | Se conserva |
+|---|---|
+| El nombre, que pasa a ser «Otras tareas» | Fechas, duración, delimitaciones y fecha límite |
+| El código EDT | Líneas base 0 a 10 |
+| Notas, hipervínculo y contacto | % completado, % físico completado, comienzo y fin reales |
+| Los campos de texto y los códigos de esquema que no usa el libro EVM | Vínculos |
+| El valor del campo del cliente (en todas las tareas) | Los campos del libro EVM: método, Visible, peso de hito, empresa y reparto |
+| Las tareas inactivas que no se muestran (no cuentan en ningún cálculo) | Recursos asignados |
+
+El cliente sabe que existen esas tareas y cuándo ocurren, pero no qué son. El % completado de cada tarea,
+de los resúmenes y del proyecto es el de la planificación interna, y las fechas no cambian: no hacen falta
+vínculos nuevos ni fechas fijadas.
+
+Con `[cliente] filtrar_vista = true`, el archivo se abre con el filtro *Tareas del cliente*, que oculta las
+«Otras tareas» (`CLI-028` si MS Project no lo acepta). El filtro solo cambia lo que se ve: el % completado
+sigue contando todas las tareas, y el cliente puede quitarlo. Por defecto está desactivado.
+
+### El libro EVM del cliente
+
+Las «Otras tareas» no tienen código EDT: en el libro forman parte de la fila de su elemento EDT superior.
+Casi todas las filas quedan iguales, pero hay tres casos que se avisan:
+
+- **Filas -D** (`CLI-025`). Un elemento EDT que no se muestra, dentro de uno que sí tiene filas propias,
+  pasa a la fila -D de su superior («Otras tareas de …»). Por ejemplo, la fila `1.2.3` pasa a ser
+  `1.2.0-D`, con las mismas tareas y valores. El cliente ve esa fila en su libro: para evitarla, se muestra
+  ese elemento (`Sí`) o se reorganiza la EDT.
+- **Filas que se reúnen** (`CLI-024`). Si no se muestra ningún elemento EDT de un resumen, la fila del
+  resumen reúne a las de esos elementos.
+- **Filas que desaparecen** (`CLI-024`). Un elemento EDT que no se muestra y no depende de ninguno que se
+  muestre queda sin código: sus tareas no forman parte de ninguna fila del libro del cliente.
+
+El informe de control indica, para cada caso, la fila del otro libro que tiene esas tareas.
+
+## 4. Borrar las tareas que no se muestran
+
+Con `actividad_interna = false`, las tareas que no se muestran se borran. El % completado de los
+resúmenes y del proyecto, y el libro EVM, pueden cambiar: el programa lo calcula y lo avisa con el detalle
+(apartado 5).
+
+### Resúmenes sin tareas visibles
 
 Si de un resumen no se muestra ninguna subtarea, en el archivo del cliente pasa a ser una tarea. Conserva
 sus fechas, su duración, su avance y sus líneas base, y recibe los vínculos de sus subtareas (`CLI-005`).
@@ -56,7 +114,7 @@ sus fechas, su duración, su avance y sus líneas base, y recibe los vínculos d
 Si una subtarea oculta fija el comienzo o el fin de un resumen que sí tiene subtareas visibles, el
 resumen del cliente va de la primera a la última subtarea visible (`CLI-008`).
 
-## 4. Lógica del cronograma
+### Lógica del cronograma
 
 Al quitar tareas, sus vínculos desaparecen. Para que la lógica siga completa y las fechas no cambien:
 
@@ -78,31 +136,46 @@ Con `[cliente] fijar_fechas = true` (por defecto), las fechas que aun así cambi
 archivo del cliente se fijan con la delimitación *No comenzar antes del* y se informan (ver el
 apartado 7).
 
-## 5. Avance de los resúmenes
-
-MS Project calcula el % completado de un resumen con la duración de sus tareas de detalle: la suma de la
-duración real (duración × % completado) dividida por la suma de la duración. Si un resumen solo tiene
-hitos, su % es 100 cuando están todos cumplidos y 0 si no.
+### Avance de los resúmenes
 
 - **Resumen convertido** (no se muestra ninguna subtarea): conserva el % que tenía, calculado con todas
-  sus subtareas. El programa lo comprueba después de generar el archivo (`CLI-021` si no es así). En su
-  resumen superior pesa por su propia duración (de su comienzo a su fin), no por la suma de la de sus
-  subtareas: si estas van en paralelo, pesa menos.
+  sus subtareas (`CLI-021` si no es así). En su resumen superior pesa por su propia duración (de su
+  comienzo a su fin), no por la suma de la de sus subtareas: si estas van en paralelo, pesa menos.
 - **Resumen con subtareas visibles y ocultas:** en el archivo del cliente, MS Project lo calcula solo con
-  las tareas que se muestran (y los resúmenes convertidos, con su avance y su duración). El avance de las
-  tareas ocultas no cuenta, y el % del resumen cambia. El programa lo calcula antes de generar el archivo (también
-  con `--simular`), lo compara después con el de MS Project y lista cada resumen con su % interno y el del
-  cliente (`CLI-020`).
+  las tareas que se muestran. El avance de las tareas ocultas no cuenta, y el % del resumen cambia. El
+  programa lo calcula antes de generar el archivo (también con `--simular`), lo compara después con el de
+  MS Project y lista cada resumen con su % interno y el del cliente (`CLI-020`).
 - **Tareas de detalle que se muestran:** conservan su % (`CLI-021` si no es así).
+
+## 5. Comparación con la planificación interna
+
+En los dos modos, el programa compara la planificación del cliente con la interna. Con `--simular` es
+una previsión, calculada sin MS Project; al generar el archivo, lee el archivo del cliente en MS Project
+después de guardarlo.
+
+| Qué compara | Cómo | Aviso |
+|---|---|---|
+| % completado del proyecto | Como lo calcula MS Project, con las tareas de detalle activas | `CLI-023` |
+| Libro EVM, fila a fila | Cada fila con % planificado y % ganado: las mismas tareas de detalle, el mismo % planificado de cada mes y el mismo % ganado con el avance actual. Una fila que cambia de código se empareja por sus tareas | `CLI-024`, `CLI-025` |
+| Cada tarea (con «Otras tareas», al generar el archivo) | Comienzo, fin, comienzos y fines reales, % completado, % físico, duración, línea base, activa e hito, también de los resúmenes | `CLI-026` |
+| No se pudo calcular un libro | Por ejemplo, por un error de la configuración del libro | `CLI-029` |
+
+Con `actividad_interna = true`, todo debe coincidir, salvo los cambios de código del apartado 3. Con
+`actividad_interna = false`, el informe de control detalla las diferencias.
 
 ## 6. Uso
 
 ```toml
+[campos]
+edt = "Item EDT"            # código EDT en un campo personalizado
+
 [exportacion]
 planificacion = ""          # una sola planificación: todo el proyecto
 
 [cliente]
 campo = "Etiqueta Cliente"
+actividad_interna = true    # las tareas que no se muestran quedan como «Otras tareas»
+filtrar_vista = false       # true: el archivo se abre con un filtro que oculta las «Otras tareas»
 fijar_fechas = true
 ```
 
@@ -118,15 +191,15 @@ python evm_export.py generar-cliente --origen INTERNO.mpp --config config.toml -
 | `--origen` | Planificación interna: `.mpp`; con `--simular`, también `.xml` |
 | `--destino` | Archivo `.mpp` del cliente (por defecto `<origen>_cliente.mpp`); no puede ser el origen |
 | `--informe` | Informe de control (por defecto `<destino>_control.md`) |
-| `--simular` | Calcula los cambios y escribe el informe de control, sin generar el archivo del cliente |
+| `--simular` | Calcula los cambios y la comparación, y escribe el informe de control, sin generar el archivo del cliente |
 | `--sobrescribir` | Reemplaza el archivo del cliente y el informe de control si existen |
 
 El libro EVM del cliente se genera y se actualiza con el archivo del cliente, con su propia
 configuración: `planificacion = ""` (con varias planificaciones, el nombre de `nombre_planificacion`) y el
-campo `Visible` de siempre. Así, el libro solo tiene las tareas que ve el cliente y, de ellas, las que indica
-`Visible`. Los UID de las tareas son los de la planificación interna y no cambian de una entrega a otra,
-por lo que `actualizar` encuentra las filas en cada archivo nuevo. Para pasar a este libro los meses de
-un libro anterior, se usa `generar --migrar-desde`.
+campo `Visible` de siempre. Con «Otras tareas», sus filas incluyen el trabajo interno (sin nombre), y sus
+% son los del libro interno. Los UID de las tareas son los de la planificación interna y no cambian de una
+entrega a otra, por lo que `actualizar` encuentra las filas en cada archivo nuevo. Para pasar a este libro
+los meses de un libro anterior, se usa `generar --migrar-desde`.
 
 ## 7. Cómo se genera el archivo
 
@@ -134,22 +207,28 @@ La planificación interna **no se abre ni se modifica**: el programa la copia a 
 carpeta de destino y MS Project trabaja sobre la copia.
 
 1. Abre la copia y la lee como el resto del programa.
-2. Con el cálculo manual y sin vincular tareas automáticamente, borra las tareas que no se muestran (y las
-   de otras planificaciones, si las hubiera), y comprueba que quedan exactamente las tareas que se muestran (si no, se
-   detiene sin generar el archivo: `CLI-018`).
-3. Devuelve a cada resumen convertido su duración, su avance y sus líneas base (`CLI-019` si MS Project no
-   lo admite).
-4. Quita los vínculos que MS Project pudo crear al borrar tareas (`CLI-016`) y crea los vínculos nuevos
-   (`CLI-015` si MS Project rechaza alguno).
-5. Vacía el campo del cliente en todas las tareas y quita su nombre (`CLI-017` si no puede). Con varias
+2. Con el cálculo manual y sin vincular tareas automáticamente, borra las tareas de otras planificaciones,
+   si las hubiera, y:
+   - con «Otras tareas»: las tareas inactivas que no se muestran;
+   - sin «Otras tareas»: las tareas que no se muestran.
+
+   Comprueba que quedan exactamente las tareas esperadas (si no, se detiene sin generar el archivo:
+   `CLI-018`) y quita los vínculos que MS Project pudo crear al borrar tareas (`CLI-016`).
+3. Con «Otras tareas», quita el nombre, el código EDT y los demás datos de las tareas que no se muestran
+   (`CLI-027` si MS Project no deja vaciar un campo). Sin «Otras tareas», devuelve a cada resumen
+   convertido su duración, su avance y sus líneas base (`CLI-019` si MS Project no lo admite) y crea los
+   vínculos nuevos (`CLI-015` si MS Project rechaza alguno).
+4. Vacía el campo del cliente en todas las tareas y quita su nombre (`CLI-017` si no puede). Con varias
    planificaciones, renombra además la interna.
-6. Recalcula y compara las fechas de cada tarea con las de la planificación interna. Fija con *No comenzar
+5. Recalcula y compara las fechas de cada tarea con las de la planificación interna. Fija con *No comenzar
    antes del* las tareas sin comenzar que se adelantan (`CLI-013`) y quita los vínculos nuevos de las que
-   se atrasan; repite el cálculo hasta que no hay cambios. Las que siguen distintas (comenzadas, con otra
-   delimitación...) se informan (`CLI-014`).
-7. Compara el % completado de cada tarea con el de la planificación interna (apartado 5).
-8. Guarda la copia y la deja en `--destino` como archivo **de solo lectura**: no se edita, se vuelve a
-   generar en cada entrega. Si se debe reemplazar, `--sobrescribir` lo hace.
+   se atrasan; repite el cálculo hasta que no hay cambios. Sin «Otras tareas», las que siguen distintas
+   (comenzadas, con otra delimitación...) se informan (`CLI-014`) y se compara el % completado de cada
+   tarea (apartado 4).
+6. Con «Otras tareas» y `filtrar_vista = true`, aplica el filtro *Tareas del cliente* a la vista.
+7. Guarda la copia, la lee y la compara con la planificación interna (apartado 5).
+8. Deja la copia en `--destino` como archivo **de solo lectura**: no se edita, se vuelve a generar en cada
+   entrega. Si se debe reemplazar, `--sobrescribir` lo hace.
 
 Si la planificación interna está abierta en MS Project, se usa la versión guardada en el disco
 (`CLI-012`). Si algo falla, no queda ningún archivo del cliente ni la copia temporal.
@@ -159,17 +238,20 @@ Si la planificación interna está abierta en MS Project, se usa la versión gua
 Documento interno en Markdown, que **no se entrega al cliente**: identifica las tareas por su código EDT y
 su UID (Id. único de MS Project), sin sus nombres. Contiene:
 
-- el resumen: tareas que se muestran y que no, por motivo; tareas de otras planificaciones; vínculos que se
-  conservan, desaparecen y se crean;
-- las observaciones (`CLI-003` a `CLI-008`);
+- el modo (`actividad_interna`) y el resumen: tareas que se muestran y que no, por motivo; «Otras tareas»
+  y tareas inactivas que se quitan, o resúmenes convertidos; tareas de otras planificaciones; vínculos que
+  se conservan, desaparecen y se crean;
+- las observaciones;
+- la comparación con la planificación interna: el % completado del proyecto, las filas del libro EVM
+  (iguales, con otro código, con otras tareas o valores, y dónde están sus tareas en el otro libro), las
+  filas -D y, al generar el archivo con «Otras tareas», las tareas con datos distintos;
+- con «Otras tareas», la tarea de más arriba de cada rama que no se muestra;
 - las tareas con `Sí` que no se muestran y los valores no reconocidos;
-- los resúmenes que pasan a ser tareas;
-- cada vínculo nuevo: predecesora, sucesora, tipo, posición en días y origen (puente o resumen);
-- los vínculos que no se crean y los resúmenes que cambian de fechas;
-- los resúmenes con otro % completado en el archivo del cliente (el interno, el previsto y, al generar el
-  archivo, el que calcula MS Project) y las tareas que no conservan el suyo;
-- al generar el archivo: las fechas fijadas, las fechas que siguen distintas (con el motivo), los vínculos
-  que MS Project no aceptó o creó al borrar tareas y si se quitó el nombre del campo.
+- sin «Otras tareas»: los resúmenes que pasan a ser tareas, cada vínculo nuevo (predecesora, sucesora,
+  tipo, posición en días y origen), los vínculos que no se crean, los resúmenes que cambian de fechas y
+  los que tienen otro % completado;
+- al generar el archivo: lo que hizo MS Project (fechas fijadas, campos que no dejó vaciar, filtro,
+  vínculos que no aceptó o que creó al borrar tareas, nombre del campo del cliente).
 
 ## 9. Registro de diagnóstico
 
@@ -182,6 +264,7 @@ python evm_export.py --registro generar-cliente.log generar-cliente --origen INT
 ```
 
 El registro indica la versión del programa, de Python y de MS Project, cada paso de la generación, las
-ramas borradas, los vínculos creados (tipo y posición pedidos y los que tiene MS Project), las fechas
-fijadas y las que siguen distintas. Identifica las tareas por su código EDT y su UID, sin sus nombres: los
-errores de MS Project se registran sin el texto entre comillas, donde MS Project cita los nombres.
+ramas borradas, los datos quitados de las «Otras tareas» por campo, los vínculos creados (tipo y posición
+pedidos y los que tiene MS Project), las fechas fijadas y el resultado de la comparación. Identifica las
+tareas por su código EDT y su UID, sin sus nombres: los errores de MS Project se registran sin el texto
+entre comillas, donde MS Project cita los nombres.

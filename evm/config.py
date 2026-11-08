@@ -159,6 +159,10 @@ class Config:
     client_field: str = ""                # campo: "Sí" = la tarea se muestra al cliente (con sus superiores en Sí)
     client_plan_name: str = "CLIENTE"     # nombre de la tarea de la planificación en el archivo ("" = el suyo)
     client_fix_dates: bool = True         # fija con "No comenzar antes del" las fechas que cambian al quitar tareas
+    # actividad_interna: las tareas que no se muestran quedan como «Otras tareas» (sin nombre ni código EDT), para que
+    # el % completado y el libro EVM coincidan con la planificación interna; False = se borran (los % pueden cambiar)
+    client_internal_activity: bool = True
+    client_filter: bool = False           # filtrar_vista: el archivo se abre con un filtro que oculta «Otras tareas»
 
     # [[proyectos]] -- varios archivos de MS Project en un mismo libro (vacío = un solo archivo)
     projects: list[ProjectSpec] = field(default_factory=list)
@@ -470,6 +474,8 @@ def load_config(path: str | Path | None) -> Config:
     cfg.client_field = _get(cli, "campo", cfg.client_field, str).strip()
     cfg.client_plan_name = _get(cli, "nombre_planificacion", cfg.client_plan_name, str).strip()
     cfg.client_fix_dates = _get(cli, "fijar_fechas", cfg.client_fix_dates, bool)
+    cfg.client_internal_activity = _get(cli, "actividad_interna", cfg.client_internal_activity, bool)
+    cfg.client_filter = _get(cli, "filtrar_vista", cfg.client_filter, bool)
 
     cfg.projects = _projects(data, path.parent)
 

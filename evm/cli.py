@@ -791,13 +791,19 @@ def _client_paths(args, origen: str) -> tuple[Path | None, Path]:
     return destino, informe
 
 
+def _pct(value: float | None) -> str:
+    return "—" if value is None else f"{fmt_number(round(value, 1), trim=True)} %"
+
+
 def cmd_generar_cliente(args) -> int:
     cfg = _apply_overrides(load_config(args.config), args)
     _one_plan(cfg)
     if cfg.projects:
         raise EvmError("CLI-009", "generar-cliente trabaja con un solo archivo de MS Project: se debe quitar las "
                                   "secciones [[proyectos]] de la configuración e indicar el archivo con --origen.")
-    from evm.client_plan import SKIP_LINKED, build_client_plan, require_client_field, require_field, write_control
+    from evm.client_check import predict
+    from evm.client_plan import (INTERNAL_NAME, SKIP_LINKED, build_client_plan, require_client_field, require_field,
+                                 write_control)
     require_field(cfg)
     files = _sources(cfg, args)
     origen = files[0][1]
@@ -825,7 +831,7 @@ def cmd_generar_cliente(args) -> int:
     if generate:
         from evm.client_writer import generate_client
         stages = {"copiar": 1.0, "abrir:": 8.0, "leer:": 10.0, "calcular:": 0.3, "borrar": 6.0, "vincular": 4.0,
-                  "fechas": 10.0, "guardar": 4.0, "informe": 0.1}
+                  "anonimizar": 8.0, "fechas": 10.0, "guardar": 4.0, "comparar:": 12.0, "informe": 0.1}
         with progress.tracking(stages):
             progress.say(f"Generando la planificación del cliente a partir de {origen} ...")
             plan, outcome = generate_client(origen, destino, cfg, visible=args.visible, overwrite=args.sobrescribir)
@@ -836,12 +842,13 @@ def cmd_generar_cliente(args) -> int:
             write_control(plan, origen, informe, result, notices, outcome=outcome)
     else:
         result = "Simulación: no se generó el archivo del cliente."
-        with progress.tracking(_stages(files, args.motor, compute=0.3, after={"informe": 0.1})):
+        with progress.tracking(_stages(files, args.motor, compute=1.0, after={"informe": 0.1})):
             progress.say(_reading("", origen))
             with open_project(origen, cfg, args.motor, args.visible, client=True) as project:
                 require_client_field(project, cfg)
                 _computing("", "Cálculo de la planificación del cliente")
                 plan = build_client_plan(project, cfg)
+                plan.comparison = predict(plan, cfg)
                 notices = silence.apply(project.warnings + plan.issues())
                 progress.stage("informe", "Escritura del informe de control")
                 write_control(plan, origen, informe, result, notices)
@@ -852,12 +859,27 @@ def cmd_generar_cliente(args) -> int:
         print(f"  Planificación: {plan.scope.prefix}{renamed}")
     print(f"  Campo: {cfg.client_field}  |  Tareas: {len(plan.tasks)}  |  Se muestran: {len(plan.shown)}  |  "
           f"No se muestran: {len(plan.hidden)}  |  De otras planificaciones: {len(plan.outside)}")
-    skipped = sum(1 for s in plan.skipped if s.reason != SKIP_LINKED)
-    print(f"  Resúmenes que pasan a ser tareas: {len(plan.collapsed)}  |  Vínculos: {plan.kept_links} se conservan, "
-          f"{len(plan.new_links)} nuevos" + (f", {skipped} no se crean" if skipped else ""))
-    if outcome is not None:
+    if plan.internal_activity:
+        print(f"  Tareas que no se muestran: {len(plan.anonymous)} como «{INTERNAL_NAME}», {len(plan.dropped)} "
+              f"inactivas se quitan  |  Vínculos: {plan.kept_links} se conservan")
+    else:
+        skipped = sum(1 for s in plan.skipped if s.reason != SKIP_LINKED)
+        print(f"  Tareas que no se muestran: se borran (actividad_interna = false)  |  Resúmenes que pasan a ser "
+              f"tareas: {len(plan.collapsed)}  |  Vínculos: {plan.kept_links} se conservan, {len(plan.new_links)} "
+              f"nuevos" + (f", {skipped} no se crean" if skipped else ""))
+    if outcome is not None and not plan.internal_activity:
         print(f"  Fechas: {len(outcome.fixed)} fijadas con «No comenzar antes del», {len(outcome.differences)} "
               f"distintas de la planificación interna  |  Cálculos de MS Project: {outcome.rounds}")
+    comparison = outcome.comparison if outcome is not None else plan.comparison
+    if comparison is not None:
+        book = comparison.book
+        rows = ("no se pudo comparar" if book.error else
+                f"{book.same} filas iguales, {len(book.moved)} con otro código, {book.deviations} con otras tareas o "
+                "valores")
+        print(f"  % completado del proyecto: {_pct(comparison.percent_internal)} (interno) y "
+              f"{_pct(comparison.percent_client)} (cliente)  |  Libro EVM: {rows}")
+        if comparison.checked:
+            print(f"  Tareas comparadas: {comparison.checked}, con datos distintos: {len(comparison.tasks)}")
     _print_notices(notices, limit=50)
     print(result)
     print(f"Informe de control: {informe.resolve()}")

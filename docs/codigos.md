@@ -118,7 +118,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 18 |
 | [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 51 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
-| [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 21 |
+| [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 29 |
 | [SIS](#417-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
 
 ---
@@ -2908,7 +2908,7 @@ El cronograma tiene errores (por ejemplo, códigos EDT duplicados) que pueden af
 
 ### 4.16 CLI · Planificación para el cliente
 
-Comando generar-cliente: tareas que se muestran al cliente, resúmenes convertidos y vínculos nuevos.
+Comando generar-cliente: tareas que se muestran al cliente, «Otras tareas», resúmenes convertidos, vínculos nuevos y comparación con la planificación interna.
 
 | Código | Severidad | Descripción |
 |---|---|---|
@@ -2933,6 +2933,14 @@ Comando generar-cliente: tareas que se muestran al cliente, resúmenes convertid
 | [CLI-019](#cli-019) | Advertencia | Resúmenes convertidos con datos sin restaurar |
 | [CLI-020](#cli-020) | Advertencia | Resúmenes con otro % completado |
 | [CLI-021](#cli-021) | Advertencia | Tareas que no conservan su % completado |
+| [CLI-022](#cli-022) | Info | Tareas que quedan como «Otras tareas» |
+| [CLI-023](#cli-023) | Advertencia | % completado del proyecto distinto |
+| [CLI-024](#cli-024) | Advertencia | Filas del libro EVM con otras tareas o valores |
+| [CLI-025](#cli-025) | Advertencia | Filas -D en el libro EVM del cliente |
+| [CLI-026](#cli-026) | Advertencia | Tareas con datos distintos en el archivo del cliente |
+| [CLI-027](#cli-027) | Advertencia | Datos de las «Otras tareas» que no se quitaron |
+| [CLI-028](#cli-028) | Advertencia | No se pudo crear el filtro de la vista |
+| [CLI-029](#cli-029) | Advertencia | No se pudo comparar el libro EVM |
 
 #### CLI-001
 
@@ -3101,6 +3109,70 @@ MS Project calcula el % completado de un resumen con la duración de sus tareas 
 Una tarea de detalle o un resumen convertido tiene en el archivo del cliente otro % completado que en la planificación interna (por ejemplo, porque MS Project no aceptó el avance al convertir el resumen).
 
 **Qué hacer:** Revisar esas tareas en el archivo del cliente y el registro de diagnóstico (`--registro`).
+
+#### CLI-022
+
+**Tareas que quedan como «Otras tareas»** · Info · generar-cliente · se puede silenciar
+
+Con [cliente] actividad_interna = true, las tareas que no se muestran quedan en el archivo del cliente como «Otras tareas»: sin nombre, código EDT, notas, hipervínculo ni campos de texto (salvo los que usa el libro EVM), con sus fechas, su duración, su avance, sus líneas base y sus vínculos. Así el % completado de cada tarea, de los resúmenes y del proyecto, y el libro EVM, son los de la planificación interna. Las tareas inactivas que no se muestran se quitan: no cuentan en ningún cálculo.
+
+**Qué hacer:** Ninguna. Con filtrar_vista = true, el archivo se abre con un filtro que oculta las «Otras tareas».
+
+#### CLI-023
+
+**% completado del proyecto distinto** · Advertencia · generar-cliente · se puede silenciar
+
+El % completado del proyecto, calculado como MS Project (con la duración de las tareas de detalle), no es el mismo en el archivo del cliente: con actividad_interna = false se borran las tareas que no se muestran, y su avance deja de contar.
+
+**Qué hacer:** Usar actividad_interna = true (por defecto) para que coincida, o mostrar las tareas que explican el avance (Sí en el campo del cliente). Si ocurre con actividad_interna = true, revisar el registro de diagnóstico.
+
+#### CLI-024
+
+**Filas del libro EVM con otras tareas o valores** · Advertencia · generar-cliente · se puede silenciar
+
+Una fila de ingreso del libro EVM del cliente no tiene las mismas tareas de detalle, el mismo % planificado de cada mes o el mismo % ganado que en el libro de la planificación interna (o solo está en uno de los dos libros). Ocurre al borrar las tareas que no se muestran (actividad_interna = false). Con «Otras tareas», ocurre si no se muestra ningún elemento EDT de un resumen (su fila reúne las de esos elementos) o si no se muestra un elemento EDT que no depende de ninguno que se muestre: sin su código, sus tareas no forman parte de ninguna fila del libro del cliente.
+
+**Qué hacer:** Revisar la lista del informe de control, que indica en qué fila del otro libro están las tareas de cada fila. Para que coincidan, usar actividad_interna = true (por defecto) y mostrar esos elementos EDT (Sí en el campo del cliente) o ubicarlos debajo de un elemento que se muestre.
+
+#### CLI-025
+
+**Filas -D en el libro EVM del cliente** · Advertencia · generar-cliente · se puede silenciar
+
+El libro EVM del cliente tiene filas -D («Otras tareas de …»): tareas sin código EDT dentro de un elemento EDT que tiene filas propias, por ejemplo las de un elemento que no se muestra, cuyo código se quitó. Sus valores son los mismos, pero el cliente ve esas filas en su libro.
+
+**Qué hacer:** Para que no aparezcan, mostrar ese elemento EDT (Sí en el campo del cliente) o reorganizar la EDT para que las tareas internas no queden junto a elementos EDT que se muestran. El informe de control indica la fila interna de cada fila -D.
+
+#### CLI-026
+
+**Tareas con datos distintos en el archivo del cliente** · Advertencia · generar-cliente · se puede silenciar
+
+Con actividad_interna = true, cada tarea del archivo del cliente debe tener las fechas, el avance, la duración y la línea base de la planificación interna; estas tareas no los tienen después de guardar el archivo.
+
+**Qué hacer:** Revisar la lista del informe de control y el registro de diagnóstico (`--registro`).
+
+#### CLI-027
+
+**Datos de las «Otras tareas» que no se quitaron** · Advertencia · generar-cliente · se puede silenciar
+
+MS Project no dejó vaciar un campo de las «Otras tareas» (por ejemplo, un campo calculado con una fórmula), o el campo EDT configurado es el de MS Project (EDT o número de esquema) y su código no se puede quitar: el cliente puede ver esos datos.
+
+**Qué hacer:** Revisar el campo en el archivo del cliente. Para quitar los códigos, usar un campo EDT personalizado (`[campos] edt`, por ejemplo un campo de texto).
+
+#### CLI-028
+
+**No se pudo crear el filtro de la vista** · Advertencia · generar-cliente · se puede silenciar
+
+Con [cliente] filtrar_vista = true, MS Project no aceptó crear o aplicar el filtro que oculta las «Otras tareas»: el archivo del cliente se abre con todas las tareas.
+
+**Qué hacer:** Revisar el registro de diagnóstico (`--registro`). El % completado y el libro EVM no cambian.
+
+#### CLI-029
+
+**No se pudo comparar el libro EVM** · Advertencia · generar-cliente · se puede silenciar
+
+El libro EVM de la planificación interna o el del cliente no se pudo calcular para compararlos (por ejemplo, por un error de configuración del libro).
+
+**Qué hacer:** Revisar el error indicado: es el mismo que daría generar con esa configuración.
 
 ---
 
