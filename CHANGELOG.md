@@ -23,8 +23,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   de `[cliente] campo` y en sus tareas superiores. Por defecto (`[cliente] actividad_interna = true`), las
   demás quedan como «Otras tareas», sin nombre ni código EDT, notas ni campos de texto que no use el libro
   EVM, pero con sus fechas, su avance, sus líneas base y sus vínculos: el % completado de cada tarea, de los
-  resúmenes y del proyecto, y el libro EVM, son los de la planificación interna. Con `filtrar_vista = true`,
-  el archivo se abre con un filtro que las oculta. Con `actividad_interna = false`, se borran: los
+  resúmenes y del proyecto, y el libro EVM, son los de la planificación interna. Por defecto, el archivo se
+  abre con un filtro que las oculta (`filtrar_vista = true`). Con `actividad_interna = false`, se borran: los
   resúmenes sin tareas visibles pasan a ser tareas, los vínculos de sus subtareas pasan al resumen y los
   caminos por tareas ocultas se reemplazan por vínculos puente; se avisa de los resúmenes cuyo % cambia. En
   los dos casos compara la planificación del cliente con la interna: el % completado del proyecto, el libro

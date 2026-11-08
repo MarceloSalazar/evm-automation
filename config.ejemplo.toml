@@ -267,8 +267,8 @@ actividad_interna = true
 
 # Solo con actividad_interna = true: el archivo del cliente se abre con un filtro
 # de la vista que oculta las "Otras tareas" (el % completado no cambia; el
-# cliente puede quitar el filtro).
-filtrar_vista = false
+# cliente puede quitar el filtro). false = sin filtro. Por defecto, true.
+filtrar_vista = true
 
 # Fechas que cambian al quitar tareas: true = se fijan con la delimitación "No
 # comenzar antes del" en la fecha de la planificación interna (y se informan);

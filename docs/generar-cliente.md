@@ -86,9 +86,10 @@ El cliente sabe que existen esas tareas y cuándo ocurren, pero no qué son. El 
 de los resúmenes y del proyecto es el de la planificación interna, y las fechas no cambian: no hacen falta
 vínculos nuevos ni fechas fijadas.
 
-Con `[cliente] filtrar_vista = true`, el archivo se abre con el filtro *Tareas del cliente*, que oculta las
-«Otras tareas» (`CLI-028` si MS Project no lo acepta). El filtro solo cambia lo que se ve: el % completado
-sigue contando todas las tareas, y el cliente puede quitarlo. Por defecto está desactivado.
+Por defecto (`[cliente] filtrar_vista = true`), el archivo se abre con el filtro *Tareas del cliente*, que
+oculta las «Otras tareas» (`CLI-028` si MS Project no lo acepta). El filtro solo cambia lo que se ve: el %
+completado sigue contando todas las tareas, y el cliente puede quitarlo. Con `filtrar_vista = false`, el
+archivo se abre sin filtro, con todas las tareas a la vista.
 
 ### El libro EVM del cliente
 
@@ -181,7 +182,7 @@ planificacion = ""          # una sola planificación: todo el proyecto
 [cliente]
 campo = "Etiqueta Cliente"
 actividad_interna = true    # las tareas que no se muestran quedan como «Otras tareas»
-filtrar_vista = false       # true: el archivo se abre con un filtro que oculta las «Otras tareas»
+filtrar_vista = true        # el archivo se abre con un filtro que oculta las «Otras tareas»
 fijar_fechas = true
 ```
 

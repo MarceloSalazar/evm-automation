@@ -162,7 +162,7 @@ class Config:
     # actividad_interna: las tareas que no se muestran quedan como «Otras tareas» (sin nombre ni código EDT), para que
     # el % completado y el libro EVM coincidan con la planificación interna; False = se borran (los % pueden cambiar)
     client_internal_activity: bool = True
-    client_filter: bool = False           # filtrar_vista: el archivo se abre con un filtro que oculta «Otras tareas»
+    client_filter: bool = True            # filtrar_vista: el archivo se abre con un filtro que oculta «Otras tareas»
 
     # [[proyectos]] -- varios archivos de MS Project en un mismo libro (vacío = un solo archivo)
     projects: list[ProjectSpec] = field(default_factory=list)

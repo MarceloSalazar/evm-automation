@@ -544,13 +544,13 @@ def test_com_reads_the_client_field_and_lag_format():
 def test_config_client_section(tmp_path):
     path = tmp_path / "c.toml"
     path.write_text('[cliente]\ncampo = "Etiqueta Cliente"\nnombre_planificacion = "OBRA"\nfijar_fechas = false\n'
-                    'actividad_interna = false\nfiltrar_vista = true\n', encoding="utf-8")
+                    'actividad_interna = false\nfiltrar_vista = false\n', encoding="utf-8")
     cfg = load_config(path)
     assert (cfg.client_field, cfg.client_plan_name, cfg.client_fix_dates) == ("Etiqueta Cliente", "OBRA", False)
-    assert (cfg.client_internal_activity, cfg.client_filter) == (False, True)
+    assert (cfg.client_internal_activity, cfg.client_filter) == (False, False)
     default = Config()
     assert (default.client_field, default.client_plan_name, default.client_fix_dates) == ("", "CLIENTE", True)
-    assert (default.client_internal_activity, default.client_filter) == (True, False)
+    assert (default.client_internal_activity, default.client_filter) == (True, True)
 
 
 # ----------------------------------------------------------------------------
