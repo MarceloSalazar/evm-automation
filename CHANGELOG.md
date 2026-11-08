@@ -33,9 +33,9 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   *No comenzar antes del* las fechas que se adelantarían; el campo del cliente se vacía y el archivo queda
   de solo lectura. Con `--simular` (también con el XML) solo calcula los cambios y la comparación. Escribe
   un informe de control interno, sin nombres de tareas. Nueva sección `[cliente]` de la configuración,
-  códigos `CFG-054`, `LEC-026` y `CLI-001` a `CLI-029`, documento
-  [Planificación para el cliente](docs/generar-cliente.md) y pruebas con MS Project real
-  (`tests/test_msproject_cliente.py`).
+  códigos `CFG-054`, `LEC-026` y `CLI-001` a `CLI-030`, documento
+  [Planificación para el cliente](docs/generar-cliente.md), diapositiva 31 de la presentación y pruebas con
+  MS Project real (`tests/test_msproject_cliente.py`).
 - **Registro de diagnóstico en un archivo (`--registro RUTA`).** Todos los comandos pueden escribir el
   registro completo, con fecha y hora y el detalle de los errores, sin cambiar lo que muestra la consola.
 

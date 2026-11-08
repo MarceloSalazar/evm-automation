@@ -49,7 +49,7 @@ from evm.client_check import BookComparison, Comparison, compare
 from evm.client_plan import (INTERNAL_NAME, ClientPlan, DateChange, ProgressChange, WriteResult, build_client_plan,
                               require_client_field)
 from evm.config import Config, ConfigError
-from evm.fields import field_id, parse_custom_name
+from evm.fields import TASK_TEXT_IDS, field_id, parse_custom_name
 from evm.messages import EvmError, ProjectAppError
 from evm.model import CONSTRAINT_ASAP, Task
 from evm.reader_com import ComSession, _com_date, _dt, _get, _number
@@ -428,12 +428,30 @@ class _Writer:
                 clear(com, name, lambda name=name: setattr(com, name, ""))
             if code_fid is not None:
                 clear(com, "EDT", lambda: com.SetField(code_fid, ""))
+        # Un campo con fórmula no se puede vaciar: su valor lo calcula MS Project con los datos que se conservan
+        calculated = {name: problems.pop(name)[0] for name in sorted(problems) if self._has_formula(name)}
         self.r.anonymized = len(targets)
         self.r.not_cleared = problems
+        self.r.calculated = calculated
         log.info("Tareas como «%s»: %d; datos quitados por campo: %s", INTERNAL_NAME, len(targets),
                  ", ".join(f"{k} {v}" for k, v in sorted(cleared.items())) or "ninguno")
+        if calculated:
+            log.info("Campos calculados con fórmula (no se vacían): %s",
+                     ", ".join(f"{k} en {v} tareas" for k, v in calculated.items()))
         for name, (n, error) in sorted(problems.items()):
             log.warning("MS Project no dejó vaciar %s en %d tareas: %s", name, n, error)
+
+    def _has_formula(self, name: str) -> bool:
+        """El campo personalizado de texto (Text1..30) tiene una fórmula."""
+        m = re.fullmatch(r"Text(\d+)", name)
+        fid = TASK_TEXT_IDS.get(int(m.group(1))) if m else None
+        if fid is None:
+            return False
+        try:
+            return bool(str(self.app.CustomFieldGetFormula(fid) or "").strip())
+        except Exception as exc:
+            log.debug("No se pudo leer la fórmula de %s: %s", name, com_error_text(exc))
+            return False
 
     def _filter(self) -> None:
         """Filtro de la vista que oculta las «Otras tareas» (con sus resúmenes, que también lo son): el archivo se

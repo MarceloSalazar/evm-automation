@@ -10,15 +10,17 @@ Se ejecutan en un PC con MS Project, con las mismas variables de entorno que tes
 
 El archivo del cliente se genera con el comando y la configuración de EVM_CONFIG ([cliente] actividad_interna: por
 defecto, las tareas que no se muestran quedan como «Otras tareas»), y una vez más, con la función, con el otro valor de
-actividad_interna. Cada prueba deja en la carpeta temporal de pytest el archivo del cliente, el informe de control y el
-registro de diagnóstico (la ruta se muestra con -s). Los mensajes solo muestran UID, códigos EDT, fechas y cantidades:
-nunca nombres de tareas.
+actividad_interna: las comprobaciones de cada modo se hacen siempre, con el archivo que le corresponde. El filtro de la
+vista solo se prueba con filtrar_vista = true en EVM_CONFIG. Cada prueba deja en la carpeta temporal de pytest el archivo
+del cliente, el informe de control y el registro de diagnóstico (la ruta se muestra con -s). Los mensajes solo muestran
+UID, códigos EDT, fechas y cantidades: nunca nombres de tareas.
 """
 import contextlib
 import dataclasses
 import hashlib
 import io
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -28,7 +30,7 @@ import pytest
 from evm.cli import main, open_project
 from evm.client_check import compare
 from evm.client_plan import INTERNAL_NAME, build_client_plan, write_control
-from evm.client_writer import generate_client
+from evm.client_writer import FILTER_NAME, generate_client
 from evm.config import load_config
 from evm.reader_com import ComSession
 
@@ -36,6 +38,8 @@ from test_msproject_real import (MPP, XML, Hidden, config_path, ms_project_runni
                                  wait_until_closed)
 
 LIMIT = 15
+# Avisos de algo que MS Project no hizo: con el archivo y la configuración del proyecto no deben aparecer
+MS_PROJECT_FAILURES = {"CLI-015", "CLI-017", "CLI-019", "CLI-027", "CLI-028", "CLI-029"}
 
 
 def _client_config():
@@ -125,10 +129,33 @@ def other_mode(generated, tmp_path_factory):
     finally:
         if not result["was_running"]:
             wait_until_closed()
-    result["plan"], result["outcome"] = plan, outcome
-    write_control(plan, MPP, d / "cliente_control.md", "Prueba", outcome=outcome)
+    result["plan"], result["outcome"], result["report"] = plan, outcome, d / "cliente_control.md"
+    write_control(plan, MPP, result["report"], "Prueba", outcome=outcome)
     _read_client(result, cfg)
     return result
+
+
+def _mode(generated, other, internal: bool):
+    """El resultado generado con actividad_interna = internal (el del comando o el del otro modo)."""
+    r = generated if generated["plan"].internal_activity == internal else other
+    what = "«Otras tareas»" if internal else "borrado"
+    if "error" in r:
+        pytest.fail(f"El archivo del cliente ({what}) no se generó: {r['error']}")
+    if "tasks" not in r:
+        pytest.fail(f"El archivo del cliente ({what}) no se generó: ver test_generation_ends_without_errors.")
+    return r
+
+
+@pytest.fixture(scope="module")
+def anonymous(generated, other_mode):
+    """Archivo del cliente con «Otras tareas» (actividad_interna = true), sea cual sea el valor de EVM_CONFIG."""
+    return _mode(generated, other_mode, True)
+
+
+@pytest.fixture(scope="module")
+def deletion(generated, other_mode):
+    """Archivo del cliente sin las tareas que no se muestran (actividad_interna = false)."""
+    return _mode(generated, other_mode, False)
 
 
 def _summary(comp) -> str:
@@ -161,10 +188,46 @@ def test_client_file_has_the_expected_tasks(generated):
                                        f"{missing[:LIMIT]}")
 
 
-def test_other_tasks_have_no_name_nor_code(generated):
-    plan, tasks = generated["plan"], generated.get("tasks", {})
-    if not plan.internal_activity:
-        pytest.skip("actividad_interna = false: las tareas que no se muestran se borran")
+def test_no_ms_project_failures(generated, other_mode):
+    """Nada que MS Project no haya hecho: vínculos, nombre del campo, resúmenes convertidos, datos de las «Otras
+    tareas», filtro de la vista y comparación (con un campo EDT de MS Project, los códigos no se pueden quitar:
+    CLI-027 no se cuenta)."""
+    found = {}
+    if generated["rc"] == 0:
+        codes = set(re.findall(r"\bCLI-\d{3}\b", generated["output"]))
+        if not generated["plan"].codes_removed:
+            codes.discard("CLI-027")
+        found["comando"] = sorted(codes & MS_PROJECT_FAILURES)
+    if "outcome" in other_mode:
+        plan = other_mode["plan"]
+        codes = {i.id for i in other_mode["outcome"].issues(plan)} | {i.id for i in plan.issues()}
+        if not plan.codes_removed:
+            codes.discard("CLI-027")
+        found["otro modo"] = sorted(codes & MS_PROJECT_FAILURES)
+    bad = {k: v for k, v in found.items() if v}
+    assert not bad, f"Avisos de MS Project: {bad}. Ver el registro de diagnóstico y el informe de control."
+
+
+def test_view_filter(generated):
+    """filtrar_vista = true: el archivo del cliente se abre con el filtro que oculta las «Otras tareas»."""
+    cfg, plan = _client_config(), generated["plan"]
+    if not plan.internal_activity or not cfg.client_filter:
+        pytest.skip("Para probar el filtro: actividad_interna = true y filtrar_vista = true en EVM_CONFIG.")
+    if generated["rc"] != 0:
+        pytest.fail("El archivo del cliente no se generó: ver test_generation_ends_without_errors.")
+    with ComSession(str(generated["destino"])) as session:
+        filters = session.project.TaskFilterList
+        names = [str(filters.Item(i)) for i in range(1, filters.Count + 1)]
+        current = str(session.project.CurrentFilter)
+    if not generated["was_running"]:
+        wait_until_closed()
+    assert FILTER_NAME in names, f"El archivo del cliente no tiene el filtro «{FILTER_NAME}»."
+    assert current == FILTER_NAME, (f"El archivo del cliente se abre con el filtro «{current}», no con "
+                                    f"«{FILTER_NAME}»: el cliente ve también las «{INTERNAL_NAME}».")
+
+
+def test_other_tasks_have_no_name_nor_code(anonymous):
+    plan, tasks = anonymous["plan"], anonymous["tasks"]
     named = [t.uid for t in plan.anonymous if t.uid in tasks and tasks[t.uid].name != INTERNAL_NAME]
     coded = [t.uid for t in plan.anonymous if t.uid in tasks and tasks[t.uid].wbs] if plan.codes_removed else []
     renamed = [t.uid for t in plan.tasks if t.uid in plan.shown and t.uid in tasks and tasks[t.uid].name != t.name]
@@ -191,47 +254,39 @@ def test_client_field_is_emptied(generated):
                        "registro de diagnóstico.")
 
 
-def test_every_task_keeps_its_data(generated):
+def test_every_task_keeps_its_data(anonymous):
     """actividad_interna: todas las tareas del archivo del cliente (también los resúmenes y las «Otras tareas») tienen
     las fechas, el % completado, la duración y la línea base de la planificación interna."""
-    if not generated["plan"].internal_activity:
-        pytest.skip("actividad_interna = false: ver test_dates_match_the_internal_plan")
-    comp = generated["comparison"]
+    comp = anonymous["comparison"]
     lines = [f"UID {d.task.uid}: " + "; ".join(f"{label} {a} -> {b}" for label, a, b in d.fields)
              for d in comp.tasks]
     assert comp.checked and not lines, f"{len(lines)} tareas con datos distintos:\n" + "\n".join(lines[:LIMIT])
 
 
-def test_project_percent_and_evm_book(generated):
+def test_project_percent_and_evm_book(anonymous):
     """actividad_interna: el % completado del proyecto y cada fila del libro EVM coinciden con la planificación
     interna (las filas que cambian de código, como las -D, tienen las mismas tareas y valores)."""
-    comp = generated["comparison"]
-    print("\n" + _summary(comp))
-    if not generated["plan"].internal_activity:
-        pytest.skip("actividad_interna = false: los % pueden cambiar (el informe de control indica las diferencias)")
+    comp = anonymous["comparison"]
+    print("\n«Otras tareas»: " + _summary(comp))
     assert not comp.percent_differs, _summary(comp)
     assert not comp.book.error and comp.book.deviations == 0, _summary(comp)
 
 
 def test_the_other_mode(other_mode):
-    """El otro valor de actividad_interna también genera el archivo, con las tareas esperadas y la comparación."""
+    """El otro valor de actividad_interna también genera el archivo, con las tareas esperadas."""
     assert "error" not in other_mode, other_mode.get("error")
-    plan, tasks, comp = other_mode["plan"], other_mode["tasks"], other_mode["comparison"]
-    print("\n" + ("«Otras tareas»" if plan.internal_activity else "borrado") + ": " + _summary(comp))
+    plan, tasks = other_mode["plan"], other_mode["tasks"]
     extra, missing = sorted(set(tasks) - plan.remaining), sorted(plan.remaining - set(tasks))
     assert not extra and not missing, f"Tareas que sobran: {extra[:LIMIT]}; tareas que faltan: {missing[:LIMIT]}"
-    if plan.internal_activity:
-        assert not comp.tasks and not comp.percent_differs and comp.book.deviations == 0, _summary(comp)
 
 
-def test_dates_match_the_internal_plan(generated):
+def test_dates_match_the_internal_plan(deletion):
     """actividad_interna = false: las tareas que se muestran (sin los resúmenes) tienen las fechas de la planificación
     interna, salvo las que el informe de control explica (comenzadas, con otra delimitación...)."""
-    plan, tasks = generated["plan"], generated.get("tasks", {})
-    if plan.internal_activity:
-        pytest.skip("actividad_interna = true: ver test_every_task_keeps_its_data")
+    plan, tasks = deletion["plan"], deletion["tasks"]
+    print("\nborrado: " + _summary(deletion["comparison"]))
     collapsed = {t.uid for t in plan.collapsed}
-    report = generated["report"].read_text(encoding="utf-8")
+    report = deletion["report"].read_text(encoding="utf-8")
     diffs = []
     for t in plan.tasks:
         if t.uid not in plan.shown or (t.children and t.uid not in collapsed) or t.uid not in tasks:
@@ -243,12 +298,10 @@ def test_dates_match_the_internal_plan(generated):
     assert not diffs, f"{len(diffs)} tareas con fechas distintas que el informe no explica:\n" + "\n".join(diffs[:LIMIT])
 
 
-def test_progress_is_kept_and_summaries_as_predicted(generated):
+def test_progress_is_kept_and_summaries_as_predicted(deletion):
     """actividad_interna = false: las tareas de detalle y los resúmenes convertidos conservan su % completado; el de los
     demás resúmenes lo calcula MS Project con las tareas que quedan y debe coincidir con el previsto (CLI-020)."""
-    plan, tasks = generated["plan"], generated.get("tasks", {})
-    if plan.internal_activity:
-        pytest.skip("actividad_interna = true: ver test_every_task_keeps_its_data")
+    plan, tasks = deletion["plan"], deletion["tasks"]
     collapsed = {t.uid for t in plan.collapsed}
     expected = {c.task.uid: c.client for c in plan.progress_changes}
     lost, unexpected = [], []

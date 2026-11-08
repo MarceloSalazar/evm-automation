@@ -153,9 +153,11 @@ class WriteResult:
     summary_percent: dict[int, float] = field(default_factory=dict)  # % de cada resumen según MS Project (UID)
     progress_tasks: list[ProgressChange] = field(default_factory=list)  # tareas que no conservan su % completado
     # actividad_interna: tareas que quedan como «Otras tareas», datos que MS Project no dejó quitar (campo -> tareas y
-    # primer error), si se quitaron los códigos EDT y si se aplicó el filtro de la vista (None = no se pidió)
+    # primer error), campos calculados con fórmula que no se vacían (campo -> tareas), si se quitaron los códigos
+    # EDT y si se aplicó el filtro de la vista (None = no se pidió)
     anonymized: int = 0
     not_cleared: dict[str, tuple[int, str]] = field(default_factory=dict)
+    calculated: dict[str, int] = field(default_factory=dict)
     codes_removed: bool = True
     filter_applied: bool | None = None
     comparison: "Comparison | None" = None   # archivo del cliente frente a la planificación interna (evm.client_check)
@@ -197,6 +199,11 @@ class WriteResult:
             fields = ", ".join(f"{name} ({n})" for name, (n, _error) in sorted(self.not_cleared.items()))
             out.append(Issue("CLI-027", message=f"MS Project no dejó quitar algunos datos de las «{INTERNAL_NAME}» "
                                                 f"(campo y tareas): {fields}. Ver el informe de control."))
+        if self.calculated:
+            fields = ", ".join(f"{name} ({n})" for name, n in sorted(self.calculated.items()))
+            out.append(Issue("CLI-030", message=f"Campos calculados con una fórmula en las «{INTERNAL_NAME}» (campo y "
+                                                f"tareas): {fields}. No se pueden vaciar: MS Project calcula su valor "
+                                                "con los datos que se conservan."))
         if self.filter_applied is False:
             out.append(Issue("CLI-028", message="No se pudo crear el filtro de la vista ([cliente] filtrar_vista): el "
                                                 "archivo del cliente se abre con todas las tareas, también las "
@@ -917,6 +924,7 @@ def _outcome_lines(plan: ClientPlan, out: WriteResult, per_day: float) -> list[s
         lines += [f"| Tareas que quedan como «{INTERNAL_NAME}» | {out.anonymized} |",
                   f"| Código EDT de las «{INTERNAL_NAME}» | {'Quitado' if out.codes_removed else 'Se conserva'} |",
                   f"| Campos que MS Project no dejó quitar | {len(out.not_cleared)} |",
+                  f"| Campos calculados con fórmula (no se vacían) | {len(out.calculated)} |",
                   f"| Filtro de la vista | {filtered} |"]
     else:
         lines += [f"| Tareas con fechas distintas de la planificación interna | {len(out.differences)} |",
@@ -928,6 +936,13 @@ def _outcome_lines(plan: ClientPlan, out: WriteResult, per_day: float) -> list[s
                   "MS Project no aceptó vaciar el campo (por ejemplo, un campo calculado con una fórmula): el cliente "
                   "puede ver su valor.", "", "| Campo | Tareas | Error de MS Project |", "|---|---:|---|"]
         lines += [f"| {_cell(name)} | {n} | {_cell(error)} |" for name, (n, error) in sorted(out.not_cleared.items())]
+        lines.append("")
+    if out.calculated:
+        lines += [f"### Campos calculados de las «{INTERNAL_NAME}»", "",
+                  "Tienen una fórmula: MS Project calcula su valor con los datos que se conservan (fechas, avance, "
+                  "líneas base...), así que no se pueden vaciar. Si la fórmula usa un campo con información interna, "
+                  "el cliente puede ver el resultado.", "", "| Campo | Tareas |", "|---|---:|"]
+        lines += [f"| {_cell(name)} | {n} |" for name, n in sorted(out.calculated.items())]
         lines.append("")
     if out.fixed:
         lines += ["### Fechas fijadas", "",

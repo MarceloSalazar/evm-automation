@@ -72,7 +72,7 @@ tareas que no se muestran se conservan, pero sin lo que dice qué son:
 | El nombre, que pasa a ser «Otras tareas» | Fechas, duración, delimitaciones y fecha límite |
 | El código EDT | Líneas base 0 a 10 |
 | Notas, hipervínculo y contacto | % completado, % físico completado, comienzo y fin reales |
-| Los campos de texto y los códigos de esquema que no usa el libro EVM | Vínculos |
+| Los campos de texto y los códigos de esquema que no usa el libro EVM | Vínculos, y los campos de texto calculados con una fórmula (`CLI-030`): MS Project calcula su valor con los datos que se conservan |
 | El valor del campo del cliente (en todas las tareas) | Los campos del libro EVM: método, Visible, peso de hito, empresa y reparto |
 | Las tareas inactivas que no se muestran (no cuentan en ningún cálculo) | Recursos asignados |
 
@@ -215,7 +215,8 @@ carpeta de destino y MS Project trabaja sobre la copia.
    Comprueba que quedan exactamente las tareas esperadas (si no, se detiene sin generar el archivo:
    `CLI-018`) y quita los vínculos que MS Project pudo crear al borrar tareas (`CLI-016`).
 3. Con «Otras tareas», quita el nombre, el código EDT y los demás datos de las tareas que no se muestran
-   (`CLI-027` si MS Project no deja vaciar un campo). Sin «Otras tareas», devuelve a cada resumen
+   (`CLI-027` si MS Project no deja vaciar un campo; los campos calculados con una fórmula no se pueden
+   vaciar y se informan con `CLI-030`). Sin «Otras tareas», devuelve a cada resumen
    convertido su duración, su avance y sus líneas base (`CLI-019` si MS Project no lo admite) y crea los
    vínculos nuevos (`CLI-015` si MS Project rechaza alguno).
 4. Vacía el campo del cliente en todas las tareas y quita su nombre (`CLI-017` si no puede). Con varias

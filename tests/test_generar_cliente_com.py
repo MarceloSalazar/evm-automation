@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import os
 import stat
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
 from evm.cli import main
+from evm.client_plan import render_control
 from evm.client_writer import com_error_text, generate_client
 from evm.config import Config
 from evm.fields import TASK_TEXT_IDS
@@ -220,6 +221,7 @@ class FakeApp:
         self.saved = 0
         self.rename_fails = False
         self.filters, self.applied, self.filter_fails = {}, [], False
+        self.formulas = {}                      # id del campo -> fórmula
         self.Projects = FakeProjects(["copia.mpp"] + ([source_open] if source_open else []))
 
     def CustomFieldGetName(self, fid):
@@ -232,6 +234,9 @@ class FakeApp:
 
     def FieldNameToFieldConstant(self, name, kind):
         raise RuntimeError("no existe")
+
+    def CustomFieldGetFormula(self, fid):
+        return self.formulas.get(fid, "")
 
     def FilterEdit(self, **kw):
         if self.filter_fails:
@@ -522,9 +527,7 @@ def test_internal_activity_reports_tasks_that_change(tmp_path):
     assert "CLI-026" in {i.id for i in result.issues(plan)}
 
 
-def test_internal_activity_field_that_cannot_be_cleared(tmp_path):
-    app, t = build()
-
+def _formula_task(t):
     class Formula(FakeTask):
         @property
         def Text7(self):
@@ -536,10 +539,29 @@ def test_internal_activity_field_that_cannot_be_cleared(tmp_path):
                                None)
 
     t["oculta"].__class__ = Formula
+
+
+def test_internal_activity_field_that_cannot_be_cleared(tmp_path):
+    app, t = build()
+    _formula_task(t)
     _, _, plan, result = run(tmp_path, app, cfg=ANON)
     assert result.not_cleared["Text7"][0] == 1 and "Campo calculado" in result.not_cleared["Text7"][1]
     assert t["oculta"].Name == "Otras tareas"
     assert "Text7 (1)" in {i.id: i.message for i in result.issues(plan)}["CLI-027"]
+    assert result.calculated == {}
+
+
+def test_internal_activity_calculated_field(tmp_path):
+    """Un campo con fórmula no se puede vaciar: se informa aparte (CLI-030), no como dato que no se quitó."""
+    app, t = build()
+    _formula_task(t)
+    app.formulas[TASK_TEXT_IDS[7]] = '[Duration]/480 & " días"'
+    _, _, plan, result = run(tmp_path, app, cfg=ANON)
+    assert result.not_cleared == {} and result.calculated == {"Text7": 1}
+    issues = {i.id: i.message for i in result.issues(plan)}
+    assert "CLI-027" not in issues and "Text7 (1)" in issues["CLI-030"]
+    report = render_control(plan, "origen.mpp", date(2026, 11, 8), "Prueba", outcome=result)
+    assert "Campos calculados de las «Otras tareas»" in report and "| Text7 | 1 |" in report
 
 
 def test_comparison_error_still_delivers_the_file(tmp_path, monkeypatch):

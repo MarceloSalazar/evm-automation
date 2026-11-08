@@ -1471,9 +1471,9 @@ _CODES = [
           "archivo.",
           "Revisar la lista del informe de control y el registro de diagnóstico (--registro)."),
     _code("CLI-027", W, "Datos de las «Otras tareas» que no se quitaron",
-          "MS Project no dejó vaciar un campo de las «Otras tareas» (por ejemplo, un campo calculado con una fórmula), "
-          "o el campo EDT configurado es el de MS Project (EDT o número de esquema) y su código no se puede quitar: el "
-          "cliente puede ver esos datos.",
+          "MS Project no dejó vaciar un campo de las «Otras tareas» (los campos calculados con una fórmula se informan "
+          "aparte, con CLI-030), o el campo EDT configurado es el de MS Project (EDT o número de esquema) y su código "
+          "no se puede quitar: el cliente puede ver esos datos.",
           "Revisar el campo en el archivo del cliente. Para quitar los códigos, usar un campo EDT personalizado "
           "([campos] edt, por ejemplo un campo de texto)."),
     _code("CLI-028", W, "No se pudo crear el filtro de la vista",
@@ -1484,6 +1484,12 @@ _CODES = [
           "El libro EVM de la planificación interna o el del cliente no se pudo calcular para compararlos (por ejemplo, "
           "por un error de configuración del libro).",
           "Revisar el error indicado: es el mismo que daría generar con esa configuración."),
+    _code("CLI-030", I, "Campos calculados en las «Otras tareas»",
+          "Un campo personalizado de texto tiene una fórmula: MS Project calcula su valor en cada tarea y no deja "
+          "vaciarlo. En las «Otras tareas», el valor se calcula con los datos que se conservan (fechas, avance, líneas "
+          "base...).",
+          "Nada, si la fórmula solo usa esos datos. Si usa un campo con información interna, el cliente puede ver el "
+          "resultado: revisar la fórmula en MS Project."),
 
     # --- SIS: errores del sistema -------------------------------------------------------------------------------
     _code("SIS-001", F, "Error inesperado",

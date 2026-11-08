@@ -118,7 +118,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 18 |
 | [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 51 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
-| [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 29 |
+| [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 30 |
 | [SIS](#417-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
 
 ---
@@ -2941,6 +2941,7 @@ Comando generar-cliente: tareas que se muestran al cliente, «Otras tareas», re
 | [CLI-027](#cli-027) | Advertencia | Datos de las «Otras tareas» que no se quitaron |
 | [CLI-028](#cli-028) | Advertencia | No se pudo crear el filtro de la vista |
 | [CLI-029](#cli-029) | Advertencia | No se pudo comparar el libro EVM |
+| [CLI-030](#cli-030) | Info | Campos calculados en las «Otras tareas» |
 
 #### CLI-001
 
@@ -3154,7 +3155,7 @@ Con actividad_interna = true, cada tarea del archivo del cliente debe tener las 
 
 **Datos de las «Otras tareas» que no se quitaron** · Advertencia · generar-cliente · se puede silenciar
 
-MS Project no dejó vaciar un campo de las «Otras tareas» (por ejemplo, un campo calculado con una fórmula), o el campo EDT configurado es el de MS Project (EDT o número de esquema) y su código no se puede quitar: el cliente puede ver esos datos.
+MS Project no dejó vaciar un campo de las «Otras tareas» (los campos calculados con una fórmula se informan aparte, con [CLI-030](#cli-030)), o el campo EDT configurado es el de MS Project (EDT o número de esquema) y su código no se puede quitar: el cliente puede ver esos datos.
 
 **Qué hacer:** Revisar el campo en el archivo del cliente. Para quitar los códigos, usar un campo EDT personalizado (`[campos] edt`, por ejemplo un campo de texto).
 
@@ -3173,6 +3174,14 @@ Con [cliente] filtrar_vista = true, MS Project no aceptó crear o aplicar el fil
 El libro EVM de la planificación interna o el del cliente no se pudo calcular para compararlos (por ejemplo, por un error de configuración del libro).
 
 **Qué hacer:** Revisar el error indicado: es el mismo que daría generar con esa configuración.
+
+#### CLI-030
+
+**Campos calculados en las «Otras tareas»** · Info · generar-cliente · se puede silenciar
+
+Un campo personalizado de texto tiene una fórmula: MS Project calcula su valor en cada tarea y no deja vaciarlo. En las «Otras tareas», el valor se calcula con los datos que se conservan (fechas, avance, líneas base...).
+
+**Qué hacer:** Nada, si la fórmula solo usa esos datos. Si usa un campo con información interna, el cliente puede ver el resultado: revisar la fórmula en MS Project.
 
 ---
 
