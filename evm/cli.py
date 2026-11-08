@@ -830,8 +830,10 @@ def cmd_generar_cliente(args) -> int:
     outcome = None
     if generate:
         from evm.client_writer import generate_client
-        stages = {"copiar": 1.0, "abrir:": 8.0, "leer:": 10.0, "calcular:": 0.3, "borrar": 6.0, "vincular": 4.0,
-                  "anonimizar": 8.0, "fechas": 10.0, "guardar": 4.0, "comparar:": 12.0, "informe": 0.1}
+        # Segundos de cada etapa en una planificación real de unas 1.450 tareas (registro de diagnóstico)
+        stages = {"copiar": 0.5, "abrir:": 3.0, "leer:": 78.0, "calcular:": 5.0, "borrar": 9.0, "vincular": 0.5,
+                  "anonimizar": 17.0, "fechas": 3.0, "contenido": 3.0, "guardar": 1.0, "comparar:": 30.0,
+                  "informe": 0.1}
         with progress.tracking(stages):
             progress.say(f"Generando la planificación del cliente a partir de {origen} ...")
             plan, outcome = generate_client(origen, destino, cfg, visible=args.visible, overwrite=args.sobrescribir)

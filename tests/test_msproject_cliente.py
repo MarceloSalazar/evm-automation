@@ -32,6 +32,7 @@ from evm.client_check import compare
 from evm.client_plan import INTERNAL_NAME, build_client_plan, write_control
 from evm.client_writer import FILTER_NAME, generate_client
 from evm.config import load_config
+from evm.mpp_macros import macro_modules
 from evm.reader_com import ComSession
 
 from test_msproject_real import (MPP, XML, Hidden, config_path, ms_project_running, quiet_faulthandler,  # noqa: F401
@@ -39,7 +40,7 @@ from test_msproject_real import (MPP, XML, Hidden, config_path, ms_project_runni
 
 LIMIT = 15
 # Avisos de algo que MS Project no hizo: con el archivo y la configuración del proyecto no deben aparecer
-MS_PROJECT_FAILURES = {"CLI-015", "CLI-017", "CLI-019", "CLI-027", "CLI-028", "CLI-029"}
+MS_PROJECT_FAILURES = {"CLI-015", "CLI-017", "CLI-019", "CLI-027", "CLI-028", "CLI-029", "CLI-033"}
 
 
 def _client_config():
@@ -224,6 +225,61 @@ def test_view_filter(generated):
     assert FILTER_NAME in names, f"El archivo del cliente no tiene el filtro «{FILTER_NAME}»."
     assert current == FILTER_NAME, (f"El archivo del cliente se abre con el filtro «{current}», no con "
                                     f"«{FILTER_NAME}»: el cliente ve también las «{INTERNAL_NAME}».")
+
+
+def _calendars_in_use(project) -> tuple[list[str], set[str]]:
+    """Calendarios base del archivo abierto y los que usan el proyecto, sus tareas o sus recursos."""
+    names = [str(c.Name) for c in (project.BaseCalendars.Item(i) for i in range(1, project.BaseCalendars.Count + 1))]
+    used = {str(project.Calendar.Name)}
+    for t in project.Tasks:
+        if t is not None and t.CalendarObject is not None:
+            used.add(str(t.CalendarObject.Name))
+    for r in project.Resources:
+        if r is not None and str(r.BaseCalendar or ""):
+            used.add(str(r.BaseCalendar))
+    return names, used
+
+
+def test_unused_calendars_and_macros_are_removed(generated, other_mode):
+    """El archivo del cliente solo tiene calendarios que se usan (y el de Project 98 de MS Project) y ningún módulo
+    de macros (leído del archivo, sin MS Project). Muestra los calendarios y las macros del origen y de los dos
+    archivos del cliente."""
+    if generated["rc"] != 0:
+        pytest.fail("El archivo del cliente no se generó: ver test_generation_ends_without_errors.")
+    source = macro_modules(MPP)
+    with ComSession(str(generated["destino"])) as session:
+        names, used = _calendars_in_use(session.project)
+    if not generated["was_running"]:
+        wait_until_closed()
+    unused = [n for n in names if n not in used and not re.search(r"Project\s*98", n)]
+    left = {"comando": macro_modules(generated["destino"])}
+    if "destino" in other_mode and other_mode["destino"].is_file():
+        left["otro modo"] = macro_modules(other_mode["destino"])
+    content = other_mode["outcome"].content if "outcome" in other_mode else None
+    print(f"\nMacros del origen: {source}; del archivo del cliente: {left}. Calendarios del archivo del cliente: "
+          f"{len(names)} ({len(used)} en uso)" + (f"; otro modo: {len(content.calendars)} se conservan, "
+                                                   f"{len(content.removed_calendars)} quitados, macros quitadas "
+                                                   f"{content.removed_macros} ({content.macro_method or '—'}"
+                                                   f"{'; ' + content.macro_error if content.macro_error else ''})"
+                                                   if content is not None else ""))
+    assert not unused, f"{len(unused)} calendarios sin uso en el archivo del cliente."
+    bad = {k: v for k, v in left.items() if v}
+    assert not bad, f"El archivo del cliente tiene macros: {bad}"
+    assert None not in left.values(), f"No se pudieron leer las macros del archivo del cliente: {left}"
+
+
+def test_link_check_reads_the_predecessor_text(generated):
+    """La comprobación de los vínculos lee el Id. único de predecesoras de cada tarea: solo recorre, vínculo a vínculo
+    (lento), las tareas cuyas predecesoras no son las esperadas. Si el texto no se reconoce (otra configuración
+    regional), las recorre todas."""
+    text = generated["log"].read_text(encoding="utf-8")
+    m = re.search(r"tareas revisadas vínculo a vínculo: (\d+) de (\d+)", text)
+    stages = re.search(r"Duración de las etapas: (.*)", text)
+    print(f"\n{m.group(0) if m else 'sin la línea de los vínculos'}; {stages.group(1) if stages else ''}")
+    assert m, "El registro de diagnóstico no indica cuántas tareas se revisaron vínculo a vínculo."
+    walked, total = int(m.group(1)), int(m.group(2))
+    assert walked <= max(10, total // 50), (f"Se revisaron vínculo a vínculo {walked} de {total} tareas: el texto de "
+                                            "las predecesoras no se reconoce y la comprobación es lenta.")
 
 
 def test_other_tasks_have_no_name_nor_code(anonymous):

@@ -47,9 +47,15 @@ hasta que se marca.
 | Caso | Resultado | Aviso |
 |---|---|---|
 | `Sí` en la tarea y en sus tareas superiores | Se muestra | — |
-| `No` o vacío | No se muestra, con su rama | — |
+| `No` | No se muestra, con su rama | — |
+| Vacío | No se muestra, con su rama | `CLI-031` si su tarea superior se muestra |
 | Valor no reconocido (por ejemplo `Sí, revisar` o `X`) | No se muestra | `CLI-003` |
 | `Sí` debajo de una tarea sin `Sí` | No se muestra | `CLI-004` |
+
+Una tarea vacía debajo de una que se muestra suele ser una tarea nueva que nadie marcó: el cliente deja de
+verla sin que nadie lo haya decidido. `CLI-031` la avisa en cada ejecución, también con `--simular`, con la
+tarea de más arriba de cada rama (las inactivas no cuentan). Si el cliente no la debe ver, se le pone
+`No`: así queda decidido y no se vuelve a avisar.
 
 Qué pasa con las tareas que no se muestran lo decide `[cliente] actividad_interna`:
 
@@ -74,7 +80,7 @@ tareas que no se muestran se conservan, pero sin lo que dice qué son:
 | Notas, hipervínculo y contacto | % completado, % físico completado, comienzo y fin reales |
 | Los campos de texto y los códigos de esquema que no usa el libro EVM | Vínculos, y los campos de texto calculados con una fórmula (`CLI-030`): MS Project calcula su valor con los datos que se conservan |
 | El valor del campo del cliente (en todas las tareas) | Los campos del libro EVM: método, Visible, peso de hito, empresa y reparto |
-| Las tareas inactivas que no se muestran (no cuentan en ningún cálculo) | Recursos asignados |
+| Las tareas inactivas que no se muestran (no cuentan en ningún cálculo) | Recursos asignados y calendario de la tarea |
 
 El cliente sabe que existen esas tareas y cuándo ocurren, pero no qué son. El % completado de cada tarea,
 de los resúmenes y del proyecto es el de la planificación interna, y las fechas no cambian: no hacen falta
@@ -228,12 +234,34 @@ carpeta de destino y MS Project trabaja sobre la copia.
    (comenzadas, con otra delimitación...) se informan (`CLI-014`) y se compara el % completado de cada
    tarea (apartado 4).
 6. Con «Otras tareas» y `filtrar_vista = true`, aplica el filtro *Tareas del cliente* a la vista.
-7. Guarda la copia, la lee y la compara con la planificación interna (apartado 5).
-8. Deja la copia en `--destino` como archivo **de solo lectura**: no se edita, se vuelve a generar en cada
-   entrega. Si se debe reemplazar, `--sobrescribir` lo hace.
+7. Revisa lo que no son tareas (apartado 7.1): quita los calendarios sin uso y las macros.
+8. Guarda la copia, la lee y la compara con la planificación interna (apartado 5).
+9. Deja la copia en `--destino` como archivo **de solo lectura**: no se edita, se vuelve a generar en cada
+   entrega. Si se debe reemplazar, `--sobrescribir` lo hace. Por último, lee el archivo (sin MS Project) y
+   comprueba que no le queda ningún módulo de macros.
 
 Si la planificación interna está abierta en MS Project, se usa la versión guardada en el disco
 (`CLI-012`). Si algo falla, no queda ningún archivo del cliente ni la copia temporal.
+
+Para comprobar que MS Project no creó vínculos al borrar tareas, se lee de una vez el *Id. único de
+predecesoras* de cada tarea; solo se recorren, vínculo a vínculo, los de las tareas cuyas predecesoras no
+son las esperadas. En una planificación de unas 1.450 tareas, este paso pasa de casi un minuto a pocos
+segundos.
+
+### 7.1 Calendarios, macros y demás contenido del archivo
+
+El archivo del cliente es una copia del `.mpp`: sin este paso llevaría todos los calendarios y las macros
+de la planificación interna.
+
+| Contenido | Qué se hace |
+|---|---|
+| Calendarios base | Se quitan los que no usa el proyecto, ninguna tarea (también las «Otras tareas») ni ningún recurso. Se conserva el que crea MS Project para las líneas base de Project 98. Si no se puede leer el calendario del proyecto, no se quita ninguno |
+| Macros (módulos de VBA) | Se quitan todos los módulos y el código de *ThisProject*, con el proyecto VBA. Si MS Project no da acceso a él (Centro de confianza), se quitan con el Organizador, por el nombre de los módulos leídos del archivo |
+| Propiedades del archivo (título, autor...), vistas, tablas, filtros y grupos | Se conservan. El informe de control indica qué propiedades tienen valor (sin el valor) y los nombres de las vistas, tablas, filtros y grupos |
+
+Lo que se quitó se informa con `CLI-032`. Si MS Project no deja quitar un calendario, o el archivo guardado
+todavía tiene macros, se avisa con `CLI-033`: se pueden quitar a mano con el Organizador (*Archivo >
+Información > Organizador*).
 
 ## 8. Informe de control
 
@@ -252,8 +280,12 @@ su UID (Id. único de MS Project), sin sus nombres. Contiene:
 - sin «Otras tareas»: los resúmenes que pasan a ser tareas, cada vínculo nuevo (predecesora, sucesora,
   tipo, posición en días y origen), los vínculos que no se crean, los resúmenes que cambian de fechas y
   los que tienen otro % completado;
+- las tareas sin valor debajo de una tarea que se muestra (`CLI-031`), con la tarea superior y el número
+  de tareas de su rama;
 - al generar el archivo: lo que hizo MS Project (fechas fijadas, campos que no dejó vaciar, filtro,
-  vínculos que no aceptó o que creó al borrar tareas, nombre del campo del cliente).
+  vínculos que no aceptó o que creó al borrar tareas, nombre del campo del cliente) y el contenido del
+  archivo (calendarios que se conservan, con su uso, y los quitados; macros; propiedades con valor; vistas,
+  tablas, filtros y grupos).
 
 ## 9. Registro de diagnóstico
 
@@ -267,6 +299,7 @@ python evm_export.py --registro generar-cliente.log generar-cliente --origen INT
 
 El registro indica la versión del programa, de Python y de MS Project, cada paso de la generación, las
 ramas borradas, los datos quitados de las «Otras tareas» por campo, los vínculos creados (tipo y posición
-pedidos y los que tiene MS Project), las fechas fijadas y el resultado de la comparación. Identifica las
+pedidos y los que tiene MS Project), las fechas fijadas, los calendarios y las macros quitados, la duración
+de cada etapa y el resultado de la comparación. Identifica las
 tareas por su código EDT y su UID, sin sus nombres: los errores de MS Project se registran sin el texto
 entre comillas, donde MS Project cita los nombres.

@@ -71,7 +71,33 @@ def test_only_tasks_with_yes_in_the_whole_branch_are_shown():
     assert [t.uid for t in plan.outside] == [10, 11]
     assert plan.root.uid == 1 and plan.new_name == "CLIENTE"
     assert [t.uid for t in plan.delete_roots] == [10, 4, 5, 6, 9]
-    assert {i.id for i in plan.issues()} == {"CLI-003", "CLI-004"}
+    assert [t.uid for t in plan.unmarked] == [5]        # sin valor debajo de una que se muestra (no Fase B)
+    assert {i.id for i in plan.issues()} == {"CLI-003", "CLI-004", "CLI-031"}
+
+
+def test_tasks_without_mark_below_a_shown_task():
+    """Una tarea nueva sin marcar debajo de una que se muestra: se avisa (CLI-031) con la de más arriba de cada
+    rama. No se avisa de las que tienen No, de las inactivas ni de las de primer nivel."""
+    tasks = [root(),
+             task(2, 2, "Fase A", wbs="5"), task(3, 3, "Nueva", "", wbs="5.1"), task(4, 4, "Nueva 1", "", wbs="5.1.1"),
+             task(5, 4, "Nueva 2", "Sí", wbs="5.1.2"), task(6, 3, "Interna", "No", wbs="5.2"),
+             task(7, 3, "Cancelada", "", wbs="5.3", active=False), task(8, 3, "Otra nueva", " ", wbs="5.4"),
+             task(9, 2, "Sin marcar", "", wbs="6")]
+    plan = plan_of(tasks, ANON)
+    assert [t.uid for t in plan.unmarked] == [3, 8]
+    message = {i.id: i.message for i in plan.issues()}["CLI-031"]
+    assert message.startswith("2 tareas no tienen valor en 'Etiqueta Cliente' y su tarea superior se muestra (4 con "
+                              "sus subtareas): quedan como «Otras tareas». Si el cliente las debe ver")
+    assert "5.1 (UID 3), 5.4 (UID 8)." in message
+    report = render_control(plan, "origen.xml", date(2026, 11, 8), "Simulación")
+    assert "| Sin valor y con la tarea superior que se muestra (sin sus subtareas) | 2 |" in report
+    assert "## Tareas sin valor debajo de una tarea que se muestra" in report
+    assert "| 5.1 (UID 3) | 5 (UID 2) | 3 |" in report and "| 5.4 (UID 8) | 5 (UID 2) | 1 |" in report
+    # Borrado: no se muestran; una sola tarea
+    plan = plan_of(tasks[:3] + tasks[5:7], CFG)
+    message = {i.id: i.message for i in plan.issues()}["CLI-031"]
+    assert message.startswith("1 tarea no tiene valor en 'Etiqueta Cliente' y su tarea superior se muestra: no se "
+                              "muestra. Si el cliente la debe ver")
 
 
 @pytest.mark.parametrize("value", ["Sí", "Si", "si", "SI", "SÍ", "S", "s", " Sí "])

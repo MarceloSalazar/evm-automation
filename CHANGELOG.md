@@ -31,9 +31,12 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   EVM fila a fila (y avisa de las filas -D que vería el cliente) y, con «Otras tareas», los datos de cada
   tarea. MS Project trabaja sobre una copia (la planificación interna no se modifica), recalcula y fija con
   *No comenzar antes del* las fechas que se adelantarían; el campo del cliente se vacía y el archivo queda
-  de solo lectura. Con `--simular` (también con el XML) solo calcula los cambios y la comparación. Escribe
+  de solo lectura. Avisa de las tareas sin valor debajo de una tarea que se muestra (`CLI-031`), que suelen
+  ser tareas nuevas sin marcar. Quita del archivo del cliente los calendarios sin uso y las macros, y
+  comprueba en el archivo guardado, sin MS Project, que no le queda ningún módulo de macros (`CLI-032`,
+  `CLI-033`). Con `--simular` (también con el XML) solo calcula los cambios y la comparación. Escribe
   un informe de control interno, sin nombres de tareas. Nueva sección `[cliente]` de la configuración,
-  códigos `CFG-054`, `LEC-026` y `CLI-001` a `CLI-030`, documento
+  códigos `CFG-054`, `LEC-026` y `CLI-001` a `CLI-033`, documento
   [Planificación para el cliente](docs/generar-cliente.md), diapositiva 31 de la presentación y pruebas con
   MS Project real (`tests/test_msproject_cliente.py`).
 - **Registro de diagnóstico en un archivo (`--registro RUTA`).** Todos los comandos pueden escribir el

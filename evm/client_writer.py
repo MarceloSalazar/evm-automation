@@ -24,10 +24,13 @@ sobre esa copia:
    con «No comenzar antes del» las tareas sin comenzar que se adelantan, y quita los vínculos nuevos de las que se
    atrasan; repite el cálculo hasta que no hay más cambios.
 5. Con actividad_interna y [cliente] filtrar_vista, aplica a la vista un filtro que oculta las «Otras tareas».
-6. Guarda la copia, la lee de nuevo y la compara con la planificación interna (evm.client_check): % completado del
+6. Quita los calendarios que no usa ninguna tarea ni recurso, y las macros; anota las propiedades del archivo, las
+   vistas, las tablas, los filtros y los grupos para el informe de control.
+7. Guarda la copia, la lee de nuevo y la compara con la planificación interna (evm.client_check): % completado del
    proyecto, libro EVM fila a fila y, con actividad_interna, los datos de cada tarea.
-7. Cierra la copia, la mueve al destino y la marca como de solo lectura: el archivo del cliente no se edita, se vuelve
-   a generar en cada entrega.
+8. Cierra la copia, la mueve al destino y la marca como de solo lectura: el archivo del cliente no se edita, se vuelve
+   a generar en cada entrega. Comprueba en el archivo, sin MS Project, que no le queda ningún módulo de macros
+   (evm.mpp_macros).
 
 El registro de diagnóstico (-v o --registro) indica cada paso con los UID y los códigos EDT de las tareas, nunca sus
 nombres.
@@ -41,6 +44,7 @@ import shutil
 import stat
 import time
 import traceback
+from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
 
@@ -52,7 +56,9 @@ from evm.config import Config, ConfigError
 from evm.fields import TASK_TEXT_IDS, field_id, parse_custom_name
 from evm.messages import EvmError, ProjectAppError
 from evm.model import CONSTRAINT_ASAP, Task
+from evm.mpp_macros import macro_modules
 from evm.reader_com import ComSession, _com_date, _dt, _get, _number
+from evm.wbs import plural
 
 log = logging.getLogger(__name__)
 
@@ -69,6 +75,17 @@ FILTER_NAME = "Tareas del cliente"
 # pedir el nombre del campo y la comparación en su idioma)
 _FILTER_TESTS = (("Name", "does not equal"), ("Nombre", "no es igual a"))
 _QUOTED = re.compile(r"[\"'«“‘][^\"'»”’]*[\"'»”’]")
+# Contenido del archivo: tipos del Organizador (PjOrganizer) y de los módulos de VBA (vbext_ComponentType)
+PJ_MODULES, PJ_CALENDARS = 2, 5
+_VBA_MODULES = {1, 2, 3}        # módulo estándar, módulo de clase y formulario
+_VBA_DOCUMENT = 100             # ThisProject: no se puede quitar; se le quita el código
+# Calendario que crea MS Project al abrir archivos de Project 98 (para sus líneas base): se conserva
+_PROJECT98 = re.compile(r"Project\s*98", re.IGNORECASE)
+_PROPERTIES = (("Title", "Título"), ("Subject", "Asunto"), ("Author", "Autor"), ("Manager", "Administrador"),
+               ("Company", "Organización"), ("Category", "Categoría"), ("Keywords", "Palabras clave"),
+               ("Comments", "Comentarios"))
+_LISTS = (("Vistas", "ViewList"), ("Tablas de tareas", "TaskTableList"), ("Filtros de tareas", "TaskFilterList"),
+          ("Grupos de tareas", "TaskGroupList"))
 
 
 def com_error_text(exc: BaseException) -> str:
@@ -118,6 +135,43 @@ def _ends(dep) -> tuple[int, int] | None:
         return int(dep.From.UniqueID), int(dep.To.UniqueID)
     except Exception:           # vínculo con otro proyecto
         return None
+
+
+# Posición de un vínculo en el texto de las predecesoras: signo, número (con coma o punto decimal) y unidad o %
+# ('+2 días', '-1,5 sem.', '+3 edías?', '+50%')
+_LAG_TEXT = re.compile(r"[+-]\s*\d+(?:[.,]\d+)?\s*(?:[^\W\d_]+\.?\??|%)")
+_PRED_TEXT = re.compile(r"(\d+)(?:[^\W\d_]{2})?")
+
+
+def _pred_uids(text) -> set[int] | None:
+    """UID de las predecesoras en el texto de Id. único de predecesoras de MS Project ('12;15FC+2,5 días;7CC'),
+    separadas por coma o punto y coma según la configuración regional. None si no se reconoce (p. ej. un vínculo con
+    otro proyecto): entonces se recorren los vínculos de la tarea."""
+    if not isinstance(text, str):
+        return None
+    out: set[int] = set()
+    for part in re.split(r"[,;]", _LAG_TEXT.sub("", text)):
+        part = part.strip()
+        if not part:
+            continue
+        m = _PRED_TEXT.fullmatch(part)
+        if m is None:
+            return None
+        out.add(int(m.group(1)))
+    return out
+
+
+def _items(collection) -> list:
+    """Elementos de una colección o lista de MS Project (Count e Item(1..Count))."""
+    if collection is None:
+        return []
+    try:
+        return [collection.Item(i) for i in range(1, int(collection.Count) + 1)]
+    except Exception:
+        try:
+            return list(collection)
+        except Exception:
+            return []
 
 
 class _Writer:
@@ -181,6 +235,7 @@ class _Writer:
             steps.append(("avance", self._progress))
         elif self.cfg.client_filter:
             steps.append(("filtro de la vista", self._filter))
+        steps.append(("contenido del archivo", self._content))
         return steps
 
     def run(self) -> None:
@@ -336,24 +391,37 @@ class _Writer:
 
     def _links(self) -> None:
         """Quita los vínculos que no son de la planificación (los que MS Project creó al borrar tareas) y crea los
-        vínculos nuevos."""
+        vínculos nuevos. Las predecesoras de cada tarea se leen de una vez (Id. único de predecesoras): solo se
+        recorren, vínculo a vínculo, los de las tareas cuyas predecesoras no son las esperadas."""
         expected = self.plan.kept_pairs
+        preds_of: dict[int, set[int]] = defaultdict(set)
+        for a, b in expected:
+            preds_of[b].add(a)
         found: dict[tuple[int, int], object] = {}
-        for uid, com in self.com.items():
+        missing: list[tuple[int, int]] = []
+        walked = 0
+        for i, (uid, com) in enumerate(self.com.items(), start=1):
+            progress.step(i, len(self.com), "tareas (vínculos)")
+            want = preds_of.get(uid, set())
+            if _pred_uids(_get(com, "UniqueIDPredecessors")) == want:
+                continue
+            walked += 1
+            have: set[int] = set()
             for dep in _deps(com):
                 ends = _ends(dep)
                 if ends is not None and ends[1] == uid:
                     found[ends] = dep
+                    have.add(ends[0])
+            missing += [(a, uid) for a in sorted(want - have)]
         for pair in sorted(set(found) - expected):
             log.debug("Vínculo creado por MS Project: %s -> %s; se quita", self._ref(pair[0]), self._ref(pair[1]))
             found[pair].Delete()
             self.r.removed_links.append(pair)
-        missing = sorted(expected - set(found))
         if missing:
             log.warning("Faltan %d vínculos de la planificación entre tareas que se muestran: %s", len(missing),
                         [(self._ref(a), self._ref(b)) for a, b in missing[:20]])
-        log.info("Vínculos que se conservan: %d; creados por MS Project y quitados: %d", len(expected) - len(missing),
-                 len(self.r.removed_links))
+        log.info("Vínculos que se conservan: %d; creados por MS Project y quitados: %d; tareas revisadas vínculo a "
+                 "vínculo: %d de %d", len(expected) - len(missing), len(self.r.removed_links), walked, len(self.com))
         progress.stage("vincular", "Vínculos nuevos")
         for i, link in enumerate(self.plan.new_links, start=1):
             progress.step(i, len(self.plan.new_links), "vínculos")
@@ -470,6 +538,124 @@ class _Writer:
             return
         self.r.filter_applied = False
         log.warning("No se pudo crear el filtro de la vista «%s»", FILTER_NAME)
+
+    def _content(self) -> None:
+        """Lo que no son tareas: quita los calendarios sin uso y las macros, y anota el resto (propiedades del
+        archivo, vistas, tablas, filtros y grupos) para el informe de control."""
+        progress.stage("contenido", "Calendarios y macros del archivo")
+        c = self.r.content
+        self._calendars()
+        self._macros()
+        for prop, label in _PROPERTIES:
+            if str(_get(self.project, prop, "") or "").strip():
+                c.properties.append(label)
+        for label, prop in _LISTS:
+            c.lists[label] = [str(x) for x in _items(_get(self.project, prop)) if str(x or "").strip()]
+        c.checked = True
+        log.info("Contenido del archivo: %d calendarios se conservan, %d sin uso quitados, %d sin uso que no se "
+                 "pudieron quitar; macros quitadas: %s; propiedades con valor: %s", len(c.calendars),
+                 len(c.removed_calendars), len(c.failed_calendars), ", ".join(c.removed_macros) or "ninguna",
+                 ", ".join(c.properties) or "ninguna")
+
+    def _calendars(self) -> None:
+        """Calendarios base que no usa ninguna tarea ni recurso, ni el proyecto: se quitan (salvo el de las líneas base
+        de Project 98, que crea MS Project). Si no se puede leer el calendario del proyecto, no se quita ninguno."""
+        c = self.r.content
+        calendars = _items(_get(self.project, "BaseCalendars"))
+        project_calendar = str(_get(_get(self.project, "Calendar"), "Name", "") or "")
+        tasks: Counter = Counter()
+        for com in self.com.values():
+            own = _get(com, "CalendarObject")              # Nothing si la tarea no tiene calendario propio
+            name = str(_get(own, "Name", "") or "") if own is not None else ""
+            if name:
+                tasks[name] += 1
+        resources: Counter = Counter()
+        for res in _items(_get(self.project, "Resources")):
+            name = str(_get(res, "BaseCalendar", "") or "") if res is not None else ""
+            if name:
+                resources[name] += 1
+        removed: list[tuple[str, object]] = []
+        for cal in calendars:
+            name = str(_get(cal, "Name", "") or "")
+            uses = []
+            if name == project_calendar:
+                uses.append("calendario del proyecto")
+            if tasks[name]:
+                uses.append(plural(tasks[name], "tarea", "tareas"))
+            if resources[name]:
+                uses.append(plural(resources[name], "recurso", "recursos"))
+            if uses:
+                c.calendars.append((name, ", ".join(uses)))
+            elif not project_calendar:
+                c.calendars.append((name, "no se comprobó su uso (no se pudo leer el calendario del proyecto)"))
+            elif _PROJECT98.search(name):
+                c.calendars.append((name, "de MS Project (líneas base de Project 98)"))
+            else:
+                removed.append((name, cal))
+        for name, cal in removed:
+            try:
+                cal.Delete()
+            except Exception as exc:
+                first = com_error_text(exc)
+                try:
+                    self.app.OrganizerDeleteItem(Type=PJ_CALENDARS, FileName=_get(self.project, "Name", ""),
+                                                 Name=name)
+                except Exception:
+                    c.failed_calendars.append((name, first))
+                    log.warning("No se pudo quitar el calendario sin uso %s: %s", name, first)
+                    continue
+            c.removed_calendars.append(name)
+            log.debug("Calendario sin uso quitado: %s", name)
+        # Comprobación: los quitados ya no están
+        if c.removed_calendars:
+            still = {str(_get(cal, "Name", "") or "") for cal in _items(_get(self.project, "BaseCalendars"))}
+            for name in [n for n in c.removed_calendars if n in still]:
+                c.removed_calendars.remove(name)
+                c.failed_calendars.append((name, "sigue en el archivo"))
+                log.warning("El calendario %s sigue en el archivo después de quitarlo", name)
+
+    def _macros(self) -> None:
+        """Quita los módulos de macros con el proyecto VBA (también el código de ThisProject) o, si MS Project no da
+        acceso a él (Centro de confianza), con el Organizador, por el nombre de los módulos leídos del archivo. Al
+        final, generate_client comprueba en el archivo guardado que no queda ninguno."""
+        c = self.r.content
+        project = None
+        components = None
+        try:
+            project = self.project.VBProject
+            components = _items(project.VBComponents)
+        except Exception as exc:
+            c.macro_error = com_error_text(exc)
+            log.debug("Sin acceso al proyecto VBA: %s", c.macro_error)
+        pending = list(c.macros or [])
+        if components is not None:
+            c.macro_method = "proyecto VBA"
+            for comp in components:
+                kind = int(_number(_get(comp, "Type")) or 0)
+                name = str(_get(comp, "Name", "") or "")
+                try:
+                    if kind in _VBA_MODULES:
+                        project.VBComponents.Remove(comp)
+                        c.removed_macros.append(name)
+                        pending = [m for m in pending if m != name]
+                    elif kind == _VBA_DOCUMENT:
+                        code = _get(comp, "CodeModule")
+                        lines = int(_number(_get(code, "CountOfLines")) or 0)
+                        if lines > int(_number(_get(code, "CountOfDeclarationLines")) or 0):
+                            code.DeleteLines(1, lines)
+                            c.removed_macros.append(f"código de {name}")
+                except Exception as exc:
+                    log.warning("No se pudo quitar el módulo de macros %s con el proyecto VBA: %s", name,
+                                com_error_text(exc))
+        if pending:
+            c.macro_method = c.macro_method or "Organizador"
+            for name in pending:
+                try:
+                    self.app.OrganizerDeleteItem(Type=PJ_MODULES, FileName=_get(self.project, "Name", ""), Name=name)
+                    c.removed_macros.append(name)
+                except Exception as exc:
+                    log.warning("No se pudo quitar el módulo de macros %s con el Organizador: %s", name,
+                                com_error_text(exc))
 
     def _field_id(self) -> int | None:
         ref = self.s._resolve_field(self.cfg.client_field)
@@ -669,6 +855,9 @@ def generate_client(origen: str | Path, destino: str | Path, cfg: Config, *, vis
     shutil.copyfile(origen, temp)
     log.info("Copia temporal: %s (%d bytes)", temp, temp.stat().st_size)
     result = WriteResult(path=str(destino))
+    result.content.macros = macro_modules(temp)
+    log.info("Módulos de macros del archivo de origen: %s", "no se pudieron leer" if result.content.macros is None
+             else ", ".join(result.content.macros) or "ninguno")
     done = False
     try:
         progress.stage("abrir:", "Apertura de la copia en MS Project")
@@ -719,4 +908,8 @@ def generate_client(origen: str | Path, destino: str | Path, cfg: Config, *, vis
             time.sleep(0.5)
     os.chmod(destino, stat.S_IREAD)
     log.info("Archivo del cliente: %s (de solo lectura)", destino)
+    # Comprobación en el archivo guardado, sin MS Project: no debe quedar ningún módulo de macros
+    result.content.macros_left = macro_modules(destino)
+    log.info("Módulos de macros del archivo del cliente: %s", "no se pudieron leer"
+             if result.content.macros_left is None else ", ".join(result.content.macros_left) or "ninguno")
     return plan, result

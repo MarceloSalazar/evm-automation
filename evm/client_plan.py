@@ -138,6 +138,33 @@ class DateChange:
 
 
 @dataclass
+class FileContent:
+    """Lo que no son tareas en el archivo del cliente: calendarios, macros, propiedades del archivo y las vistas,
+    tablas, filtros y grupos (evm.client_writer). El archivo del cliente es una copia del .mpp: sin este paso llevaría
+    todos los calendarios y las macros de la planificación interna."""
+
+    calendars: list[tuple[str, str]] = field(default_factory=list)          # se conservan: (nombre, uso)
+    removed_calendars: list[str] = field(default_factory=list)              # sin uso: se quitaron
+    failed_calendars: list[tuple[str, str]] = field(default_factory=list)   # sin uso, no se quitaron: (nombre, error)
+    macros: list[str] | None = None             # módulos de macros del archivo de origen (None = no se pudo leer)
+    removed_macros: list[str] = field(default_factory=list)                 # módulos quitados
+    macros_left: list[str] | None = None        # módulos del archivo del cliente guardado (None = no se pudo leer)
+    macro_method: str = ""                      # cómo se quitaron: proyecto VBA u Organizador
+    macro_error: str = ""                       # por qué no se pudo usar el proyecto VBA
+    properties: list[str] = field(default_factory=list)                     # propiedades del archivo con valor
+    lists: dict[str, list[str]] = field(default_factory=dict)               # vistas, tablas, filtros y grupos
+    checked: bool = False                       # se revisó el contenido (paso de MS Project)
+
+    @property
+    def remaining_macros(self) -> list[str]:
+        """Módulos que quedan en el archivo del cliente: los leídos del archivo guardado o, si no se pudo leer, los
+        del origen que no se quitaron."""
+        if self.macros_left is not None:
+            return self.macros_left
+        return [m for m in (self.macros or []) if m not in self.removed_macros]
+
+
+@dataclass
 class WriteResult:
     """Resultado de la escritura del archivo del cliente con MS Project (evm.client_writer)."""
 
@@ -160,6 +187,7 @@ class WriteResult:
     calculated: dict[str, int] = field(default_factory=dict)
     codes_removed: bool = True
     filter_applied: bool | None = None
+    content: FileContent = field(default_factory=FileContent)    # calendarios, macros y demás contenido del archivo
     comparison: "Comparison | None" = None   # archivo del cliente frente a la planificación interna (evm.client_check)
 
     def issues(self, plan: "ClientPlan") -> list[Issue]:
@@ -208,6 +236,24 @@ class WriteResult:
             out.append(Issue("CLI-028", message="No se pudo crear el filtro de la vista ([cliente] filtrar_vista): el "
                                                 "archivo del cliente se abre con todas las tareas, también las "
                                                 f"«{INTERNAL_NAME}»."))
+        c = self.content
+        removed = []
+        if c.removed_calendars:
+            removed.append(plural(len(c.removed_calendars), "calendario sin uso", "calendarios sin uso"))
+        if c.removed_macros:
+            removed.append("las macros (" + ", ".join(c.removed_macros) + ")")
+        if removed:
+            out.append(Issue("CLI-032", message="Se quitaron del archivo del cliente " + " y ".join(removed) + ": ver "
+                                                "el informe de control."))
+        left = []
+        if c.failed_calendars:
+            left.append(plural(len(c.failed_calendars), "calendario sin uso", "calendarios sin uso"))
+        if c.remaining_macros:
+            left.append("macros (" + ", ".join(c.remaining_macros) + ")")
+        if left:
+            out.append(Issue("CLI-033", message="MS Project no dejó quitar del archivo del cliente " + " ni ".join(left)
+                                                + ": se pueden quitar con el Organizador (Archivo > Información > "
+                                                  "Organizador). Ver el informe de control."))
         if self.comparison is not None:
             out += self.comparison.issues()
         return out
@@ -227,6 +273,7 @@ class ClientPlan:
     unknown: list[Task] = field(default_factory=list)           # valor no reconocido (no se muestran)
     orphans: list[Task] = field(default_factory=list)           # Sí debajo de una tarea sin Sí (las de más arriba)
     orphan_count: int = 0                                       # tareas con Sí que no se muestran
+    unmarked: list[Task] = field(default_factory=list)          # activas, sin valor, debajo de una que se muestra
     outside: list[Task] = field(default_factory=list)           # tareas fuera de la planificación (se quitan)
     collapsed: list[Task] = field(default_factory=list)         # resúmenes que pasan a ser tareas
     kept_links: int = 0                         # vínculos entre tareas que se muestran (se conservan)
@@ -301,6 +348,20 @@ class ClientPlan:
             what = plural(self.orphan_count, "tarea con Sí no se muestra", "tareas con Sí no se muestran")
             where = ", ".join(self.ref(t) for t in self.orphans[:10]) + (" y más" if len(self.orphans) > 10 else "")
             out.append(Issue("CLI-004", message=f"{what} porque una tarea superior no tiene Sí: {where}."))
+        if self.unmarked:
+            n = len(self.unmarked)
+            branch = sum(sum(1 for _ in iter_subtree(t)) for t in self.unmarked)
+            what = plural(n, "tarea no tiene", "tareas no tienen")
+            sub = f" ({branch} con sus subtareas)" if branch > n else ""
+            if self.internal_activity:
+                fate = f"queda como «{INTERNAL_NAME}»" if n == 1 else f"quedan como «{INTERNAL_NAME}»"
+            else:
+                fate = "no se muestra" if n == 1 else "no se muestran"
+            where = ", ".join(self.ref(t) for t in self.unmarked[:10]) + (" y más" if n > 10 else "")
+            them = "la" if n == 1 else "las"
+            out.append(Issue("CLI-031", message=f"{what} valor en '{self.field_name}' y su tarea superior se muestra"
+                                                f"{sub}: {fate}. Si el cliente {them} debe ver, hay que poner Sí; si "
+                                                f"no, No (así no se avisa): {where}."))
         if self.internal_activity and self.hidden:
             what = plural(len(self.anonymous), "tarea que no se muestra queda", "tareas que no se muestran quedan")
             code = "sin nombre ni código EDT" if self.codes_removed else "sin nombre"
@@ -471,11 +532,14 @@ def build_client_plan(project: ProjectData, cfg: Config) -> ClientPlan:
 
     # Tareas que se muestran: Sí en la tarea y en todas sus tareas superiores
     own: dict[int, bool] = {}
+    empty: set[int] = set()
     for t in tasks:
         own[t.uid], category = _mark(t.client_mark)
         plan.marks[category] += 1
         if category == MARK_OTHER:
             plan.unknown.append(t)
+        elif category == MARK_EMPTY:
+            empty.add(t.uid)
 
     def walk(nodes: list[Task], parent_shown: bool) -> None:
         for t in nodes:
@@ -489,6 +553,10 @@ def build_client_plan(project: ProjectData, cfg: Config) -> ClientPlan:
             walk(t.children, shown)
 
     walk(scope.roots, True)
+    # Sin valor debajo de una tarea que se muestra: lo habitual es una tarea nueva sin marcar (CLI-031). Las de más
+    # arriba de cada rama; las inactivas no cuentan
+    plan.unmarked = [t for t in tasks if t.uid in empty and t.parent is not None and t.parent.uid in plan.shown
+                     and _active(t)]
     if not plan.shown:
         raise EvmError("CLI-002", f"Ninguna tarea de la planificación tiene Sí en '{cfg.client_field}' (también en sus "
                                   "tareas superiores): no hay nada que mostrar al cliente.")
@@ -740,6 +808,7 @@ def render_control(plan: ClientPlan, source: str, today: date, result: str,
         f"| Tareas de la planificación | {len(plan.tasks)} |",
         f"| Se muestran | {len(plan.shown)} |",
         f"| No se muestran | {hidden} ({hidden_detail}; incluye sus subtareas) |" if hidden else "| No se muestran | 0 |",
+        f"| Sin valor y con la tarea superior que se muestra (sin sus subtareas) | {len(plan.unmarked)} |",
         f"| Tareas de otras planificaciones (se quitan) | {len(plan.outside)} |",
     ]
     if plan.internal_activity:
@@ -803,6 +872,17 @@ def _report_body(plan: ClientPlan, lines: list[str], per_day: float, issues: lis
                   f"quedan como «{INTERNAL_NAME}» y las inactivas se quitan.", "",
                   f"| Tarea | Tareas como «{INTERNAL_NAME}» | Tareas inactivas (se quitan) |", "|---|---:|---:|"]
         lines += [f"| {plan.ref(t)} | {sizes[t.uid][0]} | {sizes[t.uid][1]} |" for t in plan.hidden_branches]
+        lines.append("")
+    if plan.unmarked:
+        fate = f"quedan como «{INTERNAL_NAME}»" if plan.internal_activity else "no se muestran"
+        fate += ", con sus subtareas"
+        lines += ["## Tareas sin valor debajo de una tarea que se muestra", "",
+                  f"No tienen valor en '{_cell(plan.field_name)}' y su tarea superior se muestra: {fate}. Lo habitual "
+                  "es una tarea nueva que no se marcó. Si el cliente la debe ver, hay que poner Sí; si no, No (así no "
+                  "se avisa). Las inactivas no se incluyen.", "",
+                  "| Tarea | Tarea superior | Tareas de su rama |", "|---|---|---:|"]
+        lines += [f"| {plan.ref(t)} | {plan.ref(t.parent)} | {sum(1 for _ in iter_subtree(t))} |"
+                  for t in plan.unmarked]
         lines.append("")
     if plan.orphans:
         lines += ["## Tareas con Sí que no se muestran", "",
@@ -930,7 +1010,16 @@ def _outcome_lines(plan: ClientPlan, out: WriteResult, per_day: float) -> list[s
         lines += [f"| Tareas con fechas distintas de la planificación interna | {len(out.differences)} |",
                   f"| Vínculos nuevos que MS Project no aceptó | {len(out.rejected)} |"]
     lines += [f"| Vínculos que MS Project creó al borrar tareas (se quitaron) | {len(out.removed_links)} |",
-              f"| Nombre del campo del cliente | {field_name} (valores vaciados) |", ""]
+              f"| Nombre del campo del cliente | {field_name} (valores vaciados) |"]
+    c = out.content
+    if c.checked:
+        lines += [f"| Calendarios | {len(c.calendars)} se conservan, {len(c.removed_calendars)} sin uso quitados"
+                  + (f", {len(c.failed_calendars)} sin uso que no se pudieron quitar" if c.failed_calendars else "")
+                  + " |",
+                  f"| Macros | {_cell(_macros_text(c))} |"]
+    lines.append("")
+    if c.checked:
+        lines += _content_lines(c)
     if out.not_cleared:
         lines += [f"### Datos de las «{INTERNAL_NAME}» que no se pudieron quitar", "",
                   "MS Project no aceptó vaciar el campo (por ejemplo, un campo calculado con una fórmula): el cliente "
@@ -979,6 +1068,39 @@ def _outcome_lines(plan: ClientPlan, out: WriteResult, per_day: float) -> list[s
         lines += ["### Resúmenes convertidos con datos sin restaurar", "", "| Tarea | Detalle |", "|---|---|"]
         lines += [f"| {plan.ref(t)} | {_cell(detail)} |" for t, detail in out.restore_problems]
         lines.append("")
+    return lines
+
+
+def _macros_text(c: FileContent) -> str:
+    """Resultado de las macros en una frase."""
+    left = c.remaining_macros
+    if left:
+        return "El archivo del cliente las conserva: " + ", ".join(left)
+    if c.removed_macros:
+        how = f" ({c.macro_method})" if c.macro_method else ""
+        checked = "; comprobado en el archivo guardado" if c.macros_left is not None else ""
+        return "Quitadas" + how + ": " + ", ".join(c.removed_macros) + checked
+    if c.macros_left is not None or c.macros is not None:
+        return "No tiene"
+    return "No se pudo comprobar" + (f" ({c.macro_error})" if c.macro_error else "")
+
+
+def _content_lines(c: FileContent) -> list[str]:
+    """Calendarios, propiedades, vistas, tablas, filtros y grupos del archivo del cliente."""
+    lines = ["### Contenido del archivo del cliente", "",
+             "El archivo del cliente es una copia del .mpp: se quitan los calendarios que no usa ninguna tarea ni "
+             "recurso (salvo el de MS Project para las líneas base de Project 98) y las macros (resultado en la tabla "
+             "anterior). El resto se conserva y se indica aquí.", "",
+             "| Calendario | Uso |", "|---|---|"]
+    lines += [f"| {_cell(name)} | {_cell(use[:1].upper() + use[1:])} |" for name, use in c.calendars]
+    lines += [f"| {_cell(name)} | Sin uso: quitado |" for name in c.removed_calendars]
+    lines += [f"| {_cell(name)} | Sin uso: no se pudo quitar ({_cell(error)}) |" for name, error in c.failed_calendars]
+    lines += ["", "| Elemento | En el archivo del cliente |", "|---|---|",
+              f"| Propiedades del archivo con valor | {_cell(', '.join(c.properties) or 'Ninguna')} (se ven en "
+              "Archivo > Información) |"]
+    for label, names in c.lists.items():
+        lines.append(f"| {label} | {len(names)}: {_cell(', '.join(names))} |" if names else f"| {label} | 0 |")
+    lines.append("")
     return lines
 
 

@@ -1490,6 +1490,23 @@ _CODES = [
           "base...).",
           "Nada, si la fórmula solo usa esos datos. Si usa un campo con información interna, el cliente puede ver el "
           "resultado: revisar la fórmula en MS Project."),
+    _code("CLI-031", W, "Tareas sin valor debajo de una tarea que se muestra",
+          "La tarea no tiene valor en el campo del cliente y su tarea superior se muestra: no se muestra (con "
+          "actividad_interna, queda como «Otras tareas»), con sus subtareas. Lo habitual es una tarea nueva que no se "
+          "marcó. Se indica la tarea de más arriba de cada rama; las inactivas no se incluyen.",
+          "Si el cliente la debe ver, poner Sí. Si no, poner No: así queda decidido y no se vuelve a avisar."),
+    _code("CLI-032", I, "Calendarios y macros quitados del archivo del cliente",
+          "El archivo del cliente es una copia del .mpp. Se quitaron los calendarios que no usa ninguna tarea ni "
+          "recurso, ni el proyecto (salvo el de MS Project para las líneas base de Project 98), y los módulos de "
+          "macros. La lista está en el informe de control.",
+          "Ninguna."),
+    _code("CLI-033", W, "Calendarios o macros que no se pudieron quitar",
+          "MS Project no dejó quitar un calendario sin uso, o el archivo del cliente guardado todavía tiene módulos "
+          "de macros (se comprueba leyendo el archivo). Las macros se quitan con el proyecto VBA o, si MS Project no "
+          "da acceso a él (Centro de confianza), con el Organizador.",
+          "Quitarlos en el archivo del cliente con el Organizador de MS Project (Archivo > Información > "
+          "Organizador), o permitir en el Centro de confianza de MS Project el acceso al modelo de objetos de "
+          "proyectos de VBA y volver a generar el archivo."),
 
     # --- SIS: errores del sistema -------------------------------------------------------------------------------
     _code("SIS-001", F, "Error inesperado",

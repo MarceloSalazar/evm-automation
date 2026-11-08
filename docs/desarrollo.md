@@ -101,7 +101,11 @@ Opcionales: `EVM_CONFIG` (archivo de configuración; por defecto `config.toml` s
 archivo del cliente en la carpeta temporal de pytest con la configuración de `EVM_CONFIG`, y otra vez con el
 otro valor de `actividad_interna`, y comprueba los dos modos: que el origen no cambió, que quedan
 exactamente las tareas esperadas, que el campo del cliente está vacío y que no hay avisos de algo que MS
-Project no hizo (`CLI-015`, `CLI-017`, `CLI-019`, `CLI-027`, `CLI-028`, `CLI-029`). Con «Otras tareas»
+Project no hizo (`CLI-015`, `CLI-017`, `CLI-019`, `CLI-027`, `CLI-028`, `CLI-029`, `CLI-033`). Comprueba
+también que el archivo del cliente solo tiene calendarios en uso y ningún módulo de macros (leído del
+archivo con `evm.mpp_macros`), y que la comprobación de los vínculos reconoce el texto de las predecesoras
+(si no, recorrería cada vínculo y sería lenta); con `-s` muestra las macros del origen, los calendarios y la
+duración de cada etapa. Con «Otras tareas»
 (`actividad_interna = true`), que no tienen nombre ni código EDT, que todas las tareas conservan sus
 fechas, su avance, su duración y su línea base, y que el % completado del proyecto y cada fila del libro
 EVM coinciden con la planificación interna. Con las tareas borradas (`actividad_interna = false`), que

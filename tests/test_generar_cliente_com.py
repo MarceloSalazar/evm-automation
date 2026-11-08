@@ -12,16 +12,20 @@ import os
 import stat
 from datetime import date, datetime, timedelta, timezone
 
+import logging
+
 import pytest
 
 from evm.cli import main
 from evm.client_plan import render_control
-from evm.client_writer import com_error_text, generate_client
+from evm.client_writer import PJ_CALENDARS, PJ_MODULES, _pred_uids, com_error_text, generate_client
 from evm.config import Config
 from evm.fields import TASK_TEXT_IDS
 from evm.messages import EvmError
-from evm.model import LINK_FS, LINK_SS
+from evm.model import LINK_FF, LINK_FS, LINK_SF, LINK_SS
 from evm.reader_com import ComSession
+
+from compound import mpp_with_macros
 
 UTC = timezone.utc
 FIELD = TASK_TEXT_IDS[15]
@@ -36,6 +40,52 @@ LINK_ERROR = "La tarea 'Secreta' crea un ciclo."
 
 def d(day: int, hour: int = 8) -> datetime:
     return datetime(2026, 1, day, hour, tzinfo=UTC)
+
+
+# Tipos de vínculo como los escribe MS Project en español en el texto de las predecesoras
+LINK_TEXT = {LINK_FS: "FC", LINK_SS: "CC", LINK_FF: "FF", LINK_SF: "CF"}
+
+
+class FakeList(list):
+    """Colección o lista de MS Project: Count e Item(1..Count)."""
+
+    @property
+    def Count(self):
+        return len(self)
+
+    def Item(self, i):
+        return self[i - 1]
+
+
+class FakeCalendar:
+    def __init__(self, project, name):
+        self.project, self.Name = project, name
+
+    def Delete(self):
+        if self.Name in self.project.calendar_fails:
+            raise RuntimeError(-2147352567, "Ocurrió una excepción.", (0, "MSProject", "No se puede.", None, 0, 0),
+                               None)
+        self.project.calendars.remove(self)
+
+
+class FakeCode:
+    def __init__(self, lines, declarations):
+        self.CountOfLines, self.CountOfDeclarationLines = lines, declarations
+
+    def DeleteLines(self, start, count):
+        self.CountOfLines = 0
+
+
+class FakeComponent:
+    """Módulo de VBA: Type 1 = módulo estándar, 100 = ThisProject."""
+
+    def __init__(self, name, kind=1, lines=10, declarations=1):
+        self.Name, self.Type, self.CodeModule = name, kind, FakeCode(lines, declarations)
+
+
+class FakeComponents(FakeList):
+    def Remove(self, component):
+        self.remove(component)
 
 
 class FakeDep:
@@ -79,6 +129,8 @@ class FakeTask:
         self.ConstraintType, self.ConstraintDate = 0, "NA"
         self.Text15, self.Text5 = mark, wbs
         self.span = finish - start
+        self.CalendarObject = None              # sin calendario propio
+        self.pred_text = None                   # texto de las predecesoras que no se reconoce (p. ej. otro proyecto)
 
     @property
     def Summary(self):
@@ -106,6 +158,23 @@ class FakeTask:
     @property
     def TaskDependencies(self):
         return FakeDeps(self.project, self)
+
+    @property
+    def UniqueIDPredecessors(self):
+        """Como MS Project en español: separadas por punto y coma, con la posición en días y coma decimal."""
+        if self.pred_text is not None:
+            return self.pred_text
+        parts = []
+        for x in self.project.links:
+            if x.To is not self:
+                continue
+            kind = LINK_TEXT[x.Type]
+            if x.Lag:
+                days = f"{abs(x.Lag) / 480:g}".replace(".", ",")
+                parts.append(f"{x.From.UniqueID}{kind}{'+' if x.Lag > 0 else '-'}{days} días")
+            else:
+                parts.append(str(x.From.UniqueID) if kind == "FC" else f"{x.From.UniqueID}{kind}")
+        return ";".join(parts)
 
     def Delete(self):
         self.project.delete(self)
@@ -141,8 +210,32 @@ class FakeProject:
         self.reject_percent = False
         self.StatusDate = "NA"
         self.ProjectStart = PROJECT_START
-        self.FullName = "copia.mpp"
+        self.FullName = self.Name = "copia.mpp"
         self.ProjectSummaryTask = type("S", (), {"Name": "Programa"})()
+        self.calendars = [FakeCalendar(self, "Estándar")]
+        self.calendar_fails: set[str] = set()   # calendarios que no se dejan quitar
+        self.Resources = FakeList()
+        self.vba: FakeComponents | None = None   # proyecto VBA (None: MS Project no da acceso a él)
+        self.has_vba = False                    # el archivo guardado tiene un proyecto VBA (con sus módulos)
+
+    @property
+    def BaseCalendars(self):
+        return FakeList(self.calendars)
+
+    @property
+    def Calendar(self):
+        return self.calendars[0]
+
+    @property
+    def VBProject(self):
+        if self.vba is None:
+            raise RuntimeError(-2146827284, "No se confía en el acceso mediante programación al proyecto de Visual "
+                                            "Basic.")
+        return type("VBProject", (), {"VBComponents": self.vba})()
+
+    def modules(self) -> list[str]:
+        """Módulos (sin ThisProject) que quedarían al guardar."""
+        return [c.Name for c in (self.vba or []) if c.Type != 100] + self.organizer_modules
 
     @property
     def Tasks(self):
@@ -222,7 +315,21 @@ class FakeApp:
         self.rename_fails = False
         self.filters, self.applied, self.filter_fails = {}, [], False
         self.formulas = {}                      # id del campo -> fórmula
+        self.organizer_fails = False
+        self.organized = []                     # elementos quitados con el Organizador: (tipo, nombre)
         self.Projects = FakeProjects(["copia.mpp"] + ([source_open] if source_open else []))
+        project.organizer_modules = []          # módulos que solo ve el Organizador (sin acceso al proyecto VBA)
+
+    def OrganizerDeleteItem(self, Type, FileName, Name):
+        if self.organizer_fails or FileName != self.project.Name:
+            raise RuntimeError("no se puede")
+        if Type == PJ_MODULES and Name in self.project.organizer_modules:
+            self.project.organizer_modules.remove(Name)
+        elif Type == PJ_CALENDARS and any(c.Name == Name for c in self.project.calendars):
+            self.project.calendars = [c for c in self.project.calendars if c.Name != Name]
+        else:
+            raise RuntimeError("no existe")
+        self.organized.append((Type, Name))
 
     def CustomFieldGetName(self, fid):
         return self.names.get(fid, "")
@@ -268,7 +375,8 @@ def fake_session(app):
         def save(self):
             super().save()
             with open(self.origen, "wb") as f:          # lo que guarda MS Project en la copia
-                f.write(b"archivo del cliente")
+                p = app.project
+                f.write(mpp_with_macros(p.modules()) if p.has_vba else b"archivo del cliente")
 
     return Session
 
@@ -301,9 +409,9 @@ def build(source_open=""):
     return FakeApp(p, source_open), t
 
 
-def run(tmp_path, app, **kw):
+def run(tmp_path, app, source_bytes=b"planificacion interna", **kw):
     source = tmp_path / "interno.mpp"
-    source.write_bytes(b"planificacion interna")
+    source.write_bytes(source_bytes)
     destino = tmp_path / "cliente.mpp"
     plan, result = generate_client(source, destino, kw.pop("cfg", CFG), session_cls=fake_session(app), **kw)
     return source, destino, plan, result
@@ -690,3 +798,174 @@ def test_log_file_records_error_details(tmp_path, capsys):
     assert "CFG-054" in capsys.readouterr().err
     text = log.read_text(encoding="utf-8")
     assert "Exportador EVM" in text and "Argumentos:" in text and "Traceback" in text
+
+
+# ----------------------------------------------------------------------------
+# Vínculos: se leen de una vez (Id. único de predecesoras)
+# ----------------------------------------------------------------------------
+@pytest.mark.parametrize("text, uids", [
+    ("", set()), ("12", {12}), ("12;15FC+2,5 días;7CC-1 sem.", {12, 15, 7}), ("12,15FF+50%", {12, 15}),
+    ("3FC+2 días?", {3}), ("4CF-3 edías;9", {4, 9}), ("12FS+2.5 days,15SS", {12, 15}), (" 8 ; 9 ", {8, 9}),
+])
+def test_predecessor_text(text, uids):
+    assert _pred_uids(text) == uids
+
+
+@pytest.mark.parametrize("text", [r"C:\Planes\otro.mpp\12", "12FC+2,15", "Doce", None, 12])
+def test_predecessor_text_not_recognized(text):
+    """Un vínculo con otro proyecto o un texto que no se entiende: se recorren los vínculos de la tarea."""
+    assert _pred_uids(text) is None
+
+
+def test_links_are_read_from_the_predecessor_text(tmp_path, caplog):
+    caplog.set_level(logging.INFO, logger="evm.client_writer")
+    app, t = build()
+    t["a3"].pred_text = r"C:\Planes\otro.mpp\4"            # no se reconoce: se recorren sus vínculos
+    _, _, plan, result = run(tmp_path, app, cfg=ANON)
+    assert "tareas revisadas vínculo a vínculo: 1 de 11" in caplog.text
+    assert result.removed_links == [] and len(app.project.links) == 5
+
+
+def test_link_check_finds_the_links_ms_project_adds(tmp_path, caplog):
+    """Con «Otras tareas» solo se borran las inactivas: si MS Project vincula sus vecinas, se quita el vínculo."""
+    caplog.set_level(logging.INFO, logger="evm.client_writer")
+    app, t = build()
+    t["sola"].Active = False
+    app.project.autolink_always = True
+    _, _, plan, result = run(tmp_path, app, cfg=ANON)
+    assert result.removed_links == [] and "tareas revisadas vínculo a vínculo: 0 de 10" in caplog.text
+    app, t = build()
+    t["oculta"].Active = False
+    app.project.autolink_always = True
+    _, _, plan, result = run(tmp_path, app, cfg=ANON, overwrite=True)
+    assert result.removed_links == [(3, 5)] and "tareas revisadas vínculo a vínculo: 1 de 10" in caplog.text
+    assert "CLI-016" in {i.id for i in result.issues(plan)}
+
+
+# ----------------------------------------------------------------------------
+# Contenido del archivo: calendarios sin uso y macros
+# ----------------------------------------------------------------------------
+def with_calendars(app, t):
+    p = app.project
+    for name in ("Sede A", "Sede B", "Sede C", "Sede D", "Sede O", "Sede R",
+                 "Para calend. de línea base de Microsoft Project 98"):
+        p.calendars.append(FakeCalendar(p, name))
+    cal = {c.Name: c for c in p.calendars}
+    t["c"].CalendarObject = cal["Sede A"]                   # tarea que se muestra
+    t["oculta"].CalendarObject = cal["Sede O"]              # «Otras tareas» (con actividad_interna) o se borra
+    p.Resources = FakeList([None, type("R", (), {"BaseCalendar": "Sede R"})()])
+    p.calendar_fails = {"Sede C", "Sede D"}                 # no se dejan quitar con Delete
+    return p
+
+
+def test_unused_calendars_are_removed(tmp_path):
+    app, t = build()
+    p = with_calendars(app, t)
+    original = app.OrganizerDeleteItem
+
+    def organizer(Type, FileName, Name):                    # el Organizador quita Sede C, pero no Sede D
+        if Name == "Sede D":
+            raise RuntimeError("no se puede")
+        original(Type, FileName, Name)
+
+    app.OrganizerDeleteItem = organizer
+    p.Title, p.Author = "Programa", "Responsable"
+    p.ViewList = FakeList(["Diagrama de Gantt", "Tareas del cliente"])
+    p.TaskFilterList = FakeList(["Todas las tareas"])
+    _, _, plan, result = run(tmp_path, app, cfg=ANON)
+    c = result.content
+    assert c.checked
+    assert c.calendars == [("Estándar", "calendario del proyecto"), ("Sede A", "1 tarea"), ("Sede O", "1 tarea"),
+                           ("Sede R", "1 recurso"),
+                           ("Para calend. de línea base de Microsoft Project 98",
+                            "de MS Project (líneas base de Project 98)")]
+    assert c.removed_calendars == ["Sede B", "Sede C"] and [n for n, _ in c.failed_calendars] == ["Sede D"]
+    assert [x.Name for x in p.calendars] == ["Estándar", "Sede A", "Sede D", "Sede O", "Sede R",
+                                             "Para calend. de línea base de Microsoft Project 98"]
+    assert c.properties == ["Título", "Autor"]
+    assert c.lists == {"Vistas": ["Diagrama de Gantt", "Tareas del cliente"], "Tablas de tareas": [],
+                       "Filtros de tareas": ["Todas las tareas"], "Grupos de tareas": []}
+    issues = {i.id: i.message for i in result.issues(plan)}
+    assert "2 calendarios sin uso" in issues["CLI-032"] and "1 calendario sin uso" in issues["CLI-033"]
+    report = render_control(plan, "origen.mpp", date(2026, 11, 8), "Prueba", outcome=result)
+    assert "### Contenido del archivo del cliente" in report and "| Sede B | Sin uso: quitado |" in report
+    assert "| Calendarios | 5 se conservan, 2 sin uso quitados, 1 sin uso que no se pudieron quitar |" in report
+    assert "| Propiedades del archivo con valor | Título, Autor (se ven en Archivo > Información) |" in report
+    assert "| Vistas | 2: Diagrama de Gantt, Tareas del cliente |" in report
+    assert "Programa" not in report.split("### Contenido del archivo del cliente")[1]     # sin los valores
+
+
+def test_calendar_of_deleted_tasks_is_removed(tmp_path):
+    """actividad_interna = false: el calendario que solo usaba una tarea que se borra queda sin uso."""
+    app, t = build()
+    p = with_calendars(app, t)
+    p.calendar_fails = set()
+    _, _, plan, result = run(tmp_path, app)
+    assert "Sede O" in result.content.removed_calendars
+    assert ("Sede A", "1 tarea") in result.content.calendars
+
+
+def test_calendars_are_kept_without_the_project_calendar(tmp_path):
+    """Sin el calendario del proyecto no se sabe qué calendarios se usan: no se quita ninguno."""
+    app, t = build()
+    p = with_calendars(app, t)
+    p.calendars[0].Name = ""
+    _, _, plan, result = run(tmp_path, app, cfg=ANON)
+    assert result.content.removed_calendars == [] and len(p.calendars) == 8
+    assert all("no se comprobó" in use for name, use in result.content.calendars if name.startswith("Sede B"))
+
+
+def test_macros_are_removed_with_the_vba_project(tmp_path):
+    app, _ = build()
+    p = app.project
+    p.vba = FakeComponents([FakeComponent("ThisProject", 100, lines=3, declarations=0), FakeComponent("Módulo1"),
+                            FakeComponent("Clase1", 2)])
+    p.has_vba = True
+    _, destino, plan, result = run(tmp_path, app, source_bytes=mpp_with_macros(["Módulo1"], ["Clase1"]), cfg=ANON)
+    c = result.content
+    assert c.macros == ["Módulo1", "Clase1"] and c.macro_method == "proyecto VBA"
+    assert c.removed_macros == ["código de ThisProject", "Módulo1", "Clase1"]
+    assert c.macros_left == [] and c.remaining_macros == [] and not os.access(destino, os.W_OK)
+    assert p.vba[0].CodeModule.CountOfLines == 0                    # ThisProject se queda, sin código
+    issues = {i.id: i.message for i in result.issues(plan)}
+    assert "las macros (código de ThisProject, Módulo1, Clase1)" in issues["CLI-032"] and "CLI-033" not in issues
+    report = render_control(plan, "origen.mpp", date(2026, 11, 8), "Prueba", outcome=result)
+    assert ("| Macros | Quitadas (proyecto VBA): código de ThisProject, Módulo1, Clase1; comprobado en el archivo "
+            "guardado |") in report
+
+
+def test_macros_are_removed_with_the_organizer(tmp_path):
+    """Sin acceso al proyecto VBA (Centro de confianza de MS Project), se quitan con el Organizador por el nombre de
+    los módulos leídos del archivo."""
+    app, _ = build()
+    p = app.project
+    p.organizer_modules, p.has_vba = ["Módulo1"], True
+    _, _, plan, result = run(tmp_path, app, source_bytes=mpp_with_macros(["Módulo1"]), cfg=ANON)
+    c = result.content
+    assert c.macro_method == "Organizador" and c.removed_macros == ["Módulo1"] and c.macros_left == []
+    assert app.organized == [(PJ_MODULES, "Módulo1")] and "No se confía" in c.macro_error
+    assert "CLI-032" in {i.id for i in result.issues(plan)}
+
+
+def test_macros_that_remain_are_reported(tmp_path):
+    app, _ = build()
+    p = app.project
+    p.organizer_modules, p.has_vba = ["Módulo1"], True
+    app.organizer_fails = True
+    _, _, plan, result = run(tmp_path, app, source_bytes=mpp_with_macros(["Módulo1"]), cfg=ANON)
+    assert result.content.macros_left == ["Módulo1"]
+    issues = {i.id: i.message for i in result.issues(plan)}
+    assert "macros (Módulo1)" in issues["CLI-033"] and "CLI-032" not in issues
+    report = render_control(plan, "origen.mpp", date(2026, 11, 8), "Prueba", outcome=result)
+    assert "| Macros | El archivo del cliente las conserva: Módulo1 |" in report
+
+
+def test_macros_that_cannot_be_checked(tmp_path):
+    """Ni el proyecto VBA ni el archivo se pueden leer (en las demás pruebas, el archivo simulado no es un .mpp)."""
+    app, _ = build()
+    _, _, plan, result = run(tmp_path, app, cfg=ANON)
+    c = result.content
+    assert c.macros is None and c.macros_left is None and c.remaining_macros == []
+    assert not {"CLI-032", "CLI-033"} & {i.id for i in result.issues(plan)}
+    report = render_control(plan, "origen.mpp", date(2026, 11, 8), "Prueba", outcome=result)
+    assert "| Macros | No se pudo comprobar (0x" in report

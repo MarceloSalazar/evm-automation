@@ -118,7 +118,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 18 |
 | [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 51 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
-| [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 30 |
+| [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 33 |
 | [SIS](#417-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
 
 ---
@@ -2942,6 +2942,9 @@ Comando generar-cliente: tareas que se muestran al cliente, «Otras tareas», re
 | [CLI-028](#cli-028) | Advertencia | No se pudo crear el filtro de la vista |
 | [CLI-029](#cli-029) | Advertencia | No se pudo comparar el libro EVM |
 | [CLI-030](#cli-030) | Info | Campos calculados en las «Otras tareas» |
+| [CLI-031](#cli-031) | Advertencia | Tareas sin valor debajo de una tarea que se muestra |
+| [CLI-032](#cli-032) | Info | Calendarios y macros quitados del archivo del cliente |
+| [CLI-033](#cli-033) | Advertencia | Calendarios o macros que no se pudieron quitar |
 
 #### CLI-001
 
@@ -3182,6 +3185,30 @@ El libro EVM de la planificación interna o el del cliente no se pudo calcular p
 Un campo personalizado de texto tiene una fórmula: MS Project calcula su valor en cada tarea y no deja vaciarlo. En las «Otras tareas», el valor se calcula con los datos que se conservan (fechas, avance, líneas base...).
 
 **Qué hacer:** Nada, si la fórmula solo usa esos datos. Si usa un campo con información interna, el cliente puede ver el resultado: revisar la fórmula en MS Project.
+
+#### CLI-031
+
+**Tareas sin valor debajo de una tarea que se muestra** · Advertencia · generar-cliente · se puede silenciar
+
+La tarea no tiene valor en el campo del cliente y su tarea superior se muestra: no se muestra (con actividad_interna, queda como «Otras tareas»), con sus subtareas. Lo habitual es una tarea nueva que no se marcó. Se indica la tarea de más arriba de cada rama; las inactivas no se incluyen.
+
+**Qué hacer:** Si el cliente la debe ver, poner Sí. Si no, poner No: así queda decidido y no se vuelve a avisar.
+
+#### CLI-032
+
+**Calendarios y macros quitados del archivo del cliente** · Info · generar-cliente · se puede silenciar
+
+El archivo del cliente es una copia del .mpp. Se quitaron los calendarios que no usa ninguna tarea ni recurso, ni el proyecto (salvo el de MS Project para las líneas base de Project 98), y los módulos de macros. La lista está en el informe de control.
+
+**Qué hacer:** Ninguna.
+
+#### CLI-033
+
+**Calendarios o macros que no se pudieron quitar** · Advertencia · generar-cliente · se puede silenciar
+
+MS Project no dejó quitar un calendario sin uso, o el archivo del cliente guardado todavía tiene módulos de macros (se comprueba leyendo el archivo). Las macros se quitan con el proyecto VBA o, si MS Project no da acceso a él (Centro de confianza), con el Organizador.
+
+**Qué hacer:** Quitarlos en el archivo del cliente con el Organizador de MS Project (Archivo > Información > Organizador), o permitir en el Centro de confianza de MS Project el acceso al modelo de objetos de proyectos de VBA y volver a generar el archivo.
 
 ---
 
