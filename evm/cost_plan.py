@@ -1,9 +1,11 @@
-"""Comando procesar-costes: % planificado de cada fila con el importe mensual del plan de costes.
+"""Comando procesar-costes: % planificado de cada fila con el reparto mensual del plan de costes.
 
 Lee la hoja PV-depuración de un libro con depuración de costes: solo las líneas de EDT cliente cuyo código es el de una
 fila de ingreso de la hoja PV de la empresa que se depura (cost_review.read_lines, las mismas reglas que las fórmulas
 de la hoja _depuracion). En la hoja '% PV' de la empresa escribe el % planificado de cada una de esas filas: el importe
-de cada mes dividido por el BAC de la fila, de modo que el PV (BAC × %) es el importe del plan.
+de cada mes dividido por el EAC de su línea (la suma de sus meses, también los posteriores al horizonte). Así la fila
+suma 100 % y el PV (BAC × %) reparte el BAC como el plan de costes; si el EAC no coincide con el BAC, la diferencia se
+ve en la fila «(coste)», no en el PV, que debe terminar en el BAC como el EV.
 
 Con --calculos ([exportacion] depuracion_calculos), antes escribe en la hoja PV-depuración las fórmulas de los
 cálculos del plan (cost_review.calc_plan y write_calcs): las sumas de los componentes en su EDT interna y de las EDT
@@ -11,7 +13,7 @@ interna en su EDT cliente, el EAC y el BAC de la EDT cliente. Sin esa opción, u
 
 Las filas procesadas quedan marcadas en la hoja _estructura: 'actualizar' no compara su % planificado con la línea base
 de MS Project y --migrar-desde lo conserva en el libro nuevo (también en el libro de entrega, sin depuración). Las
-filas sin línea en el plan, sin BAC o con el plan en 0 conservan su % planificado.
+filas sin línea en el plan, con el plan en 0 o con el EAC cero o negativo conservan su % planificado.
 """
 from __future__ import annotations
 
@@ -26,10 +28,11 @@ from evm.config import Config
 from evm.messages import InputError, Issue
 from evm.update import (BookData, _refresh_charts, _save, _write_fixable, check_sheets, fixable_warning,
                         read_book)
+from evm.timeline import Horizon
 from evm.wbs import fmt_money, plural
-from evm.workbook import (FIRST_MONTH_COL, FIRST_ROW, FMT_PCT_MONTH, FONT_COST, PCT_PREFIX, SHEET_PV, SHEET_STRUCT,
-                          STRUCT_PLAN_COL, STRUCT_PLAN_HEAD, TITLE_ROW, company_sheet, pct_pv_title, plan_text, put_text,
-                          styled)
+from evm.workbook import (COL_FINISH, COL_START, FIRST_MONTH_COL, FIRST_ROW, FMT_PCT_MONTH, FONT_COST, PCT_PREFIX,
+                          SHEET_PV, SHEET_STRUCT, STRUCT_PLAN_COL, STRUCT_PLAN_HEAD, TITLE_ROW, company_sheet,
+                          pct_pv_title, plan_text, put_text, styled)
 
 TOLERANCE = 0.005                       # importe que se considera 0
 
@@ -41,7 +44,7 @@ class CostPlanResult:
     counted: int                        # líneas de EDT cliente que se leen (con fila de ingreso del libro)
     total: float                        # importe de las líneas que se leen
     assigned: float                     # parte de ese importe en las filas procesadas, dentro del horizonte
-    rows: list[tuple[str, str, float]]  # filas procesadas: código, actividad y EAC (importe de su línea)
+    rows: list[tuple[str, str, float, float | None]]  # filas procesadas: código, actividad, EAC de su línea y BAC
     inputs: int                         # filas de ingreso del libro
     calculated: int | None              # líneas con los cálculos del plan escritos (None: sin --calculos)
     warnings: list[Issue]
@@ -70,8 +73,8 @@ def _listed(items: list[str], limit: int = 10) -> str:
 
 def run_cost_plan(cfg: Config, book_path: str | Path, backup: bool = True, dry_run: bool = False) -> CostPlanResult:
     """Comando 'procesar-costes': escribe en la hoja '% PV' de la empresa que se depura el importe mensual del plan de
-    costes de la hoja PV-depuración, dividido por el BAC de cada fila. cfg.cost_review_calcs: escribe antes los
-    cálculos del plan."""
+    costes de la hoja PV-depuración, dividido por el EAC de la línea de cada fila. cfg.cost_review_calcs: escribe
+    antes los cálculos del plan."""
     book_path = Path(book_path)
     progress.stage("libro", "Lectura del libro")
     wb = load_workbook(book_path)
@@ -114,21 +117,26 @@ def run_cost_plan(cfg: Config, book_path: str | Path, backup: bool = True, dry_r
                                     f"celda A{cr.P_FIRST} y revisar la columna 'Asignado a'.")
 
     processed: list[tuple] = []                     # (fila, EAC, % de cada mes)
-    no_lines, zero, no_bac = [], [], []
+    no_lines, zero, negative = [], [], []
     for s in inputs:
         vec = amounts.get(s.row)
-        bac = book.bac_role[role][s.row]
         if vec is None:
             no_lines.append(s.code)
         elif all(abs(v) < TOLERANCE for v in vec):
             zero.append(s.code)
-        elif not bac or bac <= 0:
-            no_bac.append(s.code)
+        elif (eac := sum(vec)) < TOLERANCE:         # el reparto no se puede calcular: abonos que anulan los cargos
+            negative.append(f"{s.code} (EAC {fmt_money(eac)})")
         else:
-            processed.append((s, sum(vec), [v / bac for v in vec[:months]]))
+            processed.append((s, eac, [v / eac for v in vec[:months]]))
     code_of = {s.row: s.code for s in book.structure}
-    warnings += _warnings(lines, amounts, months, missing, no_lines, zero, no_bac, sheet, code_of,
+    warnings += _warnings(lines, amounts, months, missing, no_lines, zero, negative, sheet, code_of,
                           cfg.cost_review_calcs)
+    uncovered = _uncovered(wb[SHEET_PV], book.horizon, [(s, amounts[s.row]) for s, _e, _p in processed])
+    if uncovered:
+        warnings.append(Issue("DEP-021", message=(
+            f"Filas cuyo plan de costes no cubre los meses de su línea base ({len(uncovered)}): {_listed(uncovered)}. "
+            "Su PV sigue el plan: si al plan le faltan meses, el SPI de la fila no medirá el avance frente al "
+            "cronograma.")))
 
     if not dry_run:
         ws_pct = wb[PCT_PREFIX + sheet]
@@ -151,12 +159,40 @@ def run_cost_plan(cfg: Config, book_path: str | Path, backup: bool = True, dry_r
     rows_done = {s.row for s, _t, _p in processed}
     assigned = sum(sum(v[:months]) for r, v in amounts.items() if r in rows_done)
     return CostPlanResult(sheet, sum(1 for x in lines if x.client), len(read), sum(x.total for x in read), assigned,
-                          [(s.code, s.name, t) for s, t, _p in processed], len(inputs), calculated, warnings,
-                          backup_path, dry_run, book)
+                          [(s.code, s.name, t, book.bac_role[role][s.row]) for s, t, _p in processed], len(inputs),
+                          calculated, warnings, backup_path, dry_run, book)
+
+
+def _month(value) -> tuple[int, int] | None:
+    """Mes (año, mes) de una fecha de la hoja PV; None si la celda no tiene fecha."""
+    return (value.year, value.month) if hasattr(value, "year") else None
+
+
+def _uncovered(ws_pv, horizon: Horizon, rows: list[tuple]) -> list[str]:
+    """Filas procesadas cuyo plan empieza después del mes de comienzo de su línea base o termina antes del mes de su
+    fin (columnas E y F de la hoja PV): al plan le pueden faltar meses."""
+    out = []
+    for s, vec in rows:
+        start = _month(ws_pv.cell(row=s.row, column=COL_START).value)
+        finish = _month(ws_pv.cell(row=s.row, column=COL_FINISH).value)
+        used = [i for i, v in enumerate(vec) if abs(v) >= TOLERANCE]
+        if start is None or finish is None or not used:
+            continue
+        first, last = used[0], used[-1]
+        if first > max(horizon.index(start), 0) or last < horizon.index(finish):
+            plan = _span(horizon.key(first), horizon.key(last))
+            out.append(f"{s.code} (plan {plan}; línea base {_span(start, finish)})")
+    return out
+
+
+def _span(a: tuple[int, int], b: tuple[int, int]) -> str:
+    """Meses de a a b como texto: '02/2027 a 03/2027' o '02/2027'."""
+    text = lambda k: f"{k[1]:02d}/{k[0]}"           # noqa: E731
+    return text(a) if a == b else f"{text(a)} a {text(b)}"
 
 
 def _warnings(lines: list[cr.PasteLine], amounts: dict[int, list[float]], months: int, missing: int,
-              no_lines: list[str], zero: list[str], no_bac: list[str], sheet: str, code_of: dict[int, str],
+              no_lines: list[str], zero: list[str], negative: list[str], sheet: str, code_of: dict[int, str],
               calcs: bool) -> list[Issue]:
     """Observaciones de procesar-costes: líneas sin leer, meses fuera del horizonte, filas sin procesar e importes
     que no se pueden sumar."""
@@ -187,11 +223,11 @@ def _warnings(lines: list[cr.PasteLine], amounts: dict[int, list[float]], months
         out.append(Issue("DEP-017", message=(
             f"Filas cuya línea de EDT cliente no tiene importes en el plan de costes ({len(zero)}): {_listed(zero)}. "
             f"Conservan su % planificado.{hint}")))
-    if no_bac:
+    if negative:
         out.append(Issue("DEP-019", message=(
-            f"Filas sin BAC en la hoja {sheet} ({len(no_bac)}): {_listed(no_bac)}. El % planificado es el importe del "
-            "plan dividido por el BAC: conservan su % planificado hasta que se ingrese el BAC y se ejecute de nuevo "
-            "procesar-costes.")))
+            f"Filas cuya línea de EDT cliente suma cero o un importe negativo en el plan de costes ({len(negative)}): "
+            f"{_listed(negative)}. El % planificado es el importe del mes dividido por el EAC: conservan su % "
+            "planificado.")))
     texts = [x for x in lines if x.state == cr.STATE_READ and any(
         isinstance(v, str) and v.strip() for v in x.months)]
     if texts or missing:

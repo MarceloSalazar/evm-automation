@@ -480,13 +480,13 @@ def cmd_procesar_costes(args) -> int:
           f"{res.counted} con fila de ingreso  |  Importe leído: {money(res.total)}")
     print(f"Plan de costes en {len(res.rows)} de {plural(res.inputs, 'fila', 'filas')} de ingreso, "
           f"{money(res.assigned)} dentro del horizonte:")
-    for code, name, eac in res.rows[:15]:
-        print(f"  {code:<12} {name[:48]:<48}  EAC {money(eac):>14}")
+    for code, name, eac, bac in res.rows[:15]:
+        print(f"  {code:<12} {name[:48]:<48}  EAC {money(eac):>14}  BAC {money(bac) if bac else '-':>14}")
     if len(res.rows) > 15:
         print(f"  ... y {len(res.rows) - 15} filas más.")
     _print_notices(_silence(cfg).apply(res.warnings))
-    print(f"% planificado (hoja '% {res.sheet}') = importe del mes / BAC: el PV de cada mes (BAC × %) es el importe "
-          "del plan de costes.")
+    print(f"% planificado (hoja '% {res.sheet}') = importe del mes / EAC de la línea: el PV (BAC × %) reparte el BAC "
+          "de cada fila como el plan de costes. La diferencia entre el EAC y el BAC se ve en la fila «(coste)».")
     if args.simular:
         print("Simulación: no se modificó el libro.")
     else:
@@ -984,9 +984,10 @@ def build_parser() -> argparse.ArgumentParser:
     silence_option(n)
     n.set_defaults(func=cmd_analizar)
 
-    c = sub.add_parser("procesar-costes", help="lleva el importe mensual del plan de costes de la hoja PV-depuración "
+    c = sub.add_parser("procesar-costes", help="lleva el reparto mensual del plan de costes de la hoja PV-depuración "
                                                "(líneas de EDT cliente) al %% planificado de cada fila de la empresa "
-                                               "que se depura: el PV (BAC × %%) es el importe del plan")
+                                               "que se depura: importe del mes / EAC de la línea, y el PV (BAC × %%) "
+                                               "reparte el BAC como el plan")
     c.add_argument("--libro", required=True, help="libro .xlsx generado con depuracion_costes = true")
     c.add_argument("--calculos", action="store_true",
                    help="escribe antes en la hoja PV-depuración las fórmulas de los cálculos del plan: sumas de los "

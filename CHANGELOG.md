@@ -55,22 +55,26 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   MS Project real (`tests/test_msproject_cliente.py`).
 - **Registro de diagnóstico en un archivo (`--registro RUTA`).** Todos los comandos pueden escribir el
   registro completo, con fecha y hora y el detalle de los errores, sin cambiar lo que muestra la consola.
-- **Plan de costes por EDT cliente y PV igual al importe del plan (`procesar-costes`).** En la hoja
-  `PV-depuración`, los importes se suman hacia arriba (componentes de coste en su EDT interna, EDT interna
-  en su EDT cliente y cada EDT cliente en la de su código superior) y **solo se leen las líneas de EDT
-  cliente** cuyo código es el de una fila de ingreso del libro. La fila «(coste)» de la hoja PV de la
-  empresa muestra sus meses y, en la columna D, su **EAC**; la columna `Asignado a` indica si cada EDT
-  cliente se lee, es un resumen del libro, está incluida en una superior o no tiene fila
+- **Plan de costes por EDT cliente (`procesar-costes`).** En la hoja `PV-depuración`, los importes se
+  suman hacia arriba (componentes de coste en su EDT interna, EDT interna en su EDT cliente y cada EDT
+  cliente en la de su código superior) y **solo se leen las líneas de EDT cliente** cuyo código es el de
+  una fila de ingreso del libro. La fila «(coste)» de la hoja PV de la empresa muestra sus meses y, en la
+  columna D, su **EAC**; la columna `Asignado a` indica si cada EDT cliente se lee, es un resumen del
+  libro, está incluida en una superior o no tiene fila
   ([Depuración de costes](docs/depuracion-costes.md#42-qué-líneas-se-leen)). `procesar-costes` escribe
-  ahora el % planificado como **importe del mes / BAC** de la fila, de modo que el PV (BAC × %) es el
-  importe del plan; antes era importe / EAC. Con la opción nueva `--calculos` (o
-  `[exportacion] depuracion_calculos = true`), escribe antes en la hoja las fórmulas de los cálculos del
-  plan: las sumas, el EAC de cada línea y el BAC de cada EDT cliente, leído de la hoja PV de la empresa,
-  con las celdas calculadas en naranja y las de datos en amarillo
+  el % planificado como **importe del mes / EAC** de la línea (la suma de sus meses): la fila suma 100 %
+  y el PV (BAC × %) reparte el BAC como el plan, de modo que termina en el BAC, como el EV; la diferencia
+  entre el EAC y el BAC se ve en la fila «(coste)». Las filas cuya línea suma cero o un importe negativo
+  conservan su % planificado (`DEP-019`), y se informa de las filas cuyo plan empieza después o termina
+  antes que su línea base (`DEP-021`, información). En pantalla, cada fila procesada muestra el EAC de su
+  línea y su BAC. Con la opción nueva `--calculos` (o `[exportacion] depuracion_calculos = true`),
+  escribe antes en la hoja las fórmulas de los cálculos del plan: las sumas, el EAC de cada línea y el
+  BAC de cada EDT cliente, leído de la hoja PV de la empresa, con las celdas calculadas en naranja y las
+  de datos en amarillo
   ([Cálculos del plan](docs/depuracion-costes.md#43-cálculos-del-plan-celdas-naranjas)).
   `--migrar-desde` traslada las celdas con fórmula con su valor y vuelve a escribir las fórmulas de los
-  cálculos. Códigos nuevos `DEP-019` (fila sin BAC) y `DEP-020` (EDT cliente repetida). Los libros con
-  depuración de la versión 2.5 se deben regenerar con `--migrar-desde` para tener las fórmulas nuevas.
+  cálculos. Códigos nuevos `DEP-019` a `DEP-021`. Los libros con depuración de la versión 2.5 se deben
+  regenerar con `--migrar-desde` para tener las fórmulas nuevas.
 
 ### Correcciones
 

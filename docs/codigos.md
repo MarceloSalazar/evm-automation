@@ -115,7 +115,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [LOG](#410-log--lógica-del-cronograma) | Lógica del cronograma | Lógica del cronograma | validar | 19 |
 | [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) | 15 |
 | [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 20 |
-| [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 20 |
+| [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 21 |
 | [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 51 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
 | [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 33 |
@@ -2246,8 +2246,9 @@ Hoja PV-depuración, su traslado con `--migrar-desde` y el reparto del plan de c
 | [DEP-016](#dep-016) | Info | Filas sin línea en el plan de costes |
 | [DEP-017](#dep-017) | Advertencia | Filas sin importes en el plan de costes |
 | [DEP-018](#dep-018) | Advertencia | Importes del plan de costes que no se leen |
-| [DEP-019](#dep-019) | Advertencia | Filas sin BAC |
+| [DEP-019](#dep-019) | Advertencia | Filas con el EAC cero o negativo |
 | [DEP-020](#dep-020) | Advertencia | EDT cliente repetida en el plan de costes |
+| [DEP-021](#dep-021) | Info | Plan de costes que no cubre la línea base de la fila |
 
 #### DEP-001
 
@@ -2395,11 +2396,11 @@ Importes guardados como texto, o celdas con fórmula sin valor calculado (el lib
 
 #### DEP-019
 
-**Filas sin BAC** · Advertencia · procesar-costes · se puede silenciar
+**Filas con el EAC cero o negativo** · Advertencia · procesar-costes · se puede silenciar
 
-El % planificado es el importe del plan dividido por el BAC de la fila: una fila sin BAC no se puede procesar y conserva su % planificado.
+La línea de EDT cliente de la fila tiene importes que suman cero o un valor negativo (p. ej. abonos que anulan los cargos): el % planificado es el importe del mes dividido por el EAC, y no se puede calcular. La fila conserva su % planificado.
 
-**Qué hacer:** Ingresar el BAC en la columna D de la hoja PV de la empresa y ejecutar de nuevo procesar-costes.
+**Qué hacer:** Revisar los importes de la línea en el plan de costes.
 
 #### DEP-020
 
@@ -2408,6 +2409,14 @@ El % planificado es el importe del plan dividido por el BAC de la fila: una fila
 Dos o más líneas de EDT cliente tienen el mismo código: se suman sus importes.
 
 **Qué hacer:** Revisar el plan de costes: cada EDT cliente debería tener una sola línea.
+
+#### DEP-021
+
+**Plan de costes que no cubre la línea base de la fila** · Info · procesar-costes · se puede silenciar
+
+El plan de la fila empieza después del mes de comienzo de su línea base o termina antes del mes de su fin (columnas E y F de la hoja PV). El PV de la fila sigue el plan: si al plan le faltan meses, el PV no sigue el cronograma y el SPI de la fila no mide el avance frente a él.
+
+**Qué hacer:** Completar los meses del plan de costes, o revisar las fechas en MS Project. Si el plan es correcto (p. ej. costes que se pagan después de terminar la tarea), ninguna.
 
 ---
 

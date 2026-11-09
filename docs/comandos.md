@@ -392,7 +392,7 @@ python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx --calculos
 ```
 
 En un libro generado con `depuracion_costes = true`, lee el plan de costes de la hoja `PV-depuración` y
-lleva el importe de cada mes al **% planificado** de cada fila de la empresa que se depura (hoja
+lleva su reparto mensual al **% planificado** de cada fila de la empresa que se depura (hoja
 `% PV-EmpresaA`, o `% PV` en un libro de una sola empresa), **sin leer MS Project**:
 
 - Con `--calculos`, primero escribe en la hoja las fórmulas de los cálculos del plan: las sumas de los
@@ -401,29 +401,32 @@ lleva el importe de cada mes al **% planificado** de cada fila de la empresa que
   ([cálculos del plan](depuracion-costes.md#43-cálculos-del-plan-celdas-naranjas)).
 - Lee solo las **líneas de EDT cliente** cuyo código es el de una fila de ingreso de la hoja PV de la
   empresa ([qué líneas se leen](depuracion-costes.md#42-qué-líneas-se-leen)).
-- El % planificado de cada mes es el importe del mes dividido por el **BAC** de la fila: el PV (BAC × %)
-  es el importe del plan.
-- Las filas sin línea en el plan, sin BAC o con la línea sin importes conservan su % planificado (de
-  MS Project o de un procesado anterior), y la otra empresa no cambia.
+- El % planificado de cada mes es el importe del mes dividido por el **EAC** de la línea (la suma de sus
+  meses): la fila suma 100 % y el PV (BAC × %) reparte el BAC como el plan. Si el EAC no coincide con el
+  BAC, la diferencia se ve en la fila «(coste)».
+- Las filas sin línea en el plan, con la línea sin importes o con el EAC cero o negativo conservan su %
+  planificado (de MS Project o de un procesado anterior), y la otra empresa no cambia.
 - Las filas procesadas conservan ese % al regenerar el libro con `--migrar-desde`, también en el libro
   de entrega sin depuración, y `actualizar` no lo compara con la línea base de MS Project
   ([Depuración de costes](depuracion-costes.md#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes)).
 
-Muestra las filas procesadas con su EAC y las observaciones: líneas de EDT cliente sin leer, importes
-después del horizonte, filas sin línea en el plan, sin importes o sin BAC, EDT cliente repetidas e
-importes guardados como texto ([DEP-012 a DEP-020](codigos.md#413-dep--depuración-de-costes)).
+Muestra las filas procesadas con el EAC de su línea y su BAC, y las observaciones: líneas de EDT cliente
+sin leer, importes después del horizonte, filas sin línea en el plan, sin importes o con el EAC cero o
+negativo, EDT cliente repetidas, importes guardados como texto y filas cuyo plan no cubre los meses de su
+línea base ([DEP-012 a DEP-021](codigos.md#413-dep--depuración-de-costes)).
 
 ```text
 Exportador EVM 2.6.0
 Cálculos del plan de costes: 16 líneas de la hoja PV-depuración (sumas, EAC y BAC de las EDT cliente)
 Hoja: PV-EmpresaA  |  Plan de costes: 9 líneas de EDT cliente, 3 con fila de ingreso  |  Importe leído: 278
 Plan de costes en 3 de 5 filas de ingreso, 278 dentro del horizonte:
-  1.1.0        Dirección                                         EAC            117
-  1.2.1        Licitación                                        EAC             65
-  1.2.2        Obras                                             EAC             96
+  1.1.0        Dirección                                         EAC            117  BAC            117
+  1.2.1        Licitación                                        EAC             65  BAC             65
+  1.2.2        Obras                                             EAC             96  BAC            100
   [!] DEP-014 3 líneas de EDT cliente de la hoja PV-depuración sin leer, por 62,00: 1.2.7 (fila 21): sin fila del libro, 2.0.0 (fila 23): resumen sin detalle en el plan, 9.9 (fila 24): sin fila del libro. Su importe no forma parte del % planificado.
   [i] DEP-016 Filas de ingreso de la hoja PV-EmpresaA sin línea de EDT cliente en el plan de costes (2): 1.0.0-D, 2.1.0. Conservan su % planificado (de MS Project o de un procesado anterior).
-% planificado (hoja '% PV-EmpresaA') = importe del mes / BAC: el PV de cada mes (BAC × %) es el importe del plan de costes.
+  [i] DEP-021 Filas cuyo plan de costes no cubre los meses de su línea base (1): 1.2.2 (plan 01/2027 a 02/2027; línea base 02/2027 a 03/2027). Su PV sigue el plan: si al plan le faltan meses, el SPI de la fila no medirá el avance frente al cronograma.
+% planificado (hoja '% PV-EmpresaA') = importe del mes / EAC de la línea: el PV (BAC × %) reparte el BAC de cada fila como el plan de costes. La diferencia entre el EAC y el BAC se ve en la fila «(coste)».
 Respaldo: C:\Programa\EVM_Depuracion.respaldo-20261108-101500.xlsx
 Libro actualizado: C:\Programa\EVM_Depuracion.xlsx
 ```

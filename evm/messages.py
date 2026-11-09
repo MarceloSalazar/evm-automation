@@ -1141,13 +1141,20 @@ _CODES = [
           "Importes guardados como texto, o celdas con fórmula sin valor calculado (el libro no se guardó en Excel "
           "después de escribirlas).",
           "Escribir números; abrir y guardar el libro en Excel, o ejecutar procesar-costes --calculos.", W_PROC),
-    _code("DEP-019", W, "Filas sin BAC",
-          "El % planificado es el importe del plan dividido por el BAC de la fila: una fila sin BAC no se puede "
-          "procesar y conserva su % planificado.",
-          "Ingresar el BAC en la columna D de la hoja PV de la empresa y ejecutar de nuevo procesar-costes.", W_PROC),
+    _code("DEP-019", W, "Filas con el EAC cero o negativo",
+          "La línea de EDT cliente de la fila tiene importes que suman cero o un valor negativo (p. ej. abonos que "
+          "anulan los cargos): el % planificado es el importe del mes dividido por el EAC, y no se puede calcular. La "
+          "fila conserva su % planificado.",
+          "Revisar los importes de la línea en el plan de costes.", W_PROC),
     _code("DEP-020", W, "EDT cliente repetida en el plan de costes",
           "Dos o más líneas de EDT cliente tienen el mismo código: se suman sus importes.",
           "Revisar el plan de costes: cada EDT cliente debería tener una sola línea.", W_PROC),
+    _code("DEP-021", I, "Plan de costes que no cubre la línea base de la fila",
+          "El plan de la fila empieza después del mes de comienzo de su línea base o termina antes del mes de su fin "
+          "(columnas E y F de la hoja PV). El PV de la fila sigue el plan: si al plan le faltan meses, el PV no sigue "
+          "el cronograma y el SPI de la fila no mide el avance frente a él.",
+          "Completar los meses del plan de costes, o revisar las fechas en MS Project. Si el plan es correcto (p. ej. "
+          "costes que se pagan después de terminar la tarea), ninguna.", W_PROC),
 
     # --- ACT: actualizar y analizar -----------------------------------------------------------------------------
     _code("ACT-001", F, "El libro es de un solo archivo",

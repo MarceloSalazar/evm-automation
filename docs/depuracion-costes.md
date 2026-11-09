@@ -50,7 +50,7 @@ flowchart LR
     PD -- "líneas de EDT cliente" --> CO["Fila «(coste)»<br/>debajo de cada fila:<br/>meses y EAC"]
     PV & CO --> G["Hoja Depuración costes:<br/>curvas acumuladas"]
     G -- "diferencias" --> AJ["Ajuste del plan<br/>o de MS Project"]
-    PD -- "procesar-costes" --> PCT["Hoja % PV-EmpresaA:<br/>importe del mes / BAC"]
+    PD -- "procesar-costes" --> PCT["Hoja % PV-EmpresaA:<br/>importe del mes / EAC"]
     PCT --> PV
 ```
 
@@ -69,9 +69,9 @@ flowchart LR
 - La hoja `Depuración costes` muestra las **dos curvas acumuladas** del elemento EDT elegido.
 - Las filas «(coste)» **no forman parte** del PV, del EV ni de los indicadores: `actualizar`, `analizar`
   y el Cuadro de Mando dan los mismos resultados que en un libro sin depuración.
-- Cuando el PV de la empresa debe ser el de su plan de costes, `procesar-costes` escribe en la hoja
-  `% PV-EmpresaA` el importe de cada mes dividido por el BAC de la fila: el PV (BAC × %) es el importe del
-  plan ([8](#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes)).
+- Cuando el PV de la empresa debe seguir el reparto de su plan de costes, `procesar-costes` escribe en la
+  hoja `% PV-EmpresaA` el importe de cada mes dividido por el EAC de su línea: el PV (BAC × %) reparte el
+  BAC como el plan ([8](#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes)).
 
 ---
 
@@ -261,8 +261,8 @@ con `procesar-costes`.
 
 ## 8. PV con el reparto del plan de costes (procesar-costes)
 
-Cuando el PV de la empresa debe ser el de su plan de costes, y no el que resulta de las tareas de
-MS Project, el comando `procesar-costes` lleva el importe de cada mes al % planificado:
+Cuando el PV de la empresa debe seguir el reparto en el tiempo de su plan de costes, y no el que resulta
+de las tareas de MS Project, el comando `procesar-costes` lleva ese reparto al % planificado:
 
 ```powershell
 python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx
@@ -275,24 +275,33 @@ python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx --calculos    #
 - Lee las **líneas de EDT cliente** con el código de una fila de ingreso de la hoja PV de la empresa
   ([4.2](#42-qué-líneas-se-leen)): la **EDT cliente** es la clave.
 - En la hoja `% PV-EmpresaA` (o `% PV` en un libro de una sola empresa), el % planificado de cada mes de
-  la fila es el **importe del mes dividido por el BAC de la fila** (columna D de la hoja PV de la empresa).
-  Los meses procesados se muestran en cursiva naranja.
-- Así, el PV (**BAC × %**) de cada mes es **el importe del plan**, en todas las hojas y en los indicadores.
-  Si el EAC de la fila no coincide con el BAC, el % planificado no suma 100 % y el total del PV no es el
-  BAC: las dos hojas lo marcan en rojo, para corregir el plan.
-- Las filas sin línea en el plan, sin BAC o con la línea sin importes, y las de la otra empresa,
-  conservan su % planificado.
+  la fila es el **importe del mes dividido por el EAC de su línea** (la suma de sus meses, también los
+  posteriores al horizonte). Los meses procesados se muestran en cursiva naranja.
+- Así, la fila suma 100 % y el PV (**BAC × %**) **reparte el BAC como el plan**, en todas las hojas y en
+  los indicadores. Con el EAC igual al BAC, el PV de cada mes es el importe del plan.
+- Si el EAC no coincide con el BAC, el PV sigue terminando en el BAC: la diferencia se ve en la fila
+  «(coste)», que muestra los importes del plan y su EAC, y en el gráfico. El PV debe terminar en el BAC
+  porque el EV también termina en él (BAC × % ganado): si el PV terminara en el EAC, un proyecto al día
+  tendría un SPI distinto de 1 todos los meses. Un sobrecoste previsto se refleja en el EAC, no en el PV.
+- El % no depende del BAC: si el BAC se ingresa o cambia después, el PV se ajusta solo, sin volver a
+  ejecutar `procesar-costes`.
+- Las filas sin línea en el plan, con la línea sin importes o con el EAC cero o negativo (p. ej. abonos
+  que anulan los cargos), y las de la otra empresa, conservan su % planificado.
+- Si el plan de una fila empieza después del mes de comienzo de su línea base o termina antes del mes de
+  su fin, se informa ([DEP-021](codigos.md#dep-021)): si al plan le faltan meses, el PV no sigue el
+  cronograma. Se completa el plan o se revisan las fechas en MS Project.
 - No lee MS Project: se puede ejecutar cada vez que cambia el plan. Con `--simular` muestra el resultado
   sin modificar el libro.
 
 | Ejemplo (fila `1.1.0`, BAC 150) | Mes 1 | Mes 2 | Mes 3 | Total |
 |---|---:|---:|---:|---:|
 | Plan de costes: línea de EDT cliente (EAC 157) | 31 | 30 | 39... | 157 |
-| % planificado (importe / BAC) | 20,7 % | 20,0 % | 26,0 %... | 104,7 % |
-| PV (BAC × %) | 31 | 30 | 39... | 157 |
+| % planificado (importe / EAC) | 19,7 % | 19,1 % | 24,8 %... | 100 % |
+| PV (BAC × %) | 29,6 | 28,7 | 37,3... | 150 |
 
-Si después cambia el BAC de una fila, su PV cambia en la misma proporción: para que vuelva a ser el
-importe del plan, se ejecuta de nuevo `procesar-costes`.
+Mientras se depura el plan, `procesar-costes` se ejecuta de nuevo cada vez que el plan cambia. Una vez
+fijada la línea base, procesar una nueva previsión del plan cambia el PV: se recomienda hacerlo solo con
+los cambios aprobados.
 
 Las filas procesadas quedan marcadas en el libro, y su % planificado:
 
@@ -389,8 +398,9 @@ Sobre `--migrar-desde` en la depuración:
 | `Reúne varias filas del libro anterior con el reparto del plan de costes ...` (Advertencia) | La fila nueva junta varias filas procesadas (p. ej. al bajar el nivel máximo): su % planificado vuelve a ser el de MS Project. |
 
 `procesar-costes` informa en la consola las líneas de EDT cliente sin leer, los importes después del
-horizonte, las filas sin línea en el plan, sin importes o sin BAC, las EDT cliente repetidas y los
-importes guardados como texto ([DEP-012 a DEP-020](codigos.md#413-dep--depuración-de-costes)).
+horizonte, las filas sin línea en el plan, sin importes o con el EAC cero o negativo, las EDT cliente
+repetidas, los importes guardados como texto y las filas cuyo plan no cubre los meses de su línea base
+([DEP-012 a DEP-021](codigos.md#413-dep--depuración-de-costes)).
 
 Limitaciones:
 
@@ -413,8 +423,8 @@ planificado.
 componentes (los cálculos del plan). Leer también esas líneas contaría dos veces el mismo importe.
 
 **¿Hay que hacer coincidir el BAC y el EAC?** Es el objetivo, pero el programa no los compara. Con
-`procesar-costes`, el PV de la fila es el importe del plan: si el EAC no coincide con el BAC, el total
-del PV tampoco, y la hoja PV de la empresa lo marca en rojo (`Total horizonte` distinto del BAC).
+`procesar-costes`, el PV de la fila reparte su BAC como el plan: el total del PV es el BAC aunque el EAC
+no coincida, y la diferencia se ve en la fila «(coste)» (columna D) y en el gráfico.
 
 **¿Se pueden cargar los cierres mensuales en el libro de depuración?** Sí, `actualizar` y `analizar`
 funcionan igual. Pero el libro muestra el plan de costes de la empresa: para entregar o compartir el
