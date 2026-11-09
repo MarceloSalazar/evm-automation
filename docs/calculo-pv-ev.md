@@ -334,10 +334,10 @@ Casos especiales (se informan en `Validación`):
 | Tarea sin fechas de línea base (agregada después de guardarla) | Se usan sus fechas actuales y se advierte. |
 | Ninguna tarea de la fila tiene fechas | La fila no tiene % planificado: su BAC no se puede repartir en el tiempo. |
 
-Si el PV de una empresa debe seguir el reparto mensual de su plan de costes, y no el de las tareas, el
-comando `procesar-costes` reemplaza el % planificado de sus filas por el importe de cada mes del plan
-dividido por el EAC de su línea: la fila sigue sumando 100 % y su PV, el BAC
-([Depuración de costes](depuracion-costes.md#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes)).
+El % planificado sale siempre de MS Project. Para comprobar que el PV de una empresa sigue el reparto
+mensual de su plan de costes, se compara con él en un libro con
+[depuración de costes](depuracion-costes.md), y las diferencias se ajustan en MS Project (fechas, hitos y
+su `Peso hito`).
 
 **Ejemplo** (caso ilustrativo, con datos distintos de los del proyecto de ejemplo). Paquete
 `3.2.1 Suministro de equipos`, BAC 1.000.000:

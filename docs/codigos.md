@@ -2237,8 +2237,8 @@ Hoja PV-depuración, su traslado con `--migrar-desde` y el reparto del plan de c
 | [DEP-007](#dep-007) | Info | Previsión pasada al formato con EDT interna |
 | [DEP-008](#dep-008) | Advertencia o Info | Meses de la previsión desplazados |
 | [DEP-009](#dep-009) | Info | Previsión pasada al formato con la columna EAC |
-| [DEP-010](#dep-010) | Info o Advertencia | Reparto del plan de costes conservado |
-| [DEP-011](#dep-011) | Advertencia | Reparto del plan de costes no combinado |
+| [DEP-010](#dep-010) | Info o Advertencia | Reparto del plan de costes conservado *(retirado)* |
+| [DEP-011](#dep-011) | Advertencia | Reparto del plan de costes no combinado *(retirado)* |
 | [DEP-012](#dep-012) | Error (detiene el programa) | Libro sin depuración de costes |
 | [DEP-013](#dep-013) | Error (detiene el programa) | Plan de costes sin líneas leídas |
 | [DEP-014](#dep-014) | Advertencia | Líneas de EDT cliente sin leer |
@@ -2246,9 +2246,9 @@ Hoja PV-depuración, su traslado con `--migrar-desde` y el reparto del plan de c
 | [DEP-016](#dep-016) | Info | Filas sin línea en el plan de costes |
 | [DEP-017](#dep-017) | Advertencia | Filas sin importes en el plan de costes |
 | [DEP-018](#dep-018) | Advertencia | Importes del plan de costes que no se leen |
-| [DEP-019](#dep-019) | Advertencia | Filas con el EAC cero o negativo |
-| [DEP-020](#dep-020) | Advertencia | EDT cliente repetida en el plan de costes |
-| [DEP-021](#dep-021) | Info | Plan de costes que no cubre la línea base de la fila |
+| [DEP-019](#dep-019) | Advertencia | EDT cliente repetida en el plan de costes |
+| [DEP-020](#dep-020) | Info | % planificado de MS Project recuperado |
+| [DEP-021](#dep-021) | Advertencia | Filas con el reparto del plan de costes |
 
 #### DEP-001
 
@@ -2324,19 +2324,19 @@ La hoja PV-depuración del libro anterior (versión 2.4) no tenía la columna EA
 
 #### DEP-010
 
-**Reparto del plan de costes conservado** · Info o Advertencia · generar `--migrar-desde` (hoja Validación) · se puede silenciar
+**Reparto del plan de costes conservado** · Info o Advertencia · generar `--migrar-desde` (hoja Validación) · se puede silenciar · retirado en la versión 2.6.0
 
-Las filas procesadas con procesar-costes conservan en el libro nuevo el % planificado del plan de costes, en lugar del que resulta de MS Project. Es una advertencia si quedaron meses después del horizonte del libro nuevo: el % planificado de esas filas no suma 100 %.
+Hasta la versión 2.5, `--migrar-desde` conservaba en el libro nuevo el % planificado de las filas procesadas con procesar-costes. Desde la versión 2.6.0, procesar-costes no modifica el % planificado y `--migrar-desde` lo vuelve a calcular con MS Project (ver [DEP-020](#dep-020)).
 
-**Qué hacer:** Ninguna. Si el plan de costes cambió, ejecutar procesar-costes en un libro con depuración de costes.
+**Qué hacer:** Ninguna.
 
 #### DEP-011
 
-**Reparto del plan de costes no combinado** · Advertencia · generar `--migrar-desde` (hoja Validación) · se puede silenciar
+**Reparto del plan de costes no combinado** · Advertencia · generar `--migrar-desde` (hoja Validación) · se puede silenciar · retirado en la versión 2.6.0
 
-La fila nueva reúne varias filas del libro anterior con el reparto del plan de costes (p. ej. al bajar el nivel máximo): su % planificado se calcula con MS Project.
+Hasta la versión 2.5, se informaba la fila nueva que reunía varias filas procesadas con procesar-costes. Desde la versión 2.6.0, el % planificado de todas las filas se calcula con MS Project (ver [DEP-020](#dep-020)).
 
-**Qué hacer:** Ejecutar procesar-costes en un libro con depuración de costes.
+**Qué hacer:** Ninguna.
 
 #### DEP-012
 
@@ -2358,7 +2358,7 @@ Ninguna línea de EDT cliente de la hoja PV-depuración tiene el código de una 
 
 **Líneas de EDT cliente sin leer** · Advertencia · procesar-costes · se puede silenciar
 
-Líneas de EDT cliente con importes que no se leen: su código no es el de una fila del libro, o es el de un resumen del libro y ninguna línea de un código inferior se lee. Su importe no forma parte del % planificado.
+Líneas de EDT cliente con importes que no se leen: su código no es el de una fila del libro, o es el de un resumen del libro y ninguna línea de un código inferior se lee. Su importe no llega a ninguna fila «(coste)».
 
 **Qué hacer:** Corregir los códigos en el plan de costes, agregar las filas al libro (p. ej. con lista_edt) o detallar el resumen con las EDT cliente de sus filas.
 
@@ -2366,7 +2366,7 @@ Líneas de EDT cliente con importes que no se leen: su código no es el de una f
 
 **Plan de costes después del horizonte** · Advertencia · procesar-costes · se puede silenciar
 
-El plan de costes tiene importes en meses posteriores al horizonte del libro: no forman parte del % planificado.
+El plan de costes tiene importes en meses posteriores al horizonte del libro: forman parte del EAC de la fila «(coste)», pero no de sus meses ni del gráfico.
 
 **Qué hacer:** Ampliar el horizonte del libro (meses) o revisar el plan de costes.
 
@@ -2374,7 +2374,7 @@ El plan de costes tiene importes en meses posteriores al horizonte del libro: no
 
 **Filas sin línea en el plan de costes** · Info · procesar-costes · se puede silenciar
 
-Filas de ingreso de la empresa sin línea de EDT cliente en el plan de costes: conservan su % planificado, de MS Project o de un procesado anterior.
+Filas de ingreso de la empresa sin línea de EDT cliente en el plan de costes: su fila «(coste)» queda vacía.
 
 **Qué hacer:** Ninguna, si la empresa no tiene costes en esas filas.
 
@@ -2382,7 +2382,7 @@ Filas de ingreso de la empresa sin línea de EDT cliente en el plan de costes: c
 
 **Filas sin importes en el plan de costes** · Advertencia · procesar-costes · se puede silenciar
 
-La línea de EDT cliente de la fila no tiene importes en los meses (p. ej. faltan los cálculos del plan): la fila conserva su % planificado.
+La línea de EDT cliente de la fila no tiene importes en los meses (p. ej. faltan los cálculos del plan): su fila «(coste)» queda en 0.
 
 **Qué hacer:** Completar los cálculos del plan (o ejecutar procesar-costes `--calculos`) y revisar los importes.
 
@@ -2396,27 +2396,27 @@ Importes guardados como texto, o celdas con fórmula sin valor calculado (el lib
 
 #### DEP-019
 
-**Filas con el EAC cero o negativo** · Advertencia · procesar-costes · se puede silenciar
-
-La línea de EDT cliente de la fila tiene importes que suman cero o un valor negativo (p. ej. abonos que anulan los cargos): el % planificado es el importe del mes dividido por el EAC, y no se puede calcular. La fila conserva su % planificado.
-
-**Qué hacer:** Revisar los importes de la línea en el plan de costes.
-
-#### DEP-020
-
 **EDT cliente repetida en el plan de costes** · Advertencia · procesar-costes · se puede silenciar
 
 Dos o más líneas de EDT cliente tienen el mismo código: se suman sus importes.
 
 **Qué hacer:** Revisar el plan de costes: cada EDT cliente debería tener una sola línea.
 
+#### DEP-020
+
+**% planificado de MS Project recuperado** · Info · generar `--migrar-desde` (hoja Validación) · se puede silenciar
+
+Filas que en el libro anterior tenían en la hoja % PV el reparto del plan de costes, escrito por procesar-costes en una versión anterior a la 2.6.0: en el libro nuevo, su % planificado vuelve a ser el de MS Project. El plan de costes se compara con el PV en las filas «(coste)».
+
+**Qué hacer:** Ninguna.
+
 #### DEP-021
 
-**Plan de costes que no cubre la línea base de la fila** · Info · procesar-costes · se puede silenciar
+**Filas con el reparto del plan de costes** · Advertencia · actualizar y procesar-costes · se puede silenciar
 
-El plan de la fila empieza después del mes de comienzo de su línea base o termina antes del mes de su fin (columnas E y F de la hoja PV). El PV de la fila sigue el plan: si al plan le faltan meses, el PV no sigue el cronograma y el SPI de la fila no mide el avance frente a él.
+El libro tiene filas cuyo % planificado es el reparto del plan de costes, escrito por procesar-costes en una versión anterior a la 2.6.0: no es el de MS Project. actualizar no compara esas filas con la línea base ([ACT-047](#act-047)).
 
-**Qué hacer:** Completar los meses del plan de costes, o revisar las fechas en MS Project. Si el plan es correcto (p. ej. costes que se pagan después de terminar la tarea), ninguna.
+**Qué hacer:** Generar un libro nuevo con `--migrar-desde`: vuelve a calcular su % planificado con MS Project y conserva el BAC, el % ganado y el AC.
 
 ---
 

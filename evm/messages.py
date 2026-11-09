@@ -1102,15 +1102,14 @@ _CODES = [
           "los meses de cada línea, y los meses empiezan en la columna G.",
           "Ninguna."),
     _code("DEP-010", (I, W), "Reparto del plan de costes conservado",
-          "Las filas procesadas con procesar-costes conservan en el libro nuevo el % planificado del plan de costes, "
-          "en lugar del que resulta de MS Project. Es una advertencia si quedaron meses después del horizonte del "
-          "libro nuevo: el % planificado de esas filas no suma 100 %.",
-          "Ninguna. Si el plan de costes cambió, ejecutar procesar-costes en un libro con depuración de costes.",
-          W_MIG),
+          "Hasta la versión 2.5, --migrar-desde conservaba en el libro nuevo el % planificado de las filas procesadas "
+          "con procesar-costes. Desde la versión 2.6.0, procesar-costes no modifica el % planificado y --migrar-desde "
+          "lo vuelve a calcular con MS Project (ver DEP-020).",
+          "Ninguna.", W_MIG, retired="2.6.0"),
     _code("DEP-011", W, "Reparto del plan de costes no combinado",
-          "La fila nueva reúne varias filas del libro anterior con el reparto del plan de costes (p. ej. al bajar el "
-          "nivel máximo): su % planificado se calcula con MS Project.",
-          "Ejecutar procesar-costes en un libro con depuración de costes.", W_MIG),
+          "Hasta la versión 2.5, se informaba la fila nueva que reunía varias filas procesadas con procesar-costes. "
+          "Desde la versión 2.6.0, el % planificado de todas las filas se calcula con MS Project (ver DEP-020).",
+          "Ninguna.", W_MIG, retired="2.6.0"),
     _code("DEP-012", F, "Libro sin depuración de costes",
           "procesar-costes necesita un libro generado con depuracion_costes = true, con el plan de costes pegado en la "
           "hoja PV-depuración.",
@@ -1121,40 +1120,40 @@ _CODES = [
           "Escribir el plan de costes desde la celda A8 y revisar la columna 'Asignado a'.", W_PROC),
     _code("DEP-014", W, "Líneas de EDT cliente sin leer",
           "Líneas de EDT cliente con importes que no se leen: su código no es el de una fila del libro, o es el de un "
-          "resumen del libro y ninguna línea de un código inferior se lee. Su importe no forma parte del % "
-          "planificado.",
+          "resumen del libro y ninguna línea de un código inferior se lee. Su importe no llega a ninguna fila "
+          "«(coste)».",
           "Corregir los códigos en el plan de costes, agregar las filas al libro (p. ej. con lista_edt) o detallar "
           "el resumen con las EDT cliente de sus filas.", W_PROC),
     _code("DEP-015", W, "Plan de costes después del horizonte",
-          "El plan de costes tiene importes en meses posteriores al horizonte del libro: no forman parte del % "
-          "planificado.",
+          "El plan de costes tiene importes en meses posteriores al horizonte del libro: forman parte del EAC de la "
+          "fila «(coste)», pero no de sus meses ni del gráfico.",
           "Ampliar el horizonte del libro (meses) o revisar el plan de costes.", W_PROC),
     _code("DEP-016", I, "Filas sin línea en el plan de costes",
-          "Filas de ingreso de la empresa sin línea de EDT cliente en el plan de costes: conservan su % planificado, "
-          "de MS Project o de un procesado anterior.",
+          "Filas de ingreso de la empresa sin línea de EDT cliente en el plan de costes: su fila «(coste)» queda "
+          "vacía.",
           "Ninguna, si la empresa no tiene costes en esas filas.", W_PROC),
     _code("DEP-017", W, "Filas sin importes en el plan de costes",
           "La línea de EDT cliente de la fila no tiene importes en los meses (p. ej. faltan los cálculos del plan): "
-          "la fila conserva su % planificado.",
+          "su fila «(coste)» queda en 0.",
           "Completar los cálculos del plan (o ejecutar procesar-costes --calculos) y revisar los importes.", W_PROC),
     _code("DEP-018", W, "Importes del plan de costes que no se leen",
           "Importes guardados como texto, o celdas con fórmula sin valor calculado (el libro no se guardó en Excel "
           "después de escribirlas).",
           "Escribir números; abrir y guardar el libro en Excel, o ejecutar procesar-costes --calculos.", W_PROC),
-    _code("DEP-019", W, "Filas con el EAC cero o negativo",
-          "La línea de EDT cliente de la fila tiene importes que suman cero o un valor negativo (p. ej. abonos que "
-          "anulan los cargos): el % planificado es el importe del mes dividido por el EAC, y no se puede calcular. La "
-          "fila conserva su % planificado.",
-          "Revisar los importes de la línea en el plan de costes.", W_PROC),
-    _code("DEP-020", W, "EDT cliente repetida en el plan de costes",
+    _code("DEP-019", W, "EDT cliente repetida en el plan de costes",
           "Dos o más líneas de EDT cliente tienen el mismo código: se suman sus importes.",
           "Revisar el plan de costes: cada EDT cliente debería tener una sola línea.", W_PROC),
-    _code("DEP-021", I, "Plan de costes que no cubre la línea base de la fila",
-          "El plan de la fila empieza después del mes de comienzo de su línea base o termina antes del mes de su fin "
-          "(columnas E y F de la hoja PV). El PV de la fila sigue el plan: si al plan le faltan meses, el PV no sigue "
-          "el cronograma y el SPI de la fila no mide el avance frente a él.",
-          "Completar los meses del plan de costes, o revisar las fechas en MS Project. Si el plan es correcto (p. ej. "
-          "costes que se pagan después de terminar la tarea), ninguna.", W_PROC),
+    _code("DEP-020", I, "% planificado de MS Project recuperado",
+          "Filas que en el libro anterior tenían en la hoja % PV el reparto del plan de costes, escrito por "
+          "procesar-costes en una versión anterior a la 2.6.0: en el libro nuevo, su % planificado vuelve a ser el de "
+          "MS Project. El plan de costes se compara con el PV en las filas «(coste)».",
+          "Ninguna.", W_MIG),
+    _code("DEP-021", W, "Filas con el reparto del plan de costes",
+          "El libro tiene filas cuyo % planificado es el reparto del plan de costes, escrito por procesar-costes en "
+          "una versión anterior a la 2.6.0: no es el de MS Project. actualizar no compara esas filas con la línea "
+          "base (ACT-047).",
+          "Generar un libro nuevo con --migrar-desde: vuelve a calcular su % planificado con MS Project y conserva el "
+          "BAC, el % ganado y el AC.", f"{W_ACT} y {W_PROC}"),
 
     # --- ACT: actualizar y analizar -----------------------------------------------------------------------------
     _code("ACT-001", F, "El libro es de un solo archivo",

@@ -13,7 +13,7 @@ from evm.messages import InputError
 from evm.migrate import plan_migration, prior_from_book
 from evm.update import indicators_for, read_book, run_analysis, run_update
 from evm.wbs import SEV_INFO, SEV_WARN, build_report
-from evm.workbook import (COLOR_COST, FILL_COST, FILL_INPUT, KIND_COST, SHEET_STRUCT, read_structure,
+from evm.workbook import (FILL_COST, FILL_INPUT, KIND_COST, SHEET_STRUCT, read_structure,
                           write_workbook)
 
 from builders import P, T, issues_with, rows_by_code
@@ -538,56 +538,37 @@ def processed_book(tmp_path, lines=PLAN):
     return path
 
 
-def test_procesar_costes_writes_the_plan_distribution(tmp_path):
+def test_procesar_costes_reviews_the_plan_without_changing_the_book(tmp_path):
+    """Sin --calculos, procesar-costes revisa el plan y no modifica el libro: el % planificado es el de MS Project."""
     path = processed_book(tmp_path)
-    before = read_book(path)
+    data = path.read_bytes()
     res = run_cost_plan(config(), path)
-    assert res.backup is not None and res.backup.exists() and res.calculated is None
+    assert path.read_bytes() == data and not res.saved and res.backup is None and res.calculated is None
     assert res.sheet == "PV-EmpresaA" and [x[0] for x in res.rows] == ["1.1.0", "1.2.1", "1.2.2"]
     assert res.rows[2][2:] == (96, 100)                                     # EAC de la línea y BAC de la fila
     assert res.lines == 9 and res.counted == 3 and res.inputs == 5
     assert res.total == pytest.approx(117 + 65 + 96) and res.assigned == pytest.approx(117 + 65 + 96)
-    book = read_book(path)
-    r = rows(load_workbook(path))
-    pct = book.pct_pv["A"]
-    assert pct[r["1.2.2"]][:3] == pytest.approx([56 / 96, 40 / 96, 0])     # importe / EAC (96, no el BAC 100)
-    # PV = BAC × %: cada fila suma 100 % y el PV reparte el BAC como el plan; con el BAC igual al EAC (1.1.0 y
-    # 1.2.1), es el importe del plan
-    pv_a = {s.code: [book.bac_role["A"][s.row] * v for v in pct[s.row]] for s in book.input_rows}
-    for code, expected in PLAN_COST.items():
-        assert sum(pct[r[code]]) == pytest.approx(1), code
-        scale = BAC_A[code] / sum(expected)
-        assert pv_a[code][:len(expected)] == pytest.approx([v * scale for v in expected]), code
-    assert pv_a["1.1.0"][:5] == pytest.approx(PLAN_COST["1.1.0"]) and sum(pv_a["1.2.2"]) == pytest.approx(100)
-    # Sin línea en el plan: conserva el % de MS Project; la otra empresa no cambia
-    assert pct[r["1.0.0-D"]] == before.pct_pv["A"][r["1.0.0-D"]] and pct[r["2.1.0"]] == before.pct_pv["A"][r["2.1.0"]]
-    assert book.pct_pv["B"] == before.pct_pv["B"]
-    marks = {s.code: s.plan_pv for s in book.structure}
-    assert marks["1.1.0"] == ("A",) and marks["2.1.0"] == () and marks["1.0.0-D"] == ()
-    wb = load_workbook(path)
-    assert "procesar-costes" in wb["% PV-EmpresaA"]["A1"].value
-    assert "procesar-costes" not in wb["% PV-EmpresaB"]["A1"].value
-    assert wb["% PV-EmpresaA"].cell(row=r["1.1.0"], column=7).font.color.rgb.endswith(COLOR_COST)
     by = {i.id: i.message for i in res.warnings}
-    assert set(by) == {"DEP-014", "DEP-016", "DEP-021"}
+    assert set(by) == {"DEP-014", "DEP-016"}
     assert "1.2.7 (fila 21): sin fila del libro" in by["DEP-014"]
     assert "2.0.0 (fila 23): resumen sin detalle" in by["DEP-014"]
-    assert "(2): 1.0.0-D, 2.1.0" in by["DEP-016"]
-    # 1.2.2: el plan termina en febrero y su línea base, en marzo (1.1.0 termina después: sí la cubre)
-    assert "(1): 1.2.2 (plan 01/2027 a 02/2027; línea base 02/2027 a 03/2027)" in by["DEP-021"]
-    assert next(i for i in res.warnings if i.id == "DEP-021").severity == SEV_INFO
+    assert "(2): 1.0.0-D, 2.1.0. Su fila «(coste)» queda vacía." in by["DEP-016"]
 
 
 def test_procesar_costes_with_calculations(tmp_path):
-    """--calculos: escribe las fórmulas del plan en la hoja PV-depuración y usa sus resultados."""
+    """--calculos: escribe las fórmulas del plan en la hoja PV-depuración y usa sus resultados; el % planificado
+    no cambia."""
     path = processed_book(tmp_path, PLAN_DATA)
+    before = read_book(path)
     res = run_cost_plan(config(cost_review_calcs=True), path, backup=False)
-    assert res.calculated == 16 and [x[0] for x in res.rows] == ["1.1.0", "1.2.1", "1.2.2"]
+    assert res.saved and res.calculated == 16 and [x[0] for x in res.rows] == ["1.1.0", "1.2.1", "1.2.2"]
+    assert [x[2] for x in res.rows] == [117, 65, 96]
     book = read_book(path)
-    r = rows(load_workbook(path))
-    assert [book.bac_role["A"][r["1.1.0"]] * v for v in book.pct_pv["A"][r["1.1.0"]][:5]] == pytest.approx(
-        PLAN_COST["1.1.0"])
-    ws = load_workbook(path)[cr.SHEET_PASTE]
+    assert book.pct_pv == before.pct_pv and all(not s.plan_pv for s in book.structure)
+    wb = load_workbook(path)
+    assert "procesar-costes" not in wb["% PV-EmpresaA"]["A1"].value
+    assert wb[SHEET_STRUCT].max_column == 8                 # sin la columna de las filas procesadas (antes de 2.6.0)
+    ws = wb[cr.SHEET_PASTE]
     first = cr.P_FIRST
     assert ws.cell(row=first, column=cr.P_FIRST_MONTH).value == f"=SUM(G{first + 1},G{first + 5})"
     assert ws.cell(row=first + 3, column=cr.P_EAC).value == f"=SUM(G{first + 3}:DV{first + 3})"
@@ -597,7 +578,8 @@ def test_procesar_costes_with_calculations(tmp_path):
     (tmp_path / "sin").mkdir()
     res = run_cost_plan(config(), processed_book(tmp_path / "sin", PLAN_DATA), backup=False)
     assert [x[0] for x in res.rows] == ["1.2.2"]
-    assert "(2): 1.1.0, 1.2.1" in next(i.message for i in res.warnings if i.id == "DEP-017")
+    assert "(2): 1.1.0, 1.2.1. Su fila «(coste)» queda en 0." in next(
+        i.message for i in res.warnings if i.id == "DEP-017")
 
 
 def test_procesar_costes_notices(tmp_path):
@@ -613,24 +595,19 @@ def test_procesar_costes_notices(tmp_path):
     ])
     res = run_cost_plan(config(), path, backup=False)
     by = {i.id: i.message for i in res.warnings}
-    assert "50,00" in by["DEP-015"] and "(1.1.0)" in by["DEP-015"] and "(1): 1.2.1 (EAC -20,00)" in by["DEP-019"]
-    assert "(1): 1.2.2" in by["DEP-017"] and "--calculos" in by["DEP-017"] and "1.1" in by["DEP-020"]
+    assert set(by) == {"DEP-015", "DEP-016", "DEP-017", "DEP-018", "DEP-019"}
+    assert "50,00" in by["DEP-015"] and "(1.1.0)" in by["DEP-015"] and "pero no de sus meses" in by["DEP-015"]
+    assert "(1): 1.2.2" in by["DEP-017"] and "--calculos" in by["DEP-017"] and "1.1" in by["DEP-019"]
     assert "importes guardados como texto" in by["DEP-018"] and "1 celda tiene una fórmula" in by["DEP-018"]
-    # 2.1.0: plan solo en marzo, línea base de enero a marzo
-    assert "(1): 2.1.0 (plan 03/2027; línea base 01/2027 a 03/2027)" in by["DEP-021"]
-    book = read_book(path)
-    r = rows(load_workbook(path))
-    assert sum(book.pct_pv["A"][r["1.1.0"]]) == pytest.approx(100 / 150)      # / EAC 150, no el BAC; lo posterior no
-    assert book.pct_pv["A"][r["2.1.0"]][:3] == pytest.approx([0, 0, 1])       # sin BAC: se procesa igual
-    marks = {s.code: s.plan_pv for s in book.structure}
-    assert marks["1.2.1"] == () and marks["1.2.2"] == () and marks["2.1.0"] == ("A",)
+    eac = {code: (e, bac) for code, _name, e, bac in res.rows}
+    assert eac == {"1.1.0": (150, 300), "1.2.1": (-20, 10), "2.1.0": (20, 0)}
 
 
 def test_procesar_costes_simulation_and_errors(tmp_path):
     path = processed_book(tmp_path)
     data = path.read_bytes()
     res = run_cost_plan(config(cost_review_calcs=True), path, dry_run=True)
-    assert res.dry_run and res.backup is None and len(res.rows) == 3 and path.read_bytes() == data
+    assert res.dry_run and not res.saved and res.backup is None and len(res.rows) == 3 and path.read_bytes() == data
     empty = tmp_path / "vacio.xlsx"
     make_book(empty, config())
     with pytest.raises(InputError) as exc:
@@ -645,11 +622,14 @@ def test_procesar_costes_simulation_and_errors(tmp_path):
 
 def test_procesar_costes_command(tmp_path, capsys):
     path = processed_book(tmp_path, PLAN_DATA)
+    assert main(["procesar-costes", "--libro", str(path)]) == 0
+    out = capsys.readouterr().out
+    assert "No se modificó el libro (los cálculos del plan se escriben con --calculos)." in out
     assert main(["procesar-costes", "--libro", str(path), "--sin-respaldo", "--calculos"]) == 0
     out = capsys.readouterr().out
     assert "Cálculos del plan de costes: 16 líneas" in out and "Plan de costes en 3 de 5 filas de ingreso" in out
     assert "DEP-014" in out and "1.1.0" in out and "Libro actualizado" in out
-    assert "importe del mes / EAC de la línea" in out
+    assert "El % planificado (hoja '% PV-EmpresaA') no cambia: es el de MS Project." in out
     line = next(x for x in out.splitlines() if x.strip().startswith("1.2.2"))
     assert "EAC" in line and line.split("EAC")[1].split("BAC")[0].strip() == "96" and line.endswith(" 100")
     plain = tmp_path / "sin_depuracion.xlsx"
@@ -658,33 +638,39 @@ def test_procesar_costes_command(tmp_path, capsys):
     assert "DEP-012" in capsys.readouterr().err
 
 
-def test_delivery_book_keeps_the_plan_amounts(tmp_path):
+def legacy_processed_book(tmp_path):
+    """Libro procesado con procesar-costes antes de la versión 2.6.0: el reparto del plan en la hoja % PV-EmpresaA
+    (importe / EAC) y las filas marcadas en la columna 9 de _estructura."""
     path = processed_book(tmp_path)
-    run_cost_plan(config(), path, backup=False)
-    processed = read_book(path)
-    old = rows(load_workbook(path))
-    final = tmp_path / "final.xlsx"                 # libro de entrega: sin depuración
-    rep = make_book(final, config(review=False), prior_from_book(path, "Programa"))
-    assert issues_with(rep, "reparto del plan de costes (procesar-costes) en 3 filas de la hoja % PV-EmpresaA",
-                       SEV_INFO)
-    book = read_book(final)
-    new = rows(load_workbook(final))
-    for code in ("1.1.0", "1.2.1", "1.2.2", "2.1.0", "1.0.0-D"):    # 2.1.0 y 1.0.0-D: el de MS Project
-        assert book.pct_pv["A"][new[code]] == pytest.approx(processed.pct_pv["A"][old[code]]), code
-    assert {s.code: s.plan_pv for s in book.structure}["1.1.0"] == ("A",)
-    assert "procesar-costes" in load_workbook(final)["% PV-EmpresaA"]["A1"].value
-    # El horizonte empieza un mes después: el mes 1 anterior se suma en el mes 1 nuevo
-    later = tmp_path / "later.xlsx"
-    make_book(later, config(review=False, start_month=date(2027, 2, 1)), prior_from_book(final, "Programa"))
-    pct = processed.pct_pv["A"][old["1.1.0"]]
-    assert read_book(later).pct_pv["A"][rows(load_workbook(later))["1.1.0"]][:4] == pytest.approx(
-        [pct[0] + pct[1], pct[2], pct[3], pct[4]])
+    wb = load_workbook(path)
+    r = rows(wb)
+    ws_pct, ws_struct = wb["% PV-EmpresaA"], wb[SHEET_STRUCT]
+    ws_struct.cell(row=1, column=9, value="pv_plan_costes")
+    struct_row = {ws_struct.cell(row=k, column=3).value: k for k in range(2, ws_struct.max_row + 1)}
+    for code, amounts in PLAN_COST.items():
+        for i in range(24):
+            v = amounts[i] / sum(amounts) if i < len(amounts) else None
+            ws_pct.cell(row=r[code], column=7 + i).value = v
+        ws_struct.cell(row=struct_row[code], column=9, value="PV-A")
+    wb.save(path)
+    return path
 
 
-def test_update_does_not_compare_the_plan_amounts_with_ms_project(tmp_path):
-    path = processed_book(tmp_path)
-    run_cost_plan(config(), path, backup=False)
+def test_legacy_processed_book_is_reported_and_migration_recovers_ms_project(tmp_path):
+    fresh = tmp_path / "fresh.xlsx"                 # % planificado de MS Project
+    make_book(fresh, config())
+    ms_project = read_book(fresh)
+    path = legacy_processed_book(tmp_path)
+    old = read_book(path)
+    assert {s.code: s.plan_pv for s in old.structure}["1.1.0"] == ("A",)
+    r_old = rows(load_workbook(path))
+    assert old.pct_pv["A"][r_old["1.2.2"]][:3] == pytest.approx([56 / 96, 40 / 96, 0])
+    # procesar-costes y actualizar avisan; actualizar no compara esas filas con la línea base (ACT-047)
+    res = run_cost_plan(config(), path)
+    dep = next(i.message for i in res.warnings if i.id == "DEP-021")
+    assert "3 filas de la hoja % PV-EmpresaA (1.1.0, 1.2.1, 1.2.2)" in dep and "--migrar-desde" in dep
     res = run_update(P(tasks()), config(), path, date(2027, 2, 28), backup=False)
+    assert [w for w in res.warnings if w.id == "DEP-021"]
     assert not [w for w in res.warnings if w.id == "ACT-047"]
     # La otra empresa sí se compara: un % planificado distinto del de MS Project se informa
     wb = load_workbook(path)
@@ -693,3 +679,20 @@ def test_update_does_not_compare_the_plan_amounts_with_ms_project(tmp_path):
     res = run_update(P(tasks()), config(), path, date(2027, 2, 28), backup=False)
     drift = [w for w in res.warnings if w.id == "ACT-047"]
     assert len(drift) == 1 and "(1.1.0)" in drift[0].message
+    # --migrar-desde: el libro nuevo (también el de entrega) tiene el % de MS Project y conserva el BAC
+    for review, name in ((True, "new.xlsx"), (False, "final.xlsx")):
+        new = tmp_path / name
+        rep = make_book(new, config(review=review), prior_from_book(path, "Programa"))
+        found = issues_with(rep, "3 filas de la hoja % PV-EmpresaA tenían en el libro anterior el reparto del plan "
+                                 "de costes", SEV_INFO)
+        assert found and found[0].id == "DEP-020"
+        book = read_book(new)
+        r_new, r_fresh = rows(load_workbook(new)), rows(load_workbook(fresh))
+        for code in ("1.1.0", "1.2.1", "1.2.2", "2.1.0", "1.0.0-D"):
+            assert book.pct_pv["A"][r_new[code]] == pytest.approx(ms_project.pct_pv["A"][r_fresh[code]]), code
+            assert book.pct_pv["B"][r_new[code]] == pytest.approx(ms_project.pct_pv["B"][r_fresh[code]]), code
+        assert all(not s.plan_pv for s in book.structure)
+        assert book.bac_role["A"][r_new["1.2.2"]] == 100.0
+        assert "procesar-costes" not in load_workbook(new)["% PV-EmpresaA"]["A1"].value
+        assert not [w for w in run_update(P(tasks()), config(review=review), new, date(2027, 2, 28),
+                                          backup=False).warnings if w.id in ("DEP-021", "ACT-047")]

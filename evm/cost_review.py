@@ -9,9 +9,9 @@ la suma de sus meses y el BAC de la EDT cliente se lee de la hoja PV de la empre
 Solo se leen las líneas de EDT cliente (código numérico en la columna A, sin nada en C ni en D) cuyo código, sin los
 ceros finales (1.2 = 1.2.0), es el de una fila de ingreso del libro. Con fórmulas de Excel, la hoja PV de la empresa
 muestra debajo de cada fila su fila «(coste)», con los meses y el EAC de esa línea; la hoja 'Depuración costes' compara
-las dos curvas acumuladas de un elemento EDT. El comando procesar-costes (evm/cost_plan.py) lee las mismas líneas
-(read_lines) y lleva su importe de cada mes al % planificado. Al terminar, el libro de entrega se genera sin depuración
-(con --migrar-desde, que conserva el BAC y el % planificado del plan de costes).
+las dos curvas acumuladas de un elemento EDT. El % planificado es siempre el de MS Project: el comando procesar-costes
+(evm/cost_plan.py) lee las mismas líneas (read_lines) para revisar el plan y escribe sus cálculos, sin modificar el %
+planificado. Al terminar, el libro de entrega se genera sin depuración (con --migrar-desde, que conserva el BAC).
 
 Estado de cada línea de EDT cliente:
 - leída: su código es el de una fila de ingreso del libro;
@@ -582,7 +582,7 @@ def write_paste(ws, report: Report, cfg: Config, lay: _Layout, rows: list[list] 
                         f"{helper}!${col(H_STATE)}${P_FIRST}:${col(H_STATE)}${P_LAST},{s})" for s in states)
 
     labels = [(P_TOTAL_ROW, "Leído en filas del libro (meses del horizonte)", "=" + by_state(H_HORIZON, STATE_READ)),
-              (P_ASSIGNED_ROW, "Leído después del horizonte (no forma parte del PV)",
+              (P_ASSIGNED_ROW, "Leído después del horizonte (fuera de los meses del libro)",
                f"={by_state(H_TOTAL, STATE_READ)}-{control}{P_TOTAL_ROW}"),
               (P_MISSING_ROW, "Sin leer: EDT cliente sin fila del libro o resumen sin detalle",
                "=" + by_state(H_TOTAL, *UNREAD))]
@@ -594,8 +594,8 @@ def write_paste(ws, report: Report, cfg: Config, lay: _Layout, rows: list[list] 
     ws.conditional_formatting.add(f"{control}{P_ASSIGNED_ROW}:{control}{P_MISSING_ROW}", FormulaRule(
         formula=[f"ABS({control}{P_ASSIGNED_ROW})>0.5"], fill=FILL_RED))
     ws.cell(row=P_TOTAL_ROW, column=P_FIRST_MONTH,
-            value=f"Resultado: filas «(coste)» de la hoja {rs} y hoja '{SHEET_CHART}'; el comando procesar-costes "
-                  "lleva el importe de cada mes al % planificado.").font = FONT_NOTE
+            value=f"Resultado: filas «(coste)» de la hoja {rs}, debajo del PV de cada fila, y hoja "
+                  f"'{SHEET_CHART}'.").font = FONT_NOTE
     ws.cell(row=P_MISSING_ROW, column=P_FIRST_MONTH,
             value=f"Fila del libro de cada línea: columnas {col(status_col)} ('Asignado a') y {col(obs_col)} "
                   "('Observación'), a la derecha de los meses.").font = FONT_NOTE
@@ -677,8 +677,8 @@ def write_chart_sheet(ws, report: Report, cfg: Config, lay: _Layout) -> None:
         f"Se elige el elemento EDT en la celda {G_SELECT} (TOTAL o un código de la hoja {rs}). PV planificado: BAC × "
         f"% planificado. Previsión: fila «(coste)», con los meses y el EAC de la EDT cliente en la hoja {SHEET_PASTE}. "
         "El objetivo es que el EAC coincida con el BAC y que las curvas se parezcan: se ajusta el plan de costes, o en "
-        "MS Project las tareas, sus fechas y el peso de los hitos (y se regenera el libro con --migrar-desde); "
-        "procesar-costes lleva el plan al % planificado.")).font = FONT_NOTE
+        "MS Project las tareas, sus fechas y el peso de los hitos (y se regenera el libro con --migrar-desde)."
+        )).font = FONT_NOTE
     ws.cell(row=2, column=1).alignment = Alignment(wrap_text=True, vertical="top")
     ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=8)
     ws.row_dimensions[2].height = 45

@@ -465,10 +465,11 @@ def cmd_procesar_costes(args) -> int:
     from evm.cost_plan import run_cost_plan
     from evm.update import book_meta
     meta = book_meta(args.libro)
-    if not args.simular:
+    save = cfg.cost_review_calcs and not args.simular     # sin los cálculos, el libro no se modifica
+    if save:
         from evm.workbook import check_writable
         check_writable(args.libro)
-    after = {} if args.simular else {"guardar": 4.5}
+    after = {"guardar": 4.5} if save else {}
     with progress.tracking(_book_stages(meta["meses"], libro=9.7, procesar=0.3, **after)):
         res = run_cost_plan(cfg, args.libro, backup=not args.sin_respaldo, dry_run=args.simular)
     decimals = int(res.book.meta.get("decimales") or 0)
@@ -485,14 +486,16 @@ def cmd_procesar_costes(args) -> int:
     if len(res.rows) > 15:
         print(f"  ... y {len(res.rows) - 15} filas más.")
     _print_notices(_silence(cfg).apply(res.warnings))
-    print(f"% planificado (hoja '% {res.sheet}') = importe del mes / EAC de la línea: el PV (BAC × %) reparte el BAC "
-          "de cada fila como el plan de costes. La diferencia entre el EAC y el BAC se ve en la fila «(coste)».")
-    if args.simular:
-        print("Simulación: no se modificó el libro.")
-    else:
+    print(f"El % planificado (hoja '% {res.sheet}') no cambia: es el de MS Project. El plan de costes se compara con "
+          f"el PV en las filas «(coste)» de la hoja {res.sheet} y en la hoja 'Depuración costes'.")
+    if res.saved:
         if res.backup:
             print(f"Respaldo: {res.backup}")
         print(f"Libro actualizado: {Path(args.libro).resolve()}")
+    elif args.simular:
+        print("Simulación: no se modificó el libro.")
+    else:
+        print("No se modificó el libro (los cálculos del plan se escriben con --calculos).")
     return 0
 
 
@@ -984,19 +987,19 @@ def build_parser() -> argparse.ArgumentParser:
     silence_option(n)
     n.set_defaults(func=cmd_analizar)
 
-    c = sub.add_parser("procesar-costes", help="lleva el reparto mensual del plan de costes de la hoja PV-depuración "
-                                               "(líneas de EDT cliente) al %% planificado de cada fila de la empresa "
-                                               "que se depura: importe del mes / EAC de la línea, y el PV (BAC × %%) "
-                                               "reparte el BAC como el plan")
+    c = sub.add_parser("procesar-costes", help="revisa el plan de costes de la hoja PV-depuración (líneas de EDT "
+                                               "cliente que se leen en las filas «(coste)», EAC y BAC de cada fila) "
+                                               "y, con --calculos, escribe sus cálculos; no modifica el %% planificado "
+                                               "de MS Project")
     c.add_argument("--libro", required=True, help="libro .xlsx generado con depuracion_costes = true")
     c.add_argument("--calculos", action="store_true",
-                   help="escribe antes en la hoja PV-depuración las fórmulas de los cálculos del plan: sumas de los "
+                   help="escribe en la hoja PV-depuración las fórmulas de los cálculos del plan: sumas de los "
                         "componentes y de las EDT interna, EAC y BAC de las EDT cliente (como [exportacion] "
-                        "depuracion_calculos = true)")
+                        "depuracion_calculos = true). Sin esta opción, el libro no se modifica")
     c.add_argument("--config", help="archivo de configuración: solo se usan [validacion] silenciar y [exportacion] "
                                     "guardado_rapido y depuracion_calculos")
-    c.add_argument("--simular", action="store_true", help="muestra el resultado sin modificar el libro")
-    c.add_argument("--sin-respaldo", action="store_true", help="no crea copia de respaldo del libro")
+    c.add_argument("--simular", action="store_true", help="con --calculos, muestra el resultado sin modificar el libro")
+    c.add_argument("--sin-respaldo", action="store_true", help="con --calculos, no crea copia de respaldo del libro")
     silence_option(c)
     c.set_defaults(func=cmd_procesar_costes)
 

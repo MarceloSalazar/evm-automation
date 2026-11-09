@@ -144,7 +144,7 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/validation.py` | Controles del archivo de MS Project: códigos EDT, fechas y duración, pesos, método y empresas (hoja `Validación` y `validar`), avance a la fecha de estado y lógica del cronograma con los criterios DCMA (solo `validar`). |
 | `evm/percent.py` | Peso de cada tarea (duración de la línea base y `Peso hito`), % planificado y % ganado de cada fila y de cada empresa. |
 | `evm/cost_review.py` | Depuración de costes: hojas `PV-depuración`, `Depuración costes` y `_depuracion` (asignación con fórmulas de la previsión pegada, y la misma asignación en Python) e indicador de alineamiento. |
-| `evm/cost_plan.py` | Comando `procesar-costes`: reparto mensual del plan de costes de la hoja `PV-depuración` en la hoja `% PV` de la empresa. |
+| `evm/cost_plan.py` | Comando `procesar-costes`: revisión del plan de costes de la hoja `PV-depuración` y, con `--calculos`, sus cálculos. No modifica el % planificado. |
 | `evm/companies.py` | Multi-empresa: parte de cada empresa en cada tarea (columnas `Empresa` y `% Reparto`, con herencia de la tarea superior). |
 | `evm/timeline.py` | Horizonte mensual y utilidades de meses. |
 | `evm/workbook.py` | Escritura del libro Excel y de sus indicadores. |

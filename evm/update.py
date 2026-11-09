@@ -707,8 +707,8 @@ def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares:
 def _baseline_drift(book: BookData, s: StructRow, planned: dict[str, list[float]],
                     idx: int) -> tuple[float, float] | None:
     """PV acumulado de la fila a la fecha de corte con el % planificado de MS Project y con el del libro, si el %
-    planificado acumulado de algún mes difiere (None si coinciden). El % planificado con el reparto del plan de costes
-    (procesar-costes) no se compara: no sale de la línea base."""
+    planificado acumulado de algún mes difiere (None si coinciden). Las filas con el reparto del plan de costes
+    (procesar-costes antes de la versión 2.6.0) no se comparan: no sale de la línea base, y DEP-021 las informa."""
     now = book_pv = 0.0
     differs = False
     for role, _company in book.roles():
@@ -724,6 +724,23 @@ def _baseline_drift(book: BookData, s: StructRow, planned: dict[str, list[float]
         now += bac * sum(new[: idx + 1])
         book_pv += bac * sum(old[: idx + 1])
     return (now, book_pv) if differs else None
+
+
+def plan_rows_warning(book: BookData) -> list[Issue]:
+    """DEP-021: filas cuyo % planificado es el reparto del plan de costes, escrito por procesar-costes antes de la
+    versión 2.6.0 (marcadas en la hoja _estructura). --migrar-desde les devuelve el % de MS Project."""
+    sheets = []
+    for role, company in book.roles():
+        codes = [s.code for s in book.input_rows if role in s.plan_pv]
+        if codes:
+            shown = ", ".join(codes[:10]) + (f" y {len(codes) - 10} más" if len(codes) > 10 else "")
+            sheets.append(f"{plural(len(codes), 'fila', 'filas')} de la hoja {pct_sheet(SHEET_PV, company)} ({shown})")
+    if not sheets:
+        return []
+    return [Issue("DEP-021", message=(
+        f"El % planificado de {' y '.join(sheets)} es el reparto del plan de costes, escrito por procesar-costes en "
+        "una versión anterior: no es el de MS Project. Para recuperarlo, se debe generar un libro nuevo con "
+        "--migrar-desde (conserva el BAC, el % ganado y el AC)."))]
 
 
 def _drift_warning(drift: list[tuple[StructRow, float, float]], book: BookData, idx: int) -> Issue:
@@ -898,6 +915,7 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
 
     if drift:
         warnings.append(_drift_warning(drift, book, idx))
+    warnings += plan_rows_warning(book)
 
     where = (f"las hojas {company_sheet(SHEET_PV, book.company_a)} y {company_sheet(SHEET_PV, book.company_b)}"
              if multi else f"la hoja {SHEET_PV}")

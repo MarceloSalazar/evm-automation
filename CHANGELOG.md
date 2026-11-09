@@ -55,30 +55,34 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   MS Project real (`tests/test_msproject_cliente.py`).
 - **Registro de diagnóstico en un archivo (`--registro RUTA`).** Todos los comandos pueden escribir el
   registro completo, con fecha y hora y el detalle de los errores, sin cambiar lo que muestra la consola.
-- **Plan de costes por EDT cliente (`procesar-costes`).** En la hoja `PV-depuración`, los importes se
-  suman hacia arriba (componentes de coste en su EDT interna, EDT interna en su EDT cliente y cada EDT
-  cliente en la de su código superior) y **solo se leen las líneas de EDT cliente** cuyo código es el de
-  una fila de ingreso del libro. La fila «(coste)» de la hoja PV de la empresa muestra sus meses y, en la
-  columna D, su **EAC**; la columna `Asignado a` indica si cada EDT cliente se lee, es un resumen del
-  libro, está incluida en una superior o no tiene fila
-  ([Depuración de costes](docs/depuracion-costes.md#42-qué-líneas-se-leen)). `procesar-costes` escribe
-  el % planificado como **importe del mes / EAC** de la línea (la suma de sus meses): la fila suma 100 %
-  y el PV (BAC × %) reparte el BAC como el plan, de modo que termina en el BAC, como el EV; la diferencia
-  entre el EAC y el BAC se ve en la fila «(coste)». Las filas cuya línea suma cero o un importe negativo
-  conservan su % planificado (`DEP-019`), y se informa de las filas cuyo plan empieza después o termina
-  antes que su línea base (`DEP-021`, información). En pantalla, cada fila procesada muestra el EAC de su
-  línea y su BAC. Con la opción nueva `--calculos` (o `[exportacion] depuracion_calculos = true`),
-  escribe antes en la hoja las fórmulas de los cálculos del plan: las sumas, el EAC de cada línea y el
+- **Plan de costes por EDT cliente.** En la hoja `PV-depuración`, los importes se suman hacia arriba
+  (componentes de coste en su EDT interna, EDT interna en su EDT cliente y cada EDT cliente en la de su
+  código superior) y **solo se leen las líneas de EDT cliente** cuyo código es el de una fila de ingreso
+  del libro. La fila «(coste)» de la hoja PV de la empresa, debajo del PV de cada fila, muestra sus meses
+  y, en la columna D, su **EAC**; la columna `Asignado a` indica si cada EDT cliente se lee, es un resumen
+  del libro, está incluida en una superior o no tiene fila
+  ([Depuración de costes](docs/depuracion-costes.md#42-qué-líneas-se-leen)). `procesar-costes` revisa el
+  plan con las mismas reglas: muestra el EAC de la línea y el BAC de cada fila con plan, y avisa de las
+  líneas sin leer, los importes después del horizonte, las filas sin plan y las EDT cliente repetidas
+  (código nuevo `DEP-019`). Con la opción nueva `--calculos` (o `[exportacion] depuracion_calculos =
+  true`), escribe en la hoja las fórmulas de los cálculos del plan: las sumas, el EAC de cada línea y el
   BAC de cada EDT cliente, leído de la hoja PV de la empresa, con las celdas calculadas en naranja y las
   de datos en amarillo
-  ([Cálculos del plan](docs/depuracion-costes.md#43-cálculos-del-plan-celdas-naranjas)).
-  `--migrar-desde` traslada las celdas con fórmula con su valor y vuelve a escribir las fórmulas de los
-  cálculos. Códigos nuevos `DEP-019` a `DEP-021`. Los libros con depuración de la versión 2.5 se deben
-  regenerar con `--migrar-desde` para tener las fórmulas nuevas.
+  ([Cálculos del plan](docs/depuracion-costes.md#43-cálculos-del-plan-celdas-naranjas)); sin esa opción,
+  no modifica el libro. `--migrar-desde` traslada las celdas con fórmula con su valor y vuelve a escribir
+  las fórmulas de los cálculos. Los libros con depuración de la versión 2.5 se deben regenerar con
+  `--migrar-desde` para tener las fórmulas nuevas.
 
 ### Correcciones
 
-- Ninguna.
+- **`procesar-costes` ya no reemplaza el % planificado de MS Project.** Hasta la versión 2.5, escribía
+  en la hoja `% PV` de la empresa el reparto del plan de costes, y en esas filas se perdía la comparación
+  con MS Project. Ahora el % planificado es siempre el de MS Project, y el plan se compara con él en las
+  filas «(coste)» y en la hoja `Depuración costes`
+  ([Revisión y cálculos del plan](docs/depuracion-costes.md#8-revisión-y-cálculos-del-plan-procesar-costes)).
+  En un libro procesado con una versión anterior, `procesar-costes` y `actualizar` avisan de esas filas
+  (`DEP-021`), y `--migrar-desde` les devuelve el % de MS Project y conserva el BAC, el % ganado y el AC
+  (`DEP-020`). Códigos `DEP-010` y `DEP-011` retirados.
 
 ### Otros
 
@@ -117,8 +121,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   conservan ese % al regenerar el libro con `--migrar-desde`, también en el libro de entrega sin
   depuración (`DEP-010` y `DEP-011`, nuevos), y `actualizar` no lo compara con la línea base de MS
   Project (`ACT-047`). Observaciones del comando: `DEP-012` a `DEP-018`, nuevos
-  ([Depuración de costes](docs/depuracion-costes.md#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes),
-  [Comandos](docs/comandos.md#procesar-costes-pv-con-el-reparto-del-plan-de-costes)).
+  ([Depuración de costes](docs/depuracion-costes.md#8-revisión-y-cálculos-del-plan-procesar-costes),
+  [Comandos](docs/comandos.md#procesar-costes-revisión-y-cálculos-del-plan-de-costes)).
 - **Más controles en `validar`:** las líneas base guardadas (cuántas tareas revisadas tienen fecha de
   comienzo en cada una) y la que usa el % planificado (`LEC-024`); las
   tareas resumen cuya línea base no coincide con la de sus tareas de detalle porque no se resumió al

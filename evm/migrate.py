@@ -33,8 +33,9 @@ class PriorRow:
     origin_method: str | None = None     # método al generarse el libro (None: libro antiguo)
     source: str = ""                     # varios archivos: nombre del archivo de la fila
     bac: dict[str, float] = field(default_factory=dict)     # BAC ingresado ("" o "A" y "B")
-    # % planificado con el reparto del plan de costes (procesar-costes), por empresa ("" o "A" y "B")
-    plan_pv: dict[str, dict[MonthKey, float]] = field(default_factory=dict)
+    # Empresas ("" o "A" y "B") cuya hoja % PV tenía el reparto del plan de costes (procesar-costes antes de la
+    # versión 2.6.0): en el libro nuevo vuelve a ser el % de MS Project (DEP-020)
+    plan_pv: tuple[str, ...] = ()
 
     @property
     def method_edited(self) -> bool:
@@ -47,10 +48,9 @@ class PriorRow:
 
     @property
     def has_values(self) -> bool:
-        """True si tiene algún valor distinto de 0 (los meses cargados con 0 también se trasladan), un BAC ingresado
-        o el reparto del plan de costes."""
-        return (any(v for data in self.series.values() for v in data.values()) or any(self.bac.values())
-                or bool(self.plan_pv))
+        """True si tiene algún valor distinto de 0 (los meses cargados con 0 también se trasladan) o un BAC
+        ingresado."""
+        return any(v for data in self.series.values() for v in data.values()) or any(self.bac.values())
 
     def total(self, kind: str) -> float:
         """Suma de las series de EV o de AC (el EV es el BAC × el % ganado)."""
@@ -87,8 +87,8 @@ class PriorData:
     matched: int = 0
     unmatched: list[PriorRow] = field(default_factory=list)
     bac: dict[str, dict[str, float]] = field(default_factory=dict)    # clave nueva -> BAC
-    # Clave nueva -> empresa -> % planificado del plan de costes que se conserva (meses del horizonte nuevo)
-    plan_pv: dict[str, dict[str, dict[MonthKey, float]]] = field(default_factory=dict)
+    # Clave nueva -> empresas cuya fila anterior tenía el reparto del plan de costes: recupera el % de MS Project
+    plan_pv: dict[str, set[str]] = field(default_factory=dict)
     # Depuración de costes: líneas de la hoja PV-depuración (en el formato actual), empresa que se depuraba ('' =
     # libro de una sola empresa), mes 1 del horizonte, formato que tenía la hoja (cost_review.paste_format) y si se
     # trasladan al libro nuevo (lo decide plan_migration)
@@ -113,10 +113,6 @@ class PriorData:
         value = self.bac.get(key, {}).get(role)
         return value if value else None
 
-    def plan_pv_for(self, key: str, role: str) -> dict[MonthKey, float]:
-        """% planificado del plan de costes que conserva la fila nueva ({} si se calcula con MS Project)."""
-        return self.plan_pv.get(key, {}).get(role, {})
-
     def method_for(self, key: str) -> str | None:
         return self.methods.get(key)
 
@@ -135,13 +131,11 @@ def prior_from_book(path, project_name: str) -> PriorData:
         series = {k: {book.horizon.key(i): v for i, v in enumerate(src[s.row]) if v is not None}
                   for k, src in sources.items()}
         bac = {role: book.bac_role[role][s.row] for role, _c in book.roles()}
-        plan = {role: {book.horizon.key(i): v for i, v in enumerate(book.pct_pv[role][s.row]) if v}
-                for role in s.plan_pv if role in book.pct_pv}
         rows.append(PriorRow(
             key=s.key, code=s.code, name=s.name, uid=int(uid_text) if uid_text.isdigit() else None,
             residual=residual, series={k: v for k, v in series.items() if v},
             method=book.method[s.row], origin_method=s.origin_method, source=source,
-            bac={k: v for k, v in bac.items() if v}, plan_pv={k: v for k, v in plan.items() if v}))
+            bac={k: v for k, v in bac.items() if v}, plan_pv=tuple(r for r in s.plan_pv if r in book.pct_pv)))
     methods_list = []
     from openpyxl import load_workbook
     wb = load_workbook(path, read_only=True)
@@ -371,8 +365,6 @@ def plan_migration(report: Report, prior: PriorData, max_level: int,
 
     horizon = report.horizon
     clamped = early = 0.0
-    plan_cut: set[str] = set()          # filas con meses del plan de costes posteriores al horizonte nuevo
-    plan_merged: list[ReportRow] = []   # filas nuevas que reúnen varias anteriores con el plan de costes
     for key, lst in sources.items():
         target = by_key[key]
         merged: dict[str, dict[MonthKey, float]] = {}
@@ -419,24 +411,11 @@ def plan_migration(report: Report, prior: PriorData, max_level: int,
                                         "combinar. Se debe revisar la hoja % EV de esta fila."))
         if any(merged_bac.values()):
             prior.bac[key] = merged_bac
-        # Reparto del plan de costes (procesar-costes): se conserva si la fila nueva corresponde a una sola fila
-        # anterior. Lo anterior al horizonte nuevo se suma en el mes 1 (como en 'generar') y lo posterior se pierde.
-        if several and any(old.plan_pv for old, _how in lst):
-            plan_merged.append(target)
-        elif not several and lst[0][0].plan_pv:
-            kept: dict[str, dict[MonthKey, float]] = {}
-            for role, data in lst[0][0].plan_pv.items():
-                dest = kept.setdefault(role, {})
-                for k, v in data.items():
-                    i = horizon.index(k)
-                    if i >= horizon.months:
-                        plan_cut.add(key)
-                        continue
-                    nk = horizon.key(max(i, 0))
-                    dest[nk] = dest.get(nk, 0.0) + v
-            kept = {role: data for role, data in kept.items() if data}
-            if kept:
-                prior.plan_pv[key] = kept
+        # Reparto del plan de costes (procesar-costes antes de la versión 2.6.0): no se conserva, la fila nueva tiene
+        # el % de MS Project
+        roles = {role for old, _how in lst for role in old.plan_pv}
+        if roles:
+            prior.plan_pv[key] = roles
         if any(merged.values()):
             prior.values[key] = merged
             if any(v for data in merged.values() for v in data.values()):
@@ -472,7 +451,7 @@ def plan_migration(report: Report, prior: PriorData, max_level: int,
     if prior.bac:
         issues.append(Issue("MIG-013", "", "", f"Se conservó el BAC de {plural(len(prior.bac), 'fila', 'filas')} del "
                                               "libro anterior."))
-    issues += _plan_issues(report, prior, plan_cut, plan_merged)
+    issues += _plan_issues(report, prior)
     issues += _migrate_changes(prior, key_map, sources)
     issues += _migrate_review(report, prior)
     if prior.overwritten:
@@ -484,33 +463,25 @@ def plan_migration(report: Report, prior: PriorData, max_level: int,
                             "de un paquete, se deben cargar en sus filas de ingreso del libro nuevo."))
     for old in prior.unmatched:
         bac = f"BAC {fmt_money(sum(old.bac.values()))}, "
-        plan = " y reparto del plan de costes" if old.plan_pv else ""
         issues.append(Issue("MIG-014", old.code, old.name,
                             f"No se pudo trasladar su historial ({bac}EV {fmt_money(old.total('EV'))}, AC "
-                            f"{fmt_money(old.total('AC'))}{plan}): la tarea no existe en el proyecto nuevo o se "
+                            f"{fmt_money(old.total('AC'))}): la tarea no existe en el proyecto nuevo o se "
                             "dividió en varias filas. Se debe cargar a mano en las filas que correspondan."))
     return issues
 
 
-def _plan_issues(report: Report, prior: PriorData, cut: set[str], merged: list[ReportRow]) -> list[Issue]:
-    """Observaciones del reparto del plan de costes (procesar-costes) que se conserva en el libro nuevo."""
-    issues: list[Issue] = []
-    if prior.plan_pv:
-        companies = {"A": report.company_a, "B": report.company_b}
-        sheets = []
-        for role in ("", "A", "B"):
-            n = sum(1 for roles in prior.plan_pv.values() if role in roles)
-            if n:
-                sheets.append(f"{plural(n, 'fila', 'filas')} de la hoja {pct_sheet(SHEET_PV, companies.get(role, ''))}")
-        text = (f"Se conservó el reparto del plan de costes (procesar-costes) en {' y '.join(sheets)}: su % "
-                "planificado no se calcula con MS Project.")
-        if cut:
-            text += (f" En {plural(len(cut), 'fila', 'filas')} quedaron meses después del horizonte del libro nuevo: "
-                     "su % planificado no suma 100 %.")
-        issues.append(Issue("DEP-010", "", "", text, SEV_WARN if cut else SEV_INFO))
-    for row in merged:
-        issues.append(Issue("DEP-011", row.code, row.name,
-                            "Reúne varias filas del libro anterior con el reparto del plan de costes: su % planificado "
-                            "se calcula con MS Project. Para usar el plan de costes se debe ejecutar procesar-costes "
-                            "en un libro con depuración de costes."))
-    return issues
+def _plan_issues(report: Report, prior: PriorData) -> list[Issue]:
+    """DEP-020: filas que tenían el reparto del plan de costes (procesar-costes antes de la versión 2.6.0) y vuelven a
+    tener el % planificado de MS Project."""
+    if not prior.plan_pv:
+        return []
+    companies = {"A": report.company_a, "B": report.company_b}
+    sheets = []
+    for role in ("", "A", "B"):
+        n = sum(1 for roles in prior.plan_pv.values() if role in roles)
+        if n:
+            sheets.append(f"{plural(n, 'fila', 'filas')} de la hoja {pct_sheet(SHEET_PV, companies.get(role, ''))}")
+    return [Issue("DEP-020", "", "", (
+        f"{' y '.join(sheets)} tenían en el libro anterior el reparto del plan de costes (procesar-costes "
+        "de una versión anterior): ahora su % planificado es el de MS Project. El plan de costes se compara con el PV "
+        "en las filas «(coste)» de un libro con depuración de costes."), SEV_INFO)]

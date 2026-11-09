@@ -629,13 +629,8 @@ def _write_pct_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
     company = {"A": report.company_a, "B": report.company_b}.get(role or "", "")
     amount = company_sheet(kind, company) if company else kind
     is_pv = kind == SHEET_PV
-
-    def plan_of(row: ReportRow) -> dict:
-        """Reparto del plan de costes de la fila que se conserva del libro anterior (--migrar-desde)."""
-        return prior.plan_pv_for(row_key(row), role or "") if prior is not None and is_pv and row.is_input else {}
-
     if is_pv:
-        title = pct_pv_title(company, any(plan_of(r) for r in report.rows))
+        title = pct_pv_title(company)
     else:
         title = ("% ganado por mes" + (f"  -  {company}" if company else "") +
                  "  -  valor DEL MES (no acumulado) que 'actualizar' calcula desde MS Project")
@@ -662,12 +657,9 @@ def _write_pct_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
         ws.cell(row=r, column=COL_START).number_format = FMT_DATE
         ws.cell(row=r, column=COL_FINISH).number_format = FMT_DATE
         filled = range(lay.months)          # meses con valor (en las filas de ingreso, los que tienen %)
-        plan = plan_of(row)
         if row.is_input:
             values = {}
-            if plan:
-                values = {report.horizon.index(k): v for k, v in plan.items()}
-            elif is_pv:
+            if is_pv:
                 values = {i: v for i, v in enumerate(row.pct_vec.get(role or "", [])) if abs(v) > 1e-12}
             elif prior is not None:
                 for k, v in prior.values_for(row_key(row), series).items():
@@ -690,8 +682,7 @@ def _write_pct_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
         # más rápido): 'actualizar' da formato a las que carga. Las filas con fondo, negrita o cursiva, todo el
         # horizonte.
         for i in (range(lay.months) if font or fill else filled):
-            styled(ws.cell(row=r, column=lay.first_col + i), number_format=FMT_PCT_MONTH,
-                   font=FONT_COST if plan else font, fill=fill)
+            styled(ws.cell(row=r, column=lay.first_col + i), number_format=FMT_PCT_MONTH, font=font, fill=fill)
         for c_ in (*range(1, lay.first_col), lay.total_col):
             styled(ws.cell(row=r, column=c_), font=font, fill=fill)
         ws.row_dimensions[r].outline_level = min(7, max(0, row.level - 1))
@@ -1351,36 +1342,27 @@ def _append_texts(ws, values: list) -> None:
     _texts_in_last_row(ws)
 
 
-def _write_structure(ws, report: Report, lay: _Layout, prior=None) -> None:
+def _write_structure(ws, report: Report, lay: _Layout) -> None:
     """Hoja _estructura: una fila por fila de la EDT, alineada con las hojas mensuales (la fila r de las hojas va en
     la fila r - 3), para las fórmulas que filtran por el tipo de fila. Con depuración de costes, las filas «(coste)»
-    solo llevan el tipo 'coste' (sin fila ni clave: no son filas del libro). La columna STRUCT_PLAN_COL indica las
-    hojas '% PV' de la fila con el reparto del plan de costes (procesar-costes)."""
-    ws.append(["fila", "clave", "edt", "nivel", "tipo", "fila_padre", "actividad", "metodo_origen", STRUCT_PLAN_HEAD])
-    roles = ("A", "B") if report.multi else ("",)
+    solo llevan el tipo 'coste' (sin fila ni clave: no son filas del libro)."""
+    ws.append(["fila", "clave", "edt", "nivel", "tipo", "fila_padre", "actividad", "metodo_origen"])
     for row in report.rows:
         r = lay.r(row)
-        plan = ([role for role in roles if prior.plan_pv_for(row_key(row), role)]
-                if prior is not None and row.is_input else [])
         values = [r, row_key(row), row.code, row.level, row.kind, lay.r(row.parent) if row.parent else None,
-                  row.name, row.method if row.is_input else None, plan_text(plan)]
+                  row.name, row.method if row.is_input else None]
         for c_, v in enumerate(values, start=1):
             put_text(ws, lay.struct_row(r), c_, v)
         if lay.review:
             ws.cell(row=lay.struct_row(r + 1), column=5, value=KIND_COST)
 
 
-# _estructura: hojas '% PV' de cada fila con el reparto del plan de costes, por empresa ('PV', 'PV-A', 'PV-B')
-STRUCT_PLAN_COL, STRUCT_PLAN_HEAD = 9, "pv_plan_costes"
-
-
-def plan_text(roles) -> str | None:
-    """Valor de la columna STRUCT_PLAN_COL: 'PV-A', 'PV-A,PV-B' o 'PV' (libro de una sola empresa); None si ninguna."""
-    return ",".join(role_key(SHEET_PV, role or None) for role in sorted(roles)) or None
-
-
+# _estructura, columna 9 ('pv_plan_costes'), solo en libros procesados con procesar-costes antes de la versión 2.6.0:
+# hojas '% PV' de cada fila con el reparto del plan de costes, por empresa ('PV', 'PV-A', 'PV-B'). Los libros nuevos
+# no la tienen: se lee para avisar (DEP-021) y para que --migrar-desde informe las filas que recuperan el % de MS
+# Project (DEP-020).
 def plan_roles(text) -> tuple[str, ...]:
-    """Empresas ('A', 'B' o '' en un libro de una sola empresa) de un valor de la columna STRUCT_PLAN_COL."""
+    """Empresas ('A', 'B' o '' en un libro de una sola empresa) de un valor de la columna 9 de _estructura."""
     out = []
     for token in str(text or "").split(","):
         head, sep, role = token.strip().partition("-")
@@ -1389,11 +1371,10 @@ def plan_roles(text) -> tuple[str, ...]:
     return tuple(out)
 
 
-def pct_pv_title(company: str, plan: bool) -> str:
-    """Título de la hoja '% PV': plan = alguna fila tiene el reparto del plan de costes."""
+def pct_pv_title(company: str) -> str:
+    """Título de la hoja '% PV'."""
     return ("% planificado por mes" + (f"  -  {company}" if company else "") +
-            "  -  calculado por 'generar' desde MS Project (duración de la línea base y peso de los hitos)" +
-            ("; los meses en cursiva naranja, con el reparto del plan de costes ('procesar-costes')" if plan else ""))
+            "  -  calculado por 'generar' desde MS Project (duración de la línea base y peso de los hitos)")
 
 
 def write_wbs_list(ws, codes: list[str]) -> None:
@@ -1488,7 +1469,7 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
         ws_list.sheet_state = "hidden"
         write_wbs_list(ws_list, cfg.wbs_list)
     _write_validation(ws_val, ws_val_detail, report, lay)
-    _write_structure(ws_struct, report, lay, prior)
+    _write_structure(ws_struct, report, lay)
     packages = dashboard.chart_packages((lay.r(r), r.code, r.level, r.kind) for r in report.rows)
     dashboard.write_chart_data(ws_charts, cfg, lay, packages)
     dashboard.write_dashboard(ws_dash, report, cfg, lay, packages, status)
@@ -1509,9 +1490,6 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     cutoff = report.horizon.index(status) + 1 if status else None
     # % planificado (fracciones): último mes con algún %; el BAC se ingresa después, en el libro
     plan_end = max((i + 1 for i, v in enumerate(report.total_vector) if abs(v) > 1e-9), default=0)
-    if prior is not None:               # reparto del plan de costes conservado del libro anterior
-        plan_end = max([plan_end] + [report.horizon.index(k) + 1 for roles in prior.plan_pv.values()
-                                     for data in roles.values() for k in data])
     dashboard.add_dashboard_charts(wb, packages, lay.months, plan_end, cutoff, 0.0,
                                    cfg.currency or report.currency or "")
     if review is not None:
@@ -1653,7 +1631,7 @@ class StructRow:
     parent_row: int | None
     name: str
     origin_method: str | None = None    # método que traía la fila al generarse (None en libros antiguos)
-    plan_pv: tuple[str, ...] = ()       # empresas ('A', 'B' o '') con el reparto del plan de costes (procesar-costes)
+    plan_pv: tuple[str, ...] = ()       # empresas con el reparto del plan de costes (libros anteriores a 2.6.0)
 
     @property
     def is_input(self) -> bool:

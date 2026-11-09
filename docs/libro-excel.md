@@ -30,7 +30,7 @@ El BAC de cada fila se ingresa en la hoja `PV`, el PV y el EV son el BAC × el %
 | **Cuadro de Mando** | Tablero del mes de reporte: valores acumulados, desviaciones, índices con semáforo, pronósticos y tres gráficos. Ver [Cuadro de Mando e indicadores](cuadro-de-mando.md). |
 | **Resumen** | Fecha de corte (celda amarilla `B5`, con nombre `FechaCorte`), parámetros de la exportación e indicadores del proyecto a la fecha de corte, incluidos el Earned Schedule, la tendencia (últimos 3 meses y mes anterior) y el plazo según el cronograma de MS Project. |
 | **PV** | Valor planificado: columnas A–F con la EDT y el BAC, y una columna por mes. El BAC se ingresa en la columna D (celdas amarillas) y cada mes es el BAC × el % planificado. |
-| **% PV** | % planificado de cada mes, que calcula `generar`. En las filas procesadas con `procesar-costes`, el importe de cada mes del plan de costes de la empresa dividido por el EAC de su línea (el PV reparte el BAC como el plan), con los meses en cursiva naranja ([Depuración de costes](depuracion-costes.md#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes)). |
+| **% PV** | % planificado de cada mes, que calcula `generar` desde MS Project. |
 | **EV** | Valor ganado de cada mes: el BAC × el % ganado. |
 | **% EV** | % ganado de cada mes, que calcula `actualizar`. |
 | **AC** | Costo real de cada mes (celdas amarillas), que se ingresa a mano. |
@@ -156,8 +156,9 @@ Qué se traslada:
 - La **fecha de corte** de la hoja `Resumen`.
 - Con depuración de costes, el contenido de la hoja `PV-depuración`, si el libro nuevo también depura la
   misma empresa ([Depuración de costes](depuracion-costes.md#9-ciclo-de-ajuste)).
-- El % planificado de las filas procesadas con `procesar-costes` (el plan de costes), aunque
-  el libro nuevo no tenga depuración de costes. Las demás filas toman el % planificado de MS Project.
+- El % planificado no se traslada: el libro nuevo lo calcula con MS Project. Las filas que en el libro
+  anterior tenían el reparto del plan de costes (`procesar-costes` antes de la versión 2.6.0) vuelven a
+  tener el de MS Project ([DEP-020](codigos.md#dep-020)).
 
 Lo que no se puede trasladar se informa como **Error** en `Validación` para cargarlo a mano: filas que
 se dividieron en varias y tareas eliminadas. Tampoco se admite migrar entre un libro de una sola empresa
