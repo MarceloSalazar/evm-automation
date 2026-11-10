@@ -7,8 +7,10 @@ from datetime import date
 from evm import changes
 from evm.analysis import A_CODE, A_KEY, A_MONTH, A_NAME, A_ORIGIN, SHEET_ANALYSIS, TEXT_COLS, read_entries
 from evm.config import ConfigError
-from evm.cost_review import (FORMAT_CURRENT, FORMAT_LEGACY, FORMAT_NO_EAC, SHEET_PASTE, month_offset, paste_months,
-                             read_paste, resolve_formulas, review_company, shift_rows)
+from evm.cost_price import norm_label
+from evm.cost_review import (FORMAT_CURRENT, FORMAT_LEGACY, FORMAT_NO_EAC, P_FIRST, SHEET_PASTE, month_offset,
+                             paste_first_row, paste_months, read_paste, read_rates, resolve_formulas, review_company,
+                             shift_rows)
 from evm.fields import same_name
 from evm.messages import SEV_INFO, SEV_WARN, Issue
 from evm.methods import is_undefined
@@ -98,6 +100,10 @@ class PriorData:
     review_format: str = FORMAT_CURRENT
     review_calcs: bool = False          # la hoja tenía fórmulas (cálculos del plan): se vuelven a escribir
     review_keep: bool = False
+    review_first: int = P_FIRST         # primera fila del plan en la hoja anterior (A8 hasta la versión 2.5)
+    # Tabla Recargos: texto normalizado -> año -> valor, y el texto de cada coeficiente
+    review_rates: dict[str, dict[int, object]] = field(default_factory=dict)
+    review_rate_labels: dict[str, str] = field(default_factory=dict)
     # Registro de cambios: filas de la hoja y referencia de la última ejecución (con las claves del libro nuevo
     # después de plan_migration)
     change_log: list[list] = field(default_factory=list)
@@ -146,8 +152,15 @@ def prior_from_book(path, project_name: str) -> PriorData:
             if len(value.strip()) <= 60:
                 methods_list.append(value.strip())
     analysis = read_entries(wb[SHEET_ANALYSIS]) if SHEET_ANALYSIS in wb.sheetnames else []
-    review_rows, review_format = (read_paste(wb[SHEET_PASTE], book.horizon.months) if SHEET_PASTE in wb.sheetnames
-                                  else ([], FORMAT_CURRENT))
+    review_rows, review_format, review_first, rates, rate_labels = [], FORMAT_CURRENT, P_FIRST, {}, {}
+    if SHEET_PASTE in wb.sheetnames:
+        ws_paste = wb[SHEET_PASTE]
+        review_rows, review_format = read_paste(ws_paste, book.horizon.months)
+        review_first = paste_first_row(ws_paste)
+        if review_first == P_FIRST:                 # la tabla Recargos está desde la versión 2.6.0
+            table = read_rates(ws_paste)
+            rates = table.values_by_label()
+            rate_labels = {key: table.labels[r] for key, r in table.rows.items()}
     # Las fórmulas pasan con su valor calculado: el libro nuevo vuelve a escribir las de los cálculos del plan
     review_rows, review_formulas, _missing = resolve_formulas(path, review_rows, book.horizon.months)
     change_log = changes.read_rows(wb[changes.SHEET_LOG]) if changes.SHEET_LOG in wb.sheetnames else []
@@ -161,8 +174,8 @@ def prior_from_book(path, project_name: str) -> PriorData:
                      ignore_interior_zeros=book_ignores_interior_zeros(book.meta),
                      project_names=names, analysis=analysis, review_rows=review_rows,
                      review_company=str(book.meta.get("depuracion_empresa") or ""), review_start=book.horizon.start,
-                     review_format=review_format, review_calcs=review_formulas > 0, change_log=change_log,
-                     reference=reference,
+                     review_format=review_format, review_calcs=review_formulas > 0, review_first=review_first,
+                     review_rates=rates, review_rate_labels=rate_labels, change_log=change_log, reference=reference,
                      overwritten=list(book.formula_values))
 
 
@@ -221,8 +234,9 @@ def _migrate_changes(prior: PriorData, key_map: dict[str, str], sources: dict[st
 
 def _migrate_review(report: Report, prior: PriorData) -> list[Issue]:
     """Depuración de costes: la previsión pegada en la hoja PV-depuración pasa al libro nuevo si también se depura
-    y es la misma empresa. Si cambia el mes 1 del horizonte, los meses se desplazan para conservar su fecha."""
-    if not prior.review_rows:
+    y es la misma empresa, con los recargos de la tabla Recargos que siguen en [depuracion_precio.recargos]. Si
+    cambia el mes 1 del horizonte, los meses se desplazan para conservar su fecha."""
+    if not prior.review_rows and not prior.review_rates:
         return []
     lines = plural(len(prior.review_rows), "línea", "líneas")
     if report.cost_review is None:
@@ -236,8 +250,20 @@ def _migrate_review(report: Report, prior: PriorData) -> list[Issue]:
                       f"libro nuevo depura {company or 'un libro de una sola empresa'}. Se debe pegar la previsión "
                       "de nuevo.")]
     prior.review_keep = True
+    targets = {norm_label(t) for t in report.cost_rates}
+    kept = [k for k in prior.review_rates if k in targets]
+    lost = [prior.review_rate_labels.get(k, k) for k in prior.review_rates if k not in targets]
+    content = lines + (f" y los recargos de {plural(len(kept), 'coeficiente', 'coeficientes')} de la tabla Recargos"
+                       if kept else "")
     calcs = "; se volvieron a escribir las fórmulas de los cálculos del plan" if prior.review_calcs else ""
-    issues = [Issue("DEP-006", "", "", f"Se conservó el contenido de la hoja {SHEET_PASTE} ({lines}){calcs}.")]
+    moved = (f"; el plan empieza ahora en la celda A{P_FIRST} (antes, en la A{prior.review_first})"
+             if prior.review_rows and prior.review_first != P_FIRST else "")
+    issues = [Issue("DEP-006", "", "", f"Se conservó el contenido de la hoja {SHEET_PASTE} ({content}){calcs}{moved}.")]
+    if lost:
+        why = ("[depuracion_precio.recargos] no tiene esos textos" if report.cost_rates
+               else "la configuración no tiene [depuracion_precio.recargos]")
+        issues.append(Issue("DEP-025", "", "", f"Los recargos de la tabla Recargos del libro anterior de "
+                                              f"{', '.join(lost)} no se trasladaron: {why}."))
     if prior.review_format == FORMAT_LEGACY:
         issues.append(Issue("DEP-007", "", "", f"La hoja {SHEET_PASTE} del libro anterior tenía el formato sin EDT "
                                               "interna: los códigos numéricos quedaron como EDT cliente y los demás "

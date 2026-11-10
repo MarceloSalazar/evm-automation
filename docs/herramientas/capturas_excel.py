@@ -103,7 +103,7 @@ SEVERAL = [
 # Depuración de costes (horizonte de 120 meses): meses 1 a 9, total e indicador de alineamiento
 REVIEW = [
     ("depuracion-pv-empresa-a", "PV-EmpresaA", "$A$1:$DY$26", {"landscape": True, "headings": True, "hide": "P:DV"}),
-    ("depuracion-pegado", "PV-depuración", "$A$1:$DY$31", {"landscape": True, "headings": True, "hide": "N:DV"}),
+    ("depuracion-pegado", "PV-depuración", "$A$1:$DY$35", {"landscape": True, "headings": True, "hide": "N:DV"}),
     ("depuracion-grafico", "Depuración costes", "$A$1:$U$30", {"landscape": True}),
     ("depuracion-grafico-paquete", "Depuración costes", "$A$1:$U$30", {"landscape": True, "value": ("B4", "1.1.2")}),
 ]
@@ -177,23 +177,19 @@ def build_review_book(work: Path) -> Path:
     text = re.sub(r"^activar = false", "activar = true", text, flags=re.M)
     text = re.sub(r"^depuracion_costes = false", "depuracion_costes = true", text, flags=re.M)
     text = re.sub(r"^depuracion_alineamiento = false", "depuracion_alineamiento = true", text, flags=re.M)
+    # Precio de las EDT interna: la sección [depuracion_precio] del ejemplo, sin comentar
+    text = re.sub(r'^# (\[depuracion_precio[\w.]*\]|calculo_precio = .*|(?:[A-E]|K[A-G]|BE) = ".*")$', r"\1", text,
+                  flags=re.M)
     cfg = work / "config_depuracion.toml"
     cfg.write_text(text, encoding="utf-8")
     book = work / "EVM_Depuracion.xlsx"
     run("evm_export.py", "generar", "--origen", str(Path("ejemplos") / "programa_ejemplo.xml"), "--config", str(cfg),
         "--salida", str(book))
-    example_helper().fill_book(book)            # BAC de cada fila y previsión pegada en PV-depuración
-    # Cálculos del plan (fórmulas en naranja, datos en amarillo), como procesar-costes --calculos pero sin llevar el
-    # plan al % planificado: las capturas comparan el PV planificado con la previsión
-    from openpyxl import load_workbook
-    from evm import cost_review
-    from evm.workbook import read_meta
-    wb = load_workbook(book)
-    meta = read_meta(wb)
-    rows, _fmt = cost_review.read_paste(wb[cost_review.SHEET_PASTE], meta["meses"])
-    cost_review.write_calcs(wb[cost_review.SHEET_PASTE], cost_review.plan_lines(rows), meta["meses"],
-                            str(meta["depuracion_hoja"]), meta["fila_total"], int(meta["decimales"] or 0))
-    wb.save(book)
+    example_helper().fill_book(book)            # BAC de cada fila, previsión pegada en PV-depuración y recargos
+    # Cálculos del plan (fórmulas en naranja, datos en amarillo) y precio de la EDT interna GPR03: procesar-costes
+    # --calculos
+    run("evm_export.py", "procesar-costes", "--libro", str(book), "--config", str(cfg), "--calculos",
+        "--sin-respaldo")
     return book
 
 

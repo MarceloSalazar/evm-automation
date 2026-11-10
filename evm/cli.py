@@ -475,8 +475,11 @@ def cmd_procesar_costes(args) -> int:
     decimals = int(res.book.meta.get("decimales") or 0)
     money = lambda v: fmt_number(v, decimals)       # noqa: E731
     if res.calculated is not None:
+        price = (f"; precio de {plural(res.priced, 'línea', 'líneas')} con componentes"
+                 if res.priced is not None else "")
         print(f"Cálculos del plan de costes: {plural(res.calculated, 'línea', 'líneas')} de la hoja PV-depuración "
-              "(sumas, EAC y BAC de las EDT cliente)" + (" (no se escriben en la simulación)" if args.simular else ""))
+              f"(sumas, EAC y BAC de las EDT cliente{price})"
+              + (" (no se escriben en la simulación)" if args.simular else ""))
     print(f"Hoja: {res.sheet}  |  Plan de costes: {plural(res.lines, 'línea', 'líneas')} de EDT cliente, "
           f"{res.counted} con fila de ingreso  |  Importe leído: {money(res.total)}")
     print(f"Plan de costes en {len(res.rows)} de {plural(res.inputs, 'fila', 'filas')} de ingreso, "
@@ -994,10 +997,11 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--libro", required=True, help="libro .xlsx generado con depuracion_costes = true")
     c.add_argument("--calculos", action="store_true",
                    help="escribe en la hoja PV-depuración las fórmulas de los cálculos del plan: sumas de los "
-                        "componentes y de las EDT interna, EAC y BAC de las EDT cliente (como [exportacion] "
-                        "depuracion_calculos = true). Sin esta opción, el libro no se modifica")
-    c.add_argument("--config", help="archivo de configuración: solo se usan [validacion] silenciar y [exportacion] "
-                                    "guardado_rapido y depuracion_calculos")
+                        "componentes y de las EDT interna (o su precio, con [depuracion_precio]), EAC y BAC de las "
+                        "EDT cliente (como [exportacion] depuracion_calculos = true). Sin esta opción, el libro no se "
+                        "modifica")
+    c.add_argument("--config", help="archivo de configuración: solo se usan [validacion] silenciar, [exportacion] "
+                                    "guardado_rapido y depuracion_calculos y [depuracion_precio]")
     c.add_argument("--simular", action="store_true", help="con --calculos, muestra el resultado sin modificar el libro")
     c.add_argument("--sin-respaldo", action="store_true", help="con --calculos, no crea copia de respaldo del libro")
     silence_option(c)

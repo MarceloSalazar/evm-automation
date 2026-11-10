@@ -1,14 +1,17 @@
-"""Depuración de costes: hoja PV-depuración, filas «(coste)» y comando procesar-costes."""
+"""Depuración de costes: hoja PV-depuración, filas «(coste)», comando procesar-costes y precio de las EDT interna."""
+import re
 import zipfile
 from datetime import date, datetime
 
 import pytest
 from openpyxl import load_workbook
 
+from evm import cost_price as cp
 from evm import cost_review as cr
 from evm.cli import main
 from evm.config import Config, ConfigError, load_config
 from evm.cost_plan import run_cost_plan
+from evm.cost_price import norm_label
 from evm.messages import InputError
 from evm.migrate import plan_migration, prior_from_book
 from evm.update import indicators_for, read_book, run_analysis, run_update
@@ -353,23 +356,33 @@ def test_migration_shifts_months_and_checks_the_company(tmp_path):
     assert load_workbook(other)[cr.SHEET_PASTE].cell(row=cr.P_FIRST, column=1).value is None
 
 
+def old_sheet(path, header: dict[int, object], lines: list[list]) -> None:
+    """Hoja PV-depuración de una versión anterior: encabezados en la fila 7 y el plan desde la celda A8."""
+    wb = load_workbook(path)
+    ws = wb[cr.SHEET_PASTE]
+    for row in ws.iter_rows(min_row=1, max_row=cr.P_FIRST + 10, max_col=ws.max_column):
+        for cell in row:
+            cell.value = None
+    for c, v in header.items():
+        ws.cell(row=cr.OLD_HEADER_ROW, column=c, value=v)
+    for k, line in enumerate(lines):
+        for c, v in enumerate(line, start=1):
+            ws.cell(row=cr.OLD_FIRST + k, column=c, value=v)
+    wb.save(path)
+
+
 def test_migration_converts_a_paste_without_internal_wbs_columns(tmp_path):
     """Libro anterior a las columnas de EDT interna: código, descripción, BAC y meses desde la columna D."""
     old = tmp_path / "old.xlsx"
     make_book(old, config())
-    wb = load_workbook(old)
-    ws = wb[cr.SHEET_PASTE]
-    ws.cell(row=cr.P_HEADER_ROW, column=3, value=cr.LEGACY_BAC_HEADER)
-    for k, line in enumerate([[1.2, "Contratos", None], ["XRF01", "Subtarea", 50, 20, None, 30],
-                              [None, "Nota", None], ["2.1", "Básica", 10, 10]]):
-        for c, v in enumerate(line, start=1):
-            ws.cell(row=cr.P_FIRST + k, column=c, value=v)
-    wb.save(old)
+    old_sheet(old, {3: cr.LEGACY_BAC_HEADER}, [[1.2, "Contratos", None], ["XRF01", "Subtarea", 50, 20, None, 30],
+                                                [None, "Nota", None], ["2.1", "Básica", 10, 10]])
     assert cr.paste_format(load_workbook(old)[cr.SHEET_PASTE]) == cr.FORMAT_LEGACY
     assert cr.last_paste_month(load_workbook(old)[cr.SHEET_PASTE], 24) == 3
     new = tmp_path / "new.xlsx"
     rep = make_book(new, config(), prior_from_book(old, "Programa"))
     assert issues_with(rep, "tenía el formato sin EDT interna", SEV_INFO)
+    assert issues_with(rep, f"el plan empieza ahora en la celda A{cr.P_FIRST} (antes, en la A8)", SEV_INFO)
     ws = load_workbook(new)[cr.SHEET_PASTE]
     assert cr.paste_format(ws) == cr.FORMAT_CURRENT
     got = [[ws.cell(row=cr.P_FIRST + k, column=c).value for c in range(1, 10)] for k in range(4)]
@@ -384,13 +397,8 @@ def test_migration_adds_the_eac_column_of_a_version_2_4_paste(tmp_path):
     """Libro de la versión 2.4: sin la columna EAC, con los meses desde la columna F."""
     old = tmp_path / "old.xlsx"
     make_book(old, config())
-    wb = load_workbook(old)
-    ws = wb[cr.SHEET_PASTE]
-    ws.cell(row=cr.P_HEADER_ROW, column=cr.P_EAC, value=datetime(2027, 1, 1))       # encabezado del mes 1
-    for k, line in enumerate([["1.1", "Dirección", None, None, 200, 100, 100], [None, None, "ABC01", "Pliegos"]]):
-        for c, v in enumerate(line, start=1):
-            ws.cell(row=cr.P_FIRST + k, column=c, value=v)
-    wb.save(old)
+    old_sheet(old, {cr.P_EAC: datetime(2027, 1, 1)},                    # encabezado del mes 1
+              [["1.1", "Dirección", None, None, 200, 100, 100], [None, None, "ABC01", "Pliegos"]])
     assert cr.paste_format(load_workbook(old)[cr.SHEET_PASTE]) == cr.FORMAT_NO_EAC
     assert cr.last_paste_month(load_workbook(old)[cr.SHEET_PASTE], 24) == 2
     new = tmp_path / "new.xlsx"
@@ -427,7 +435,8 @@ def test_client_lines_are_read_into_the_cost_rows(tmp_path, recalc):
     status, notes = status_and_notes(ws, len(PLAN))
     assert status == PLAN_STATUS == python_status(PLAN, wb)
     assert not any(notes)
-    controls = [ws.cell(row=r, column=cr.P_EAC).value for r in (cr.P_TOTAL_ROW, cr.P_ASSIGNED_ROW, cr.P_MISSING_ROW)]
+    controls = [ws.cell(row=r, column=cr.P_CONTROL).value for r in (cr.P_TOTAL_ROW, cr.P_ASSIGNED_ROW,
+                                                                    cr.P_MISSING_ROW)]
     assert controls == [117 + 65 + 96, 0, 5 + 50 + 7]
     pv_a = wv["PV-EmpresaA"]
     r = rows(wb)
@@ -468,7 +477,8 @@ def test_line_notes_and_controls(tmp_path, recalc):
     assert status == ["1.1.0", "1.1.0", "1.2.1"] == python_status(lines, load_workbook(path))
     assert "repetida" in notes[0] and "como texto" in notes[0] and "fuera del horizonte" in notes[0]
     assert "repetida" in notes[1] and notes[2] is None
-    controls = [ws.cell(row=r, column=cr.P_EAC).value for r in (cr.P_TOTAL_ROW, cr.P_ASSIGNED_ROW, cr.P_MISSING_ROW)]
+    controls = [ws.cell(row=r, column=cr.P_CONTROL).value for r in (cr.P_TOTAL_ROW, cr.P_ASSIGNED_ROW,
+                                                                    cr.P_MISSING_ROW)]
     assert controls == [107, 20, 0]
 
 
@@ -493,7 +503,7 @@ def test_plan_formulas_match_python(tmp_path, recalc):
     assert bac[:3] == [117 + 65 + 100 + 10, 117, 90] and bac[6] == 65 and bac[12] == 100 and bac[15] == 50
     assert {bac[11], bac[13], bac[16]} <= {"", None}                    # EDT cliente sin fila del libro
     assert status_and_notes(ws, len(PLAN))[0] == PLAN_STATUS
-    assert ws.cell(row=cr.P_TOTAL_ROW, column=cr.P_EAC).value == 117 + 65 + 96
+    assert ws.cell(row=cr.P_TOTAL_ROW, column=cr.P_CONTROL).value == 117 + 65 + 96
 
 
 @pytest.mark.libreoffice
@@ -516,13 +526,13 @@ def test_example_forecast_is_fully_read(tmp_path, generator, recalc):
     assert {"PER01", "HP-01", "XRF01", "GPR03"} <= set(codes)
     wv = load_workbook(recalc(path), data_only=True)
     pa = wv[cr.SHEET_PASTE]
-    assert pa.cell(row=cr.P_TOTAL_ROW, column=cr.P_EAC).value > 0
-    assert pa.cell(row=cr.P_MISSING_ROW, column=cr.P_EAC).value == pytest.approx(0)
+    assert pa.cell(row=cr.P_TOTAL_ROW, column=cr.P_CONTROL).value > 0
+    assert pa.cell(row=cr.P_MISSING_ROW, column=cr.P_CONTROL).value == pytest.approx(0)
     status, notes = status_and_notes(pa, cr.P_LINES)
     assert not any(notes) and cr.STATUS_SUMMARY in status and cr.STATUS_NONE not in status
     total = max(rows(load_workbook(path)).values()) + 2
     assert wv["PV-EmpresaA"].cell(row=total + 1, column=4).value == pytest.approx(
-        pa.cell(row=cr.P_TOTAL_ROW, column=cr.P_EAC).value)
+        pa.cell(row=cr.P_TOTAL_ROW, column=cr.P_CONTROL).value)
 
 
 # ----------------------------------------------------------------------------
@@ -550,8 +560,8 @@ def test_procesar_costes_reviews_the_plan_without_changing_the_book(tmp_path):
     assert res.total == pytest.approx(117 + 65 + 96) and res.assigned == pytest.approx(117 + 65 + 96)
     by = {i.id: i.message for i in res.warnings}
     assert set(by) == {"DEP-014", "DEP-016"}
-    assert "1.2.7 (fila 21): sin fila del libro" in by["DEP-014"]
-    assert "2.0.0 (fila 23): resumen sin detalle" in by["DEP-014"]
+    assert f"1.2.7 (fila {cr.P_FIRST + 13}): sin fila del libro" in by["DEP-014"]
+    assert f"2.0.0 (fila {cr.P_FIRST + 15}): resumen sin detalle" in by["DEP-014"]
     assert "(2): 1.0.0-D, 2.1.0. Su fila «(coste)» queda vacía." in by["DEP-016"]
 
 
@@ -696,3 +706,224 @@ def test_legacy_processed_book_is_reported_and_migration_recovers_ms_project(tmp
         assert "procesar-costes" not in load_workbook(new)["% PV-EmpresaA"]["A1"].value
         assert not [w for w in run_update(P(tasks()), config(review=review), new, date(2027, 2, 28),
                                           backup=False).warnings if w.id in ("DEP-021", "ACT-047")]
+
+
+# ----------------------------------------------------------------------------
+# Precio de las EDT interna ([depuracion_precio]) y tabla Recargos
+# ----------------------------------------------------------------------------
+PRICE_FORMULA = "(A*(1+KA)+B*(1+KB)+C*(1+KC)+D*(1+KD)+E)*(1+KG)*(1+BE)"
+COMPONENTS = {"A": "Costes indirectos de Producción", "B": "Costes indirectos de Gestión de Materiales",
+              "C": "Costes indirectos de Gestión de Subcontrataciones",
+              "D": "Costes indirectos de Entregas de Producción", "E": "Otros costes"}
+RATES = {"KA": COMPONENTS["A"], "KB": COMPONENTS["B"], "KC": COMPONENTS["C"], "KD": COMPONENTS["D"],
+         "KG": "Costes Generales y Administrativos", "BE": "Beneficio"}
+RATE_VALUES = {"KA": 0.01, "KB": 0.005, "KC": 0.006, "KD": 0.02, "KG": 0.03, "BE": 0.025}
+
+
+def price_config(**kw) -> Config:
+    kw.setdefault("cost_price_rates", dict(RATES))
+    return config(cost_price_formula=PRICE_FORMULA, cost_price_components=dict(COMPONENTS), **kw)
+
+
+# Una EDT interna con sus cinco componentes (textos con otras mayúsculas, tildes y espacios), un componente que no está
+# en la lista y una EDT interna sin componentes
+PRICE_PLAN = [
+    ["1.1.0", "Dirección"],
+    [None, None, "GPR00", "Lanzamiento (precio)"],
+    [None, None, None, "Costes indirectos de Producción", 30, None, 10, 10, 10],
+    [None, None, None, "costes indirectos de gestion de materiales", 27, None, 10, 9, 8],
+    [None, None, None, "Costes indirectos de Gestión de Subcontrataciones", 44, None, 11, 11, 22],
+    [None, None, None, "  Costes  indirectos de Entregas de Producción ", 14, None, 5, 5, 4],
+    [None, None, None, "Otros costes", 15, None, 5, 5, 5],
+    [None, None, None, "Viajes", 1, None, 1],                                     # no está en la lista
+    ["1.2.1", "Licitación"],
+    [None, None, "GPR01", "EDT interna sin componentes", 20, None, 20],
+]
+
+
+def price_of(a, b, c, d, e, k=RATE_VALUES) -> float:
+    return ((a * (1 + k["KA"]) + b * (1 + k["KB"]) + c * (1 + k["KC"]) + d * (1 + k["KD"]) + e)
+            * (1 + k["KG"]) * (1 + k["BE"]))
+
+
+PRICE_MONTHS = [price_of(10, 10, 11, 5, 5), price_of(10, 9, 11, 5, 5), price_of(10, 8, 22, 4, 5)]
+
+
+def fill_rates(path, skip=()) -> None:
+    """Escribe los coeficientes de la tabla Recargos en todos sus años, menos los (nombre, año) de skip."""
+    wb = load_workbook(path)
+    ws = wb[cr.SHEET_PASTE]
+    table = cr.read_rates(ws)
+    for name, v in RATE_VALUES.items():
+        for y, c in table.year_cols.items():
+            if (name, y) not in skip:
+                ws.cell(row=table.rows[norm_label(RATES[name])], column=c, value=v)
+    wb.save(path)
+
+
+def price_book(tmp_path, skip=()):
+    """Libro de depuración con [depuracion_precio], el plan PRICE_PLAN y los coeficientes de la tabla Recargos."""
+    path = tmp_path / "libro.xlsx"
+    make_book(path, price_config())
+    set_bac(path, "PV-EmpresaA", BAC_A)
+    paste(path, PRICE_PLAN)
+    fill_rates(path, skip)
+    return path
+
+
+def test_price_config_and_formula(tmp_path):
+    path = tmp_path / "c.toml"
+    path.write_text('[exportacion]\ndepuracion_costes = true\n\n[depuracion_precio]\n'
+                    f'calculo_precio = "{PRICE_FORMULA}"\n\n[depuracion_precio.componentes]\n'
+                    + "".join(f'{k} = "{v}"\n' for k, v in COMPONENTS.items())
+                    + "\n[depuracion_precio.recargos]\n" + "".join(f'{k.lower()} = "{v}"\n' for k, v in RATES.items()),
+                    encoding="utf-8")
+    cfg = load_config(path)
+    assert cfg.cost_price_formula == PRICE_FORMULA and cfg.cost_price_components == COMPONENTS
+    assert cfg.cost_price_rates == RATES                            # los nombres, en mayúsculas
+    assert Config().cost_price_formula == "" and not Config().cost_price_rates
+    base = dict(cost_price_formula=PRICE_FORMULA, cost_price_components=dict(COMPONENTS),
+                cost_price_rates=dict(RATES))
+    for change, text in [
+            (dict(cost_price_formula="A*KX"), "'KX' no es un nombre"),
+            (dict(cost_price_formula="A^2"), "solo admite números"),
+            (dict(cost_price_formula="A*(1+KA"), "no es una expresión válida"),
+            (dict(cost_price_formula="1_000*A"), "el número '1_000' no es válido"),
+            (dict(cost_price_formula="KA*2"), "no usa ningún componente"),
+            (dict(cost_price_formula=""), "falta calculo_precio"),
+            (dict(cost_price_components={}), "falta [depuracion_precio.componentes]"),
+            (dict(cost_price_rates={**RATES, "A": "X"}), "A está en [depuracion_precio.componentes] y en"),
+            (dict(cost_price_rates={**RATES, "KX": " beneficio "}), "BE y KX tienen el mismo texto"),
+            (dict(cost_price_rates={f"K{i}": f"R{i}" for i in range(9)}), "hasta 8 coeficientes")]:
+        with pytest.raises(ConfigError, match=re.escape(text)) as exc:
+            config(**{**base, **change})
+        assert exc.value.id == "CFG-055"
+    for body in ('componentes = "A"\n', '[depuracion_precio.componentes]\n1A = "X"\n'):
+        path.write_text("[depuracion_precio]\n" + body, encoding="utf-8")
+        with pytest.raises(ConfigError) as exc:
+            load_config(path)
+        assert exc.value.id == "CFG-055"
+
+
+def test_price_expression_in_python_and_excel():
+    assert cp.norm_label("  Costes  indirectos de PRODUCCIÓN ") == "costes indirectos de produccion"
+    names = set(COMPONENTS) | set(RATES)
+    tree = cp.parse_formula(PRICE_FORMULA, names)
+    values = {"A": 10, "B": 10, "C": 11, "D": 5, "E": 5, **RATE_VALUES}
+    assert cp.evaluate(tree, values) == pytest.approx(43.619367)
+    refs = {n: f"G{14 + k}" for k, n in enumerate("ABCDE")} | {n: f"$E${2 + k}" for k, n in enumerate(RATES)}
+    assert cp.render(tree, refs.get) == "(G14*(1+$E$2)+G15*(1+$E$3)+G16*(1+$E$4)+G17*(1+$E$5)+G18)*(1+$E$6)*(1+$E$7)"
+    for text, expected in (("A-(B-C)", "A-(B-C)"), ("(A-B)-C", "A-B-C"), ("A/(B*C)", "A/(B*C)"),
+                           ("-(A+B)*2", "-(A+B)*2"), ("A*.5+1e-3", "A*0.5+0.001"), ("2.0*a", "2*A")):
+        assert cp.render(cp.parse_formula(text, {"A", "B", "C"}), lambda n: n) == expected, text
+
+
+def test_review_sheet_layout_and_rates_table(tmp_path):
+    """Disposición de la plantilla de la empresa: título y controles arriba a la izquierda, tabla Recargos desde D1
+    (con [depuracion_precio]) y el plan desde la celda A12."""
+    path = tmp_path / "libro.xlsx"
+    make_book(path, price_config())
+    ws = load_workbook(path)[cr.SHEET_PASTE]
+    assert ws["A1"].value == "Plan de costes  -  EmpresaA" and ws.freeze_panes == f"G{cr.P_FIRST}"
+    assert [ws.cell(row=r, column=1).value for r in (2, 3, 4)] == ["Leído en filas del libro",
+                                                                   "Leído después del horizonte", "Sin leer"]
+    assert ws["C2"].value.startswith("=SUMIFS(") and cr.P_FIRST == 12 and cr.paste_first_row(ws) == cr.P_FIRST
+    assert ws.cell(row=11, column=1).value == "EDT cliente" and ws.cell(row=11, column=cr.P_EAC).value == "EAC"
+    assert ws.cell(row=10, column=cr.P_FIRST_MONTH).value == 1
+    assert "A12" in ws["A8"].value and "[depuracion_precio]" in ws["A8"].value
+    assert ws["D1"].value == "Recargos" and ws["E1"].value == 2027 and ws["N1"].value == 2036 and ws["O1"].value is None
+    assert [ws.cell(row=r, column=4).value for r in range(2, 8)] == list(RATES.values()) and ws["D8"].value is None
+    assert ws["E2"].fill.fgColor.rgb.endswith(FILL_INPUT.fgColor.rgb[-6:]) and ws["N7"].number_format == "0.00%"
+    plain = tmp_path / "sin_precio.xlsx"
+    make_book(plain, config())
+    ws = load_workbook(plain)[cr.SHEET_PASTE]
+    assert ws["D1"].value is None and not cr.read_rates(ws).present and "[depuracion_precio]" not in ws["A8"].value
+
+
+def test_procesar_costes_writes_the_price_formulas(tmp_path):
+    """Cada mes de la EDT interna con componentes es su precio, con los coeficientes del año del mes; el BAC sigue
+    siendo la suma de los componentes y la EDT interna sin componentes no cambia."""
+    path = price_book(tmp_path)
+    res = run_cost_plan(price_config(cost_review_calcs=True), path, backup=False)
+    assert res.calculated == 10 and res.priced == 1
+    first = cr.P_FIRST
+    r = first + 1                                   # GPR00; sus componentes, en las 5 filas siguientes
+    ws = load_workbook(path)[cr.SHEET_PASTE]
+    assert ws.cell(row=r, column=cr.P_FIRST_MONTH).value == (
+        f"=(G{r + 1}*(1+$E$2)+G{r + 2}*(1+$E$3)+G{r + 3}*(1+$E$4)+G{r + 4}*(1+$E$5)+G{r + 5})*(1+$E$6)*(1+$E$7)")
+    assert ws.cell(row=r, column=cr.P_FIRST_MONTH + 12).value.startswith(f"=(S{r + 1}*(1+$F$2)")    # 2028
+    assert ws.cell(row=r, column=cr.P_BAC).value == f"=SUM(E{r + 1}:E{r + 6})"
+    assert ws.cell(row=first, column=cr.P_FIRST_MONTH).value == f"=SUM(G{r})"
+    assert ws.cell(row=first + 9, column=cr.P_FIRST_MONTH).value == 20
+    assert ws.cell(row=first + 2, column=cr.P_FIRST_MONTH).fill.fgColor.rgb.endswith(FILL_INPUT.fgColor.rgb[-6:])
+    eac = {code: e for code, _name, e, _bac in res.rows}
+    assert eac["1.1.0"] == pytest.approx(sum(PRICE_MONTHS)) and eac["1.2.1"] == 20
+    by = {i.id: i.message for i in res.warnings}
+    assert f"1 línea de componente de coste de la hoja {cr.SHEET_PASTE}" in by["DEP-022"]
+    assert f"Viajes (fila {first + 7})" in by["DEP-022"] and "DEP-023" not in by
+
+
+def test_price_notices_and_missing_rates_table(tmp_path):
+    path = price_book(tmp_path, skip={("KG", 2027)})
+    res = run_cost_plan(price_config(), path)                   # sin --calculos: solo revisa
+    dep = next(i.message for i in res.warnings if i.id == "DEP-023")
+    assert "sin un número en años con importes: Costes Generales y Administrativos (KG), 2027" in dep
+    assert "se toman como 0" in dep
+    res = run_cost_plan(config(), path)                         # sin [depuracion_precio]: lo avisa
+    assert "--config" in next(i.message for i in res.warnings if i.id == "DEP-026")
+    # Un libro generado sin [depuracion_precio] no tiene la tabla: --calculos la agrega vacía
+    plain = tmp_path / "sin_tabla.xlsx"
+    make_book(plain, config())
+    paste(plain, PRICE_PLAN)
+    res = run_cost_plan(price_config(), plain)
+    assert "falta la tabla" in next(i.message for i in res.warnings if i.id == "DEP-023")
+    res = run_cost_plan(price_config(cost_review_calcs=True), plain, backup=False)
+    assert "se agregó la tabla" in next(i.message for i in res.warnings if i.id == "DEP-023")
+    ws = load_workbook(plain)[cr.SHEET_PASTE]
+    assert ws["D1"].value == "Recargos" and ws["D7"].value == "Beneficio" and ws["E7"].value is None
+    assert ws.cell(row=cr.P_FIRST + 1, column=cr.P_FIRST_MONTH).value.startswith("=(G")
+    assert {code: e for code, _n, e, _b in res.rows}["1.1.0"] == 41 + 40 + 49     # recargos en 0: la suma
+
+
+@pytest.mark.libreoffice
+def test_price_formulas_match_python(tmp_path, recalc):
+    path = price_book(tmp_path)
+    run_cost_plan(price_config(cost_review_calcs=True), path, backup=False)
+    ws = load_workbook(recalc(path), data_only=True)[cr.SHEET_PASTE]
+    got = [ws.cell(row=cr.P_FIRST + 1, column=cr.P_FIRST_MONTH + i).value for i in range(3)]
+    assert got == pytest.approx(PRICE_MONTHS)
+    assert ws.cell(row=cr.P_FIRST, column=cr.P_EAC).value == pytest.approx(sum(PRICE_MONTHS))
+    assert ws.cell(row=cr.P_TOTAL_ROW, column=cr.P_CONTROL).value == pytest.approx(sum(PRICE_MONTHS) + 20)
+
+
+def test_migration_keeps_the_rates_and_moves_an_old_sheet(tmp_path):
+    old = price_book(tmp_path)
+    run_cost_plan(price_config(cost_review_calcs=True), old, backup=False)
+    new = tmp_path / "new.xlsx"
+    rep = make_book(new, price_config(cost_price_rates={**RATES, "KG": "Gastos generales"}),
+                    prior_from_book(old, "Programa"))
+    assert issues_with(rep, f"({len(PRICE_PLAN)} líneas y los recargos de 5 coeficientes de la tabla Recargos); se "
+                            "volvieron a escribir las fórmulas", SEV_INFO)
+    lost = issues_with(rep, "Los recargos de la tabla Recargos del libro anterior de Costes Generales y "
+                            "Administrativos no se trasladaron: [depuracion_precio.recargos] no tiene esos textos",
+                       SEV_WARN)
+    assert lost and lost[0].id == "DEP-025"
+    ws = load_workbook(new)[cr.SHEET_PASTE]
+    assert ws["E2"].value == 0.01 and ws["N7"].value == 0.025 and ws["D6"].value == "Gastos generales"
+    assert ws["E6"].value is None
+    assert ws.cell(row=cr.P_FIRST + 1, column=cr.P_FIRST_MONTH).value.startswith(f"=(G{cr.P_FIRST + 2}*(1+$E$2)")
+    # Libro de la versión 2.5: el plan desde la celda A8. procesar-costes pide --migrar-desde, que lo pasa a A12
+    legacy = tmp_path / "v25.xlsx"
+    make_book(legacy, config())
+    line = ["1.1", "Dirección", None, None, 200, 200, 100, 100]
+    old_sheet(legacy, {1: "EDT cliente", cr.P_EAC: cr.EAC_HEADER}, [line])
+    ws = load_workbook(legacy)[cr.SHEET_PASTE]
+    assert cr.paste_first_row(ws) == cr.OLD_FIRST and cr.paste_format(ws) == cr.FORMAT_CURRENT
+    with pytest.raises(InputError) as exc:
+        run_cost_plan(config(), legacy)
+    assert exc.value.id == "DEP-024" and "--migrar-desde" in str(exc.value)
+    moved = tmp_path / "moved.xlsx"
+    rep = make_book(moved, config(), prior_from_book(legacy, "Programa"))
+    assert issues_with(rep, "(1 línea); el plan empieza ahora en la celda A12 (antes, en la A8).", SEV_INFO)
+    ws = load_workbook(moved)[cr.SHEET_PASTE]
+    assert [ws.cell(row=cr.P_FIRST, column=c).value for c in range(1, 9)] == line

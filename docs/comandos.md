@@ -389,6 +389,7 @@ LOE.
 ```powershell
 python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx
 python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx --calculos
+python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx --calculos --config config_depuracion.toml
 ```
 
 En un libro generado con `depuracion_costes = true`, revisa el plan de costes de la hoja `PV-depuración`
@@ -402,12 +403,19 @@ PV de la empresa y en la hoja `Depuración costes`
 - Muestra cada fila con plan, con el **EAC** de su línea y su **BAC**, y las observaciones: líneas de EDT
   cliente sin leer, importes después del horizonte, filas sin línea en el plan o sin importes, EDT cliente
   repetidas e importes guardados como texto
-  ([DEP-012 a DEP-021](codigos.md#413-dep--depuración-de-costes)).
+  ([DEP-012 a DEP-026](codigos.md#413-dep--depuración-de-costes)).
 - Con `--calculos` (o `[exportacion] depuracion_calculos = true`), escribe en la hoja las fórmulas de los
   cálculos del plan: las sumas de los componentes de coste en su EDT interna y de las EDT interna en su
   EDT cliente, el EAC de cada línea y el BAC de cada EDT cliente, leído de la hoja PV de la empresa
   ([cálculos del plan](depuracion-costes.md#43-cálculos-del-plan-celdas-naranjas)). Sin esa opción, no
   modifica el libro.
+- Con `[depuracion_precio]` en la configuración (`--config`), los meses de cada EDT interna con
+  componentes son su **precio**, con los recargos de la tabla `Recargos` de la hoja
+  ([precio de las EDT interna](depuracion-costes.md#44-precio-de-las-edt-interna-tabla-recargos)); si la
+  hoja no tiene la tabla, `--calculos` la agrega vacía. Avisa de los componentes que no están en la lista y
+  de los coeficientes que faltan.
+- Una hoja de la versión 2.5 o anterior, con el plan desde la celda A8, no se procesa: se genera un libro
+  nuevo con `--migrar-desde`, que pasa el plan a la celda A12 ([DEP-024](codigos.md#dep-024)).
 - En un libro procesado con una versión anterior a la 2.6.0 (que reemplazaba el % planificado por el
   reparto del plan), avisa de esas filas ([DEP-021](codigos.md#dep-021)): `generar --migrar-desde` les
   devuelve el % de MS Project.
@@ -420,7 +428,7 @@ Plan de costes en 3 de 5 filas de ingreso, 278 dentro del horizonte:
   1.1.0        Dirección                                         EAC            117  BAC            117
   1.2.1        Licitación                                        EAC             65  BAC             65
   1.2.2        Obras                                             EAC             96  BAC            100
-  [!] DEP-014 3 líneas de EDT cliente de la hoja PV-depuración sin leer, por 62,00: 1.2.7 (fila 21): sin fila del libro, 2.0.0 (fila 23): resumen sin detalle en el plan, 9.9 (fila 24): sin fila del libro. Su importe no llega a ninguna fila «(coste)».
+  [!] DEP-014 3 líneas de EDT cliente de la hoja PV-depuración sin leer, por 62,00: 1.2.7 (fila 25): sin fila del libro, 2.0.0 (fila 27): resumen sin detalle en el plan, 9.9 (fila 28): sin fila del libro. Su importe no llega a ninguna fila «(coste)».
   [i] DEP-016 Filas de ingreso de la hoja PV-EmpresaA sin línea de EDT cliente en el plan de costes (2): 1.0.0-D, 2.1.0. Su fila «(coste)» queda vacía.
 El % planificado (hoja '% PV-EmpresaA') no cambia: es el de MS Project. El plan de costes se compara con el PV en las filas «(coste)» de la hoja PV-EmpresaA y en la hoja 'Depuración costes'.
 Respaldo: C:\Programa\EVM_Depuracion.respaldo-20261108-101500.xlsx
@@ -433,7 +441,7 @@ Libro actualizado: C:\Programa\EVM_Depuracion.xlsx
 | `--calculos` | Escribe los cálculos del plan en la hoja `PV-depuración` (fórmulas en las celdas naranjas) y guarda el libro. Equivale a `[exportacion] depuracion_calculos = true` para esta ejecución. Sin esta opción, el libro no se modifica. |
 | `--simular` | Con `--calculos`, muestra el resultado sin modificar el libro. |
 | `--sin-respaldo` | Con `--calculos`, no crea la copia de respaldo del libro. |
-| `--config` | Solo se usan `[validacion] silenciar` y `[exportacion] guardado_rapido` y `depuracion_calculos`. |
+| `--config` | Solo se usan `[validacion] silenciar`, `[exportacion] guardado_rapido` y `depuracion_calculos` y `[depuracion_precio]`. Para el precio de las EDT interna, se indica la configuración de la depuración. |
 | `--silenciar CODIGOS` | Igual que en `generar`. |
 
 ---

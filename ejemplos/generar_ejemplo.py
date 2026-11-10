@@ -627,13 +627,22 @@ def fill_book(book_path: Path, status: date | None = None, projects: dict[str, i
     return bac_cells, ac_cells
 
 
+# Componentes de coste de la EDT interna GPR03 (los de [depuracion_precio] en config.ejemplo.toml) y su parte del
+# importe; coeficientes de la tabla Recargos, en el orden de la configuración
+COMPONENTS = [("Costes indirectos de Producción", 0.4), ("Costes indirectos de Gestión de Materiales", 0.2),
+              ("Costes indirectos de Gestión de Subcontrataciones", 0.2),
+              ("Costes indirectos de Entregas de Producción", 0.1), ("Otros costes", 0.1)]
+RATES = [0.01, 0.005, 0.006, 0.02, 0.03, 0.025]
+
+
 def fill_review(wb, meta: dict) -> int:
     """Libro con depuración de costes: escribe en la hoja PV-depuración (si está vacía) un plan de costes ficticio de
     la empresa, como lo escribiría en la hoja: el PV planificado de cada paquete con algunos meses desplazados y
     algunos totales distintos del BAC. Cada EDT cliente lleva la suma de sus líneas: personal propio y subcontratas
     (PER01, SUB01...), hitos de pago en un paquete (HP-01...), subtareas en otro (XRF01...) y, en otro, una EDT interna
-    (GPR03) con sus componentes de coste; las EDT cliente de los resúmenes, la suma de las de sus filas. Las filas
-    «Otras tareas» no tienen EDT cliente propia. Devuelve la cantidad de líneas escritas."""
+    (GPR03) con sus componentes de coste (los de [depuracion_precio] en config.ejemplo.toml); las EDT cliente de los
+    resúmenes, la suma de las de sus filas. Las filas «Otras tareas» no tienen EDT cliente propia. Si la hoja tiene la
+    tabla Recargos, escribe sus coeficientes. Devuelve la cantidad de líneas escritas."""
     from evm import cost_review
     from evm.timeline import round_preserving_total
     from evm.workbook import FIRST_MONTH_COL, PCT_PREFIX, read_structure
@@ -683,7 +692,10 @@ def fill_review(wb, meta: dict) -> int:
                      (f"SUB{k + 1:02d}", "Subcontratas", [v - o for v, o in zip(values, own)])]
         leaves = items                      # líneas que se suman en la EDT cliente
         if k == 2:                          # EDT interna (subtotal) con sus componentes de coste (columna D)
-            items = [(f"GPR{k + 1:02d}", "Gestión del paquete", values)] + [(None, d, p) for _c, d, p in leaves]
+            parts = [[round(v * share) for v in values] for _d, share in COMPONENTS[:-1]]
+            parts.append([v - sum(p[i] for p in parts) for i, v in enumerate(values)])
+            leaves = [(None, d, p) for (d, _share), p in zip(COMPONENTS, parts)]
+            items = [(f"GPR{k + 1:02d}", "Gestión del paquete", values)] + leaves
         items_of[s.row] = items
         total_of[s.row] = [sum(p[i] for _c, _d, p in leaves) for i in range(months)]
         k += 1
@@ -705,6 +717,10 @@ def fill_review(wb, meta: dict) -> int:
                 cell = paste.cell(row=r, column=c, value=v)
                 if c >= cost_review.P_BAC:
                     cell.number_format = "#,##0"
+    table = cost_review.read_rates(paste)                 # coeficientes de la tabla Recargos, si la tiene
+    for k, row in enumerate(table.rows.values()):
+        for c in table.year_cols.values():
+            paste.cell(row=row, column=c, value=RATES[k % len(RATES)])
     return len(lines)
 
 

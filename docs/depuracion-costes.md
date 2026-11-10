@@ -58,6 +58,9 @@ flowchart LR
 - Los importes se suman hacia arriba: los componentes en su EDT interna, las EDT interna en su EDT
   cliente y cada EDT cliente en la de su código superior. Esos cálculos los hace la empresa con fórmulas,
   o `procesar-costes --calculos` ([4.3](#43-cálculos-del-plan-celdas-naranjas)).
+- Si el plan de la empresa está **a coste** y el BAC a precio, con `[depuracion_precio]` cada EDT interna
+  con componentes pasa a su **precio**, con los recargos de la tabla `Recargos` de la misma hoja
+  ([4.4](#44-precio-de-las-edt-interna-tabla-recargos)).
 - Solo se leen las **líneas de EDT cliente** cuyo código es el de una fila de ingreso de la hoja PV de la
   empresa. Con **fórmulas de Excel**, la fila **«(coste)»** de debajo de cada fila muestra los meses y el
   **EAC** de esa línea. Al cambiar el plan, el libro se actualiza al instante, sin ejecutar el programa.
@@ -96,6 +99,39 @@ depuracion_calculos = false       # procesar-costes escribe los cálculos del pl
 Se recomienda usar un archivo de configuración aparte para la depuración (por ejemplo
 `config_depuracion.toml`), para no generar por error un libro de entrega con depuración.
 
+Si el plan de la empresa está a coste, la sección `[depuracion_precio]` (opcional) indica cómo se calcula
+el precio de cada EDT interna ([4.4](#44-precio-de-las-edt-interna-tabla-recargos)):
+
+```toml
+[depuracion_precio]
+calculo_precio = "(A*(1+KA)+B*(1+KB)+C*(1+KC)+D*(1+KD)+E)*(1+KG)*(1+BE)"
+
+[depuracion_precio.componentes]   # nombre = texto de la columna D de PV-depuración
+A = "Costes indirectos de Producción"
+B = "Costes indirectos de Gestión de Materiales"
+C = "Costes indirectos de Gestión de Subcontrataciones"
+D = "Costes indirectos de Entregas de Producción"
+E = "Otros costes"
+
+[depuracion_precio.recargos]      # nombre = texto de la fila de la tabla Recargos
+KA = "Costes indirectos de Producción"
+KB = "Costes indirectos de Gestión de Materiales"
+KC = "Costes indirectos de Gestión de Subcontrataciones"
+KD = "Costes indirectos de Entregas de Producción"
+KG = "Costes Generales y Administrativos"
+BE = "Beneficio"
+```
+
+| Clave | Uso |
+|---|---|
+| `calculo_precio` | Expresión del precio de un mes. Admite números (con punto decimal: `0.5`), los nombres de las dos listas, `+ - * /` y paréntesis. |
+| `[depuracion_precio.componentes]` | Un nombre por componente de coste, con el texto que lleva en la columna D. Los textos no distinguen mayúsculas, tildes ni espacios de más. |
+| `[depuracion_precio.recargos]` | Un nombre por coeficiente (hasta 8), con el texto de su fila en la tabla `Recargos`. Los coeficientes son porcentajes: `1 %` = `0.01`. |
+
+Los nombres empiezan con una letra y tienen solo letras sin tilde, números y `_`; no distinguen
+mayúsculas. Sin la sección, las EDT interna suman sus componentes. Un error en la sección detiene el
+programa ([CFG-055](codigos.md#cfg-055)).
+
 ---
 
 ## 4. Hoja PV-depuración: la previsión pegada
@@ -104,8 +140,20 @@ Se recomienda usar un archivo de configuración aparte para la depuración (por 
 
 ### 4.1 Formato
 
-La hoja tiene el mismo formato que el plan de costes de la empresa. Los datos se escriben o se pegan
-**desde la celda A8** (con *Pegado especial > Valores* si vienen de otro libro):
+La hoja tiene la misma disposición que la plantilla del plan de costes de la empresa:
+
+| Zona | Contenido |
+|---|---|
+| A1 | Título, con la empresa que se depura. |
+| A2:C4 | Controles de la lectura ([4.5](#45-controles)). |
+| Desde D1 | Tabla `Recargos`, con `[depuracion_precio]`: un coeficiente por fila (desde D2) y un año por columna (desde E1) ([4.4](#44-precio-de-las-edt-interna-tabla-recargos)). |
+| Filas 8 y 9 | Instrucciones. |
+| Fila 10 | N° de mes. |
+| Fila 11 | Encabezados de las columnas y fecha de cada mes. |
+| Desde A12 | El plan de costes. |
+
+Los datos del plan se escriben o se pegan **desde la celda A12** (con *Pegado especial > Valores* si
+vienen de otro libro):
 
 | Columna | Contenido |
 |---|---|
@@ -132,8 +180,9 @@ componentes (en negrita, los cálculos: celdas naranjas):
   debe ser el mes 1 del libro (`[horizonte] mes_inicio`). Si el plan de costes empieza en otro mes, se
   pega el bloque de meses desplazado.
 - Los meses posteriores al horizonte del libro tienen el encabezado gris: no forman parte del PV.
-- Admite hasta **2.000 líneas** (filas 8 a 2007).
-- El plan debe estar en la **misma base** que el BAC (por ejemplo, a precio de contrato).
+- Admite hasta **2.000 líneas** (filas 12 a 2011).
+- El plan debe estar en la **misma base** que el BAC (por ejemplo, a precio de contrato). Si está a
+  coste, con `[depuracion_precio]` cada EDT interna pasa a su precio ([4.4](#44-precio-de-las-edt-interna-tabla-recargos)).
 
 ### 4.2 Qué líneas se leen
 
@@ -160,7 +209,7 @@ componentes (en negrita, los cálculos: celdas naranjas):
 | Línea | E · BAC | F · EAC | Meses |
 |---|---|---|---|
 | Componente de coste (solo la columna D) | Dato | Suma de sus meses | Datos |
-| EDT interna con componentes debajo | Suma de sus componentes | Suma de sus meses | Suma de sus componentes |
+| EDT interna con componentes debajo | Suma de sus componentes | Suma de sus meses | Suma de sus componentes o, con `[depuracion_precio]`, su precio ([4.4](#44-precio-de-las-edt-interna-tabla-recargos)) |
 | EDT interna sin componentes | Dato | Suma de sus meses | Datos |
 | EDT cliente | El de su fila de la hoja PV de la empresa (vacío si no tiene fila) | Suma de sus meses | Suma de sus EDT interna, de los componentes que tenga directamente y de las EDT cliente de sus códigos inferiores (`1.0.0` = `1.1.0` + `1.2.0`). Sin líneas debajo, datos. |
 
@@ -173,13 +222,47 @@ componentes (en negrita, los cálculos: celdas naranjas):
 - Con los cálculos, una línea con solo la columna D debajo de una EDT cliente o interna es un componente:
   los meses de la línea de arriba pasan a ser su suma.
 
-### 4.4 Controles
+### 4.4 Precio de las EDT interna (tabla Recargos)
+
+Si la empresa escribe su plan **a coste** y el BAC está a precio, con `[depuracion_precio]`
+([3](#3-configuración)) cada mes de una EDT interna con componentes es su **precio**, en lugar de la suma
+de sus componentes. La EDT cliente suma el precio de sus EDT interna, como siempre.
+
+- La **tabla `Recargos`** está arriba de la hoja: en D1, el título; desde E1, un año por columna (los
+  años de los meses de la hoja); desde D2, una fila por coeficiente de `[depuracion_precio.recargos]`, con
+  su texto. Los coeficientes se escriben en las celdas amarillas, en %: un valor por año, que se aplica a
+  los meses de ese año.
+- Cada línea de componente (solo la columna D) es el componente de `[depuracion_precio.componentes]` con
+  el mismo texto, sin distinguir mayúsculas, tildes ni espacios de más. Si una EDT interna tiene dos
+  líneas del mismo componente, se suman.
+- `procesar-costes --calculos` escribe en cada mes de la EDT interna la fórmula de `calculo_precio`, con
+  las celdas de sus componentes y de los coeficientes del año. Por ejemplo, en el mes 1 (enero de 2026) de
+  una EDT interna de la fila 14 con sus componentes en las filas 15 a 19:
+
+  ```text
+  =(G15*(1+$E$2)+G16*(1+$E$3)+G17*(1+$E$4)+G18*(1+$E$5)+G19)*(1+$E$6)*(1+$E$7)
+  ```
+
+  Con 10, 10, 11, 5 y 5 de coste y los recargos 1 %, 0,5 %, 0,6 %, 2 %, 3 % y 2,5 %, el precio es 43,62.
+  En los meses de 2027, la fórmula usa la columna F de la tabla, y así sucesivamente. Las fórmulas se
+  actualizan solas al cambiar los costes o los recargos.
+- El **BAC** de la EDT interna sigue siendo la suma del de sus componentes (a coste): el BAC de la EDT
+  cliente es el de la hoja PV de la empresa.
+- Una EDT interna **sin componentes** (por ejemplo, un hito de pago con sus importes) se toma tal cual,
+  como ya a precio. Los componentes que están directamente debajo de una EDT cliente, sin EDT interna,
+  también forman su precio.
+- Un componente con un texto que **no está** en la lista no entra en el precio, y un coeficiente sin
+  valor se toma como 0: `procesar-costes` los avisa ([DEP-022](codigos.md#dep-022) y
+  [DEP-023](codigos.md#dep-023)). Si la hoja no tiene la tabla (el libro se generó sin
+  `[depuracion_precio]`), `procesar-costes --calculos` la agrega vacía.
+
+### 4.5 Controles
 
 | Control | Dónde | Qué indica |
 |---|---|---|
-| **Leído en filas del libro** | Celda F3 | Suma de los meses del horizonte de las líneas de EDT cliente que se leen. |
-| **Leído después del horizonte** | Celda F4 (en rojo si no es 0) | Importes de esas líneas en meses posteriores al horizonte: forman parte del EAC de la fila «(coste)», pero no de sus meses. |
-| **Sin leer** | Celda F5 (en rojo si no es 0) | Importe de las EDT cliente sin fila del libro y de los resúmenes sin detalle en el plan. |
+| **Leído en filas del libro** | Celda C2 | Suma de los meses del horizonte de las líneas de EDT cliente que se leen. |
+| **Leído después del horizonte** | Celda C3 (en rojo si no es 0) | Importes de esas líneas en meses posteriores al horizonte: forman parte del EAC de la fila «(coste)», pero no de sus meses. |
+| **Sin leer** | Celda C4 (en rojo si no es 0) | Importe de las EDT cliente sin fila del libro y de los resúmenes sin detalle en el plan. |
 | **Asignado a** | Columna a la derecha de los meses (DX con 120 meses) | En cada línea de EDT cliente, la fila del libro que la lee o por qué no se lee ([4.2](#42-qué-líneas-se-leen)). |
 | **Observación** | Columna siguiente (DY) | En las líneas que se leen: `EDT cliente repetida: se suman sus líneas`, `Importes fuera del horizonte del libro` o `Importes guardados como texto: no se suman`. |
 
@@ -264,6 +347,8 @@ plan se compara con él en las filas «(coste)» y en la hoja `Depuración coste
 ```powershell
 python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx              # revisa el plan, sin modificar el libro
 python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx --calculos   # escribe los cálculos del plan
+python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx --calculos --config config_depuracion.toml
+                                                                  # con el precio de [depuracion_precio]
 ```
 
 - Lee las **líneas de EDT cliente** con el código de una fila de ingreso de la hoja PV de la empresa
@@ -275,6 +360,13 @@ python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx --calculos   # 
 - Con `--calculos` (o `depuracion_calculos = true`), escribe en `PV-depuración` las fórmulas de los
   cálculos del plan ([4.3](#43-cálculos-del-plan-celdas-naranjas)) y guarda el libro, con respaldo. Sin
   esa opción, usa los importes que tiene la hoja y no modifica el libro.
+- Con `[depuracion_precio]` en la configuración (`--config`), las EDT interna con componentes llevan su
+  precio ([4.4](#44-precio-de-las-edt-interna-tabla-recargos)), y avisa de los componentes que no están en
+  la lista y de los coeficientes que faltan en la tabla `Recargos`. Si la hoja tiene la tabla y la
+  configuración no tiene `[depuracion_precio]` (por ejemplo, sin `--config`), lo avisa
+  ([DEP-026](codigos.md#dep-026)): con `--calculos`, las EDT interna volverían a sumar sus componentes.
+- Una hoja de la versión 2.5 o anterior, con el plan desde la celda A8, se pasa al formato actual
+  generando un libro nuevo con `--migrar-desde` ([DEP-024](codigos.md#dep-024)).
 - No lee MS Project: se puede ejecutar cada vez que cambia el plan. Con `--calculos --simular`, muestra el
   resultado sin modificar el libro.
 
@@ -297,9 +389,10 @@ python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx --calculos   # 
    ```
 
 2. **Ingresar el BAC** de cada fila en la columna D de la hoja PV de la empresa (celdas amarillas).
-3. **Escribir o pegar el plan de costes** en `PV-depuración`, desde la celda A8, con sus cálculos (o
+3. **Escribir o pegar el plan de costes** en `PV-depuración`, desde la celda A12, con sus cálculos (o
    ejecutar `procesar-costes --calculos`), y revisar los controles: `Sin leer` debe ser 0 y la columna
-   `Asignado a` no debe tener líneas en rojo. `procesar-costes` los informa también en la consola.
+   `Asignado a` no debe tener líneas en rojo. `procesar-costes` los informa también en la consola. Con
+   `[depuracion_precio]`, escribir también los recargos de cada año en la tabla `Recargos`.
 4. **Comparar** en `Depuración costes`, empezando por `TOTAL` y siguiendo con los paquetes de mayor
    diferencia (o con el indicador de alineamiento de la hoja PV).
 5. **Ajustar** el plan de costes (para que el EAC de cada fila se acerque a su BAC) o MS Project: fechas y
@@ -338,6 +431,9 @@ Sobre `--migrar-desde` en la depuración:
 - Si cambió el mes 1 del horizonte, los meses de `PV-depuración` se desplazan para conservar su fecha;
   lo que queda antes del mes 1 se informa en `Validación`.
 - Las líneas se leen de nuevo con los códigos EDT del libro nuevo, aunque la EDT haya cambiado.
+- Los recargos de la tabla `Recargos` pasan por el texto de su fila y por año, si el coeficiente sigue en
+  `[depuracion_precio.recargos]`; los demás se informan en `Validación` ([DEP-025](codigos.md#dep-025)).
+- Si el libro anterior tiene el plan desde la celda A8 (versión 2.5 o anterior), pasa a la celda A12.
 - Si el libro anterior tiene la hoja sin la columna EAC (versión 2.4: meses desde la columna F), se
   agrega con la suma de los meses de cada línea. Si tiene la hoja sin las columnas de EDT interna
   (código, descripción, BAC y meses desde la columna D), el plan se pasa al formato actual: los
@@ -352,7 +448,8 @@ Sobre `--migrar-desde` en la depuración:
 | `Depuración de costes de EmpresaA: se debe pegar la previsión...` (Info) | Recordatorio de la hoja que se depura y de generar el libro de entrega sin depuración. |
 | `... filas tienen código EDT no numérico ... no pueden recibir la previsión` (Advertencia) | Las filas con códigos como `INTERNO` o `A1` no se pueden leer: el plan solo se asocia por códigos numéricos. |
 | `códigos EDT repetidos en el libro ...` (Advertencia) | Un código está en dos filas: el plan se lee en la primera. |
-| `Se conservó el contenido de la hoja PV-depuración ...` (Info) | `--migrar-desde` trasladó el plan (y volvió a escribir las fórmulas de los cálculos, si las tenía). |
+| `Se conservó el contenido de la hoja PV-depuración ...` (Info) | `--migrar-desde` trasladó el plan y los recargos de la tabla `Recargos` (y volvió a escribir las fórmulas de los cálculos, si las tenía). Si el plan empezaba en la celda A8 (versión 2.5 o anterior), lo indica: pasa a la celda A12. |
+| `Los recargos de la tabla Recargos del libro anterior de ... no se trasladaron` (Advertencia) | Esos coeficientes no están en `[depuracion_precio.recargos]` de la configuración nueva (por ejemplo, porque cambió su texto). |
 | `La hoja PV-depuración del libro anterior tenía el formato sin EDT interna ...` (Info) | El plan trasladado se pasó al formato con las columnas de EDT interna. |
 | `La hoja PV-depuración del libro anterior no tenía la columna EAC ...` (Info) | El plan trasladado se pasó al formato con la columna EAC. |
 | `La hoja PV-depuración del libro anterior ... no se trasladó` (Info o Advertencia) | El libro nuevo no tiene depuración, o depura otra empresa. |
@@ -360,8 +457,9 @@ Sobre `--migrar-desde` en la depuración:
 
 `procesar-costes` informa en la consola las líneas de EDT cliente sin leer, los importes después del
 horizonte, las filas sin línea en el plan o sin importes, las EDT cliente repetidas, los importes
-guardados como texto y, en un libro procesado con una versión anterior, las filas con el reparto del plan
-de costes ([DEP-012 a DEP-021](codigos.md#413-dep--depuración-de-costes)).
+guardados como texto, los componentes fuera del precio, los coeficientes que faltan en la tabla
+`Recargos` y, en un libro procesado con una versión anterior, las filas con el reparto del plan de costes
+([DEP-012 a DEP-024](codigos.md#413-dep--depuración-de-costes)).
 
 Limitaciones:
 
@@ -369,7 +467,8 @@ Limitaciones:
 - El libro de depuración pesa más (unas 24.000 fórmulas de lectura en una hoja oculta) y tarda unos
   segundos más en calcularse.
 - Las filas «(coste)» y las hojas `Depuración costes` y la oculta `_depuracion` no se deben modificar: son
-  fórmulas. En `PV-depuración`, solo la zona del plan (desde la fila 8, hasta la columna del último mes).
+  fórmulas. En `PV-depuración`, solo la zona del plan (desde la fila 12, hasta la columna del último mes) y
+  los recargos de la tabla `Recargos`.
 
 ---
 
@@ -390,6 +489,11 @@ indicador de alineamiento muestra su diferencia.
 hitos con su `Peso hito` en los meses del plan o división de tareas ([9](#9-ciclo-de-ajuste)). Así el %
 planificado sigue saliendo de la línea base y el SPI mide el avance frente al cronograma.
 
+**¿Y si el plan de costes está a coste y el BAC a precio?** Se agrega `[depuracion_precio]` a la
+configuración de la depuración ([3](#3-configuración)) y se escriben los recargos de cada año en la tabla
+`Recargos`. `procesar-costes --calculos` escribe el precio de cada EDT interna con sus componentes
+([4.4](#44-precio-de-las-edt-interna-tabla-recargos)).
+
 **¿Se pueden cargar los cierres mensuales en el libro de depuración?** Sí, `actualizar` y `analizar`
 funcionan igual. Pero el libro muestra el plan de costes de la empresa: para entregar o compartir el
 libro, se genera sin depuración.
@@ -406,5 +510,6 @@ se genera el libro multi-empresa con `depuracion_costes = true` y se ejecuta
 `python ejemplos\generar_ejemplo.py --libro EVM_Depuracion.xlsx`, que escribe el BAC de cada fila y un
 plan de costes ficticio de EmpresaA en `PV-depuración`: cada EDT cliente con sus líneas de EDT interna
 (personal propio y subcontratas, hitos de pago, subtareas o una EDT interna con sus componentes de
-coste), con algunos meses desplazados, y las EDT cliente de los resúmenes. Después se puede probar
-`procesar-costes` con ese libro.
+coste), con algunos meses desplazados, y las EDT cliente de los resúmenes. Si el libro tiene la tabla
+`Recargos` (con la sección `[depuracion_precio]` de `config.ejemplo.toml`), escribe también sus
+coeficientes. Después se puede probar `procesar-costes` con ese libro.

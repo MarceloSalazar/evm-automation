@@ -1494,9 +1494,11 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
                                    cfg.currency or report.currency or "")
     if review is not None:
         ws_chart, ws_paste = review
-        pasted = prior.review_rows if prior is not None and prior.review_keep else None
+        keep = prior is not None and prior.review_keep
+        pasted = prior.review_rows if keep else None
         cost_review.write_helper(wb[cost_review.SHEET_HELPER], report, lay, cfg)
-        cost_review.write_paste(ws_paste, report, cfg, lay, pasted, calcs=bool(pasted) and prior.review_calcs)
+        cost_review.write_paste(ws_paste, report, cfg, lay, pasted, calcs=bool(pasted) and prior.review_calcs,
+                                rates=prior.review_rates if keep else None)
         cost_review.write_chart_sheet(ws_chart, report, cfg, lay)
         cost_review.add_chart(wb, lay.months, max(plan_end, cost_review.last_paste_month(ws_paste, lay.months)),
                               cfg.currency or report.currency or "")

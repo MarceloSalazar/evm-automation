@@ -103,7 +103,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 
 | Área | Nombre | Tema en la hoja Validación | Dónde aparecen | Códigos |
 |---|---|---|---|---|
-| [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 54 |
+| [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 55 |
 | [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 26 |
 | [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 22 |
 | [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 10 |
@@ -115,7 +115,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [LOG](#410-log--lógica-del-cronograma) | Lógica del cronograma | Lógica del cronograma | validar | 19 |
 | [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) | 15 |
 | [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 20 |
-| [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 21 |
+| [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 26 |
 | [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 51 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
 | [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 33 |
@@ -185,6 +185,7 @@ Archivo de configuración, opciones de la línea de comandos, horizonte y códig
 | [CFG-052](#cfg-052) | Advertencia | Fin previsto posterior al último mes |
 | [CFG-053](#cfg-053) | Error (detiene el programa) | Varias planificaciones fuera de validar |
 | [CFG-054](#cfg-054) | Error (detiene el programa) | Falta el campo del cliente |
+| [CFG-055](#cfg-055) | Error (detiene el programa) | Cálculo del precio mal configurado |
 
 #### CFG-001
 
@@ -617,6 +618,14 @@ Se indicaron varias planificaciones separadas por comas (p. ej. INTERNO,CLIENTE)
 generar-cliente necesita el campo de MS Project que indica qué tareas se muestran al cliente.
 
 **Qué hacer:** Indicarlo en [cliente] campo, por ejemplo campo = "Etiqueta Cliente" (ver `config.ejemplo.toml`).
+
+#### CFG-055
+
+**Cálculo del precio mal configurado** · Error (detiene el programa) · Todos los comandos · no se puede silenciar
+
+La sección [depuracion_precio] (precio de las EDT interna en la depuración de costes) no es válida: falta calculo_precio o la lista de componentes, la expresión no se puede leer o usa un nombre que no está en [depuracion_precio.componentes] ni en [depuracion_precio.recargos], un nombre o un texto está repetido o hay más de 8 coeficientes. El mensaje indica el motivo.
+
+**Qué hacer:** Corregir la sección según `config.ejemplo.toml`: la expresión admite números (con punto decimal), los nombres de las dos listas, + - * / y paréntesis.
 
 ---
 
@@ -2224,7 +2233,7 @@ El libro anterior y el nuevo se generaron con distinto ignorar_ceros_intermedios
 
 ### 4.13 DEP · Depuración de costes
 
-Hoja PV-depuración, su traslado con `--migrar-desde` y el reparto del plan de costes (procesar-costes).
+Hoja PV-depuración, su traslado con `--migrar-desde` y la revisión del plan de costes (procesar-costes).
 
 | Código | Severidad | Descripción |
 |---|---|---|
@@ -2249,6 +2258,11 @@ Hoja PV-depuración, su traslado con `--migrar-desde` y el reparto del plan de c
 | [DEP-019](#dep-019) | Advertencia | EDT cliente repetida en el plan de costes |
 | [DEP-020](#dep-020) | Info | % planificado de MS Project recuperado |
 | [DEP-021](#dep-021) | Advertencia | Filas con el reparto del plan de costes |
+| [DEP-022](#dep-022) | Advertencia | Componentes de coste fuera del precio |
+| [DEP-023](#dep-023) | Advertencia | Tabla Recargos incompleta |
+| [DEP-024](#dep-024) | Error (detiene el programa) | Hoja PV-depuración de una versión anterior |
+| [DEP-025](#dep-025) | Advertencia | Recargos no trasladados |
+| [DEP-026](#dep-026) | Advertencia | Tabla Recargos sin cálculo del precio |
 
 #### DEP-001
 
@@ -2294,7 +2308,7 @@ El libro anterior tiene la previsión de una empresa y el nuevo depura otra.
 
 **Previsión trasladada** · Info · generar con depuracion_costes (hoja Validación) · se puede silenciar
 
-Se conservó el contenido de la hoja PV-depuración.
+Se conservó el contenido de la hoja PV-depuración: el plan de costes y los recargos de la tabla Recargos. El plan de una hoja de la versión 2.5 o anterior, que empezaba en la celda A8, pasa a la celda A12.
 
 **Qué hacer:** Ninguna.
 
@@ -2352,7 +2366,7 @@ procesar-costes necesita un libro generado con depuracion_costes = true, con el 
 
 Ninguna línea de EDT cliente de la hoja PV-depuración tiene el código de una fila de ingreso del libro: la hoja está vacía o sus códigos no son los del libro.
 
-**Qué hacer:** Escribir el plan de costes desde la celda A8 y revisar la columna 'Asignado a'.
+**Qué hacer:** Escribir el plan de costes desde la celda A12 y revisar la columna 'Asignado a'.
 
 #### DEP-014
 
@@ -2417,6 +2431,46 @@ Filas que en el libro anterior tenían en la hoja % PV el reparto del plan de co
 El libro tiene filas cuyo % planificado es el reparto del plan de costes, escrito por procesar-costes en una versión anterior a la 2.6.0: no es el de MS Project. actualizar no compara esas filas con la línea base ([ACT-047](#act-047)).
 
 **Qué hacer:** Generar un libro nuevo con `--migrar-desde`: vuelve a calcular su % planificado con MS Project y conserva el BAC, el % ganado y el AC.
+
+#### DEP-022
+
+**Componentes de coste fuera del precio** · Advertencia · procesar-costes · se puede silenciar
+
+Con [depuracion_precio], líneas de componente de coste (solo la columna D) con importes cuyo texto no está en [depuracion_precio.componentes]: no entran en el precio de su EDT interna. Los textos se comparan sin distinguir mayúsculas, tildes ni espacios de más.
+
+**Qué hacer:** Corregir el texto de la línea o agregarlo a [depuracion_precio.componentes] (y a calculo_precio).
+
+#### DEP-023
+
+**Tabla Recargos incompleta** · Advertencia · procesar-costes · se puede silenciar
+
+Con [depuracion_precio], a la tabla Recargos de la hoja PV-depuración le falta la fila de un coeficiente que usa calculo_precio, la columna de un año con importes o el valor de un coeficiente en un año con importes (o la tabla entera, que procesar-costes `--calculos` agrega vacía). En el precio, los coeficientes que faltan se toman como 0.
+
+**Qué hacer:** Completar la tabla Recargos (desde la celda D1): un % por coeficiente y año.
+
+#### DEP-024
+
+**Hoja PV-depuración de una versión anterior** · Error (detiene el programa) · procesar-costes · no se puede silenciar
+
+La hoja PV-depuración tiene el formato de la versión 2.5 o anterior, con el plan desde la celda A8. Desde la versión 2.6.0, el plan empieza en la celda A12, con la tabla Recargos arriba.
+
+**Qué hacer:** Generar un libro nuevo con `--migrar-desde`: pasa el plan a la celda A12 y conserva el BAC, el % ganado y el AC.
+
+#### DEP-025
+
+**Recargos no trasladados** · Advertencia · generar `--migrar-desde` (hoja Validación) · se puede silenciar
+
+La tabla Recargos del libro anterior tiene coeficientes cuyo texto no está en [depuracion_precio.recargos] de la configuración del libro nuevo: sus valores no se trasladaron.
+
+**Qué hacer:** Si el coeficiente cambió de texto, escribir sus valores en la tabla Recargos del libro nuevo.
+
+#### DEP-026
+
+**Tabla Recargos sin cálculo del precio** · Advertencia · procesar-costes · se puede silenciar
+
+La hoja PV-depuración tiene la tabla Recargos, pero la configuración de procesar-costes no tiene [depuracion_precio]: con `--calculos`, las EDT interna suman sus componentes (a coste), en lugar de su precio.
+
+**Qué hacer:** Ejecutar procesar-costes con `--config` y la configuración de la depuración, que tiene [depuracion_precio].
 
 ---
 

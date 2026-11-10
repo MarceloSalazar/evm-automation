@@ -13,6 +13,10 @@ las dos curvas acumuladas de un elemento EDT. El % planificado es siempre el de 
 (evm/cost_plan.py) lee las mismas líneas (read_lines) para revisar el plan y escribe sus cálculos, sin modificar el %
 planificado. Al terminar, el libro de entrega se genera sin depuración (con --migrar-desde, que conserva el BAC).
 
+La hoja tiene la disposición de la plantilla de la empresa: arriba, el título, los controles (A1:C4) y, con
+[depuracion_precio], la tabla Recargos (desde D1, un % por coeficiente y año); el plan, desde la celda A12. Con
+[depuracion_precio], los meses de cada EDT interna con componentes son su precio (evm/cost_price.py), no su suma.
+
 Estado de cada línea de EDT cliente:
 - leída: su código es el de una fila de ingreso del libro;
 - resumen: su código es el de una fila resumen del libro, que suma sus filas; si ninguna línea de un código inferior
@@ -32,6 +36,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.worksheet.datavalidation import DataValidation
 
 from evm.config import Config
+from evm.cost_price import MAX_RATES, Price, norm_label, parse_formula
 from evm.fields import fmt_number
 from evm.messages import Issue
 from evm.wbs import KIND_RESIDUAL, Report, plural
@@ -43,12 +48,24 @@ SHEET_PASTE = "PV-depuración"           # previsión pegada por la empresa
 SHEET_CHART = "Depuración costes"       # gráfico comparativo
 SHEET_HELPER = "_depuracion"            # hoja oculta con los cálculos de asignación
 
-# Hoja PV-depuración
-P_TOTAL_ROW, P_ASSIGNED_ROW, P_MISSING_ROW = 3, 4, 5
-P_MONTHNUM_ROW, P_HEADER_ROW, P_FIRST = 6, 7, 8
+# Hoja PV-depuración, con la disposición de la plantilla de la empresa: arriba, el título, los controles (nombre en la
+# columna A, importe en la C) y la tabla Recargos (desde D1); notas en las filas 8 y 9; N° de mes en la fila 10,
+# encabezados en la 11 y el plan de costes desde la celda A12
+P_TOTAL_ROW, P_ASSIGNED_ROW, P_MISSING_ROW = 2, 3, 4
+P_CONTROL_LABEL, P_CONTROL = 1, 3
+P_NOTE_ROW, P_RESULT_ROW = 8, 9
+P_MONTHNUM_ROW, P_HEADER_ROW, P_FIRST = 10, 11, 12
 P_LINES = 2000
 P_LAST = P_FIRST + P_LINES - 1
 P_CODE, P_DESC, P_INT_CODE, P_INT_DESC, P_BAC, P_EAC, P_FIRST_MONTH = 1, 2, 3, 4, 5, 6, 7
+# Hasta la versión 2.5, el plan empezaba en la celda A8 (encabezados en la fila 7): --migrar-desde lo pasa a la A12
+OLD_HEADER_ROW, OLD_FIRST = 7, 8
+# Tabla Recargos ([depuracion_precio.recargos]): D1 y los años desde E1; un coeficiente por fila desde D2
+R_HEAD_ROW, R_FIRST, R_LABEL, R_FIRST_YEAR = 1, 2, P_INT_DESC, P_BAC
+R_LAST = R_FIRST + MAX_RATES - 1
+R_TITLE = "Recargos"
+R_YEARS = 60                            # columnas de años que se leen (hasta 600 meses)
+FMT_RATE = "0.00%"
 PASTE_MONTHS = 120                      # meses del plan de costes de la empresa (al menos los del horizonte)
 EAC_HEADER = "EAC"
 # Formatos de la hoja en libros anteriores, que --migrar-desde pasa al actual: sin la columna EAC (meses desde F,
@@ -239,6 +256,7 @@ class PlanLine:
     key: str | None = None              # EDT cliente sin ceros finales
     parent: int | None = None           # índice de la línea de la que depende
     children: list[int] = field(default_factory=list)
+    label: str = ""                     # componente de coste: texto de la columna D, normalizado (cost_price)
 
 
 def plan_lines(rows: list[list]) -> list[PlanLine]:
@@ -260,7 +278,8 @@ def plan_lines(rows: list[list]) -> list[PlanLine]:
             out.append(PlanLine(KIND_INTERNAL, parent=client))
             internal = k
         elif d:
-            out.append(PlanLine(KIND_COMPONENT, parent=internal if internal is not None else client))
+            out.append(PlanLine(KIND_COMPONENT, parent=internal if internal is not None else client,
+                                label=norm_label(d)))
         else:
             out.append(PlanLine(""))
     for x in out:
@@ -274,10 +293,18 @@ def plan_lines(rows: list[list]) -> list[PlanLine]:
     return out
 
 
-def calc_plan(rows: list[list]) -> tuple[list[list], list[PlanLine]]:
+def priced(plan: list[PlanLine], k: int, price: Price | None) -> list[int]:
+    """Componentes de coste de la línea k, que forman su precio ([] sin [depuracion_precio])."""
+    if price is None:
+        return []
+    return [j for j in plan[k].children if plan[j].kind == KIND_COMPONENT]
+
+
+def calc_plan(rows: list[list], price: Price | None = None) -> tuple[list[list], list[PlanLine]]:
     """Cálculos del plan: los meses (y el BAC de la EDT interna) de cada línea con otras debajo son la suma de esas
-    líneas, y el EAC de cada línea es la suma de sus meses. Devuelve las líneas con los importes calculados y el nivel
-    de cada una (para escribir las fórmulas)."""
+    líneas, y el EAC de cada línea es la suma de sus meses. Con price ([depuracion_precio]), los meses de una línea con
+    componentes de coste son su precio (más la suma de sus otras líneas, si tiene); el BAC sigue siendo la suma.
+    Devuelve las líneas con los importes calculados y el nivel de cada una (para escribir las fórmulas)."""
     plan = plan_lines(rows)
     width = max([len(v) for v in rows] + [P_FIRST_MONTH])
     out = [list(values) + [None] * (width - len(values)) for values in rows]
@@ -296,11 +323,20 @@ def calc_plan(rows: list[list]) -> tuple[list[list], list[PlanLine]]:
             return
         for j in x.children:
             compute(j)
-        columns = list(range(P_FIRST_MONTH - 1, width))
         if x.kind == KIND_INTERNAL:
-            columns.insert(0, P_BAC - 1)
-        for c in columns:
-            out[k][c] = sum(amount(j, c) for j in x.children)
+            out[k][P_BAC - 1] = sum(amount(j, P_BAC - 1) for j in x.children)
+        comps = priced(plan, k, price)
+        others = [j for j in x.children if j not in comps]
+        for c in range(P_FIRST_MONTH - 1, width):
+            if comps:
+                amounts: dict[str, float] = {}
+                for j in comps:
+                    name = price.component(plan[j].label)
+                    if name:
+                        amounts[name] = amounts.get(name, 0.0) + amount(j, c)
+                out[k][c] = price.month_price(c - P_FIRST_MONTH + 1, amounts) + sum(amount(j, c) for j in others)
+            else:
+                out[k][c] = sum(amount(j, c) for j in x.children)
 
     for k in range(len(plan)):
         compute(k)
@@ -324,11 +360,13 @@ def _refs(letter: str, rows: list[int]) -> str:
     return ",".join(refs)
 
 
-def write_calcs(ws, plan: list[PlanLine], months: int, sheet: str, total_row: int, decimals: int) -> int:
+def write_calcs(ws, plan: list[PlanLine], months: int, sheet: str, total_row: int, decimals: int,
+                price: Price | None = None) -> int:
     """Escribe en la hoja PV-depuración las fórmulas de los cálculos del plan (celdas naranjas): EAC = suma de los
     meses; meses (y BAC de la EDT interna) de cada línea con otras debajo = suma de esas líneas; BAC de la EDT cliente
-    = el de su fila de la hoja PV de la empresa (sheet). Las celdas de ingreso quedan en amarillo. Devuelve la cantidad
-    de líneas calculadas."""
+    = el de su fila de la hoja PV de la empresa (sheet). Con price, los meses de una línea con componentes de coste son
+    su precio: la expresión de calculo_precio con las celdas de sus componentes y de la tabla Recargos (más la suma de
+    sus otras líneas). Las celdas de ingreso quedan en amarillo. Devuelve la cantidad de líneas calculadas."""
     n_paste = paste_months(months)
     first, last = col(P_FIRST_MONTH), col(P_FIRST_MONTH + n_paste - 1)
     book_row = f"'{SHEET_HELPER}'!{col(H_ROW)}"
@@ -340,6 +378,13 @@ def write_calcs(ws, plan: list[PlanLine], months: int, sheet: str, total_row: in
         done += 1
         r = P_FIRST + k
         rows = [P_FIRST + j for j in x.children]
+        comps = priced(plan, k, price)
+        others = [P_FIRST + j for j in x.children if j not in comps]
+        by_name: dict[str, list[int]] = {}
+        for j in comps:
+            name = price.component(plan[j].label)
+            if name:
+                by_name.setdefault(name, []).append(P_FIRST + j)
         cells: dict[int, tuple[str | None, PatternFill]] = {P_EAC: (f"=SUM({first}{r}:{last}{r})", FILL_CALC)}
         if x.kind == KIND_CLIENT:
             cells[P_BAC] = (f"=IF({book_row}{r}>0,INDEX('{sheet}'!$D$1:$D${total_row + 1},{book_row}{r}),\"\")",
@@ -350,7 +395,13 @@ def write_calcs(ws, plan: list[PlanLine], months: int, sheet: str, total_row: in
             cells[P_BAC] = (None, FILL_INPUT)
         for i in range(n_paste):
             c_ = P_FIRST_MONTH + i
-            cells[c_] = (f"=SUM({_refs(col(c_), rows)})", FILL_CALC) if rows else (None, FILL_INPUT)
+            L = col(c_)
+            if comps:
+                refs = {n: f"{L}{rs[0]}" if len(rs) == 1 else f"SUM({_refs(L, rs)})" for n, rs in by_name.items()}
+                rest = f"+SUM({_refs(L, others)})" if others else ""
+                cells[c_] = (f"={price.month_formula(i, refs)}{rest}", FILL_CALC)
+            else:
+                cells[c_] = (f"=SUM({_refs(L, rows)})", FILL_CALC) if rows else (None, FILL_INPUT)
         for c_, (formula, fill) in cells.items():
             cell = ws.cell(row=r, column=c_)
             if formula is not None:
@@ -554,10 +605,11 @@ def selector_range(report: Report) -> str:
 
 
 def write_paste(ws, report: Report, cfg: Config, lay: _Layout, rows: list[list] | None = None,
-                calcs: bool = False) -> None:
-    """Hoja PV-depuración: el bloque del plan de costes de la empresa (desde A8), los encabezados de los meses y los
-    controles de la lectura. rows: líneas trasladadas del libro anterior (--migrar-desde); calcs: la hoja anterior
-    tenía fórmulas, que se vuelven a escribir con write_calcs."""
+                calcs: bool = False, rates: dict[str, dict[int, object]] | None = None) -> None:
+    """Hoja PV-depuración: el bloque del plan de costes de la empresa (desde A12), los encabezados de los meses, los
+    controles de la lectura y, con [depuracion_precio.recargos], la tabla Recargos (desde D1). rows: líneas
+    trasladadas del libro anterior (--migrar-desde); calcs: la hoja anterior tenía fórmulas, que se vuelven a escribir
+    con write_calcs; rates: valores de la tabla Recargos del libro anterior (read_rates().values_by_label())."""
     company = review_company(report)
     rs = review_sheet(report)
     money = money_format(cfg.decimals)
@@ -566,39 +618,40 @@ def write_paste(ws, report: Report, cfg: Config, lay: _Layout, rows: list[list] 
     obs_col = status_col + 1
     helper = f"'{SHEET_HELPER}'"
     amounts, last_paste = col(P_BAC), col(P_FIRST_MONTH + n_paste - 1)      # BAC, EAC y meses de cada línea
-    control = col(P_EAC)                # controles: importes de los meses, en la columna del EAC
-    ws.cell(row=1, column=1, value="Plan de costes para la depuración del PV" +
-            (f"  -  {company}" if company else "")).font = FONT_TITLE
-    ws.cell(row=2, column=1, value=(
+    control = col(P_CONTROL)
+    ws.cell(row=1, column=1, value="Plan de costes" + (f"  -  {company}" if company else "")).font = FONT_TITLE
+    price_note = (" (con [depuracion_precio], su precio, con los recargos de la tabla de arriba: un % por año)"
+             if cfg.cost_price_formula else "")
+    ws.cell(row=P_NOTE_ROW, column=1, value=(
         f"Pegar o escribir desde la celda A{P_FIRST}: EDT cliente, actividad EDT, EDT interna, actividad interna o "
         f"componente de coste, BAC, EAC y un importe por mes, con el mes 1 en la columna {col(P_FIRST_MONTH)}. Los "
-        "importes se suman hacia arriba: los componentes de coste en su EDT interna y las EDT interna en su EDT "
-        f"cliente; el EAC es la suma de los meses y el BAC de la EDT cliente, el de la hoja {rs} (celdas naranjas: "
-        "cálculos, que hace procesar-costes --calculos; amarillas: datos). Solo se leen las líneas de EDT cliente "
-        f"cuyo código es una fila de la hoja {rs}.")).font = FONT_NOTE
+        f"importes se suman hacia arriba: los componentes de coste en su EDT interna{price_note} y las EDT interna "
+        f"en su EDT cliente; el EAC es la suma de los meses y el BAC de la EDT cliente, el de la hoja {rs} (celdas "
+        "naranjas: cálculos, que hace procesar-costes --calculos; amarillas: datos). Solo se leen las líneas de EDT "
+        f"cliente cuyo código es una fila de la hoja {rs}.")).font = FONT_NOTE
 
     def by_state(column: int, *states: int) -> str:
         return "+".join(f"SUMIFS({helper}!${col(column)}${P_FIRST}:${col(column)}${P_LAST},"
                         f"{helper}!${col(H_STATE)}${P_FIRST}:${col(H_STATE)}${P_LAST},{s})" for s in states)
 
-    labels = [(P_TOTAL_ROW, "Leído en filas del libro (meses del horizonte)", "=" + by_state(H_HORIZON, STATE_READ)),
-              (P_ASSIGNED_ROW, "Leído después del horizonte (fuera de los meses del libro)",
+    labels = [(P_TOTAL_ROW, "Leído en filas del libro", "=" + by_state(H_HORIZON, STATE_READ)),
+              (P_ASSIGNED_ROW, "Leído después del horizonte",
                f"={by_state(H_TOTAL, STATE_READ)}-{control}{P_TOTAL_ROW}"),
-              (P_MISSING_ROW, "Sin leer: EDT cliente sin fila del libro o resumen sin detalle",
-               "=" + by_state(H_TOTAL, *UNREAD))]
+              (P_MISSING_ROW, "Sin leer", "=" + by_state(H_TOTAL, *UNREAD))]
     for r, label, formula in labels:
-        ws.cell(row=r, column=P_DESC, value=label).font = FONT_BOLD
-        cell = ws.cell(row=r, column=P_EAC, value=formula)
+        ws.cell(row=r, column=P_CONTROL_LABEL, value=label).font = FONT_BOLD
+        cell = ws.cell(row=r, column=P_CONTROL, value=formula)
         cell.number_format = money
         cell.border = BORDER
     ws.conditional_formatting.add(f"{control}{P_ASSIGNED_ROW}:{control}{P_MISSING_ROW}", FormulaRule(
         formula=[f"ABS({control}{P_ASSIGNED_ROW})>0.5"], fill=FILL_RED))
-    ws.cell(row=P_TOTAL_ROW, column=P_FIRST_MONTH,
-            value=f"Resultado: filas «(coste)» de la hoja {rs}, debajo del PV de cada fila, y hoja "
-                  f"'{SHEET_CHART}'.").font = FONT_NOTE
-    ws.cell(row=P_MISSING_ROW, column=P_FIRST_MONTH,
-            value=f"Fila del libro de cada línea: columnas {col(status_col)} ('Asignado a') y {col(obs_col)} "
-                  "('Observación'), a la derecha de los meses.").font = FONT_NOTE
+    ws.cell(row=P_RESULT_ROW, column=1, value=(
+        "Controles: lo leído en los meses del horizonte y después, y lo que no se lee (EDT cliente sin fila del libro "
+        f"o resumen sin detalle). Resultado: filas «(coste)» de la hoja {rs}, debajo del PV de cada fila, y hoja "
+        f"'{SHEET_CHART}'. Fila del libro de cada línea: columnas {col(status_col)} ('Asignado a') y {col(obs_col)} "
+        "('Observación'), a la derecha de los meses.")).font = FONT_NOTE
+    if cfg.cost_price_rates:
+        write_rates(ws, cfg, report.horizon.start, n_paste, rates)
 
     ws.cell(row=P_MONTHNUM_ROW, column=P_EAC, value="Mes N°").font = FONT_BOLD
     ws.cell(row=P_MONTHNUM_ROW, column=P_EAC).alignment = Alignment(horizontal="right")
@@ -633,7 +686,8 @@ def write_paste(ws, report: Report, cfg: Config, lay: _Layout, rows: list[list] 
                 if c_ >= P_BAC and is_amount(v):
                     cell.number_format = money
     if rows and calcs:
-        write_calcs(ws, plan_lines(rows[:P_LINES]), lay.months, rs, lay.total_row, cfg.decimals)
+        price = price_setup(cfg, read_rates(ws), report.horizon.start, n_paste)
+        write_calcs(ws, plan_lines(rows[:P_LINES]), lay.months, rs, lay.total_row, cfg.decimals, price)
 
     for r in range(P_FIRST, P_LAST + 1):
         h = {x: f"{helper}!{col(x)}{r}" for x in (H_STATE, H_MATCH, H_REPEAT, H_TOTAL, H_HORIZON)}
@@ -657,7 +711,7 @@ def write_paste(ws, report: Report, cfg: Config, lay: _Layout, rows: list[list] 
         formula=[f'OR({status}="{STATUS_SUMMARY}",{status}="{STATUS_INCLUDED}")'], fill=FILL_TOTAL,
         font=Font(italic=True, color="595959")))
 
-    for c_, w in {P_CODE: 12, P_DESC: 34, P_INT_CODE: 12, P_INT_DESC: 34, P_BAC: 14, P_EAC: 14, status_col - 1: 3,
+    for c_, w in {P_CODE: 12, P_DESC: 34, P_INT_CODE: 14, P_INT_DESC: 44, P_BAC: 14, P_EAC: 14, status_col - 1: 3,
                   status_col: 34, obs_col: 60}.items():
         ws.column_dimensions[col(c_)].width = w
     ws.row_dimensions[P_HEADER_ROW].height = 30
@@ -776,12 +830,19 @@ def add_chart(wb, months: int, chart_months: int, currency: str) -> None:
     ws.add_chart(line, "I4")
 
 
+def paste_first_row(ws) -> int:
+    """Primera fila del plan de costes en la hoja PV-depuración: P_FIRST (A12), u OLD_FIRST (A8) en una hoja de la
+    versión 2.5 o anterior."""
+    return P_FIRST if ws.cell(row=P_HEADER_ROW, column=P_EAC).value == EAC_HEADER else OLD_FIRST
+
+
 def paste_format(ws) -> str:
-    """Formato de la hoja PV-depuración: FORMAT_CURRENT, FORMAT_NO_EAC (versión 2.4) o FORMAT_LEGACY (sin EDT
-    interna)."""
-    if ws.cell(row=P_HEADER_ROW, column=P_INT_CODE).value == LEGACY_BAC_HEADER:
+    """Formato de las columnas de la hoja PV-depuración: FORMAT_CURRENT, FORMAT_NO_EAC (versión 2.4) o FORMAT_LEGACY
+    (sin EDT interna)."""
+    head = paste_first_row(ws) - 1
+    if ws.cell(row=head, column=P_INT_CODE).value == LEGACY_BAC_HEADER:
         return FORMAT_LEGACY
-    if ws.cell(row=P_HEADER_ROW, column=P_EAC).value == EAC_HEADER:
+    if ws.cell(row=head, column=P_EAC).value == EAC_HEADER:
         return FORMAT_CURRENT
     return FORMAT_NO_EAC
 
@@ -789,8 +850,9 @@ def paste_format(ws) -> str:
 def last_paste_month(ws, months: int) -> int:
     """Último mes (N°, dentro del horizonte) con algún importe pegado en la hoja PV-depuración."""
     first = FIRST_MONTH_OF[paste_format(ws)]
+    start = paste_first_row(ws)
     last = 0
-    for values in ws.iter_rows(min_row=P_FIRST, max_row=min(ws.max_row, P_LAST), min_col=first,
+    for values in ws.iter_rows(min_row=start, max_row=min(ws.max_row, start + P_LINES - 1), min_col=first,
                                max_col=first + months - 1, values_only=True):
         for i, v in enumerate(values):
             if is_amount(v) and v and i + 1 > last:
@@ -799,13 +861,15 @@ def last_paste_month(ws, months: int) -> int:
 
 
 def read_paste(ws, months: int) -> tuple[list[list], str]:
-    """Líneas pegadas en la hoja PV-depuración (columnas A a la del último mes), sin las filas vacías del final, y el
-    formato de la hoja. Las líneas de un formato anterior se devuelven en el actual: sin las columnas de EDT interna,
-    un código numérico y su descripción quedan como EDT cliente y actividad, y un código no numérico (XRF01) y su
-    descripción, como EDT interna y actividad interna; sin la columna EAC, se agrega con la suma de los meses."""
+    """Líneas pegadas en la hoja PV-depuración (columnas A a la del último mes, desde paste_first_row), sin las filas
+    vacías del final, y el formato de la hoja. Las líneas de un formato anterior se devuelven en el actual: sin las
+    columnas de EDT interna, un código numérico y su descripción quedan como EDT cliente y actividad, y un código no
+    numérico (XRF01) y su descripción, como EDT interna y actividad interna; sin la columna EAC, se agrega con la suma
+    de los meses."""
     fmt = paste_format(ws)
+    start = paste_first_row(ws)
     n = FIRST_MONTH_OF[fmt] + paste_months(months) - 1
-    rows = [list(v) for v in ws.iter_rows(min_row=P_FIRST, max_row=min(ws.max_row, P_LAST), max_col=n,
+    rows = [list(v) for v in ws.iter_rows(min_row=start, max_row=min(ws.max_row, start + P_LINES - 1), max_col=n,
                                           values_only=True)]
     while rows and all(v is None or v == "" for v in rows[-1]):
         rows.pop()
@@ -815,6 +879,116 @@ def read_paste(ws, months: int) -> tuple[list[list], str]:
     if fmt != FORMAT_CURRENT:
         rows = [values[:P_EAC - 1] + [_months_total(values[P_EAC - 1:])] + values[P_EAC - 1:] for values in rows]
     return rows, fmt
+
+
+# ----------------------------------------------------------------------------
+# Tabla Recargos ([depuracion_precio])
+# ----------------------------------------------------------------------------
+@dataclass
+class RatesTable:
+    """Tabla Recargos de la hoja PV-depuración, como está en el libro."""
+    rows: dict[str, int] = field(default_factory=dict)           # texto normalizado -> fila
+    labels: dict[int, str] = field(default_factory=dict)         # fila -> texto
+    year_cols: dict[int, int] = field(default_factory=dict)      # año -> columna
+    cells: dict[tuple[int, int], object] = field(default_factory=dict)   # (fila, columna) -> valor de la celda
+
+    @property
+    def present(self) -> bool:
+        return bool(self.rows or self.year_cols)
+
+    def values_by_label(self) -> dict[str, dict[int, object]]:
+        """Texto normalizado -> año -> valor (las celdas con algo escrito), para trasladarlos a otro libro."""
+        out: dict[str, dict[int, object]] = {}
+        for key, r in self.rows.items():
+            values = {y: self.cells[(r, c)] for y, c in self.year_cols.items()
+                      if self.cells.get((r, c)) not in (None, "")}
+            if values:
+                out[key] = values
+        return out
+
+
+def _year(value) -> int | None:
+    if isinstance(value, str) and value.strip().isdigit():
+        value = int(value.strip())
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and float(value).is_integer() \
+            and 1900 <= value <= 2200:
+        return int(value)
+    return None
+
+
+def read_rates(ws) -> RatesTable:
+    """Tabla Recargos (filas R_HEAD_ROW a R_LAST, desde la columna D): años de la fila 1 y textos de la columna D.
+    Solo en una hoja con el plan desde A12 (paste_first_row)."""
+    table = RatesTable()
+    width = R_FIRST_YEAR + R_YEARS - R_LABEL
+    for r, values in enumerate(ws.iter_rows(min_row=R_HEAD_ROW, max_row=R_LAST, min_col=R_LABEL,
+                                            max_col=R_LABEL + width, values_only=True), start=R_HEAD_ROW):
+        values = list(values) + [None] * (width + 1 - len(values))
+        if r == R_HEAD_ROW:
+            for c, v in enumerate(values[1:], start=R_FIRST_YEAR):
+                y = _year(v)
+                if y is not None:
+                    table.year_cols.setdefault(y, c)
+            continue
+        key = norm_label(values[0])
+        if key and key not in table.rows:
+            table.rows[key] = r
+            table.labels[r] = str(values[0]).strip()
+        for c, v in enumerate(values[1:], start=R_FIRST_YEAR):
+            if v is not None:
+                table.cells[(r, c)] = v
+    return table
+
+
+def rate_years(start: date, n: int) -> list[int]:
+    """Año de cada uno de los n meses desde start."""
+    return [start.year + (start.month - 1 + i) // 12 for i in range(n)]
+
+
+def write_rates(ws, cfg: Config, start: date, n_paste: int, prior: dict[str, dict[int, object]] | None = None) -> int:
+    """Escribe la tabla Recargos: D1 y un año por columna desde E1 (los años de los meses de la hoja) y un coeficiente
+    de [depuracion_precio.recargos] por fila, con los valores del libro anterior (prior: texto normalizado -> año ->
+    valor). Devuelve la cantidad de valores trasladados."""
+    years = sorted(set(rate_years(start, n_paste)))
+    _header(ws, R_HEAD_ROW, [(R_LABEL, R_TITLE)] + [(R_FIRST_YEAR + k, y) for k, y in enumerate(years)], height=20)
+    kept = 0
+    for k, label in enumerate(cfg.cost_price_rates.values()):
+        r = R_FIRST + k
+        put_text(ws, r, R_LABEL, label).border = BORDER
+        old = (prior or {}).get(norm_label(label), {})
+        for j, y in enumerate(years):
+            cell = ws.cell(row=r, column=R_FIRST_YEAR + j)
+            if old.get(y) is not None:
+                cell.value = old[y]
+                kept += 1
+            cell.fill = FILL_INPUT
+            cell.number_format = FMT_RATE
+            cell.border = BORDER
+    return kept
+
+
+def price_setup(cfg: Config, table: RatesTable, start: date, n_paste: int,
+                cached: RatesTable | None = None) -> Price | None:
+    """Cálculo del precio con la tabla Recargos del libro (None sin [depuracion_precio]). cached: la misma tabla con
+    los valores calculados por Excel (para los coeficientes escritos con una fórmula)."""
+    if not cfg.cost_price_formula:
+        return None
+    names = set(cfg.cost_price_components) | set(cfg.cost_price_rates)
+    price = Price(parse_formula(cfg.cost_price_formula, names),
+                  {norm_label(label): name for name, label in cfg.cost_price_components.items()},
+                  dict(cfg.cost_price_rates), rate_years(start, n_paste), year_cols=dict(table.year_cols))
+    for name, label in cfg.cost_price_rates.items():
+        r = table.rows.get(norm_label(label))
+        if r is None:
+            continue
+        price.rate_rows[name] = r
+        for y, c in table.year_cols.items():
+            v = table.cells.get((r, c))
+            if isinstance(v, str) and v.startswith("=") and cached is not None:
+                v = cached.cells.get((r, c))
+            if is_amount(v):
+                price.values[(name, y)] = float(v)
+    return price
 
 
 def resolve_formulas(path, rows: list[list], months: int) -> tuple[list[list], int, list[tuple[int, int]]]:

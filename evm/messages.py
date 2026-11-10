@@ -199,7 +199,7 @@ AREAS = {a.prefix: a for a in [
     Area("MIG", "Migración (--migrar-desde)", TOPIC_BOOK, W_MIG,
          "Traslado del BAC, el % ganado, el AC y los métodos de un libro anterior."),
     Area("DEP", "Depuración de costes", TOPIC_BOOK, W_REVIEW,
-         "Hoja PV-depuración, su traslado con --migrar-desde y el reparto del plan de costes (procesar-costes)."),
+         "Hoja PV-depuración, su traslado con --migrar-desde y la revisión del plan de costes (procesar-costes)."),
     Area("ACT", "Actualizar y analizar", TOPIC_BOOK, W_ACT,
          "Carga del % ganado del mes: fecha de corte, filas del libro, BAC y observaciones por fila."),
     Area("FIC", "Fichas de tareas", TOPIC_BOOK, W_FIC,
@@ -433,6 +433,13 @@ _CODES = [
     _code("CFG-054", F, "Falta el campo del cliente",
           "generar-cliente necesita el campo de MS Project que indica qué tareas se muestran al cliente.",
           "Indicarlo en [cliente] campo, por ejemplo campo = \"Etiqueta Cliente\" (ver config.ejemplo.toml).", W_CLI),
+    _code("CFG-055", F, "Cálculo del precio mal configurado",
+          "La sección [depuracion_precio] (precio de las EDT interna en la depuración de costes) no es válida: "
+          "falta calculo_precio o la lista de componentes, la expresión no se puede leer o usa un nombre que no está "
+          "en [depuracion_precio.componentes] ni en [depuracion_precio.recargos], un nombre o un texto está repetido "
+          "o hay más de 8 coeficientes. El mensaje indica el motivo.",
+          "Corregir la sección según config.ejemplo.toml: la expresión admite números (con punto decimal), los "
+          "nombres de las dos listas, + - * / y paréntesis."),
 
     # --- LEC: lectura de MS Project -----------------------------------------------------------------------------
     _code("LEC-001", F, "No existe el archivo de origen",
@@ -1087,7 +1094,8 @@ _CODES = [
           "El libro anterior tiene la previsión de una empresa y el nuevo depura otra.",
           "Pegar la previsión de nuevo."),
     _code("DEP-006", I, "Previsión trasladada",
-          "Se conservó el contenido de la hoja PV-depuración.",
+          "Se conservó el contenido de la hoja PV-depuración: el plan de costes y los recargos de la tabla Recargos. "
+          "El plan de una hoja de la versión 2.5 o anterior, que empezaba en la celda A8, pasa a la celda A12.",
           "Ninguna."),
     _code("DEP-007", I, "Previsión pasada al formato con EDT interna",
           "La hoja PV-depuración del libro anterior no tenía las columnas de EDT interna: los códigos numéricos "
@@ -1117,7 +1125,7 @@ _CODES = [
     _code("DEP-013", F, "Plan de costes sin líneas leídas",
           "Ninguna línea de EDT cliente de la hoja PV-depuración tiene el código de una fila de ingreso del libro: la "
           "hoja está vacía o sus códigos no son los del libro.",
-          "Escribir el plan de costes desde la celda A8 y revisar la columna 'Asignado a'.", W_PROC),
+          "Escribir el plan de costes desde la celda A12 y revisar la columna 'Asignado a'.", W_PROC),
     _code("DEP-014", W, "Líneas de EDT cliente sin leer",
           "Líneas de EDT cliente con importes que no se leen: su código no es el de una fila del libro, o es el de un "
           "resumen del libro y ninguna línea de un código inferior se lee. Su importe no llega a ninguna fila "
@@ -1154,6 +1162,32 @@ _CODES = [
           "base (ACT-047).",
           "Generar un libro nuevo con --migrar-desde: vuelve a calcular su % planificado con MS Project y conserva el "
           "BAC, el % ganado y el AC.", f"{W_ACT} y {W_PROC}"),
+    _code("DEP-022", W, "Componentes de coste fuera del precio",
+          "Con [depuracion_precio], líneas de componente de coste (solo la columna D) con importes cuyo texto no "
+          "está en [depuracion_precio.componentes]: no entran en el precio de su EDT interna. Los textos se comparan "
+          "sin distinguir mayúsculas, tildes ni espacios de más.",
+          "Corregir el texto de la línea o agregarlo a [depuracion_precio.componentes] (y a calculo_precio).", W_PROC),
+    _code("DEP-023", W, "Tabla Recargos incompleta",
+          "Con [depuracion_precio], a la tabla Recargos de la hoja PV-depuración le falta la fila de un coeficiente "
+          "que usa calculo_precio, la columna de un año con importes o el valor de un coeficiente en un año con "
+          "importes (o la tabla entera, que procesar-costes --calculos agrega vacía). En el precio, los coeficientes "
+          "que faltan se toman como 0.",
+          "Completar la tabla Recargos (desde la celda D1): un % por coeficiente y año.", W_PROC),
+    _code("DEP-024", F, "Hoja PV-depuración de una versión anterior",
+          "La hoja PV-depuración tiene el formato de la versión 2.5 o anterior, con el plan desde la celda A8. Desde "
+          "la versión 2.6.0, el plan empieza en la celda A12, con la tabla Recargos arriba.",
+          "Generar un libro nuevo con --migrar-desde: pasa el plan a la celda A12 y conserva el BAC, el % ganado y el "
+          "AC.", W_PROC),
+    _code("DEP-025", W, "Recargos no trasladados",
+          "La tabla Recargos del libro anterior tiene coeficientes cuyo texto no está en [depuracion_precio.recargos] "
+          "de la configuración del libro nuevo: sus valores no se trasladaron.",
+          "Si el coeficiente cambió de texto, escribir sus valores en la tabla Recargos del libro nuevo.", W_MIG),
+    _code("DEP-026", W, "Tabla Recargos sin cálculo del precio",
+          "La hoja PV-depuración tiene la tabla Recargos, pero la configuración de procesar-costes no tiene "
+          "[depuracion_precio]: con --calculos, las EDT interna suman sus componentes (a coste), en lugar de su "
+          "precio.",
+          "Ejecutar procesar-costes con --config y la configuración de la depuración, que tiene [depuracion_precio].",
+          W_PROC),
 
     # --- ACT: actualizar y analizar -----------------------------------------------------------------------------
     _code("ACT-001", F, "El libro es de un solo archivo",

@@ -72,6 +72,18 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   no modifica el libro. `--migrar-desde` traslada las celdas con fórmula con su valor y vuelve a escribir
   las fórmulas de los cálculos. Los libros con depuración de la versión 2.5 se deben regenerar con
   `--migrar-desde` para tener las fórmulas nuevas.
+- **Precio de las EDT interna en la depuración de costes (`[depuracion_precio]`).** Si la empresa escribe
+  su plan a coste, la sección nueva `[depuracion_precio]` define el precio de cada EDT interna con
+  componentes: la expresión `calculo_precio` (por ejemplo,
+  `(A*(1+KA)+B*(1+KB)+C*(1+KC)+D*(1+KD)+E)*(1+KG)*(1+BE)`), con los componentes de coste por el texto de
+  su columna D y los coeficientes de la tabla `Recargos`, nueva, arriba de la hoja `PV-depuración` (un %
+  por año). `procesar-costes --calculos` escribe la fórmula del precio en cada mes; la EDT cliente suma el
+  precio de sus EDT interna
+  ([Precio de las EDT interna](docs/depuracion-costes.md#44-precio-de-las-edt-interna-tabla-recargos)).
+  Códigos nuevos `CFG-055` y `DEP-022` a `DEP-026`. Para dejar lugar a la tabla, la hoja `PV-depuración`
+  tiene la disposición de la plantilla de la empresa: el plan empieza en la celda **A12** (antes, A8) y
+  los controles están en A2:C4. `--migrar-desde` pasa el plan de un libro anterior a la celda A12 y
+  traslada los recargos; `procesar-costes` pide regenerar los libros con el plan desde A8 (`DEP-024`).
 
 ### Correcciones
 

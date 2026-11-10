@@ -154,8 +154,9 @@ Qué se traslada:
   la que `actualizar` detecta los cambios siguientes, en las filas que se asocian una a una
   ([Registro de cambios](#registro-de-cambios)).
 - La **fecha de corte** de la hoja `Resumen`.
-- Con depuración de costes, el contenido de la hoja `PV-depuración`, si el libro nuevo también depura la
-  misma empresa ([Depuración de costes](depuracion-costes.md#9-ciclo-de-ajuste)).
+- Con depuración de costes, el contenido de la hoja `PV-depuración` (el plan de costes y los recargos de
+  la tabla `Recargos`), si el libro nuevo también depura la misma empresa
+  ([Depuración de costes](depuracion-costes.md#9-ciclo-de-ajuste)).
 - El % planificado no se traslada: el libro nuevo lo calcula con MS Project. Las filas que en el libro
   anterior tenían el reparto del plan de costes (`procesar-costes` antes de la versión 2.6.0) vuelven a
   tener el de MS Project ([DEP-020](codigos.md#dep-020)).

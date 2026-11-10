@@ -79,6 +79,8 @@ class Report:
     # Depuración de costes: hoja PV que lleva las filas «(coste)» ("A" o "B" en multi-empresa, "" en un libro de una
     # sola empresa); None = sin depuración
     cost_review: str | None = None
+    # Textos de los coeficientes de la tabla Recargos ([depuracion_precio.recargos]) de un libro con depuración
+    cost_rates: tuple[str, ...] = ()
 
     @property
     def multi_file(self) -> bool:
@@ -1093,7 +1095,8 @@ def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:
                     total_vector=total_vector, pv_source=pv_source, plan=plan,
                     multi=cfg.multi_enabled, company_a=cfg.company_a if cfg.multi_enabled else "",
                     company_b=cfg.company_b if cfg.multi_enabled else "", sources=sources, title=title,
-                    currency=currency, cost_review=cfg.cost_review_role)
+                    currency=currency, cost_review=cfg.cost_review_role,
+                    cost_rates=tuple(cfg.cost_price_rates.values()) if cfg.cost_review_role is not None else ())
     if report.cost_review is not None:
         from evm.cost_review import review_issues
         report.issues[1:1] = review_issues(report)      # después del aviso del cálculo del PV y el EV

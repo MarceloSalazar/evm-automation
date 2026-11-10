@@ -160,10 +160,38 @@ depuracion_alineamiento = false
 depuracion_umbral = 10
 
 # procesar-costes escribe en la hoja PV-depuración los cálculos del plan
-# (fórmulas): sumas de los componentes de coste en su EDT interna y de las EDT
-# interna en su EDT cliente, EAC = suma de los meses y BAC de cada EDT cliente
-# leído de la hoja PV de la empresa. Para una sola vez: procesar-costes --calculos.
+# (fórmulas): sumas de los componentes de coste en su EDT interna (o su precio,
+# con [depuracion_precio]) y de las EDT interna en su EDT cliente, EAC = suma de
+# los meses y BAC de cada EDT cliente leído de la hoja PV de la empresa. Para
+# una sola vez: procesar-costes --calculos.
 depuracion_calculos = false
+
+# Precio de las EDT interna en la depuración de costes (opcional; ver
+# docs/depuracion-costes.md). Si la empresa escribe su plan a coste, con esta
+# sección cada mes de una EDT interna con componentes es su precio, que
+# procesar-costes --calculos escribe con la expresión calculo_precio. Sus nombres
+# son los componentes de coste (texto de la columna D de la hoja PV-depuración)
+# y los coeficientes de la tabla Recargos (arriba de la hoja, desde la celda D1:
+# un % por año). Los textos no distinguen mayúsculas, tildes ni espacios de más.
+# La expresión admite números (con punto decimal), los nombres, + - * / y
+# paréntesis. Sin la sección, las EDT interna suman sus componentes.
+# [depuracion_precio]
+# calculo_precio = "(A*(1+KA)+B*(1+KB)+C*(1+KC)+D*(1+KD)+E)*(1+KG)*(1+BE)"
+#
+# [depuracion_precio.componentes]
+# A = "Costes indirectos de Producción"
+# B = "Costes indirectos de Gestión de Materiales"
+# C = "Costes indirectos de Gestión de Subcontrataciones"
+# D = "Costes indirectos de Entregas de Producción"
+# E = "Otros costes"
+#
+# [depuracion_precio.recargos]
+# KA = "Costes indirectos de Producción"
+# KB = "Costes indirectos de Gestión de Materiales"
+# KC = "Costes indirectos de Gestión de Subcontrataciones"
+# KD = "Costes indirectos de Entregas de Producción"
+# KG = "Costes Generales y Administrativos"
+# BE = "Beneficio"
 
 [metodos]
 # Valores del desplegable de la columna C (método de medición). Sin la clave se
