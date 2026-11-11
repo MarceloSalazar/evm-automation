@@ -209,9 +209,19 @@ Cada cambio de versión (`__version__` en `evm/__init__.py`, con el formato desc
 [CHANGELOG.md](../CHANGELOG.md)) se acompaña, en el mismo Pull Request, de:
 
 1. La entrada de la versión en [CHANGELOG.md](../CHANGELOG.md): la sección *Sin publicar* pasa a ser
-   `## [X.Y.Z] - AAAA-MM-DD · Título`, con las secciones **Nuevas funciones**, **Correcciones** y
-   **Otros** (con "Ninguna." si una sección no tiene cambios); arriba se agrega una sección *Sin publicar*
-   vacía y al final del archivo se actualizan los enlaces de comparación.
+   `## [X.Y.Z] - AAAA-MM-DD · Título`, precedida del ancla `<a id="vX.Y.Z"></a>`, con las secciones
+   **Nuevas funciones**, **Correcciones** y **Otros** (con "Ninguna." si una sección no tiene cambios);
+   arriba se agrega una sección *Sin publicar* vacía y al final del archivo se actualizan los enlaces de
+   comparación. Al principio de la entrada se escribe la sección `### Resumen`, que son las notas de la
+   publicación en GitHub:
+   - Las mismas partes, como `**Nuevas funciones**`, `**Correcciones**` y `**Otros**`; las que no tienen
+     cambios se omiten.
+   - Una viñeta por cambio importante, de una o dos líneas, que diga qué cambia para quien usa el
+     programa, sin códigos de mensajes, columnas ni opciones de detalle, y con el enlace al documento que
+     lo explica.
+   - En **Otros**, solo lo que afecta a quien usa el programa: el instalador de Windows (adjunto o el de
+     la versión anterior que sigue disponible) y qué hacer con los libros o la configuración al
+     actualizar.
 2. La versión en la portada de la presentación y su PDF:
 
    ```powershell
@@ -230,9 +240,13 @@ python docs\herramientas\notas_version.py X.Y.Z > notas.md
 gh release create vX.Y.Z --title "$(python docs\herramientas\notas_version.py X.Y.Z --titulo)" --notes-file notas.md
 ```
 
-Mientras no se resuelva el ticket #18, en `notas.md` los enlaces relativos (`docs/...`) se reemplazan
-por enlaces completos a la etiqueta (`https://github.com/MarceloSalazar/evm-automation/blob/vX.Y.Z/docs/...`)
-antes de `gh release create`. `notas.md` no se sube al repositorio.
+Las notas son el resumen de la versión, con los enlaces relativos (`docs/...`) convertidos en enlaces
+completos a la etiqueta (`https://github.com/MarceloSalazar/evm-automation/blob/vX.Y.Z/docs/...`), una
+línea por viñeta (la publicación muestra cada salto de línea) y, al final, los enlaces a las notas
+detalladas de la versión en el CHANGELOG y a los cambios en el código desde la versión anterior. Se
+revisan antes de `gh release create`; con `--detalle`, el script muestra las notas detalladas. Las notas
+de una publicación ya creada se reemplazan con `gh release edit vX.Y.Z --notes-file notas.md`. `notas.md`
+no se sube al repositorio.
 
 Por último, desde ese mismo commit etiquetado, se genera el instalador de Windows y se adjunta a la
 publicación ([3.2](#32-instalador-de-windows)):
@@ -242,9 +256,9 @@ python instalador\construir.py
 gh release upload vX.Y.Z dist\ExportadorEVM-X.Y.Z-instalador.exe
 ```
 
-`notas_version.py` verifica que la versión tenga las tres secciones. Los cambios que no modifican la
-versión (por ejemplo, solo documentación) se anotan en la sección *Sin publicar* del CHANGELOG, en el
-mismo Pull Request, y forman parte de la entrada de la versión siguiente.
+`notas_version.py` verifica que la versión tenga el ancla, el resumen y las tres secciones. Los cambios
+que no modifican la versión (por ejemplo, solo documentación) se anotan en la sección *Sin publicar* del
+CHANGELOG, en el mismo Pull Request, y forman parte de la entrada de la versión siguiente.
 
 ### 3.2 Instalador de Windows
 

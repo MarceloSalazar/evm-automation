@@ -22,7 +22,7 @@ ejemplo, con Excel o con MS Project real). -->
       qué exige regenerarlos o cambiar la configuración.
 - [ ] Se actualizó la documentación de `docs/` y, si cambia el libro, las capturas.
 - [ ] Se anotó el cambio en la sección *Sin publicar* de `CHANGELOG.md` o, si cambia la versión, en la
-      entrada de la versión, con la portada de la presentación actualizada
+      entrada de la versión, con su *Resumen* y la portada de la presentación actualizada
       (`python docs\herramientas\version_presentacion.py`).
 - [ ] Los textos están en español y en forma impersonal, con las siglas EVM en inglés.
 - [ ] No se incluyen libros generados, configuraciones personales ni archivos de proyectos reales.
