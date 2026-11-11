@@ -10,7 +10,7 @@ Uso (desde la carpeta raíz del repositorio):
     python docs\\herramientas\\notas_version.py 1.5.0 > notas.md    # resumen para la publicación
     python docs\\herramientas\\notas_version.py 1.5.0 --detalle     # notas detalladas de la versión
 
-Publicación de una versión (después de fusionar en main el PR que la cambia):
+Publicación de una versión (después de fusionar en main el PR de la versión, desde desarrollo):
     git tag -a v1.5.0 -m "Versión 1.5.0" <commit de main>
     git push origin v1.5.0
     gh release create v1.5.0 --title "<título>" --notes-file notas.md

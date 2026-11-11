@@ -232,9 +232,11 @@ análisis). Para cambios grandes conviene acordar el enfoque en el ticket antes 
 Se aceptan Pull Requests con correcciones de problemas o con mejoras. Al abrirlo, la descripción se
 completa con la plantilla del repositorio, que incluye una lista de control con estas buenas prácticas:
 
-- **Un propósito por Pull Request**, en una rama propia creada desde `main`. Quien no tiene permiso de
+- **Un propósito por Pull Request**, en una rama propia creada desde `desarrollo` y con el Pull Request
+  hacia `desarrollo`, la rama que reúne los cambios de la versión siguiente. Quien no tiene permiso de
   escritura en el repositorio trabaja en un *fork* y abre el Pull Request desde allí. `main` contiene
-  solo versiones estables y no admite commits directos.
+  solo las versiones publicadas: recibe únicamente el Pull Request de cada versión, desde `desarrollo`, y
+  no admite commits directos.
 - **Pruebas:** `python -m pytest` debe pasar. Cada corrección o función nueva se acompaña de pruebas; en
   una corrección, una prueba que falle sin ella. Las pruebas y la estructura del código se describen en
   [Desarrollo](docs/desarrollo.md).
@@ -249,11 +251,11 @@ completa con la plantilla del repositorio, que incluye una lista de control con 
   código sigue el estilo del código existente.
 - **Datos:** no se suben libros generados, configuraciones personales ni archivos de proyectos reales.
 - **Descripción:** qué cambia, por qué y cómo se probó, con el ticket relacionado si lo hay
-  (`Closes #<número>`).
+  (`Ticket #<número>`; el ticket se cierra al publicarse la versión que incluye el cambio).
 
-Todos los Pull Requests se revisan antes de incorporarse a `main`, y se pueden pedir cambios. El
+Todos los Pull Requests se revisan antes de incorporarse a `desarrollo`, y se pueden pedir cambios. El
 responsable del repositorio define el número de versión y publica cada versión con sus notas
-([proceso de versiones](docs/desarrollo.md#31-versiones-y-publicaciones)). Al contribuir, se acepta que el
+([flujo de trabajo y proceso de versiones](docs/desarrollo.md#3-flujo-de-trabajo-del-repositorio)). Al contribuir, se acepta que el
 aporte se distribuya bajo la licencia MIT del proyecto.
 
 ---

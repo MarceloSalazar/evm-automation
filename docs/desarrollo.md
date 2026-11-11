@@ -203,11 +203,19 @@ resultados no cambian):
 
 ## 3. Flujo de trabajo del repositorio
 
-- La rama `main` contiene solo **versiones estables**. No se hacen commits directos en `main`.
-- Todo cambio se hace en una rama propia y se incorpora mediante un **Pull Request**:
+El repositorio tiene dos ramas permanentes, y en ninguna de las dos se hacen commits directos:
+
+- **`main`** contiene solo las **versiones publicadas**. Recibe únicamente el Pull Request de cada
+  versión, desde `desarrollo`: cada fusión en `main` es una versión, con su etiqueta, su publicación en
+  GitHub y su instalador ([3.1](#31-versiones-y-publicaciones)).
+- **`desarrollo`** reúne los cambios de la versión siguiente.
+
+Todo cambio (corrección, mejora, documentación o herramientas) se hace en una rama propia creada desde
+`desarrollo` y se incorpora con un **Pull Request hacia `desarrollo`**, que se fusiona con *squash* (un
+commit por Pull Request):
 
 ```powershell
-git switch main
+git switch desarrollo
 git pull
 git switch -c mejora/descripcion-breve
 # ... cambios ...
@@ -215,10 +223,15 @@ python -m pytest
 git add -A
 git commit -m "Descripción del cambio"
 git push -u origin mejora/descripcion-breve
-gh pr create --base main --fill
+gh pr create --base desarrollo --fill
 ```
 
 - Antes de abrir el Pull Request, todas las pruebas deben pasar (`python -m pytest`).
+- El cambio se anota en la sección *Sin publicar* de [CHANGELOG.md](../CHANGELOG.md), en el mismo Pull
+  Request.
+- GitHub cierra los tickets indicados con `Closes #N` solo cuando el Pull Request se fusiona en `main`, la
+  rama por defecto. En un Pull Request hacia `desarrollo`, el ticket se indica con `Ticket #N`, y el
+  `Closes #N` se escribe en el Pull Request de la versión que lo incluye.
 - No se deben subir al repositorio libros generados, configuraciones personales (`config.toml`) ni
   archivos de proyectos reales: el repositorio es público.
 - Todos los textos (documentación, mensajes y notas del libro) se escriben en forma impersonal, por
@@ -226,8 +239,9 @@ gh pr create --base main --fill
 
 ### 3.1 Versiones y publicaciones
 
-Cada cambio de versión (`__version__` en `evm/__init__.py`, con el formato descrito en
-[CHANGELOG.md](../CHANGELOG.md)) se acompaña, en el mismo Pull Request, de:
+Una versión se prepara en una rama creada desde `desarrollo` (por ejemplo `version/X.Y.Z`), con su Pull
+Request hacia `desarrollo`. El cambio de versión (`__version__` en `evm/__init__.py`, con el formato
+descrito en [CHANGELOG.md](../CHANGELOG.md)) se acompaña, en ese Pull Request, de:
 
 1. La entrada de la versión en [CHANGELOG.md](../CHANGELOG.md): la sección *Sin publicar* pasa a ser
    `## [X.Y.Z] - AAAA-MM-DD · Título`, precedida del ancla `<a id="vX.Y.Z"></a>`, con las secciones
@@ -248,6 +262,18 @@ Cada cambio de versión (`__version__` en `evm/__init__.py`, con el formato desc
    ```powershell
    python docs\herramientas\version_presentacion.py
    ```
+
+Después se abre el **Pull Request de la versión, de `desarrollo` a `main`**, con los cambios de la
+versión y los tickets que cierra (`Closes #N`). Se fusiona con un **commit de fusión** (*Create a merge
+commit*), no con *squash*: así `main` y `desarrollo` comparten la historia y el Pull Request de la versión
+siguiente muestra solo sus cambios.
+
+```powershell
+gh pr create --base main --head desarrollo --title "Versión X.Y.Z: título"
+gh pr merge <número> --merge
+```
+
+En este Pull Request no se usa `--delete-branch` ni la opción de borrar la rama: `desarrollo` se conserva.
 
 Después de fusionar el Pull Request en `main`, se crea la etiqueta en ese commit y la publicación en
 GitHub con el título y las notas de la versión:
@@ -278,8 +304,9 @@ gh release upload vX.Y.Z dist\ExportadorEVM-X.Y.Z-instalador.exe
 ```
 
 `notas_version.py` verifica que la versión tenga el ancla, el resumen y las tres secciones. Los cambios
-que no modifican la versión (por ejemplo, solo documentación) se anotan en la sección *Sin publicar* del
-CHANGELOG, en el mismo Pull Request, y forman parte de la entrada de la versión siguiente.
+que no modifican la versión (por ejemplo, solo documentación) se incorporan a `desarrollo`, se anotan en
+la sección *Sin publicar* del CHANGELOG, en el mismo Pull Request, y se publican con la versión
+siguiente.
 
 ### 3.2 Instalador de Windows
 
