@@ -1,8 +1,10 @@
 # Registro de cambios
 
-Cambios de cada versión del Exportador EVM, de la más reciente a la más antigua. Cada versión tiene su
-etiqueta `vX.Y.Z` en el repositorio y su publicación (*release*) en
-[GitHub](https://github.com/MarceloSalazar/evm-automation/releases) con estas mismas notas.
+Cambios de cada versión del Exportador EVM, de la más reciente a la más antigua. Cada versión empieza con
+un **Resumen** de sus cambios principales, con enlaces a la documentación, y sigue con el detalle:
+**Nuevas funciones**, **Correcciones** y **Otros**. Cada versión tiene su etiqueta `vX.Y.Z` en el
+repositorio y su publicación (*release*) en [GitHub](https://github.com/MarceloSalazar/evm-automation/releases),
+que muestra el resumen y enlaza con el detalle de este archivo.
 
 Las versiones siguen el formato MAYOR.MENOR.CORRECCIÓN ([versionado semántico](https://semver.org/lang/es/)):
 MENOR para funciones nuevas que no impiden usar los libros ya generados, CORRECCIÓN para correcciones, y
@@ -28,7 +30,36 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - Ninguna.
 
+<a id="v2.6.0"></a>
+
 ## [2.6.0] - 2026-11-08 · Planificación para el cliente y plan de costes por EDT cliente
+
+### Resumen
+
+**Nuevas funciones**
+
+- **Planificación para el cliente (`generar-cliente`):** genera, a partir de la planificación interna, el
+  `.mpp` que se entrega al cliente, con solo las tareas marcadas para él y el mismo avance y el mismo libro
+  EVM que la planificación interna ([Planificación para el cliente](docs/generar-cliente.md)).
+- **Plan de costes por EDT cliente:** la hoja `PV-depuración` suma los importes hasta la EDT cliente, y el
+  EAC del plan se ve debajo del PV de cada fila; `procesar-costes --calculos` escribe en la hoja las
+  fórmulas del plan ([Depuración de costes](docs/depuracion-costes.md#42-qué-líneas-se-leen)).
+- **Precio de las EDT interna:** con el plan a coste, la tabla `Recargos` de la hoja y una expresión de la
+  configuración calculan su precio
+  ([Depuración de costes](docs/depuracion-costes.md#44-precio-de-las-edt-interna-tabla-recargos)).
+- **Registro de diagnóstico** de cualquier comando en un archivo, con `--registro`, para informar
+  problemas ([Comandos](docs/comandos.md)).
+
+**Correcciones**
+
+- **`procesar-costes` ya no reemplaza el % planificado de MS Project:** el plan de costes se compara con él
+  ([Depuración de costes](docs/depuracion-costes.md#8-revisión-y-cálculos-del-plan-procesar-costes)).
+
+**Otros**
+
+- Los libros con depuración de costes de la versión 2.5 se regeneran con `--migrar-desde`, para tener las
+  fórmulas nuevas y el % planificado de MS Project.
+- Instalador de Windows adjunto a la publicación, con las funciones de las versiones 2.5.0 y 2.6.0.
 
 ### Nuevas funciones
 
@@ -100,8 +131,57 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - Presentación: la versión en la portada. Capturas de la hoja `PV-depuración` actualizadas.
 - Instalador de Windows de nuevo en la publicación, con las funciones de las versiones 2.5.0 y 2.6.0.
+- **Notas de las publicaciones resumidas:** cada versión de este registro empieza con un *Resumen* en
+  viñetas, con enlaces a la documentación, y la publicación de GitHub muestra solo ese resumen, con los
+  enlaces a las notas detalladas de la versión en este archivo y a los cambios en el código. Las notas de
+  las publicaciones anteriores se reemplazaron por su resumen; el detalle sigue en este archivo.
+- `docs/herramientas/notas_version.py` genera esas notas con enlaces completos a la documentación de la
+  versión y una línea por viñeta (parte del ticket #18); `--detalle` muestra las notas detalladas
+  ([Desarrollo](docs/desarrollo.md#31-versiones-y-publicaciones)).
+
+<a id="v2.5.0"></a>
 
 ## [2.5.0] - 2026-11-07 · Observaciones por prioridad, plan de costes en tres niveles y revisión de mejoras con validar
+
+### Resumen
+
+**Nuevas funciones**
+
+- **Observaciones ordenadas por prioridad:** la hoja `Validación` y la consola muestran primero lo que afecta
+  a las filas del libro, con un enlace a cada fila; el detalle por tarea pasa a la hoja nueva
+  `Validación detalle` ([El libro Excel](docs/libro-excel.md#validación)).
+- **Plan de costes en tres niveles:** la hoja `PV-depuración` sigue el formato del plan de costes de la
+  empresa: EDT cliente, EDT interna y componentes de coste
+  ([Depuración de costes](docs/depuracion-costes.md#4-hoja-pv-depuración-la-previsión-pegada)).
+- **Comando `procesar-costes`:** usa el reparto mensual del plan de costes como % planificado, de modo que el
+  PV coincide con el importe del plan
+  ([Depuración de costes](docs/depuracion-costes.md#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes)).
+- **`validar` como revisión de mejoras:** informe con las mejoras por prioridad, la evaluación DCMA de 14
+  puntos en una tabla y la comparación de varias planificaciones, por ejemplo `INTERNO` y `CLIENTE`
+  ([Comandos](docs/comandos.md#validar-revisa-el-archivo-de-ms-project)).
+- **Más controles del cronograma:** líneas base guardadas e incompletas, fecha de estado, calendarios propios
+  y vínculos entre planificaciones ([Validaciones](docs/validaciones-y-problemas.md#1-validaciones)).
+- **Mensajes más claros** en los avisos del horizonte, en los adelantos y en las observaciones repetidas en
+  varias filas.
+
+**Correcciones**
+
+- **Color de las filas:** depende del nivel del código EDT, no de lo que cuelga de cada fila.
+- **Tareas nuevas dentro de una fila:** `actualizar` ya no informa como nuevas las tareas que el libro ya
+  sumaba en esa fila.
+- **Fechas de plan de cada fila:** se calculan con las mismas tareas que su % planificado
+  ([El libro Excel](docs/libro-excel.md#2-hojas-pv-ev-y-ac)).
+- **Calendario del proyecto con `.mpp`:** se usa el calendario de MS Project; antes, uno fijo de lunes a
+  viernes.
+- **Planificación elegida:** los avisos y los controles de `validar` cuentan solo sus tareas y sus vínculos.
+
+**Otros**
+
+- Los libros ya generados conservan sus colores y sus fechas de plan: los cambios se ven al generarlos de
+  nuevo. `--migrar-desde` pasa al formato nuevo la hoja `PV-depuración` de la versión 2.4.
+- Sin instalador de Windows: las funciones nuevas se usan con la instalación con Python, y el
+  [instalador de la versión 2.4.1](https://github.com/MarceloSalazar/evm-automation/releases/tag/v2.4.1)
+  sigue disponible, sin ellas.
 
 ### Nuevas funciones
 
@@ -219,7 +299,33 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - Esta versión no publica instalador de Windows: las funciones nuevas se usan con la instalación con
   Python, y el instalador de la versión 2.4.1 sigue disponible, sin ellas.
 
+<a id="v2.4.1"></a>
+
 ## [2.4.1] - 2026-10-31 · Ceros del código EDT, correcciones de la revisión y rendimiento
+
+### Resumen
+
+**Correcciones**
+
+- **Ceros en el código EDT:** `1.2.0.4` es una actividad de `1.2.0.0` (nivel 4), y `1.2`, `1.2.0` y
+  `1.2.0.0` son el mismo código. La clave `ignorar_ceros_intermedios` mantiene el criterio anterior
+  ([Niveles por código EDT](docs/calculo-pv-ev.md#32-niveles-por-código-edt)).
+- **Tiempo restante estimado:** ya no sube y baja de golpe, y se actualiza en todas las etapas.
+- **Historial al regenerar el libro:** `--migrar-desde` conserva el de las filas que pasan a la fila `-D`, y
+  el análisis de desviaciones conserva todas las filas de un paquete en el mes.
+- **Registro de cambios:** sin cambios retroactivos falsos al cargar el primer BAC o al cambiar el mes 1 del
+  horizonte.
+- Otras correcciones menores en los controles de `validar` y `actualizar`, en la hoja `Validación` y en los
+  mensajes de la consola.
+
+**Otros**
+
+- **Más rápido:** `generar`, `actualizar` y `analizar` tardan entre un 35 % y un 45 % menos en un proyecto
+  grande, y el guardado del libro, menos de la mitad. Los libros y los resultados son los mismos.
+- **Tiempo transcurrido** en la barra de progreso y duración total al terminar
+  ([Comandos](docs/comandos.md)).
+- Documentación y presentación revisadas.
+- Instalador de Windows adjunto a la publicación.
 
 ### Nuevas funciones
 
@@ -322,7 +428,34 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   el multi-empresa, el de umbrales propios y los de varios archivos se arman una sola vez y cada prueba usa
   una copia.
 
+<a id="v2.4.0"></a>
+
 ## [2.4.0] - 2026-10-30 · Códigos de mensajes, evaluación DCMA y controles de la norma EIA-748-E
+
+### Resumen
+
+**Nuevas funciones**
+
+- **Códigos de errores y advertencias:** cada mensaje tiene un código, por ejemplo `FEC-003`, con su causa y
+  qué hacer en un documento nuevo ([Códigos de errores y advertencias](docs/codigos.md)).
+- **Silenciar observaciones** ya revisadas, en la configuración o con `--silenciar`
+  ([Silenciar observaciones](docs/codigos.md#2-silenciar-observaciones)).
+- **Evaluación DCMA en `validar`:** revisa 12 de los 14 puntos, como la holgura, la duración, las tareas
+  incumplidas y el CPLI, y también el avance fuera de secuencia
+  ([Evaluación DCMA](docs/evaluacion-dcma.md)).
+- **Controles del cierre mensual según la norma EIA-748-E:** hoja `Registro de cambios` con los cambios del
+  BAC y de los meses ya informados, y avisos de EV y AC incoherentes, análisis de desviaciones incompleto,
+  meses sin informe, línea base distinta, EAC poco realista y peso del LOE
+  ([El libro Excel](docs/libro-excel.md#registro-de-cambios)).
+- **Depuración de costes con EDT cliente y EDT interna** en la hoja `PV-depuración`
+  ([Depuración de costes](docs/depuracion-costes.md#4-hoja-pv-depuración-la-previsión-pegada)).
+
+**Otros**
+
+- Las tareas programadas manualmente pasan a ser una advertencia.
+- Documento nuevo sobre la [norma EIA-748-E](docs/evaluacion-eia-748-e.md): qué cubre el programa en cada
+  una de sus 27 guías.
+- Instalador de Windows adjunto a la publicación.
 
 ### Nuevas funciones
 
@@ -426,7 +559,34 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - Instalador de Windows de esta versión.
 - Portada de la presentación con la versión 2.4.0.
 
+<a id="v2.3.0"></a>
+
 ## [2.3.0] - 2026-10-26 · Plazo según MS Project, tendencia de los índices y lista EDT
+
+### Resumen
+
+**Nuevas funciones**
+
+- **Plazo según el cronograma de MS Project:** el libro muestra el fin previsto, el desvío de fin, la holgura
+  y las tareas críticas, para saber si un atraso afecta la fecha de fin
+  ([El libro Excel](docs/libro-excel.md#indicadores-edt)).
+- **Tendencia de los índices:** CPI y SPI de los últimos 3 meses y variación del CPI, el SPI y el EAC, en el
+  `Cuadro de Mando` y en el análisis de desviaciones
+  ([Cuadro de Mando](docs/cuadro-de-mando.md#4-tendencia-y-plazo)).
+- **Lista EDT:** un archivo de texto con los códigos EDT decide qué filas tiene el libro
+  ([Cálculo del PV y el EV](docs/calculo-pv-ev.md#34-lista-edt-filas-definidas-en-un-archivo)).
+- **Versión y barra de progreso** en todos los comandos ([Comandos](docs/comandos.md)).
+
+**Correcciones**
+
+- Los códigos EDT con un 0 intermedio, como `1.2.0.1`, ya no se informan como error
+  ([Validaciones](docs/validaciones-y-problemas.md#11-datos-del-libro-generar-y-validar)).
+
+**Otros**
+
+- Los libros anteriores reciben las columnas de plazo con `actualizar`, y las tarjetas nuevas del
+  `Cuadro de Mando`, al regenerarlos con `--migrar-desde`.
+- Instalador de Windows adjunto a la publicación.
 
 ### Nuevas funciones
 
@@ -474,7 +634,22 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - Instalador de Windows de esta versión.
 - Portada de la presentación con la versión 2.3.0.
 
+<a id="v2.2.1"></a>
+
 ## [2.2.1] - 2026-10-25 · Formato de números, códigos de salida y revisión de la documentación
+
+### Resumen
+
+**Correcciones**
+
+- **Números en formato español** en la consola y en la hoja `Validación`: `44.210.000`, `SPI = 0,84`.
+- **Códigos de salida:** 1 solo para `validar` con errores, 2 para los errores de archivos, con un mensaje
+  claro, y 3 para los errores inesperados ([Comandos](docs/comandos.md#códigos-de-salida)).
+
+**Otros**
+
+- Documentación y presentación revisadas para que coincidan con el programa.
+- Instalador de Windows adjunto a la publicación.
 
 ### Nuevas funciones
 
@@ -512,7 +687,23 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - Instalador de Windows de esta versión.
 - Portada de la presentación con la versión 2.2.1.
 
+<a id="v2.2.0"></a>
+
 ## [2.2.0] - 2026-10-24 · Comando generar-fichas: fichas de tareas para el cliente
+
+### Resumen
+
+**Nuevas funciones**
+
+- **Comando `generar-fichas`:** documento para el cliente con una ficha por elemento EDT: fechas
+  planificadas, duración, predecesoras y sucesoras
+  ([Comandos](docs/comandos.md#generar-fichas-fichas-de-tareas-para-el-cliente)).
+- Las fichas pueden incluir las notas de la tarea u otro campo de texto.
+
+**Otros**
+
+- Instalador de Windows adjunto a la publicación, que incluye también el comando `validar` de la versión
+  2.1.0.
 
 ### Nuevas funciones
 
@@ -537,7 +728,27 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - `.gitignore` ignora las fichas generadas (`*_fichas.md`).
 - Portada de la presentación con la versión 2.2.0.
 
+<a id="v2.1.0"></a>
+
 ## [2.1.0] - 2026-10-24 · Comando validar: revisión del archivo de MS Project
+
+### Resumen
+
+**Nuevas funciones**
+
+- **Comando `validar`:** revisa el archivo de MS Project sin crear ni modificar ningún archivo: los datos
+  del libro, el avance a la fecha de estado y la lógica del cronograma con los criterios DCMA
+  ([Comandos](docs/comandos.md#validar-revisa-el-archivo-de-ms-project)).
+- **Más controles en la hoja `Validación`:** códigos EDT, fechas, hitos, métodos de medición y campos
+  vacíos ([Validaciones](docs/validaciones-y-problemas.md#1-validaciones)).
+- **Método frente a la duración del paquete:** aviso si el método 0/100 o uno de fórmula fija se usa en un
+  paquete demasiado largo.
+
+**Otros**
+
+- Sin instalador de Windows: `validar` se usa con la instalación con Python, y el
+  [instalador de la versión 2.0.0](https://github.com/MarceloSalazar/evm-automation/releases/tag/v2.0.0)
+  sigue disponible, sin este comando.
 
 ### Nuevas funciones
 
@@ -575,7 +786,29 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   disponible, sin este comando.
 - Portada de la presentación con la versión 2.1.0.
 
+<a id="v2.0.0"></a>
+
 ## [2.0.0] - 2026-10-24 · PV y EV con el BAC del libro: cronograma sin importes
+
+### Resumen
+
+**Nuevas funciones**
+
+- **PV y EV con el BAC del libro:** el cronograma de MS Project ya no necesita importes. El programa calcula
+  el % planificado y el % ganado; el BAC se ingresa en el libro, y el PV y el EV son el BAC × el %
+  ([Cálculo del PV y el EV](docs/calculo-pv-ev.md)).
+- Hojas nuevas `% PV` y `% EV`; en multi-empresa, el BAC de cada empresa.
+- **Depuración de costes** (opcional): compara la previsión del plan de costes de una empresa con el PV del
+  cronograma ([Depuración de costes](docs/depuracion-costes.md)).
+- **Campo `Visible`:** decide tarea por tarea qué filas muestra el libro
+  ([Cálculo del PV y el EV](docs/calculo-pv-ev.md#33-campo-visible-más-o-menos-detalle-en-cada-rama)).
+
+**Otros**
+
+- **Versión mayor:** los libros de la versión 1.x no se actualizan con la 2.0.0; se genera un libro nuevo.
+- Se eliminó el cálculo con los costos de MS Project, con sus claves de configuración y opciones; para
+  usarlo, la [versión 1.5.1](https://github.com/MarceloSalazar/evm-automation/releases/tag/v1.5.1).
+- Instalador de Windows adjunto a la publicación.
 
 ### Nuevas funciones
 
@@ -637,7 +870,19 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - Pruebas: `test_calculo_pv_ev.py`; se eliminaron las pruebas de los cálculos con costos y la marca
   `modo`.
 
+<a id="v1.5.1"></a>
+
 ## [1.5.1] - 2026-10-19 · Método de medición documentado e instalador para Windows
+
+### Resumen
+
+**Otros**
+
+- **Instalador para Windows** adjunto a la publicación: instala el programa sin Python y sin permisos de
+  administrador ([Instalación](README.md#opción-1-instalador-para-windows-sin-python)).
+- **Método de medición documentado:** dónde se define y cómo se aprueba el método de cada paquete
+  ([Métodos de medición](docs/metodos-de-medicion.md)).
+- Registro de cambios, publicaciones en GitHub y formularios para informar problemas y proponer mejoras.
 
 ### Nuevas funciones
 
@@ -666,7 +911,25 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - Presentación (37 diapositivas): nueva diapositiva *Cómo se define el método de cada paquete* y, en *El
   libro Excel*, el método se define en MS Project y la columna C solo se edita para cambios aprobados.
 
+<a id="v1.5.0"></a>
+
 ## [1.5.0] - 2026-10-17 · Análisis de desviaciones y semáforo con umbrales superiores
+
+### Resumen
+
+**Nuevas funciones**
+
+- **Hoja `Análisis de desviaciones`:** los paquetes con SPI o CPI fuera de umbral, con columnas para la causa,
+  el impacto, la acción correctiva, el responsable y la fecha compromiso
+  ([Análisis de desviaciones](docs/analisis-desviaciones.md)).
+- **Comando `analizar`:** vuelve a calcular esa lista sin leer MS Project, por ejemplo después de cargar el
+  AC.
+- **Semáforo con umbrales superiores:** los índices demasiado altos también se marcan en amarillo o rojo.
+
+**Otros**
+
+- Los índices por encima de 1,05 pasan a marcarse; para mantener el comportamiento anterior se indican
+  umbrales superiores altos. Los libros anteriores reciben la hoja de análisis en el siguiente `actualizar`.
 
 ### Nuevas funciones
 
@@ -697,7 +960,17 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - Presentación actualizada (36 diapositivas): semáforo, comando `analizar` y análisis de desviaciones.
 - Documento nuevo `docs/analisis-desviaciones.md`; 446 pruebas automáticas.
 
+<a id="v1.4.0"></a>
+
 ## [1.4.0] - 2026-10-17 · Varios archivos de MS Project en un mismo libro
+
+### Resumen
+
+**Nuevas funciones**
+
+- **Varios archivos de MS Project en un mismo libro,** cada uno con sus códigos EDT, su planificación y su
+  línea base, y actualizados juntos ([Varios archivos](docs/varios-archivos.md)).
+- **Título del informe** en el `Cuadro de Mando` y en `Resumen`.
 
 ### Nuevas funciones
 
@@ -721,7 +994,27 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - Segundo proyecto de ejemplo (`ejemplos/proyecto2_ejemplo.xml`, código EDT `9.0.0`).
 - Documento nuevo `docs/varios-archivos.md`, con capturas.
 
+<a id="v1.3.2"></a>
+
 ## [1.3.2] - 2026-10-17 · Conexión y cierre de MS Project más robustos
+
+### Resumen
+
+**Nuevas funciones**
+
+- Pruebas con MS Project real, que comparan la lectura del `.mpp` con la del XML del mismo proyecto.
+
+**Correcciones**
+
+- **Conexión con MS Project:** si está ocupado, el programa espera hasta 30 segundos y, si no responde,
+  avisa con un mensaje claro.
+- **Cierre de MS Project** sin errores de comunicación.
+
+**Otros**
+
+- **Documentación por temas** en `docs/`, con capturas del libro y diagramas
+  ([Documentación](docs/README.md)).
+- Presentación de 30 minutos para el equipo de proyecto.
 
 ### Nuevas funciones
 
@@ -742,7 +1035,26 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - Presentación de 30 minutos para el equipo de proyecto (PowerPoint y PDF).
 - Lectura de `.mpp` por COM validada con un proyecto real.
 
+<a id="v1.3.1"></a>
+
 ## [1.3.1] - 2026-10-17 · Pruebas de robustez y correcciones
+
+### Resumen
+
+**Nuevas funciones**
+
+- **`actualizar` más seguro:** revisa el libro antes de leer MS Project, avisa si está abierto en Excel y
+  guarda en un archivo temporal para no dañar el libro anterior.
+- Avisos nuevos: fórmulas reemplazadas por valores, tareas desactivadas y meses cargados con `--forzar`.
+
+**Correcciones**
+
+- Correcciones en el EV de las filas `-D` y de los hitos ponderados, en el horizonte, en `--migrar-desde` y
+  en la lectura de los archivos de MS Project.
+
+**Otros**
+
+- 383 pruebas automáticas, con proyectos aleatorios de punta a punta.
 
 ### Nuevas funciones
 
@@ -774,7 +1086,23 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - 383 pruebas automáticas, con proyectos aleatorios de punta a punta y recálculo de las fórmulas con
   LibreOffice (marca `libreoffice`).
 
+<a id="v1.3.0"></a>
+
 ## [1.3.0] - 2026-10-16 · Cuadro de Mando con mes de reporte y gráficos nativos
+
+### Resumen
+
+**Nuevas funciones**
+
+- **Hoja `Cuadro de Mando`:** valores acumulados, desviaciones, índices con semáforo, pronósticos y tres
+  gráficos del mes de reporte elegido, en una página lista para el informe mensual
+  ([Cuadro de Mando](README.md#61-cuadro-de-mando)).
+- **Tres métodos de EAC** a elegir.
+
+**Otros**
+
+- La hoja `Curva S` pasa a llamarse `Evolución mensual`. Los libros anteriores tienen el `Cuadro de Mando` al
+  regenerarlos con `--migrar-desde`.
 
 ### Nuevas funciones
 
@@ -795,7 +1123,17 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - Los libros anteriores siguen funcionando con `actualizar`; para obtener el tablero se regeneran con
   `--migrar-desde`.
 
+<a id="v1.2.0"></a>
+
 ## [1.2.0] - 2026-10-16 · Multi-empresa: PV, EV y AC por empresa
+
+### Resumen
+
+**Nuevas funciones**
+
+- **Multi-empresa** (opcional): el PV, el EV y el AC se reparten entre dos empresas según la empresa de cada
+  tarea, con hojas por empresa y su suma ([Multi-empresa](README.md#9-multi-empresa-opcional)).
+- Controles de la empresa de cada tarea en la hoja `Validación`.
 
 ### Nuevas funciones
 
@@ -817,7 +1155,27 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - `config.ejemplo.toml` con los valores del programa (campo `Item EDT`, horizonte desde enero de 2026).
 - El XML de ejemplo incluye los campos `Item EDT`, `Empresa` y `% Reparto`.
 
+<a id="v1.1.0"></a>
+
 ## [1.1.0] - 2026-10-16 · Planificaciones, niveles por código EDT y curva S en Excel
+
+### Resumen
+
+**Nuevas funciones**
+
+- **Elección de la planificación** a exportar, por ejemplo `INTERNO` o `CLIENTE`.
+- **Niveles por código EDT:** el nivel de cada fila sale del código EDT, no del esquema de MS Project
+  ([Cómo se calcula el PV](README.md#7-cómo-se-calcula-el-pv)).
+- **Curva S en Excel,** con fórmulas y un gráfico nativo.
+- Moneda por defecto: euro.
+
+**Correcciones**
+
+- El código EDT de un campo personalizado ya no se confunde con el EDT automático de MS Project.
+
+**Otros**
+
+- Se eliminó el comando `curva` (imagen PNG). Licencia MIT.
 
 ### Nuevas funciones
 
@@ -842,7 +1200,20 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - Redacción impersonal en la documentación y en los mensajes.
 - El proyecto de ejemplo tiene dos planificaciones (`INTERNO` y `CLIENTE`) e hitos sin código EDT.
 
+<a id="v1.0.0"></a>
+
 ## [1.0.0] - 2026-10-16 · Primera versión: exportador EVM desde MS Project a Excel
+
+### Resumen
+
+**Nuevas funciones**
+
+- **Lectura del cronograma** desde el `.mpp` (MS Project) o desde su XML.
+- **`generar`:** libro Excel con el PV mensual por elemento EDT, hojas para cargar el EV y el AC, curva S e
+  indicadores (SV, CV, SPI, CPI, EAC, ETC, VAC y TCPI) ([El libro Excel](README.md#6-el-libro-excel)).
+- **`actualizar`:** calcula el EV según el método de medición y el AC a la fecha de corte, y los carga en su
+  mes ([Cómo se calculan EV y AC](README.md#8-cómo-se-calculan-ev-y-ac)).
+- **`--migrar-desde`:** conserva los datos cargados al regenerar el libro.
 
 ### Nuevas funciones
 
