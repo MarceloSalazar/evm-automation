@@ -138,6 +138,12 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - `docs/herramientas/notas_version.py` genera esas notas con enlaces completos a la documentación de la
   versión y una línea por viñeta (parte del ticket #18); `--detalle` muestra las notas detalladas
   ([Desarrollo](docs/desarrollo.md#31-versiones-y-publicaciones)).
+- `docs/herramientas/capturas_excel.py` (ticket #18): si Excel devuelve un error de automatización que
+  suele ser transitorio, como el `0x800A01A8` del ticket al leer el formato de las celdas, la captura se
+  repite después de una pausa, hasta cuatro veces, y si sigue sin responder el script termina con un
+  mensaje que indica la captura. La opción nueva `--carpeta-trabajo RUTA` genera los libros y los PDF
+  intermedios en una subcarpeta nueva de esa carpeta, que se conserva
+  ([Desarrollo](docs/desarrollo.md#4-documentación-e-imágenes)).
 
 <a id="v2.5.0"></a>
 

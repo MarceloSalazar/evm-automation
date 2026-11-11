@@ -338,8 +338,17 @@ con Python; sin MS Project se usa el XML.
   con Excel (sin mostrarlo y sin guardar cambios), exporta cada zona a PDF y la convierte a PNG con
   `pdftoppm` (Poppler). Con `--solo` se regenera solo un grupo de capturas (`una-empresa`,
   `multiempresa`, `varios` o `depuracion`), por ejemplo
-  `python docs\herramientas\capturas_excel.py --solo depuracion`. Requiere Windows, Excel y Poppler (`winget install oschwartz10612.Poppler`, o la
-  ruta de `pdftoppm.exe` en la variable de entorno `PDFTOPPM`).
+  `python docs\herramientas\capturas_excel.py --solo depuracion`. Con `--carpeta-trabajo RUTA`, los libros
+  y los PDF intermedios se generan en una subcarpeta nueva de esa carpeta, que se conserva para
+  revisarlos, en lugar de una carpeta temporal. Si Excel devuelve un error de automatización que suele
+  ser transitorio (por ejemplo `0x800A01A8` o una llamada rechazada porque Excel está ocupado), la captura
+  se repite después de una pausa, hasta cuatro veces; si sigue sin responder, el script termina con un
+  mensaje que indica la captura. Requiere Windows, Excel y Poppler
+  (`winget install oschwartz10612.Poppler`, o la ruta de `pdftoppm.exe` en la variable de entorno
+  `PDFTOPPM`).
+- Las capturas regeneradas cambian también cuando solo cambia la fecha y hora de generación del libro
+  (*Generado* en la cabecera de las hojas `PV`, `% PV`, `EV`, `% EV` y `AC`, y en `Resumen`): esas
+  capturas no se suben si no tienen otro cambio.
 - `docs/img/ms-project/` contiene **esquemas** de pantallas de MS Project en formato SVG (texto
   editable). No son capturas: muestran la ubicación de los campos y opciones. Se pueden reemplazar por
   capturas reales de MS Project en español (formato PNG en la misma carpeta, con el mismo nombre de
