@@ -11,7 +11,7 @@ MENOR para funciones nuevas que no impiden usar los libros ya generados, CORRECC
 MAYOR para cambios que exigen regenerar los libros o cambiar la configuración. La versión instalada se
 consulta con `python evm_export.py --version` (con el instalador de Windows, `evm_export --version`).
 
-Los cambios incorporados a `main` que todavía no forman parte de una versión se anotan en
+Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de una versión se anotan en
 *Sin publicar*; al publicar la versión siguiente, esa sección pasa a ser su entrada.
 
 ---
@@ -144,6 +144,10 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   mensaje que indica la captura. La opción nueva `--carpeta-trabajo RUTA` genera los libros y los PDF
   intermedios en una subcarpeta nueva de esa carpeta, que se conserva
   ([Desarrollo](docs/desarrollo.md#4-documentación-e-imágenes)).
+- **Rama `desarrollo`:** los cambios se incorporan con un Pull Request hacia la rama nueva `desarrollo`,
+  que reúne los de la versión siguiente; `main` recibe solo el Pull Request de cada versión, desde
+  `desarrollo`, con un commit de fusión. Los tickets se cierran con el Pull Request de la versión
+  ([Flujo de trabajo del repositorio](docs/desarrollo.md#3-flujo-de-trabajo-del-repositorio)).
 
 <a id="v2.5.0"></a>
 
@@ -1242,7 +1246,7 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.6.0...HEAD
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.6.0...desarrollo
 [2.6.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.1...v2.5.0
 [2.4.1]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.0...v2.4.1
