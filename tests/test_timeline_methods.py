@@ -64,7 +64,8 @@ def test_pad_code():
 @pytest.mark.parametrize("text,kind,start", [
     ("0/100", FIXED, 0.0), ("50/50", FIXED, 0.5), ("20-80", FIXED, 0.2), ("Hitos ponderados", MILESTONES, 0),
     ("% Completado", PCT, 0), ("porcentaje completado", PCT, 0), ("% Físico completado", PHYSICAL, 0),
-    ("Unidades completadas", UNITS, 0), ("Avance lineal (LOE)", LOE, 0), ("avance linear", LOE, 0),
+    ("Unidades completadas", UNITS, 0), ("Avance lineal", LOE, 0), ("Avance lineal (LOE)", LOE, 0),
+    ("avance linear", LOE, 0),
     ("Por definir", UNDEFINED, 0), ("", UNDEFINED, 0), ("Esfuerzo prorrateado (AE)", UNKNOWN, 0),
     ("30/50", UNKNOWN, 0), ("CPTR de MS Project", UNKNOWN, 0),
 ])

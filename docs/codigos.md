@@ -657,7 +657,7 @@ Apertura del archivo .mpp o .xml y campos configurados que no se encuentran o es
 | [LEC-020](#lec-020) | Advertencia | Ningún hito tiene peso |
 | [LEC-021](#lec-021) | Advertencia | Campo de empresa vacío |
 | [LEC-022](#lec-022) | Advertencia | No se pudo cerrar el proyecto en MS Project |
-| [LEC-023](#lec-023) | Advertencia | Campo de reparto vacío |
+| [LEC-023](#lec-023) | Advertencia | Campo de reparto vacío *(retirado)* |
 | [LEC-024](#lec-024) | Info | Líneas base guardadas |
 | [LEC-025](#lec-025) | Advertencia | Calendario del proyecto no leído |
 | [LEC-026](#lec-026) | Error (detiene el programa) | No se encontró el campo del cliente |
@@ -840,11 +840,11 @@ Al terminar la lectura de un .mpp, MS Project no cerró el proyecto (por ejemplo
 
 #### LEC-023
 
-**Campo de reparto vacío** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+**Campo de reparto vacío** · Advertencia · generar (hoja Validación) y validar · se puede silenciar · retirado en la versión 2.6.0
 
-En multi-empresa, el campo de reparto existe, pero está vacío en todas las tareas: las tareas compartidas (ambas) se reparten con reparto_por_defecto.
+Hasta la versión 2.5, en multi-empresa, se avisaba cuando el campo de reparto existía, pero estaba vacío en todas las tareas. Desde la versión 2.6.0 no se avisa: una tarea compartida (ambas) sin reparto se reparte con reparto_por_defecto, como está previsto.
 
-**Qué hacer:** Cargar el % de la empresa A en las tareas compartidas (o en su tarea superior), o confirmar que el reparto por defecto es el acordado.
+**Qué hacer:** Ninguna.
 
 #### LEC-024
 
@@ -1725,7 +1725,7 @@ Vínculos, delimitaciones, holgura y duración de las tareas, según los criteri
 | Código | Severidad | Descripción |
 |---|---|---|
 | [LOG-001](#log-001) | Advertencia | Cronograma sin vínculos |
-| [LOG-002](#log-002) | Advertencia | Tareas sin predecesoras o sin sucesoras |
+| [LOG-002](#log-002) | Advertencia | Tareas sin predecesoras o sin sucesoras *(retirado)* |
 | [LOG-003](#log-003) | Advertencia | Tarea sin predecesoras ni sucesoras |
 | [LOG-004](#log-004) | Advertencia | Tarea sin predecesoras |
 | [LOG-005](#log-005) | Advertencia | Tarea sin sucesoras |
@@ -1754,17 +1754,17 @@ Las fechas no se recalculan cuando cambian las duraciones o el avance.
 
 #### LOG-002
 
-**Tareas sin predecesoras o sin sucesoras** · Advertencia · validar · se puede silenciar
+**Tareas sin predecesoras o sin sucesoras** · Advertencia · validar · se puede silenciar · retirado en la versión 2.6.0
 
-Resumen de [LOG-003](#log-003) a [LOG-005](#log-005), con el % de tareas sin terminar (DCMA: hasta 5 %).
+Hasta la versión 2.5, contaba en un resumen las tareas de [LOG-003](#log-003) a [LOG-005](#log-005), con su % de las tareas sin terminar, y repetía lo que informan esos códigos y el punto 1 de la evaluación DCMA. Desde la versión 2.6.0, cada tarea se informa solo con [LOG-003](#log-003), [LOG-004](#log-004) o [LOG-005](#log-005), y el % está en el punto 1 de la evaluación DCMA.
 
-**Qué hacer:** Vincular esas tareas.
+**Qué hacer:** Ninguna.
 
 #### LOG-003
 
 **Tarea sin predecesoras ni sucesoras** · Advertencia · validar · se puede silenciar
 
-Las fechas de la tarea no dependen de la lógica del cronograma.
+Tarea de detalle sin terminar a la que le faltan las predecesoras y las sucesoras: sus fechas no dependen de la lógica del cronograma. Un vínculo de su tarea resumen cuenta como suyo. Cuenta para el punto 1 de la evaluación DCMA (hasta 5 % de las tareas sin terminar).
 
 **Qué hacer:** Vincular la tarea.
 
@@ -1772,7 +1772,7 @@ Las fechas de la tarea no dependen de la lógica del cronograma.
 
 **Tarea sin predecesoras** · Advertencia · validar · se puede silenciar
 
-El comienzo de la tarea no depende de otra tarea.
+Tarea de detalle sin terminar a la que solo le faltan las predecesoras: su comienzo no depende de otra tarea. No les faltan a las que comienzan con el proyecto, y un vínculo de su tarea resumen cuenta como suyo. Cuenta para el punto 1 de la evaluación DCMA (hasta 5 % de las tareas sin terminar).
 
 **Qué hacer:** Agregar una predecesora.
 
@@ -1780,7 +1780,7 @@ El comienzo de la tarea no depende de otra tarea.
 
 **Tarea sin sucesoras** · Advertencia · validar · se puede silenciar
 
-El fin de la tarea no afecta a ninguna otra tarea.
+Tarea de detalle sin terminar a la que solo le faltan las sucesoras: su fin no afecta a ninguna otra tarea. No les faltan a las que terminan con el proyecto, y un vínculo de su tarea resumen cuenta como suyo. Cuenta para el punto 1 de la evaluación DCMA (hasta 5 % de las tareas sin terminar).
 
 **Qué hacer:** Agregar una sucesora.
 

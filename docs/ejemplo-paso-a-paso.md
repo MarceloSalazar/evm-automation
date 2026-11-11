@@ -30,7 +30,7 @@ planificaciones, `INTERNO` y `CLIENTE` (esta con un presupuesto ficticio un 15 %
 
 | Código | Elemento | Paquetes y métodos de medición |
 |---|---|---|
-| `1.0.0` | Gestión del programa | PMO, control de proyectos y riesgos (`Avance lineal (LOE)`); licitaciones (`0/100`, `50/50`). |
+| `1.0.0` | Gestión del programa | PMO, control de proyectos y riesgos (`Avance lineal`); licitaciones (`0/100`, `50/50`). |
 | `2.0.0` | Ingeniería | Estudios (`50/50`), diseño conceptual y revisión (`Hitos ponderados`), ingeniería básica y de detalle (`% Completado`, `% Físico completado`). |
 | `3.0.0` | Construcción | Obras civiles (`Unidades completadas`, `% Físico completado`), suministro de equipos (`Hitos ponderados`), montaje (`% Completado`). |
 | `4.0.0` | Puesta en marcha | Pruebas (`0/100`, `20/80`), capacitación (`50/50`) y un paquete sin método (`Por definir`). |

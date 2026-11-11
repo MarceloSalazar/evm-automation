@@ -27,7 +27,7 @@ from builders import assert_report_invariants, set_bac
 SEEDS = int(os.environ.get("EVM_SEMILLAS", "1"))
 STATUSES = [date(2026, 3, 31), date(2027, 6, 30), date(2028, 12, 31)]
 METHODS = ["0/100", "50/50", "20/80", "Hitos ponderados", "% Completado", "% Físico completado",
-           "Unidades completadas", "Avance lineal (LOE)", "Por definir", ""]
+           "Unidades completadas", "Avance lineal", "Avance lineal (LOE)", "Por definir", ""]
 COMPANIES = ["EmpresaA", "EmpresaB", "Ambas", "", "", "Otra"]
 START = date(2026, 1, 5)
 

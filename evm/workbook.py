@@ -186,9 +186,11 @@ METHOD_HELP = {
                            "objetivamente), ponderado por su duración de línea base y el peso de los hitos.",
     "Unidades completadas": "% ganado = unidades terminadas / unidades totales. El cociente se registra en "
                             "'% físico completado' de MS Project.",
-    "Avance lineal (LOE)": "Nivel de esfuerzo: % ganado = % planificado (EV = PV). No genera variación de plazo; "
-                           "conviene limitarlo.",
+    "Avance lineal": "Nivel de esfuerzo (LOE): % ganado = % planificado (EV = PV). No genera variación de plazo; "
+                     "conviene limitarlo.",
 }
+# Nombres anteriores de los métodos, que pueden seguir en [metodos] lista: tienen la misma descripción
+METHOD_ALIASES = {"Avance lineal (LOE)": "Avance lineal"}       # hasta la versión 2.5
 
 
 def row_key(row: ReportRow) -> str:
@@ -741,14 +743,14 @@ def _write_lists(ws, methods: list[str]) -> None:
     _header(ws, 1, [(1, "Métodos de medición"), (2, "Descripción / regla de cálculo")])
     for i, m in enumerate(methods, start=2):
         put_text(ws, i, 1, m)
-        ws.cell(row=i, column=2, value=METHOD_HELP.get(m, ""))
+        ws.cell(row=i, column=2, value=METHOD_HELP.get(METHOD_ALIASES.get(m, m), ""))
     ws.column_dimensions["A"].width = 24
     ws.column_dimensions["B"].width = 110
     ws.column_dimensions["D"].width = 70
     ws.cell(row=1, column=4, value="Se pueden agregar métodos al final de la columna A, sin dejar filas vacías: "
             "aparecen en el desplegable de la columna C de la hoja PV. Para calcular el EV se reconocen: "
             "fórmulas fijas X/Y (0/100, 50/50...), hitos ponderados, % completado, % físico completado, "
-            "unidades completadas y avance lineal (LOE). Otros textos se calculan como % completado.").font = FONT_NOTE
+            "unidades completadas y avance lineal. Otros textos se calculan como % completado.").font = FONT_NOTE
     ws.cell(row=1, column=4).alignment = Alignment(wrap_text=True, vertical="top")
 
 

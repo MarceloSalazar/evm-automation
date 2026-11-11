@@ -29,7 +29,7 @@ def test_layout_matches_requested_format(book):
     assert ws.cell(FIRST_ROW, 1).value == "1.0.0"
     assert str(ws.cell(FIRST_ROW, 4).value).startswith("=SUM(")         # fila resumen = fórmula
     leaf = next(r for r in range(FIRST_ROW, ws.max_row) if ws.cell(r, 1).value == "1.1.1")
-    assert ws.cell(leaf, 3).value == "Avance lineal (LOE)"
+    assert ws.cell(leaf, 3).value == "Avance lineal"
     assert isinstance(ws.cell(leaf, 4).value, (int, float))               # fila de ingreso = valor
     assert ws.data_validations.dataValidation
     assert wb["_meta"].sheet_state == "hidden"
@@ -145,3 +145,13 @@ def test_currency_defaults_to_euro(book, tmp_path, example_files):
     assert main(["generar", "--origen", str(example_files["base"]), "--config", str(cfg),
                  "--salida", str(out)]) == 0
     assert load_workbook(out)["Resumen"]["B9"].value == "USD"          # moneda del proyecto
+
+
+def test_previous_method_name_keeps_its_description():
+    """«Avance lineal (LOE)», el nombre del método hasta la versión 2.5, puede seguir en [metodos] lista: tiene la
+    descripción de «Avance lineal» en la hoja Listas."""
+    from openpyxl import Workbook
+    from evm.workbook import METHOD_HELP, _write_lists
+    ws = Workbook().active
+    _write_lists(ws, ["Avance lineal", "Avance lineal (LOE)"])
+    assert ws.cell(2, 2).value == ws.cell(3, 2).value == METHOD_HELP["Avance lineal"]

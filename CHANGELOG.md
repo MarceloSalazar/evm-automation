@@ -54,12 +54,18 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 - **`procesar-costes` ya no reemplaza el % planificado de MS Project:** el plan de costes se compara con él
   ([Depuración de costes](docs/depuracion-costes.md#8-revisión-y-cálculos-del-plan-procesar-costes)).
+- **Menos avisos repetidos o innecesarios:** `validar` informa las tareas sin predecesoras o sin sucesoras
+  sin un aviso de resumen que las repita, y una tarea de las dos empresas sin `% Reparto` ya no genera un
+  aviso: usa el reparto por defecto
+  ([Validaciones](docs/validaciones-y-problemas.md)).
 
 **Otros**
 
 - Los libros con depuración de costes de la versión 2.5 se regeneran con `--migrar-desde`, para tener las
   fórmulas nuevas y el % planificado de MS Project.
 - Instalador de Windows adjunto a la publicación, con las funciones de las versiones 2.5.0 y 2.6.0.
+- El método `Avance lineal (LOE)` se llama `Avance lineal`; el nombre anterior se sigue reconociendo
+  ([Métodos de medición](docs/metodos-de-medicion.md#37-avance-lineal)).
 
 ### Nuevas funciones
 
@@ -126,10 +132,27 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   En un libro procesado con una versión anterior, `procesar-costes` y `actualizar` avisan de esas filas
   (`DEP-021`), y `--migrar-desde` les devuelve el % de MS Project y conserva el BAC, el % ganado y el AC
   (`DEP-020`). Códigos `DEP-010` y `DEP-011` retirados.
+- **Tareas sin vínculos sin un resumen repetido (`validar`).** Las tareas sin terminar sin predecesoras o
+  sin sucesoras se contaban en un aviso de resumen (`LOG-002`) que repetía lo que informa la línea de cada
+  tarea (`LOG-003` a `LOG-005`) y el punto 1 de la tabla de la evaluación DCMA. Ahora cada tarea se informa
+  solo en su línea, con lo que le falta: predecesoras y sucesoras (`LOG-003`), solo predecesoras (`LOG-004`)
+  o solo sucesoras (`LOG-005`), y el % de las tareas sin terminar sigue en el punto 1 de la tabla
+  ([Evaluación DCMA](docs/evaluacion-dcma.md#41-lógica-punto-1)). Código `LOG-002` retirado.
+- **Sin aviso por `% Reparto` vacío (multi-empresa).** `generar` y `validar` ya no avisan cuando el campo
+  de reparto existe, pero está vacío en todas las tareas: una tarea `Ambas` sin reparto se reparte con
+  `reparto_por_defecto` (50 % por defecto), como está previsto
+  ([Multi-empresa](docs/multiempresa.md#7-validaciones-y-controles)). Código `LEC-023` retirado.
 
 ### Otros
 
 - Presentación: la versión en la portada. Capturas de la hoja `PV-depuración` actualizadas.
+- **Método `Avance lineal`.** El método `Avance lineal (LOE)` pasa a llamarse `Avance lineal`, como en la
+  documentación de los métodos: en el desplegable de la columna C y la hoja `Listas`, en la configuración
+  de ejemplo, en el proyecto de ejemplo, en las capturas del libro y en la diapositiva 22 de la
+  presentación. El nombre anterior se sigue reconociendo en MS Project y en las columnas C de los libros,
+  y en `[metodos] lista` conserva su descripción en la hoja `Listas`. Una configuración con lista propia
+  muestra el nombre nuevo en el desplegable cuando se cambia en `[metodos] lista`
+  ([Métodos de medición](docs/metodos-de-medicion.md#37-avance-lineal)).
 - Instalador de Windows de nuevo en la publicación, con las funciones de las versiones 2.5.0 y 2.6.0.
 - **Notas de las publicaciones resumidas:** cada versión de este registro empieza con un *Resumen* en
   viñetas, con enlaces a la documentación, y la publicación de GitHub muestra solo ese resumen, con los

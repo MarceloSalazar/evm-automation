@@ -2061,7 +2061,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
-			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal (LOE)</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal</Value></ExtendedAttribute>
 			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.1.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
@@ -2559,7 +2559,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
-			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal (LOE)</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal</Value></ExtendedAttribute>
 			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.1.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
@@ -3057,7 +3057,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
-			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal (LOE)</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal</Value></ExtendedAttribute>
 			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.1.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
@@ -4136,7 +4136,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
-			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal (LOE)</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal</Value></ExtendedAttribute>
 			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.2.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
@@ -9995,7 +9995,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
-			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal (LOE)</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal</Value></ExtendedAttribute>
 			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.1.1</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
@@ -10493,7 +10493,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
-			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal (LOE)</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal</Value></ExtendedAttribute>
 			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.1.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
@@ -10991,7 +10991,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
-			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal (LOE)</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal</Value></ExtendedAttribute>
 			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.1.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
@@ -12070,7 +12070,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
-			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal (LOE)</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743750</FieldID><Value>Avance lineal</Value></ExtendedAttribute>
 			<ExtendedAttribute><FieldID>188743734</FieldID><Value>1.2.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>

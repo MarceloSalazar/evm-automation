@@ -391,7 +391,7 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
 
     # --- Método de medición ---------------------------------------------------
     method_names = "0/100, 50/50 (X/Y que sumen 100), Hitos ponderados, % Completado, % Físico completado, " \
-                   "Unidades completadas o Avance lineal (LOE)"
+                   "Unidades completadas o Avance lineal"
     if "metodo" in project.fields_found and tasks and not any(t.method for t in tasks):
         issues.append(Issue("LEC-019", "", "",
                             f"El campo '{project.fields_found['metodo']}' existe, pero está vacío en todas las "
@@ -447,27 +447,8 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
             issues.append(_issue("EMP-001", t, code_of,
                                  f"Tiene '{cfg.split_field}' = {_num(t.split_a, 2)}, pero {who}: el reparto solo se "
                                  f"usa en las tareas '{cfg.company_both}'."))
-        shared = [t for t in leaves if same_name(_company_of(t), cfg.company_both)]
-        if "campo_reparto" in project.fields_found and shared and not any(t.split_a for t in tasks):
-            one = len(shared) == 1
-            issues.append(Issue("LEC-023", "", "",
-                                f"El campo '{project.fields_found['campo_reparto']}' existe, pero está vacío en todas "
-                                f"las tareas: {fmt_number(len(shared), 0)} {'tarea' if one else 'tareas'} de detalle "
-                                f"'{cfg.company_both}' se {'reparte' if one else 'reparten'} al "
-                                f"{_num(cfg.split_default, 2)} % para {cfg.company_a} ([multiempresa] "
-                                f"reparto_por_defecto). Se debe cargar el % de {cfg.company_a} en esas tareas o en su "
-                                "tarea superior, o confirmar que el reparto por defecto es el acordado."))
+        # Una tarea 'Ambas' con el campo de reparto vacío usa reparto_por_defecto: no se avisa (LEC-023, retirado)
     return issues
-
-
-def _company_of(t: Task) -> str:
-    """Empresa de la tarea: la suya o la de su tarea superior más cercana que la tenga."""
-    n: Task | None = t
-    while n is not None:
-        if (n.company or "").strip():
-            return n.company.strip()
-        n = n.parent
-    return ""
 
 
 # ----------------------------------------------------------------------------
@@ -856,12 +837,7 @@ def logic_checks(project: ProjectData, scope: Scope, code_of: CodeOf,
             metrics[1] = (f"{_num(share)} % ({len(no_pred)} sin predecesoras, {len(no_succ)} sin sucesoras)",
                           DCMA_THRESHOLDS[1], share <= DCMA_LOGIC + 1e-9)
         if no_pred or no_succ:
-            share = _pct(len({t.uid for t in no_pred + no_succ}), len(open_tasks))
-            issues.append(Issue("LOG-002", "", "",
-                                f"{plural(len(no_pred), 'tarea', 'tareas')} sin predecesoras y "
-                                f"{plural(len(no_succ), 'tarea', 'tareas')} sin sucesoras: {share} % de las tareas sin "
-                                f"terminar (DCMA: hasta {_num(DCMA_LOGIC)} %). Sus fechas no dependen de la lógica "
-                                "del cronograma."))
+            # Una observación por tarea (el % de las tareas sin terminar es el punto 1 de la evaluación DCMA)
             missing_pred = {t.uid for t in no_pred}
             missing_succ = {t.uid for t in no_succ}
             found = []

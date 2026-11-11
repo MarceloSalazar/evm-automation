@@ -73,7 +73,6 @@ cronograma de las secciones [1.2](#12-avance-a-la-fecha-de-estado-validar) y
 | Método `0/100` en un paquete de más de `meses_0_100` meses (1 por defecto) o `50/50`, `25/75`, `20/80` en uno de más de `meses_formula_fija` meses (2) | Con esos métodos el EV queda en 0 (o en el % inicial) hasta que el paquete termina. Dividir el paquete o usar un método de avance; los umbrales se ajustan en [`[validacion]`](configuracion.md#claves). |
 | Campo de método o de empresa que existe, pero está vacío en todas las tareas | Revisar el nombre o el alias del campo en la configuración. |
 | Multi-empresa: `% Reparto` en una tarea que no es `Ambas` (`Info`) | El reparto solo se usa en las tareas `Ambas`; en las demás se ignora. |
-| Multi-empresa: el campo `% Reparto` existe, pero está vacío en todas las tareas (`Advertencia`) | Las tareas de detalle `Ambas` se reparten con `reparto_por_defecto`: cargar el reparto acordado en esas tareas (o en su tarea superior) o confirmar que el reparto por defecto es el correcto. |
 | Recordatorio de dónde se ingresa el BAC | Ingresar el BAC de cada fila en la columna D de la hoja `PV` (o de cada empresa) ([Cálculo del PV y el EV](calculo-pv-ev.md#14-controles-y-validaciones)). |
 | Tareas sin fechas de línea base | Tareas agregadas después de guardar la línea base: su % planificado usa sus fechas actuales. Si están aprobadas, guardar la línea base de esas tareas. |
 | Pesos de hitos que suman más de 100 (o menos, sin tareas con duración), pesos negativos, filas sin pesos o sin fechas | Revisar el `Peso hito` de los hitos de la fila y las fechas de sus tareas ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)). |
@@ -141,7 +140,7 @@ de 14 puntos](evaluacion-dcma.md).
 | Observación | Criterio DCMA | Qué revisar |
 |---|---|---|
 | El cronograma no tiene vínculos entre tareas | — | Vincular las tareas. |
-| Tareas sin terminar sin predecesoras o sin sucesoras (no cuentan la primera y la última tarea del proyecto; el vínculo de una tarea resumen cuenta para sus subtareas) | Hasta 5 % | Agregar los vínculos que faltan. |
+| Tareas sin terminar sin predecesoras o sin sucesoras, una línea por tarea: sin las dos, solo sin predecesoras o solo sin sucesoras (no cuentan la primera y la última tarea del proyecto; el vínculo de una tarea resumen cuenta para sus subtareas). Su % es el punto 1 de la evaluación DCMA | Hasta 5 % | Agregar los vínculos que faltan. |
 | Vínculos con adelanto (posición negativa), en una línea por tarea con sus predecesoras | Ninguno | Reemplazar el adelanto por un vínculo comienzo a comienzo o dividir la tarea. |
 | Vínculos con posición positiva | Hasta 5 % | Una espera fija oculta trabajo que conviene representar como tarea. |
 | Vínculos comienzo a fin (CF) y proporción de vínculos fin a comienzo (FC) | Al menos 90 % FC | Usar vínculos fin a comienzo. |
