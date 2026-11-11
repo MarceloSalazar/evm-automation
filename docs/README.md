@@ -18,6 +18,7 @@ rápido están en el [README principal](../README.md).
 | Evaluar la calidad del cronograma con los criterios de la DCMA | [Evaluación DCMA de 14 puntos](evaluacion-dcma.md) |
 | Saber qué requisitos de la norma EIA-748 cubre el programa | [Norma EIA-748-E](evaluacion-eia-748-e.md) |
 | Entregar al cliente las fichas de tareas | [Comando `generar-fichas`](comandos.md#generar-fichas-fichas-de-tareas-para-el-cliente) |
+| Mantener una sola planificación y obtener de ella la del cliente, sin las tareas internas | [Planificación para el cliente](generar-cliente.md) |
 | Reunir varios archivos de MS Project en un informe | [Varios archivos de MS Project](varios-archivos.md) |
 | Alinear el cronograma con el plan de costes de una empresa | [Depuración de costes](depuracion-costes.md) |
 | Interpretar los indicadores y los gráficos | [Cuadro de Mando e indicadores](cuadro-de-mando.md) |
@@ -39,7 +40,8 @@ rápido están en el [README principal](../README.md).
 |---|---|
 | [Tutorial con el proyecto de ejemplo](ejemplo-paso-a-paso.md) | Ciclo completo con el XML de ejemplo: generar el libro, ingresar el BAC, simular 24 meses de avance y revisar el resultado. |
 | [Proceso de reporte EVM](proceso-reporte-evm.md) | Puesta en marcha, cierre mensual, cambios de línea base, roles, calendario, buenas prácticas y lista de control. |
-| [Comandos y opciones](comandos.md) | `validar`, `generar`, `actualizar`, `analizar`, `generar-fichas` (fichas de tareas para el cliente en Markdown) y `procesar-costes` (PV con el plan de costes), todas sus opciones y ejemplos de salida. |
+| [Comandos y opciones](comandos.md) | `validar`, `generar`, `actualizar`, `analizar`, `generar-fichas` (fichas de tareas para el cliente en Markdown) y `procesar-costes` (revisión del plan de costes), todas sus opciones y ejemplos de salida. |
+| [Planificación para el cliente](generar-cliente.md) | `generar-cliente`: el `.mpp` del cliente a partir de la planificación interna, con las tareas marcadas en un campo y las demás como «Otras tareas» (o borradas), la comparación del % completado y del libro EVM con la planificación interna, un informe de control y el registro de diagnóstico. |
 | [Configuración](configuracion.md) | Claves del archivo `config.toml` y ejemplos. |
 | [Códigos de errores y advertencias](codigos.md) | Código de cada mensaje (`ÁREA-NNN`): severidad, causa y qué hacer; cómo silenciar observaciones con `[validacion] silenciar` o `--silenciar`. |
 | [Presentación para el equipo de proyecto](presentacion-jefes-de-proyecto.pptx) ([PDF](presentacion-jefes-de-proyecto.pdf)) | 38 diapositivas para unos 30 minutos, con notas para el presentador: conceptos EVM y semáforo, preparación en MS Project (incluidas la línea base y la definición del método de medición), `validar`, `generar` y `actualizar`, Cuadro de Mando, análisis de desviaciones, avisos del cierre y cierre mensual. Se abre con PowerPoint o LibreOffice Impress. |
@@ -52,7 +54,7 @@ rápido están en el [README principal](../README.md).
 | [Métodos de medición](metodos-de-medicion.md) | 0/100, fórmulas fijas, hitos ponderados, % completado, % físico, unidades y LOE; dónde se define el método y dónde se calcula el EV; guía y proceso para definir el método de cada paquete. |
 | [Multi-empresa (opcional)](multiempresa.md) | PV, EV y AC de dos empresas: preparación, reparto, cálculo y ejemplo. |
 | [Varios archivos de MS Project (opcional)](varios-archivos.md) | Un informe con los elementos EDT de varios archivos: códigos EDT, `[[proyectos]]`, cierre mensual, cambios de archivos y ejemplo. |
-| [Depuración de costes (opcional)](depuracion-costes.md) | PV planificado de una empresa frente a la previsión de su plan de costes, pegada en el libro; filas «(coste)», reglas de asignación, indicador de alineamiento, gráfico por elemento EDT, PV con el reparto del plan de costes (`procesar-costes`) y ciclo de ajuste. |
+| [Depuración de costes (opcional)](depuracion-costes.md) | PV planificado de una empresa frente a la previsión de su plan de costes, pegada en el libro; filas «(coste)», reglas de asignación, indicador de alineamiento, gráfico por elemento EDT, revisión y cálculos del plan (`procesar-costes`) y ciclo de ajuste. |
 
 **Cálculos y libro**
 

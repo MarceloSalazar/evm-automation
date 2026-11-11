@@ -150,7 +150,7 @@ W_READ = "generar, actualizar, validar y generar-fichas (lectura de MS Project)"
 W_GV = "generar (hoja Validación) y validar"
 W_G = "generar (hoja Validación)"
 W_V = "validar"
-W_OUT = "generar, generar-fichas y validar --informe"
+W_OUT = "generar, generar-fichas, generar-cliente y validar --informe"
 W_BOOK = "actualizar, analizar, procesar-costes y generar --migrar-desde (lectura del libro)"
 W_MIG = "generar --migrar-desde (hoja Validación)"
 W_REVIEW = "generar con depuracion_costes (hoja Validación)"
@@ -159,6 +159,7 @@ W_ACT = "actualizar"
 W_AN = "actualizar y analizar"
 W_ROW = "actualizar (observaciones por fila)"
 W_FIC = "generar-fichas"
+W_CLI = "generar-cliente"
 
 
 @dataclass(frozen=True)
@@ -198,11 +199,14 @@ AREAS = {a.prefix: a for a in [
     Area("MIG", "Migración (--migrar-desde)", TOPIC_BOOK, W_MIG,
          "Traslado del BAC, el % ganado, el AC y los métodos de un libro anterior."),
     Area("DEP", "Depuración de costes", TOPIC_BOOK, W_REVIEW,
-         "Hoja PV-depuración, su traslado con --migrar-desde y el reparto del plan de costes (procesar-costes)."),
+         "Hoja PV-depuración, su traslado con --migrar-desde y la revisión del plan de costes (procesar-costes)."),
     Area("ACT", "Actualizar y analizar", TOPIC_BOOK, W_ACT,
          "Carga del % ganado del mes: fecha de corte, filas del libro, BAC y observaciones por fila."),
     Area("FIC", "Fichas de tareas", TOPIC_BOOK, W_FIC,
          "Comando generar-fichas."),
+    Area("CLI", "Planificación para el cliente", TOPIC_BOOK, W_CLI,
+         "Comando generar-cliente: tareas que se muestran al cliente, «Otras tareas», resúmenes convertidos, "
+         "vínculos nuevos y comparación con la planificación interna."),
     Area("SIS", "Errores del sistema", TOPIC_BOOK, W_ALL,
          "Errores de archivos del sistema y errores inesperados del programa."),
 ]}
@@ -375,10 +379,11 @@ _CODES = [
           "Con varios archivos no hay un nombre de salida por defecto.",
           "Indicar el archivo a crear con --salida (o con --informe en validar).", W_OUT),
     _code("CFG-041", F, "Extensión del archivo de salida no válida",
-          "El libro se guarda como .xlsx; las fichas y el informe de mejoras de validar, como .md.",
-          "Indicar --salida (o --informe) con la extensión que corresponde.", W_OUT),
+          "El libro se guarda como .xlsx; las fichas, el informe de mejoras de validar y el informe de control de "
+          "generar-cliente, como .md; la planificación del cliente, como .mpp.",
+          "Indicar --salida (o --informe o --destino) con la extensión que corresponde.", W_OUT),
     _code("CFG-042", F, "El archivo de salida ya existe",
-          "El archivo de --salida (o de --informe) existe y no se indicó --sobrescribir.",
+          "El archivo de --salida (o de --informe o --destino) existe y no se indicó --sobrescribir.",
           "Usar --sobrescribir para reemplazarlo o indicar otro nombre. Para conservar los EV/AC cargados en un "
           "libro, se genera un archivo nuevo con --migrar-desde.", W_OUT),
     _code("CFG-043", F, "--migrar-desde igual a --salida",
@@ -425,6 +430,16 @@ _CODES = [
           "una por una, y con un solo archivo (sin [[proyectos]]).",
           "Indicar una sola planificación en planificacion o --planificacion; para revisar varias, usar validar "
           "--planificacion INTERNO,CLIENTE.", "generar, actualizar, validar y generar-fichas"),
+    _code("CFG-054", F, "Falta el campo del cliente",
+          "generar-cliente necesita el campo de MS Project que indica qué tareas se muestran al cliente.",
+          "Indicarlo en [cliente] campo, por ejemplo campo = \"Etiqueta Cliente\" (ver config.ejemplo.toml).", W_CLI),
+    _code("CFG-055", F, "Cálculo del precio mal configurado",
+          "La sección [depuracion_precio] (precio de las EDT interna en la depuración de costes) no es válida: "
+          "falta calculo_precio o la lista de componentes, la expresión no se puede leer o usa un nombre que no está "
+          "en [depuracion_precio.componentes] ni en [depuracion_precio.recargos], un nombre o un texto está repetido "
+          "o hay más de 8 coeficientes. El mensaje indica el motivo.",
+          "Corregir la sección según config.ejemplo.toml: la expresión admite números (con punto decimal), los "
+          "nombres de las dos listas, + - * / y paréntesis."),
 
     # --- LEC: lectura de MS Project -----------------------------------------------------------------------------
     _code("LEC-001", F, "No existe el archivo de origen",
@@ -519,6 +534,11 @@ _CODES = [
           "Comparar con el resultado del XML del mismo proyecto (Archivo > Guardar como > XML), que lee el "
           "calendario del archivo, y usar el XML si difieren.", "generar, actualizar, validar y generar-fichas con "
           "archivos .mpp"),
+    _code("LEC-026", F, "No se encontró el campo del cliente",
+          "El campo de [cliente] campo no existe en el archivo de MS Project, ni con ese nombre ni como alias: no se "
+          "puede saber qué tareas se muestran al cliente.",
+          "Revisar el nombre del campo en [cliente] campo (el alias, por ejemplo \"Etiqueta Cliente\", o el nombre, "
+          "por ejemplo \"Text15\").", W_CLI),
 
     # --- EDT: estructura y códigos EDT --------------------------------------------------------------------------
     _code("EDT-001", E, "Código EDT con formato no válido",
@@ -555,8 +575,10 @@ _CODES = [
     _code("EDT-010", (F, E), "No se encontró la planificación",
           "Ninguna tarea tiene el código EDT (o el nombre) de la planificación indicada. validar lo informa como "
           "error y revisa el proyecto completo.",
-          "Revisar planificacion (o --planificacion): el mensaje lista las tareas de nivel superior.",
-          "generar, actualizar, generar-fichas y validar"),
+          "Revisar planificacion (o --planificacion): el mensaje lista las tareas de nivel superior. Si el archivo "
+          "tiene una sola planificación, dejar planificacion vacía (planificacion = \"\") o quitar la clave: se usa "
+          "todo el proyecto.",
+          "generar, actualizar, generar-fichas, generar-cliente y validar"),
     _code("EDT-011", (F, E), "Código EDT en dos archivos",
           "Con varios archivos de MS Project, el mismo código EDT está en dos de ellos: el libro identifica cada "
           "fila por su código. validar lo informa como error.",
@@ -1072,7 +1094,8 @@ _CODES = [
           "El libro anterior tiene la previsión de una empresa y el nuevo depura otra.",
           "Pegar la previsión de nuevo."),
     _code("DEP-006", I, "Previsión trasladada",
-          "Se conservó el contenido de la hoja PV-depuración.",
+          "Se conservó el contenido de la hoja PV-depuración: el plan de costes y los recargos de la tabla Recargos. "
+          "El plan de una hoja de la versión 2.5 o anterior, que empezaba en la celda A8, pasa a la celda A12.",
           "Ninguna."),
     _code("DEP-007", I, "Previsión pasada al formato con EDT interna",
           "La hoja PV-depuración del libro anterior no tenía las columnas de EDT interna: los códigos numéricos "
@@ -1087,42 +1110,84 @@ _CODES = [
           "los meses de cada línea, y los meses empiezan en la columna G.",
           "Ninguna."),
     _code("DEP-010", (I, W), "Reparto del plan de costes conservado",
-          "Las filas procesadas con procesar-costes conservan en el libro nuevo el % planificado del plan de costes, "
-          "en lugar del que resulta de MS Project. Es una advertencia si quedaron meses después del horizonte del "
-          "libro nuevo: el % planificado de esas filas no suma 100 %.",
-          "Ninguna. Si el plan de costes cambió, ejecutar procesar-costes en un libro con depuración de costes.",
-          W_MIG),
+          "Hasta la versión 2.5, --migrar-desde conservaba en el libro nuevo el % planificado de las filas procesadas "
+          "con procesar-costes. Desde la versión 2.6.0, procesar-costes no modifica el % planificado y --migrar-desde "
+          "lo vuelve a calcular con MS Project (ver DEP-020).",
+          "Ninguna.", W_MIG, retired="2.6.0"),
     _code("DEP-011", W, "Reparto del plan de costes no combinado",
-          "La fila nueva reúne varias filas del libro anterior con el reparto del plan de costes (p. ej. al bajar el "
-          "nivel máximo): su % planificado se calcula con MS Project.",
-          "Ejecutar procesar-costes en un libro con depuración de costes.", W_MIG),
+          "Hasta la versión 2.5, se informaba la fila nueva que reunía varias filas procesadas con procesar-costes. "
+          "Desde la versión 2.6.0, el % planificado de todas las filas se calcula con MS Project (ver DEP-020).",
+          "Ninguna.", W_MIG, retired="2.6.0"),
     _code("DEP-012", F, "Libro sin depuración de costes",
           "procesar-costes necesita un libro generado con depuracion_costes = true, con el plan de costes pegado en la "
           "hoja PV-depuración.",
           "Generar el libro con depuracion_costes = true (y --migrar-desde para conservar el BAC).", W_PROC),
-    _code("DEP-013", F, "Plan de costes sin líneas asignadas",
-          "Ninguna línea de la hoja PV-depuración se asigna a una fila de ingreso del libro: la hoja está vacía o sus "
-          "códigos no son los del libro.",
-          "Pegar el plan de costes desde la celda A8 y revisar la columna 'Asignado a'.", W_PROC),
-    _code("DEP-014", W, "Líneas del plan de costes sin fila del libro",
-          "Líneas que se suman pero no tienen fila en el libro (código inexistente, resumen sin fila propia o sin EDT "
-          "cliente encima): su importe no forma parte del % planificado.",
-          "Corregir los códigos en el plan de costes, o agregar las filas al libro (p. ej. con lista_edt).", W_PROC),
+    _code("DEP-013", F, "Plan de costes sin líneas leídas",
+          "Ninguna línea de EDT cliente de la hoja PV-depuración tiene el código de una fila de ingreso del libro: la "
+          "hoja está vacía o sus códigos no son los del libro.",
+          "Escribir el plan de costes desde la celda A12 y revisar la columna 'Asignado a'.", W_PROC),
+    _code("DEP-014", W, "Líneas de EDT cliente sin leer",
+          "Líneas de EDT cliente con importes que no se leen: su código no es el de una fila del libro, o es el de un "
+          "resumen del libro y ninguna línea de un código inferior se lee. Su importe no llega a ninguna fila "
+          "«(coste)».",
+          "Corregir los códigos en el plan de costes, agregar las filas al libro (p. ej. con lista_edt) o detallar "
+          "el resumen con las EDT cliente de sus filas.", W_PROC),
     _code("DEP-015", W, "Plan de costes después del horizonte",
-          "El plan de costes tiene importes en meses posteriores al horizonte del libro: no forman parte del % "
-          "planificado, que en esas filas no suma 100 %.",
+          "El plan de costes tiene importes en meses posteriores al horizonte del libro: forman parte del EAC de la "
+          "fila «(coste)», pero no de sus meses ni del gráfico.",
           "Ampliar el horizonte del libro (meses) o revisar el plan de costes.", W_PROC),
-    _code("DEP-016", I, "Filas sin líneas en el plan de costes",
-          "Filas de ingreso de la empresa sin líneas en el plan de costes: conservan su % planificado, de MS Project o "
-          "de un procesado anterior.",
+    _code("DEP-016", I, "Filas sin línea en el plan de costes",
+          "Filas de ingreso de la empresa sin línea de EDT cliente en el plan de costes: su fila «(coste)» queda "
+          "vacía.",
           "Ninguna, si la empresa no tiene costes en esas filas.", W_PROC),
-    _code("DEP-017", W, "Filas cuyo plan de costes suma 0",
-          "Las líneas asignadas a la fila suman 0: no hay reparto que aplicar y la fila conserva su % planificado.",
-          "Revisar los importes de esas filas en el plan de costes.", W_PROC),
-    _code("DEP-018", W, "Importes del plan de costes que no se suman",
-          "Importes guardados como texto, o celdas con fórmula sin valor calculado (el plan se pegó sin pegado "
-          "especial > valores y el libro no se guardó en Excel).",
-          "Pegar el plan de costes con pegado especial > valores.", W_PROC),
+    _code("DEP-017", W, "Filas sin importes en el plan de costes",
+          "La línea de EDT cliente de la fila no tiene importes en los meses (p. ej. faltan los cálculos del plan): "
+          "su fila «(coste)» queda en 0.",
+          "Completar los cálculos del plan (o ejecutar procesar-costes --calculos) y revisar los importes.", W_PROC),
+    _code("DEP-018", W, "Importes del plan de costes que no se leen",
+          "Importes guardados como texto, o celdas con fórmula sin valor calculado (el libro no se guardó en Excel "
+          "después de escribirlas).",
+          "Escribir números; abrir y guardar el libro en Excel, o ejecutar procesar-costes --calculos.", W_PROC),
+    _code("DEP-019", W, "EDT cliente repetida en el plan de costes",
+          "Dos o más líneas de EDT cliente tienen el mismo código: se suman sus importes.",
+          "Revisar el plan de costes: cada EDT cliente debería tener una sola línea.", W_PROC),
+    _code("DEP-020", I, "% planificado de MS Project recuperado",
+          "Filas que en el libro anterior tenían en la hoja % PV el reparto del plan de costes, escrito por "
+          "procesar-costes en una versión anterior a la 2.6.0: en el libro nuevo, su % planificado vuelve a ser el de "
+          "MS Project. El plan de costes se compara con el PV en las filas «(coste)».",
+          "Ninguna.", W_MIG),
+    _code("DEP-021", W, "Filas con el reparto del plan de costes",
+          "El libro tiene filas cuyo % planificado es el reparto del plan de costes, escrito por procesar-costes en "
+          "una versión anterior a la 2.6.0: no es el de MS Project. actualizar no compara esas filas con la línea "
+          "base (ACT-047).",
+          "Generar un libro nuevo con --migrar-desde: vuelve a calcular su % planificado con MS Project y conserva el "
+          "BAC, el % ganado y el AC.", f"{W_ACT} y {W_PROC}"),
+    _code("DEP-022", W, "Componentes de coste fuera del precio",
+          "Con [depuracion_precio], líneas de componente de coste (solo la columna D) con importes cuyo texto no "
+          "está en [depuracion_precio.componentes]: no entran en el precio de su EDT interna. Los textos se comparan "
+          "sin distinguir mayúsculas, tildes ni espacios de más.",
+          "Corregir el texto de la línea o agregarlo a [depuracion_precio.componentes] (y a calculo_precio).", W_PROC),
+    _code("DEP-023", W, "Tabla Recargos incompleta",
+          "Con [depuracion_precio], a la tabla Recargos de la hoja PV-depuración le falta la fila de un coeficiente "
+          "que usa calculo_precio, la columna de un año con importes o el valor de un coeficiente en un año con "
+          "importes (o la tabla entera, que procesar-costes --calculos agrega vacía). En el precio, los coeficientes "
+          "que faltan se toman como 0.",
+          "Completar la tabla Recargos (desde la celda D1): un % por coeficiente y año.", W_PROC),
+    _code("DEP-024", F, "Hoja PV-depuración de una versión anterior",
+          "La hoja PV-depuración tiene el formato de la versión 2.5 o anterior, con el plan desde la celda A8. Desde "
+          "la versión 2.6.0, el plan empieza en la celda A12, con la tabla Recargos arriba.",
+          "Generar un libro nuevo con --migrar-desde: pasa el plan a la celda A12 y conserva el BAC, el % ganado y el "
+          "AC.", W_PROC),
+    _code("DEP-025", W, "Recargos no trasladados",
+          "La tabla Recargos del libro anterior tiene coeficientes cuyo texto no está en [depuracion_precio.recargos] "
+          "de la configuración del libro nuevo: sus valores no se trasladaron.",
+          "Si el coeficiente cambió de texto, escribir sus valores en la tabla Recargos del libro nuevo.", W_MIG),
+    _code("DEP-026", W, "Tabla Recargos sin cálculo del precio",
+          "La hoja PV-depuración tiene la tabla Recargos, pero la configuración de procesar-costes no tiene "
+          "[depuracion_precio]: con --calculos, las EDT interna suman sus componentes (a coste), en lugar de su "
+          "precio.",
+          "Ejecutar procesar-costes con --config y la configuración de la depuración, que tiene [depuracion_precio].",
+          W_PROC),
 
     # --- ACT: actualizar y analizar -----------------------------------------------------------------------------
     _code("ACT-001", F, "El libro es de un solo archivo",
@@ -1329,6 +1394,169 @@ _CODES = [
     _code("FIC-004", W, "El archivo tiene errores",
           "El cronograma tiene errores (por ejemplo, códigos EDT duplicados) que pueden afectar las fichas.",
           "Revisarlo con validar."),
+
+    # --- CLI: planificación para el cliente (generar-cliente) ---------------------------------------------------
+    _code("CLI-001", F, "La planificación no es de primer nivel",
+          "generar-cliente parte de una tarea de primer nivel del esquema (la planificación, por ejemplo INTERNO) y "
+          "sus subtareas; la planificación indicada está debajo de otra tarea.",
+          "Indicar en planificacion una tarea de primer nivel, o dejarla vacía para usar todo el proyecto."),
+    _code("CLI-002", F, "Ninguna tarea se muestra al cliente",
+          "Ninguna tarea de la planificación tiene Sí en el campo de [cliente] campo (en ella y en todas sus tareas "
+          "superiores).",
+          "Revisar el campo configurado en [cliente] campo y marcar con Sí las tareas que debe ver el cliente, "
+          "empezando por las de primer nivel de la planificación."),
+    _code("CLI-003", W, "Valor no reconocido en el campo del cliente",
+          "El campo de [cliente] campo tiene un valor que no es Sí ni No (por ejemplo, un error de escritura): la "
+          "tarea no se muestra.",
+          "Corregir el valor (Sí o No). El informe de control indica las tareas."),
+    _code("CLI-004", W, "Tarea con Sí debajo de una tarea sin Sí",
+          "La tarea tiene Sí, pero una tarea superior no: no se muestra, con sus subtareas. Una tarea solo se muestra "
+          "si ella y todas sus tareas superiores tienen Sí.",
+          "Si se debe mostrar, poner Sí también en sus tareas superiores; si no, quitarle el Sí."),
+    _code("CLI-005", I, "Resúmenes que pasan a ser tareas",
+          "No se muestra ninguna subtarea del resumen: en el archivo del cliente pasa a ser una tarea con sus fechas, "
+          "su duración, su avance y sus líneas base, y recibe los vínculos de sus subtareas.",
+          "Ninguna, si el cliente no debe ver ese detalle. El informe de control los lista."),
+    _code("CLI-006", I, "Vínculos nuevos en la planificación del cliente",
+          "Vínculos que reemplazan a los que pasan por tareas ocultas (puentes) o que pasan de una subtarea a su "
+          "resumen convertido. Si un vínculo retrasaría a su sucesora respecto de la planificación interna, su "
+          "posición se ajusta a las fechas actuales.",
+          "Ninguna. El informe de control indica cada vínculo, su tipo y su posición."),
+    _code("CLI-007", W, "Vínculos que no se crean",
+          "El vínculo puente uniría un resumen con una de sus subtareas, o cerraría un ciclo con los vínculos que ya "
+          "tienen las tareas: MS Project no lo admite.",
+          "Revisar en el informe de control la lógica de esas tareas en la planificación interna."),
+    _code("CLI-008", I, "Resúmenes que cambian de fechas",
+          "Una subtarea que no se muestra fija el comienzo o el fin del resumen: en el archivo del cliente, el resumen "
+          "va de la primera a la última de las subtareas que se muestran.",
+          "Ninguna, si es lo esperado. El informe de control indica las fechas."),
+    _code("CLI-009", F, "Varios archivos en generar-cliente",
+          "La configuración tiene secciones [[proyectos]]: generar-cliente trabaja con un solo archivo de MS Project.",
+          "Usar una configuración sin [[proyectos]] e indicar el archivo con --origen."),
+    _code("CLI-010", F, "La generación necesita el archivo .mpp",
+          "El archivo del cliente se genera con MS Project a partir de una copia del .mpp de la planificación "
+          "interna. Con un XML o con 'activo' solo se puede simular.",
+          "Indicar en --origen el archivo .mpp, o usar --simular para ver los cambios sin generar el archivo."),
+    _code("CLI-011", F, "El destino es el archivo de origen",
+          "--destino indica el mismo archivo que --origen: la planificación interna nunca se modifica.",
+          "Indicar otro archivo en --destino (por defecto, <origen>_cliente.mpp)."),
+    _code("CLI-012", W, "El origen está abierto en MS Project",
+          "El archivo de la planificación interna está abierto en MS Project: se copia la versión guardada en el "
+          "disco, sin los cambios que no se guardaron.",
+          "Guardar el archivo en MS Project y volver a generar el archivo del cliente si había cambios sin guardar."),
+    _code("CLI-013", I, "Fechas fijadas en el archivo del cliente",
+          "Sin las tareas ocultas, MS Project adelantaba estas tareas: su comienzo se fijó con la delimitación «No "
+          "comenzar antes del» en la fecha de la planificación interna ([cliente] fijar_fechas).",
+          "Ninguna. El informe de control lista las tareas."),
+    _code("CLI-014", W, "Fechas distintas de la planificación interna",
+          "Después de recalcular, estas tareas del archivo del cliente no tienen las fechas de la planificación "
+          "interna y no se pudieron fijar: están comenzadas o terminadas, tienen otra delimitación, se atrasan, o "
+          "fijar_fechas = false.",
+          "Revisar en el informe de control el motivo de cada tarea y, si hace falta, la lógica de la planificación "
+          "interna."),
+    _code("CLI-015", W, "Vínculos que MS Project no aceptó",
+          "MS Project rechazó un vínculo nuevo (por ejemplo, porque cerraría un ciclo con un resumen).",
+          "Revisar en el informe de control el error de cada vínculo. Las fechas de sus tareas se comparan igual."),
+    _code("CLI-016", I, "Vínculos creados por MS Project al borrar tareas",
+          "Al borrar las tareas ocultas, MS Project vinculó las tareas de alrededor (vinculación automática). Esos "
+          "vínculos no son de la planificación interna y se quitaron.",
+          "Ninguna."),
+    _code("CLI-017", W, "No se pudo quitar el nombre del campo del cliente",
+          "Los valores del campo se vaciaron en todas las tareas, pero MS Project no permitió quitar su nombre "
+          "(alias): el cliente puede ver el campo, vacío, en la lista de campos.",
+          "Quitar el nombre a mano en el archivo del cliente (Proyecto > Campos personalizados) o revisar el "
+          "registro de diagnóstico."),
+    _code("CLI-018", F, "Error de MS Project al generar el archivo del cliente",
+          "MS Project devolvió un error en uno de los pasos (borrar tareas, vincular, recalcular, guardar...) o el "
+          "resultado no es el esperado (por ejemplo, quedan tareas que no se muestran). No se genera el archivo del "
+          "cliente; la planificación interna no se modifica.",
+          "Volver a ejecutar con --registro RUTA y revisar el paso y el error en el registro de diagnóstico."),
+    _code("CLI-019", W, "Resúmenes convertidos con datos sin restaurar",
+          "Al pasar de resumen a tarea, MS Project cambió la duración, el avance o una línea base del resumen y no "
+          "aceptó el valor original.",
+          "Revisar esas tareas en el archivo del cliente (el informe de control indica el dato)."),
+    _code("CLI-020", W, "Resúmenes con otro % completado",
+          "MS Project calcula el % completado de un resumen con la duración de sus tareas de detalle. En el archivo del "
+          "cliente no están las tareas ocultas, y su avance no cuenta; un resumen convertido pesa por su duración, no "
+          "por la de sus subtareas: el % del resumen cambia.",
+          "Revisar la lista del informe de control. Si el cliente debe ver el avance de esos resúmenes, se debe "
+          "mostrar el detalle que lo explica (marcar con Sí las tareas que lo forman)."),
+    _code("CLI-021", W, "Tareas que no conservan su % completado",
+          "Una tarea de detalle o un resumen convertido tiene en el archivo del cliente otro % completado que en la "
+          "planificación interna (por ejemplo, porque MS Project no aceptó el avance al convertir el resumen).",
+          "Revisar esas tareas en el archivo del cliente y el registro de diagnóstico (--registro)."),
+    _code("CLI-022", I, "Tareas que quedan como «Otras tareas»",
+          "Con [cliente] actividad_interna = true, las tareas que no se muestran quedan en el archivo del cliente como "
+          "«Otras tareas»: sin nombre, código EDT, notas, hipervínculo ni campos de texto (salvo los que usa el libro "
+          "EVM), con sus fechas, su duración, su avance, sus líneas base y sus vínculos. Así el % completado de cada "
+          "tarea, de los resúmenes y del proyecto, y el libro EVM, son los de la planificación interna. Las tareas "
+          "inactivas que no se muestran se quitan: no cuentan en ningún cálculo.",
+          "Ninguna. Con filtrar_vista = true, el archivo se abre con un filtro que oculta las «Otras tareas»."),
+    _code("CLI-023", W, "% completado del proyecto distinto",
+          "El % completado del proyecto, calculado como MS Project (con la duración de las tareas de detalle), no es "
+          "el mismo en el archivo del cliente: con actividad_interna = false se borran las tareas que no se muestran, "
+          "y su avance deja de contar.",
+          "Usar actividad_interna = true (por defecto) para que coincida, o mostrar las tareas que explican el avance "
+          "(Sí en el campo del cliente). Si ocurre con actividad_interna = true, revisar el registro de diagnóstico."),
+    _code("CLI-024", W, "Filas del libro EVM con otras tareas o valores",
+          "Una fila de ingreso del libro EVM del cliente no tiene las mismas tareas de detalle, el mismo % planificado "
+          "de cada mes o el mismo % ganado que en el libro de la planificación interna (o solo está en uno de los dos "
+          "libros). Ocurre al borrar las tareas que no se muestran (actividad_interna = false). Con «Otras tareas», "
+          "ocurre si no se muestra ningún elemento EDT de un resumen (su fila reúne las de esos elementos) o si no se "
+          "muestra un elemento EDT que no depende de ninguno que se muestre: sin su código, sus tareas no forman parte "
+          "de ninguna fila del libro del cliente.",
+          "Revisar la lista del informe de control, que indica en qué fila del otro libro están las tareas de cada "
+          "fila. Para que coincidan, usar actividad_interna = true (por defecto) y mostrar esos elementos EDT (Sí en "
+          "el campo del cliente) o ubicarlos debajo de un elemento que se muestre."),
+    _code("CLI-025", W, "Filas -D en el libro EVM del cliente",
+          "El libro EVM del cliente tiene filas -D («Otras tareas de …»): tareas sin código EDT dentro de un elemento "
+          "EDT que tiene filas propias, por ejemplo las de un elemento que no se muestra, cuyo código se quitó. Sus "
+          "valores son los mismos, pero el cliente ve esas filas en su libro.",
+          "Para que no aparezcan, mostrar ese elemento EDT (Sí en el campo del cliente) o reorganizar la EDT para que "
+          "las tareas internas no queden junto a elementos EDT que se muestran. El informe de control indica la fila "
+          "interna de cada fila -D."),
+    _code("CLI-026", W, "Tareas con datos distintos en el archivo del cliente",
+          "Con actividad_interna = true, cada tarea del archivo del cliente debe tener las fechas, el avance, la "
+          "duración y la línea base de la planificación interna; estas tareas no los tienen después de guardar el "
+          "archivo.",
+          "Revisar la lista del informe de control y el registro de diagnóstico (--registro)."),
+    _code("CLI-027", W, "Datos de las «Otras tareas» que no se quitaron",
+          "MS Project no dejó vaciar un campo de las «Otras tareas» (los campos calculados con una fórmula se informan "
+          "aparte, con CLI-030), o el campo EDT configurado es el de MS Project (EDT o número de esquema) y su código "
+          "no se puede quitar: el cliente puede ver esos datos.",
+          "Revisar el campo en el archivo del cliente. Para quitar los códigos, usar un campo EDT personalizado "
+          "([campos] edt, por ejemplo un campo de texto)."),
+    _code("CLI-028", W, "No se pudo crear el filtro de la vista",
+          "Con [cliente] filtrar_vista = true, MS Project no aceptó crear o aplicar el filtro que oculta las «Otras "
+          "tareas»: el archivo del cliente se abre con todas las tareas.",
+          "Revisar el registro de diagnóstico (--registro). El % completado y el libro EVM no cambian."),
+    _code("CLI-029", W, "No se pudo comparar el libro EVM",
+          "El libro EVM de la planificación interna o el del cliente no se pudo calcular para compararlos (por ejemplo, "
+          "por un error de configuración del libro).",
+          "Revisar el error indicado: es el mismo que daría generar con esa configuración."),
+    _code("CLI-030", I, "Campos calculados en las «Otras tareas»",
+          "Un campo personalizado de texto tiene una fórmula: MS Project calcula su valor en cada tarea y no deja "
+          "vaciarlo. En las «Otras tareas», el valor se calcula con los datos que se conservan (fechas, avance, líneas "
+          "base...).",
+          "Nada, si la fórmula solo usa esos datos. Si usa un campo con información interna, el cliente puede ver el "
+          "resultado: revisar la fórmula en MS Project."),
+    _code("CLI-031", W, "Tareas sin valor debajo de una tarea que se muestra",
+          "La tarea no tiene valor en el campo del cliente y su tarea superior se muestra: no se muestra (con "
+          "actividad_interna, queda como «Otras tareas»), con sus subtareas. Lo habitual es una tarea nueva que no se "
+          "marcó. Se indica la tarea de más arriba de cada rama; las inactivas no se incluyen.",
+          "Si el cliente la debe ver, poner Sí. Si no, poner No: así queda decidido y no se vuelve a avisar."),
+    _code("CLI-032", I, "Calendarios y macros quitados del archivo del cliente",
+          "El archivo del cliente es una copia del .mpp. Se quitaron los calendarios que no usa ninguna tarea ni "
+          "recurso, ni el proyecto (salvo el de MS Project para las líneas base de Project 98), y los módulos de "
+          "macros. La lista está en el informe de control.",
+          "Ninguna."),
+    _code("CLI-033", W, "Calendarios o macros que no se pudieron quitar",
+          "MS Project no dejó quitar un calendario sin uso, o el archivo del cliente guardado todavía tiene módulos "
+          "de macros (se comprueba leyendo el archivo). Las macros se quitan con el proyecto VBA o, si MS Project no "
+          "da acceso a él (Centro de confianza), con el Organizador.",
+          "Quitarlos en el archivo del cliente con el Organizador de MS Project (Archivo > Información > "
+          "Organizador), o permitir en el Centro de confianza de MS Project el acceso al modelo de objetos de "
+          "proyectos de VBA y volver a generar el archivo."),
 
     # --- SIS: errores del sistema -------------------------------------------------------------------------------
     _code("SIS-001", F, "Error inesperado",

@@ -143,9 +143,10 @@ guardado_rapido = true
 # y la hoja Depuración costes con el gráfico comparativo. En la hoja PV de esa
 # empresa (PV-EmpresaA o PV-EmpresaB; PV en un libro de una sola empresa), cada
 # fila lleva debajo su fila «(coste)» con esa previsión, para alinear las tareas
-# e hitos de MS Project con ella. El comando procesar-costes lleva el reparto
-# mensual del plan al % planificado de la empresa. El libro de entrega se genera
-# sin depuración, con --migrar-desde para conservar el BAC y ese reparto.
+# e hitos de MS Project con ella. El % planificado es siempre el de MS Project:
+# el comando procesar-costes revisa el plan y escribe sus cálculos, sin
+# modificarlo. El libro de entrega se genera sin depuración, con --migrar-desde
+# para conservar el BAC.
 depuracion_costes = false
 
 # Empresa que se depura en multi-empresa: el valor de empresa_a o empresa_b.
@@ -157,6 +158,40 @@ depuracion_costes = false
 # que la diferencia acumulada supera depuracion_umbral (en % del BAC de la fila).
 depuracion_alineamiento = false
 depuracion_umbral = 10
+
+# procesar-costes escribe en la hoja PV-depuración los cálculos del plan
+# (fórmulas): sumas de los componentes de coste en su EDT interna (o su precio,
+# con [depuracion_precio]) y de las EDT interna en su EDT cliente, EAC = suma de
+# los meses y BAC de cada EDT cliente leído de la hoja PV de la empresa. Para
+# una sola vez: procesar-costes --calculos.
+depuracion_calculos = false
+
+# Precio de las EDT interna en la depuración de costes (opcional; ver
+# docs/depuracion-costes.md). Si la empresa escribe su plan a coste, con esta
+# sección cada mes de una EDT interna con componentes es su precio, que
+# procesar-costes --calculos escribe con la expresión calculo_precio. Sus nombres
+# son los componentes de coste (texto de la columna D de la hoja PV-depuración)
+# y los coeficientes de la tabla Recargos (arriba de la hoja, desde la celda D1:
+# un % por año). Los textos no distinguen mayúsculas, tildes ni espacios de más.
+# La expresión admite números (con punto decimal), los nombres, + - * / y
+# paréntesis. Sin la sección, las EDT interna suman sus componentes.
+# [depuracion_precio]
+# calculo_precio = "(A*(1+KA)+B*(1+KB)+C*(1+KC)+D*(1+KD)+E)*(1+KG)*(1+BE)"
+#
+# [depuracion_precio.componentes]
+# A = "Costes indirectos de Producción"
+# B = "Costes indirectos de Gestión de Materiales"
+# C = "Costes indirectos de Gestión de Subcontrataciones"
+# D = "Costes indirectos de Entregas de Producción"
+# E = "Otros costes"
+#
+# [depuracion_precio.recargos]
+# KA = "Costes indirectos de Producción"
+# KB = "Costes indirectos de Gestión de Materiales"
+# KC = "Costes indirectos de Gestión de Subcontrataciones"
+# KD = "Costes indirectos de Entregas de Producción"
+# KG = "Costes Generales y Administrativos"
+# BE = "Beneficio"
 
 [metodos]
 # Valores del desplegable de la columna C (método de medición). Sin la clave se
@@ -233,6 +268,47 @@ campo_reparto = "% Reparto"
 # % de la empresa A cuando el campo de reparto está vacío, es 0 o está fuera de
 # rango, y en las tareas sin empresa.
 reparto_por_defecto = 50
+
+[cliente]
+# Planificación para el cliente (comando generar-cliente; ver
+# docs/generar-cliente.md): a partir de la planificación interna, genera el .mpp
+# que se entrega al cliente, en el que ve sus tareas con el avance de siempre.
+#
+# Campo de texto de MS Project que indica, tarea por tarea, si el cliente la ve
+# (por ejemplo "Text15", o su alias "Etiqueta Cliente"):
+#   "Sí" (Si o S, en mayúsculas o minúsculas)  la tarea se muestra, si todas sus
+#                           tareas superiores también tienen "Sí"
+#   "No", vacío u otro      la tarea y su rama no se muestran
+# Obligatorio para generar-cliente; el resto de los comandos no lo usa.
+# campo = "Etiqueta Cliente"
+
+# Solo si el archivo tiene varias planificaciones y se indica la interna en
+# [exportacion] planificacion (por ejemplo INTERNO): nombre de esa tarea en el
+# archivo del cliente. Vacío = conserva su nombre. Con una sola planificación
+# (planificacion vacía) no se usa.
+nombre_planificacion = "CLIENTE"
+
+# Tareas que no se muestran:
+#   true   quedan como "Otras tareas": sin nombre ni código EDT (si el código está
+#          en un campo personalizado, [campos] edt), notas ni campos de texto que
+#          no use el libro EVM; con sus fechas, su avance, sus líneas base y sus
+#          vínculos. El % completado de las tareas, de los resúmenes y del
+#          proyecto, y el libro EVM, son los de la planificación interna. Las
+#          inactivas se quitan.
+#   false  se borran: la lógica se rehace con vínculos puente, y el % completado
+#          de los resúmenes y del proyecto, y el libro EVM, pueden cambiar (se
+#          avisa con el detalle en el informe de control).
+actividad_interna = true
+
+# Solo con actividad_interna = true: el archivo del cliente se abre con un filtro
+# de la vista que oculta las "Otras tareas" (el % completado no cambia; el
+# cliente puede quitar el filtro). false = sin filtro. Por defecto, true.
+filtrar_vista = true
+
+# Fechas que cambian al quitar tareas: true = se fijan con la delimitación "No
+# comenzar antes del" en la fecha de la planificación interna (y se informan);
+# false = solo se informan.
+fijar_fechas = true
 
 # Varios archivos de MS Project en un mismo libro (ver docs/varios-archivos.md).
 # Sin secciones [[proyectos]], el archivo se indica con --origen (un solo archivo).

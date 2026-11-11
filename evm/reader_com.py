@@ -6,7 +6,8 @@ BAC se ingresa en el libro.
 
 Precauciones:
 - Si MS Project ya estaba abierto, se usa esa instancia y no se cierra.
-- El archivo se abre solo lectura, sin macros, y se cierra sin guardar.
+- El archivo se abre solo lectura, sin macros, y se cierra sin guardar. Solo generar-cliente abre un archivo para
+  escribir: la copia temporal del archivo de origen (evm.client_writer), que guarda con save().
 - Las fechas se envían a COM con zona horaria UTC explícita (pywin32
   convierte las fechas sin zona como hora local y las desplazaría).
 """
@@ -88,8 +89,9 @@ def _number(v) -> float | None:
     return float(v)
 
 
-def _predecessors(t, uid: int) -> list[Link]:
-    """Vínculos con las predecesoras de la tarea (TaskDependencies tiene también los de sus sucesoras)."""
+def _predecessors(t, uid: int, lag_format: bool = False) -> list[Link]:
+    """Vínculos con las predecesoras de la tarea (TaskDependencies tiene también los de sus sucesoras). lag_format:
+    lee también el formato de la posición (una llamada más por vínculo; solo generar-cliente)."""
     links: list[Link] = []
     # Cada lectura es una llamada a MS Project: una tarea sin predecesoras (texto vacío) no recorre sus vínculos
     if _get(t, "UniqueIDPredecessors") == "":
@@ -109,7 +111,9 @@ def _predecessors(t, uid: int) -> list[Link]:
         except Exception:               # vínculo con otro proyecto que no se puede leer
             continue
         kind = _number(_get(dep, "Type", LINK_FS))
-        links.append(Link(pred, LINK_FS if kind is None else int(kind), _number(_get(dep, "Lag", 0)) or 0.0))
+        fmt = _number(_get(dep, "LagType", 7)) if lag_format else 7
+        links.append(Link(pred, LINK_FS if kind is None else int(kind), _number(_get(dep, "Lag", 0)) or 0.0,
+                          7 if fmt is None else int(fmt)))
     return links
 
 
@@ -192,9 +196,10 @@ def calendar_from_com(cal, first: date, last: date) -> WorkCalendar | None:
 class ComSession:
     """Sesión de MS Project. Uso: with ComSession(ruta) as s: s.read_project(cfg)."""
 
-    def __init__(self, origen: str, visible: bool = False):
+    def __init__(self, origen: str, visible: bool = False, read_only: bool = True):
         self.origen = origen
         self.visible = visible
+        self.read_only = read_only          # False solo para la copia que escribe generar-cliente
         self.app = None
         self.project = None
         self.started_by_us = False
@@ -309,14 +314,22 @@ class ComSession:
         before = self._open_project_names() or set()
         try:
             # Name, ReadOnly, ..., NoAuto, ..., openPool, ..., IgnoreReadOnlyRecommended, ..., DoNotLoadFromEnterprise
-            ok = app.FileOpenEx(full, True, e, e, e, e, True, e, e, e, e, PJ_POOL_READ_ONLY, e, e, True, e, True)
+            ok = app.FileOpenEx(full, self.read_only, e, e, e, e, True, e, e, e, e, PJ_POOL_READ_ONLY, e, e, True, e,
+                                True)
         except (pywintypes.com_error, TypeError):
-            ok = app.FileOpenEx(full, True)
+            ok = app.FileOpenEx(full, self.read_only)
         if not ok:
             raise ProjectAppError("LEC-009", f"MS Project no pudo abrir {full}.")
         self.project = app.ActiveProject
         self.opened_by_us = True
         self._opened_names = (self._open_project_names() or set()) - before
+
+    def save(self) -> None:
+        """Guarda el proyecto en su archivo (solo la copia que escribe generar-cliente, abierta con read_only=False)."""
+        if self.read_only:
+            raise ProjectAppError("CLI-018", "El proyecto se abrió como de solo lectura: no se puede guardar.")
+        self._activate()
+        self.app.FileSave()
 
     def _open_project_names(self) -> set[str] | None:
         """Rutas (en minúsculas) de los proyectos abiertos en MS Project; None si no se pueden leer."""
@@ -459,10 +472,11 @@ class ComSession:
                 continue
 
     def read_project(self, cfg: Config, status_date: date | None = None, links: bool = True,
-                     review: bool = False) -> ProjectData:
-        """links: lee los vínculos y las delimitaciones de las tareas (solo los usan validar y generar-fichas; son
-        varias llamadas a MS Project por tarea). review: lecturas que solo usa validar, unas doce llamadas más por
-        tarea: en qué líneas base (0 a 10) tiene comienzo cada tarea y su calendario de tarea."""
+                     review: bool = False, client: bool = False) -> ProjectData:
+        """links: lee los vínculos y las delimitaciones de las tareas (solo los usan validar, generar-fichas y
+        generar-cliente; son varias llamadas a MS Project por tarea). review: lecturas que solo usa validar, unas doce
+        llamadas más por tarea: en qué líneas base (0 a 10) tiene comienzo cada tarea y su calendario de tarea.
+        client: el campo de [cliente] campo y el formato de la posición de los vínculos (generar-cliente)."""
         p = self.project
         self._activate()
         if status_date is not None:
@@ -500,6 +514,9 @@ class ComSession:
             warnings.append(Issue("LEC-014", message=f"No se encontró el campo de descripción "
                                                      f"'{cfg.description_field}' en MS Project: las fichas de tareas "
                                                      "no tienen descripción."))
+        client_ref = self._resolve_field(cfg.client_field) if client and cfg.client_field else None
+        if client_ref is not None:
+            found["cliente"] = cfg.client_field
         company_ref = split_ref = None
         if cfg.multi_enabled:
             company_ref = self._resolve_field(cfg.company_field)
@@ -548,6 +565,7 @@ class ComSession:
             split = self._field_value(t, split_ref)
             visible = self._field_value(t, visible_ref)
             description = self._field_value(t, description_ref)
+            mark = self._field_value(t, client_ref)
             task = Task(
                 uid=uid, id=int(_get(t, "ID", 0) or 0), name=str(_get(t, "Name", "") or "").strip(),
                 outline_level=int(_get(t, "OutlineLevel", 1) or 1),
@@ -567,7 +585,7 @@ class ComSession:
                 constraint_type=(int(_number(_get(t, "ConstraintType", CONSTRAINT_ASAP)) or CONSTRAINT_ASAP)
                                  if links else CONSTRAINT_ASAP),
                 constraint_date=_dt(_get(t, "ConstraintDate")) if links else None,
-                predecessors=_predecessors(t, uid) if links else [], baselines=saved,
+                predecessors=_predecessors(t, uid, lag_format=client) if links else [], baselines=saved,
                 incomplete_baselines=(n,) if (bl_start is None) != (bl_finish is None) else (),
                 calendar=own_calendar,
                 method=str(self._field_value(t, method_ref) or "").strip(),
@@ -576,6 +594,7 @@ class ComSession:
                 split_a=None if split in (None, "") else parse_number(split),
                 visible="" if visible is None else str(visible).strip(),
                 description="" if description is None else str(description).strip(),
+                client_mark="" if mark is None else str(mark).strip(),
             )
             tasks.append(task)
         if skipped_external:

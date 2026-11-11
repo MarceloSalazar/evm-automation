@@ -95,7 +95,28 @@ python -m pytest -m msproject -v
 
 Opcionales: `EVM_CONFIG` (archivo de configuración; por defecto `config.toml` si existe y, si no,
 `config.ejemplo.toml`), `EVM_LINEA_BASE` (línea base N) y `EVM_TOLERANCIA_PV` (diferencia admitida en el
-% planificado de cada mes; por defecto 0.005, es decir, 0,5 %). Los dos motores reparten la duración de
+% planificado de cada mes; por defecto 0.005, es decir, 0,5 %).
+
+`test_msproject_cliente.py` (misma marca) prueba `generar-cliente` con el `.mpp` de `EVM_MPP`: genera el
+archivo del cliente en la carpeta temporal de pytest con la configuración de `EVM_CONFIG`, y otra vez con el
+otro valor de `actividad_interna`, y comprueba los dos modos: que el origen no cambió, que quedan
+exactamente las tareas esperadas, que el campo del cliente está vacío y que no hay avisos de algo que MS
+Project no hizo (`CLI-015`, `CLI-017`, `CLI-019`, `CLI-027`, `CLI-028`, `CLI-029`, `CLI-033`). Comprueba
+también que el archivo del cliente solo tiene calendarios en uso y ningún módulo de macros (leído del
+archivo con `evm.mpp_macros`), y que la comprobación de los vínculos reconoce el texto de las predecesoras
+(si no, recorrería cada vínculo y sería lenta); con `-s` muestra las macros del origen, los calendarios y la
+duración de cada etapa. Con «Otras tareas»
+(`actividad_interna = true`), que no tienen nombre ni código EDT, que todas las tareas conservan sus
+fechas, su avance, su duración y su línea base, y que el % completado del proyecto y cada fila del libro
+EVM coinciden con la planificación interna. Con las tareas borradas (`actividad_interna = false`), que
+las fechas son las de la planificación interna (o el informe de control explica por qué no), que las
+tareas de detalle y los resúmenes convertidos conservan su % completado y que el de los demás resúmenes
+es el previsto. Con `filtrar_vista = true` en `EVM_CONFIG`, que el archivo del cliente se abre con el
+filtro *Tareas del cliente*. Comprueba además que el registro y el informe no tienen nombres de tareas y
+que `--sobrescribir` reemplaza el archivo de solo lectura. Si está `EVM_MPP_XML`,
+compara además el cálculo con el `.mpp` y con el XML. Necesita en `EVM_CONFIG` la clave `[cliente] campo`
+y, si el archivo tiene una sola planificación, `[exportacion] planificacion` vacía o sin indicar. Con `-s` muestra la carpeta con el archivo generado, el
+informe y el registro de diagnóstico. Los dos motores reparten la duración de
 las tareas con el calendario del proyecto; el motor COM no lee las excepciones que solo cambian el horario
 de un día laborable, por eso se admite una pequeña diferencia. Los mensajes de las pruebas solo muestran
 códigos EDT, UniqueID, fechas y porcentajes (con multi-empresa, «empresa A» y «empresa B»), y los datos
@@ -123,7 +144,7 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/validation.py` | Controles del archivo de MS Project: códigos EDT, fechas y duración, pesos, método y empresas (hoja `Validación` y `validar`), avance a la fecha de estado y lógica del cronograma con los criterios DCMA (solo `validar`). |
 | `evm/percent.py` | Peso de cada tarea (duración de la línea base y `Peso hito`), % planificado y % ganado de cada fila y de cada empresa. |
 | `evm/cost_review.py` | Depuración de costes: hojas `PV-depuración`, `Depuración costes` y `_depuracion` (asignación con fórmulas de la previsión pegada, y la misma asignación en Python) e indicador de alineamiento. |
-| `evm/cost_plan.py` | Comando `procesar-costes`: reparto mensual del plan de costes de la hoja `PV-depuración` en la hoja `% PV` de la empresa. |
+| `evm/cost_plan.py` | Comando `procesar-costes`: revisión del plan de costes de la hoja `PV-depuración` y, con `--calculos`, sus cálculos. No modifica el % planificado. |
 | `evm/companies.py` | Multi-empresa: parte de cada empresa en cada tarea (columnas `Empresa` y `% Reparto`, con herencia de la tarea superior). |
 | `evm/timeline.py` | Horizonte mensual y utilidades de meses. |
 | `evm/workbook.py` | Escritura del libro Excel y de sus indicadores. |

@@ -28,6 +28,109 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Otros
 
+- Ninguna.
+
+<a id="v2.6.0"></a>
+
+## [2.6.0] - 2026-11-08 · Planificación para el cliente y plan de costes por EDT cliente
+
+### Resumen
+
+**Nuevas funciones**
+
+- **Planificación para el cliente (`generar-cliente`):** genera, a partir de la planificación interna, el
+  `.mpp` que se entrega al cliente, con solo las tareas marcadas para él y el mismo avance y el mismo libro
+  EVM que la planificación interna ([Planificación para el cliente](docs/generar-cliente.md)).
+- **Plan de costes por EDT cliente:** la hoja `PV-depuración` suma los importes hasta la EDT cliente, y el
+  EAC del plan se ve debajo del PV de cada fila; `procesar-costes --calculos` escribe en la hoja las
+  fórmulas del plan ([Depuración de costes](docs/depuracion-costes.md#42-qué-líneas-se-leen)).
+- **Precio de las EDT interna:** con el plan a coste, la tabla `Recargos` de la hoja y una expresión de la
+  configuración calculan su precio
+  ([Depuración de costes](docs/depuracion-costes.md#44-precio-de-las-edt-interna-tabla-recargos)).
+- **Registro de diagnóstico** de cualquier comando en un archivo, con `--registro`, para informar
+  problemas ([Comandos](docs/comandos.md)).
+
+**Correcciones**
+
+- **`procesar-costes` ya no reemplaza el % planificado de MS Project:** el plan de costes se compara con él
+  ([Depuración de costes](docs/depuracion-costes.md#8-revisión-y-cálculos-del-plan-procesar-costes)).
+
+**Otros**
+
+- Los libros con depuración de costes de la versión 2.5 se regeneran con `--migrar-desde`, para tener las
+  fórmulas nuevas y el % planificado de MS Project.
+- Instalador de Windows adjunto a la publicación, con las funciones de las versiones 2.5.0 y 2.6.0.
+
+### Nuevas funciones
+
+- **Planificación para el cliente (`generar-cliente`).** Genera, a partir del `.mpp` de la planificación
+  interna, el `.mpp` que se entrega al cliente: el cliente ve las tareas con `Sí` (`Si` o `S`) en el campo
+  de `[cliente] campo` y en sus tareas superiores. Por defecto (`[cliente] actividad_interna = true`), las
+  demás quedan como «Otras tareas», sin nombre ni código EDT, notas ni campos de texto que no use el libro
+  EVM, pero con sus fechas, su avance, sus líneas base y sus vínculos: el % completado de cada tarea, de los
+  resúmenes y del proyecto, y el libro EVM, son los de la planificación interna. Por defecto, el archivo se
+  abre con un filtro que las oculta (`filtrar_vista = true`). Con `actividad_interna = false`, se borran: los
+  resúmenes sin tareas visibles pasan a ser tareas, los vínculos de sus subtareas pasan al resumen y los
+  caminos por tareas ocultas se reemplazan por vínculos puente; se avisa de los resúmenes cuyo % cambia. En
+  los dos casos compara la planificación del cliente con la interna: el % completado del proyecto, el libro
+  EVM fila a fila (y avisa de las filas -D que vería el cliente) y, con «Otras tareas», los datos de cada
+  tarea. MS Project trabaja sobre una copia (la planificación interna no se modifica), recalcula y fija con
+  *No comenzar antes del* las fechas que se adelantarían; el campo del cliente se vacía y el archivo queda
+  de solo lectura. Avisa de las tareas sin valor debajo de una tarea que se muestra (`CLI-031`), que suelen
+  ser tareas nuevas sin marcar. Quita del archivo del cliente los calendarios sin uso y las macros, y
+  comprueba en el archivo guardado, sin MS Project, que no le queda ningún módulo de macros (`CLI-032`,
+  `CLI-033`). Con `--simular` (también con el XML) solo calcula los cambios y la comparación. Escribe
+  un informe de control interno, sin nombres de tareas. Nueva sección `[cliente]` de la configuración,
+  códigos `CFG-054`, `LEC-026` y `CLI-001` a `CLI-033`, documento
+  [Planificación para el cliente](docs/generar-cliente.md), diapositiva 31 de la presentación y pruebas con
+  MS Project real (`tests/test_msproject_cliente.py`).
+- **Registro de diagnóstico en un archivo (`--registro RUTA`).** Todos los comandos pueden escribir el
+  registro completo, con fecha y hora y el detalle de los errores, sin cambiar lo que muestra la consola.
+- **Plan de costes por EDT cliente.** En la hoja `PV-depuración`, los importes se suman hacia arriba
+  (componentes de coste en su EDT interna, EDT interna en su EDT cliente y cada EDT cliente en la de su
+  código superior) y **solo se leen las líneas de EDT cliente** cuyo código es el de una fila de ingreso
+  del libro. La fila «(coste)» de la hoja PV de la empresa, debajo del PV de cada fila, muestra sus meses
+  y, en la columna D, su **EAC**; la columna `Asignado a` indica si cada EDT cliente se lee, es un resumen
+  del libro, está incluida en una superior o no tiene fila
+  ([Depuración de costes](docs/depuracion-costes.md#42-qué-líneas-se-leen)). `procesar-costes` revisa el
+  plan con las mismas reglas: muestra el EAC de la línea y el BAC de cada fila con plan, y avisa de las
+  líneas sin leer, los importes después del horizonte, las filas sin plan y las EDT cliente repetidas
+  (código nuevo `DEP-019`). Con la opción nueva `--calculos` (o `[exportacion] depuracion_calculos =
+  true`), escribe en la hoja las fórmulas de los cálculos del plan: las sumas, el EAC de cada línea y el
+  BAC de cada EDT cliente, leído de la hoja PV de la empresa, con las celdas calculadas en naranja y las
+  de datos en amarillo
+  ([Cálculos del plan](docs/depuracion-costes.md#43-cálculos-del-plan-celdas-naranjas)); sin esa opción,
+  no modifica el libro. `--migrar-desde` traslada las celdas con fórmula con su valor y vuelve a escribir
+  las fórmulas de los cálculos. Los libros con depuración de la versión 2.5 se deben regenerar con
+  `--migrar-desde` para tener las fórmulas nuevas.
+- **Precio de las EDT interna en la depuración de costes (`[depuracion_precio]`).** Si la empresa escribe
+  su plan a coste, la sección nueva `[depuracion_precio]` define el precio de cada EDT interna con
+  componentes: la expresión `calculo_precio` (por ejemplo,
+  `(A*(1+KA)+B*(1+KB)+C*(1+KC)+D*(1+KD)+E)*(1+KG)*(1+BE)`), con los componentes de coste por el texto de
+  su columna D y los coeficientes de la tabla `Recargos`, nueva, arriba de la hoja `PV-depuración` (un %
+  por año). `procesar-costes --calculos` escribe la fórmula del precio en cada mes; la EDT cliente suma el
+  precio de sus EDT interna
+  ([Precio de las EDT interna](docs/depuracion-costes.md#44-precio-de-las-edt-interna-tabla-recargos)).
+  Códigos nuevos `CFG-055` y `DEP-022` a `DEP-026`. Para dejar lugar a la tabla, la hoja `PV-depuración`
+  tiene la disposición de la plantilla de la empresa: el plan empieza en la celda **A12** (antes, A8) y
+  los controles están en A2:C4. `--migrar-desde` pasa el plan de un libro anterior a la celda A12 y
+  traslada los recargos; `procesar-costes` pide regenerar los libros con el plan desde A8 (`DEP-024`).
+
+### Correcciones
+
+- **`procesar-costes` ya no reemplaza el % planificado de MS Project.** Hasta la versión 2.5, escribía
+  en la hoja `% PV` de la empresa el reparto del plan de costes, y en esas filas se perdía la comparación
+  con MS Project. Ahora el % planificado es siempre el de MS Project, y el plan se compara con él en las
+  filas «(coste)» y en la hoja `Depuración costes`
+  ([Revisión y cálculos del plan](docs/depuracion-costes.md#8-revisión-y-cálculos-del-plan-procesar-costes)).
+  En un libro procesado con una versión anterior, `procesar-costes` y `actualizar` avisan de esas filas
+  (`DEP-021`), y `--migrar-desde` les devuelve el % de MS Project y conserva el BAC, el % ganado y el AC
+  (`DEP-020`). Códigos `DEP-010` y `DEP-011` retirados.
+
+### Otros
+
+- Presentación: la versión en la portada. Capturas de la hoja `PV-depuración` actualizadas.
+- Instalador de Windows de nuevo en la publicación, con las funciones de las versiones 2.5.0 y 2.6.0.
 - **Notas de las publicaciones resumidas:** cada versión de este registro empieza con un *Resumen* en
   viñetas, con enlaces a la documentación, y la publicación de GitHub muestra solo ese resumen, con los
   enlaces a las notas detalladas de la versión en este archivo y a los cambios en el código. Las notas de
@@ -116,8 +219,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   conservan ese % al regenerar el libro con `--migrar-desde`, también en el libro de entrega sin
   depuración (`DEP-010` y `DEP-011`, nuevos), y `actualizar` no lo compara con la línea base de MS
   Project (`ACT-047`). Observaciones del comando: `DEP-012` a `DEP-018`, nuevos
-  ([Depuración de costes](docs/depuracion-costes.md#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes),
-  [Comandos](docs/comandos.md#procesar-costes-pv-con-el-reparto-del-plan-de-costes)).
+  ([Depuración de costes](docs/depuracion-costes.md#8-revisión-y-cálculos-del-plan-procesar-costes),
+  [Comandos](docs/comandos.md#procesar-costes-revisión-y-cálculos-del-plan-de-costes)).
 - **Más controles en `validar`:** las líneas base guardadas (cuántas tareas revisadas tienen fecha de
   comienzo en cada una) y la que usa el % planificado (`LEC-024`); las
   tareas resumen cuya línea base no coincide con la de sus tareas de detalle porque no se resumió al
@@ -1139,7 +1242,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.5.0...HEAD
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.6.0...HEAD
+[2.6.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.1...v2.5.0
 [2.4.1]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.3.0...v2.4.0

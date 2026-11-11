@@ -70,6 +70,11 @@ def same_name(a: str, b: str) -> bool:
     return _norm(a) == _norm(b)
 
 
+def plain_text(text: str) -> str:
+    """Texto para comparar valores de campos: sin tildes, espacios ni mayúsculas ('Sí ' -> 'si')."""
+    return _norm(text)
+
+
 VISIBLE_YES = {"si", "s", "yes", "y", "x", "1", "true", "verdadero"}
 VISIBLE_NO = {"no", "n", "0", "false", "falso"}
 

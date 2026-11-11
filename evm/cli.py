@@ -6,12 +6,14 @@
     python evm_export.py analizar   --libro EVM.xlsx
     python evm_export.py generar-fichas --origen proyecto.mpp --salida Fichas.md
     python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx
+    python evm_export.py generar-cliente --origen interno.mpp --simular
 """
 from __future__ import annotations
 
 import argparse
 import copy
 import logging
+import platform
 import sys
 import time
 from contextlib import contextmanager
@@ -49,12 +51,13 @@ def _engine_for(origen: str, motor: str) -> str:
 
 @contextmanager
 def open_project(origen: str, cfg: Config, motor: str, visible: bool = False, status: date | None = None,
-                 name: str = "", links: bool = True, review: bool = False):
+                 name: str = "", links: bool = True, review: bool = False, client: bool = False):
     """Devuelve el proyecto leído (ProjectData). Con COM, MS Project queda abierto mientras dure el bloque.
 
     name: nombre del archivo en [[proyectos]] (etapas de la barra de progreso).
     links: lee los vínculos y las delimitaciones de las tareas (validar y generar-fichas).
     review: con COM, lecturas que solo usa validar (líneas base y calendario de cada tarea; el XML las tiene).
+    client: el campo de [cliente] campo y el formato de la posición de los vínculos (generar-cliente).
     """
     engine = _engine_for(origen, motor)
     if origen.lower() != "activo" and not Path(origen).is_file():
@@ -63,13 +66,13 @@ def open_project(origen: str, cfg: Config, motor: str, visible: bool = False, st
     if engine == "xml":
         from evm.reader_xml import read_xml
         progress.stage(f"leer:{name}", f"Lectura del XML{which}")
-        yield read_xml(origen, cfg, links=links)
+        yield read_xml(origen, cfg, links=links, client=client)
         return
     from evm.reader_com import ComSession
     progress.stage(f"abrir:{name}", f"Apertura en MS Project{which}")
     with ComSession(origen, visible=visible) as session:
         progress.stage(f"leer:{name}", f"Lectura de MS Project{which}")
-        yield session.read_project(cfg, status_date=status, links=links, review=review)
+        yield session.read_project(cfg, status_date=status, links=links, review=review, client=client)
 
 
 def _stages(files: list[tuple[str, str, Config]], motor: str, before: dict[str, float] | None = None,
@@ -457,34 +460,45 @@ def cmd_analizar(args) -> int:
 def cmd_procesar_costes(args) -> int:
     cfg = load_config(args.config)
     _add_silence(cfg, args)
+    if args.calculos:
+        cfg.cost_review_calcs = True
     from evm.cost_plan import run_cost_plan
     from evm.update import book_meta
     meta = book_meta(args.libro)
-    if not args.simular:
+    save = cfg.cost_review_calcs and not args.simular     # sin los cálculos, el libro no se modifica
+    if save:
         from evm.workbook import check_writable
         check_writable(args.libro)
-    after = {} if args.simular else {"guardar": 4.5}
+    after = {"guardar": 4.5} if save else {}
     with progress.tracking(_book_stages(meta["meses"], libro=9.7, procesar=0.3, **after)):
         res = run_cost_plan(cfg, args.libro, backup=not args.sin_respaldo, dry_run=args.simular)
     decimals = int(res.book.meta.get("decimales") or 0)
     money = lambda v: fmt_number(v, decimals)       # noqa: E731
-    print(f"Hoja: {res.sheet}  |  Plan de costes: {plural(res.lines, 'línea', 'líneas')}, "
-          f"{res.counted} se suman (sin subtotales)  |  Total: {money(res.total)}")
-    print(f"Reparto del plan de costes en {len(res.rows)} de {plural(res.inputs, 'fila', 'filas')} de ingreso, "
+    if res.calculated is not None:
+        price = (f"; precio de {plural(res.priced, 'línea', 'líneas')} con componentes"
+                 if res.priced is not None else "")
+        print(f"Cálculos del plan de costes: {plural(res.calculated, 'línea', 'líneas')} de la hoja PV-depuración "
+              f"(sumas, EAC y BAC de las EDT cliente{price})"
+              + (" (no se escriben en la simulación)" if args.simular else ""))
+    print(f"Hoja: {res.sheet}  |  Plan de costes: {plural(res.lines, 'línea', 'líneas')} de EDT cliente, "
+          f"{res.counted} con fila de ingreso  |  Importe leído: {money(res.total)}")
+    print(f"Plan de costes en {len(res.rows)} de {plural(res.inputs, 'fila', 'filas')} de ingreso, "
           f"{money(res.assigned)} dentro del horizonte:")
-    for code, name, eac in res.rows[:15]:
-        print(f"  {code:<12} {name[:48]:<48}  EAC {money(eac):>14}")
+    for code, name, eac, bac in res.rows[:15]:
+        print(f"  {code:<12} {name[:48]:<48}  EAC {money(eac):>14}  BAC {money(bac) if bac else '-':>14}")
     if len(res.rows) > 15:
         print(f"  ... y {len(res.rows) - 15} filas más.")
     _print_notices(_silence(cfg).apply(res.warnings))
-    print(f"El PV de cada mes es el BAC × el % planificado (hoja '% {res.sheet}'): en las filas cuyo BAC coincide con "
-          "el EAC, es el importe del plan de costes.")
-    if args.simular:
-        print("Simulación: no se modificó el libro.")
-    else:
+    print(f"El % planificado (hoja '% {res.sheet}') no cambia: es el de MS Project. El plan de costes se compara con "
+          f"el PV en las filas «(coste)» de la hoja {res.sheet} y en la hoja 'Depuración costes'.")
+    if res.saved:
         if res.backup:
             print(f"Respaldo: {res.backup}")
         print(f"Libro actualizado: {Path(args.libro).resolve()}")
+    elif args.simular:
+        print("Simulación: no se modificó el libro.")
+    else:
+        print("No se modificó el libro (los cálculos del plan se escriben con --calculos).")
     return 0
 
 
@@ -767,6 +781,124 @@ def cmd_generar_fichas(args) -> int:
     return 0
 
 
+def _client_paths(args, origen: str) -> tuple[Path | None, Path]:
+    """Archivo del cliente (--destino; por defecto <origen>_cliente.mpp) y del informe de control (--informe; por
+    defecto <destino>_control.md)."""
+    destino = None
+    if args.destino:
+        destino = Path(args.destino)
+    elif origen.lower() != "activo":
+        destino = Path(origen).with_name(Path(origen).stem + "_cliente.mpp")
+    if destino is not None and destino.suffix.lower() != ".mpp":
+        raise ConfigError("CFG-041", "La planificación del cliente se guarda en un archivo .mpp (--destino).")
+    if args.informe:
+        informe = Path(args.informe)
+    elif destino is not None:
+        informe = destino.with_name(destino.stem + "_control.md")
+    else:
+        informe = Path("Cliente_control.md")
+    if informe.suffix.lower() != ".md":
+        raise ConfigError("CFG-041", "El informe de control se guarda en un archivo .md (Markdown).")
+    return destino, informe
+
+
+def _pct(value: float | None) -> str:
+    return "—" if value is None else f"{fmt_number(round(value, 1), trim=True)} %"
+
+
+def cmd_generar_cliente(args) -> int:
+    cfg = _apply_overrides(load_config(args.config), args)
+    _one_plan(cfg)
+    if cfg.projects:
+        raise EvmError("CLI-009", "generar-cliente trabaja con un solo archivo de MS Project: se debe quitar las "
+                                  "secciones [[proyectos]] de la configuración e indicar el archivo con --origen.")
+    from evm.client_check import predict
+    from evm.client_plan import (INTERNAL_NAME, SKIP_LINKED, build_client_plan, require_client_field, require_field,
+                                 write_control)
+    require_field(cfg)
+    files = _sources(cfg, args)
+    origen = files[0][1]
+    destino, informe = _client_paths(args, origen)
+    generate = not args.simular
+    if generate:
+        if origen.lower() == "activo" or _engine_for(origen, args.motor) != "com" or \
+                Path(origen).suffix.lower() not in COM_EXTENSIONS:
+            raise EvmError("CLI-010", "Para generar el archivo del cliente, el origen debe ser el archivo .mpp de la "
+                                      "planificación interna (se copia y MS Project trabaja sobre la copia). Con un XML "
+                                      "o con 'activo' solo se puede simular (--simular).")
+        if not Path(origen).is_file():
+            raise MissingFileError("LEC-001", f"No existe el archivo de origen: {origen}")
+        if destino.resolve() == Path(origen).resolve():
+            raise EvmError("CLI-011", "El archivo del cliente (--destino) no puede ser el archivo de origen.")
+        _check_folder(destino)
+        if destino.exists() and not args.sobrescribir:
+            raise ConfigError("CFG-042", f"'{destino}' ya existe. Para reemplazarlo se debe usar --sobrescribir.")
+    _check_folder(informe)
+    if informe.exists() and not args.sobrescribir:
+        raise ConfigError("CFG-042", f"'{informe}' ya existe. Para reemplazarlo se debe usar --sobrescribir.")
+
+    silence = _silence(cfg)
+    outcome = None
+    if generate:
+        from evm.client_writer import generate_client
+        # Segundos de cada etapa en una planificación real de unas 1.450 tareas (registro de diagnóstico)
+        stages = {"copiar": 0.5, "abrir:": 3.0, "leer:": 78.0, "calcular:": 5.0, "borrar": 9.0, "vincular": 0.5,
+                  "anonimizar": 17.0, "fechas": 3.0, "contenido": 3.0, "guardar": 1.0, "comparar:": 30.0,
+                  "informe": 0.1}
+        with progress.tracking(stages):
+            progress.say(f"Generando la planificación del cliente a partir de {origen} ...")
+            plan, outcome = generate_client(origen, destino, cfg, visible=args.visible, overwrite=args.sobrescribir)
+            project = plan.project
+            result = f"Archivo del cliente generado: {destino.resolve()} (de solo lectura)."
+            notices = silence.apply(project.warnings + plan.issues() + outcome.issues(plan))
+            progress.stage("informe", "Escritura del informe de control")
+            write_control(plan, origen, informe, result, notices, outcome=outcome)
+    else:
+        result = "Simulación: no se generó el archivo del cliente."
+        with progress.tracking(_stages(files, args.motor, compute=1.0, after={"informe": 0.1})):
+            progress.say(_reading("", origen))
+            with open_project(origen, cfg, args.motor, args.visible, client=True) as project:
+                require_client_field(project, cfg)
+                _computing("", "Cálculo de la planificación del cliente")
+                plan = build_client_plan(project, cfg)
+                plan.comparison = predict(plan, cfg)
+                notices = silence.apply(project.warnings + plan.issues())
+                progress.stage("informe", "Escritura del informe de control")
+                write_control(plan, origen, informe, result, notices)
+
+    print(f"Proyecto: {project.name}")
+    if plan.root is not None:
+        renamed = f" (en el archivo del cliente: {plan.new_name})" if plan.new_name else ""
+        print(f"  Planificación: {plan.scope.prefix}{renamed}")
+    print(f"  Campo: {cfg.client_field}  |  Tareas: {len(plan.tasks)}  |  Se muestran: {len(plan.shown)}  |  "
+          f"No se muestran: {len(plan.hidden)}  |  De otras planificaciones: {len(plan.outside)}")
+    if plan.internal_activity:
+        print(f"  Tareas que no se muestran: {len(plan.anonymous)} como «{INTERNAL_NAME}», {len(plan.dropped)} "
+              f"inactivas se quitan  |  Vínculos: {plan.kept_links} se conservan")
+    else:
+        skipped = sum(1 for s in plan.skipped if s.reason != SKIP_LINKED)
+        print(f"  Tareas que no se muestran: se borran (actividad_interna = false)  |  Resúmenes que pasan a ser "
+              f"tareas: {len(plan.collapsed)}  |  Vínculos: {plan.kept_links} se conservan, {len(plan.new_links)} "
+              f"nuevos" + (f", {skipped} no se crean" if skipped else ""))
+    if outcome is not None and not plan.internal_activity:
+        print(f"  Fechas: {len(outcome.fixed)} fijadas con «No comenzar antes del», {len(outcome.differences)} "
+              f"distintas de la planificación interna  |  Cálculos de MS Project: {outcome.rounds}")
+    comparison = outcome.comparison if outcome is not None else plan.comparison
+    if comparison is not None:
+        book = comparison.book
+        rows = ("no se pudo comparar" if book.error else
+                f"{book.same} filas iguales, {len(book.moved)} con otro código, {book.deviations} con otras tareas o "
+                "valores")
+        print(f"  % completado del proyecto: {_pct(comparison.percent_internal)} (interno) y "
+              f"{_pct(comparison.percent_client)} (cliente)  |  Libro EVM: {rows}")
+        if comparison.checked:
+            print(f"  Tareas comparadas: {comparison.checked}, con datos distintos: {len(comparison.tasks)}")
+    _print_notices(notices, limit=50)
+    print(result)
+    print(f"Informe de control: {informe.resolve()}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="evm_export",
@@ -774,6 +906,10 @@ def build_parser() -> argparse.ArgumentParser:
                     "e indicadores calculados en Excel).")
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     p.add_argument("-v", "--verbose", action="store_true", help="muestra mensajes de diagnóstico")
+    p.add_argument("--registro", metavar="RUTA", help="escribe el registro de diagnóstico completo (con fecha y hora, "
+                                                      "y el detalle de los errores) en el archivo indicado, para "
+                                                      "revisar un problema; no incluye nombres de tareas en los pasos "
+                                                      "de generar-cliente")
     sub = p.add_subparsers(dest="comando", required=True)
 
     def common_source(sp):
@@ -854,18 +990,73 @@ def build_parser() -> argparse.ArgumentParser:
     silence_option(n)
     n.set_defaults(func=cmd_analizar)
 
-    c = sub.add_parser("procesar-costes", help="lleva el reparto mensual del plan de costes pegado en la hoja "
-                                               "PV-depuración al %% planificado de cada fila de la empresa que se "
-                                               "depura (el PV es el BAC × ese %%)")
+    c = sub.add_parser("procesar-costes", help="revisa el plan de costes de la hoja PV-depuración (líneas de EDT "
+                                               "cliente que se leen en las filas «(coste)», EAC y BAC de cada fila) "
+                                               "y, con --calculos, escribe sus cálculos; no modifica el %% planificado "
+                                               "de MS Project")
     c.add_argument("--libro", required=True, help="libro .xlsx generado con depuracion_costes = true")
-    c.add_argument("--config", help="archivo de configuración: solo se usan [validacion] silenciar y [exportacion] "
-                                    "guardado_rapido")
-    c.add_argument("--simular", action="store_true", help="muestra el resultado sin modificar el libro")
-    c.add_argument("--sin-respaldo", action="store_true", help="no crea copia de respaldo del libro")
+    c.add_argument("--calculos", action="store_true",
+                   help="escribe en la hoja PV-depuración las fórmulas de los cálculos del plan: sumas de los "
+                        "componentes y de las EDT interna (o su precio, con [depuracion_precio]), EAC y BAC de las "
+                        "EDT cliente (como [exportacion] depuracion_calculos = true). Sin esta opción, el libro no se "
+                        "modifica")
+    c.add_argument("--config", help="archivo de configuración: solo se usan [validacion] silenciar, [exportacion] "
+                                    "guardado_rapido y depuracion_calculos y [depuracion_precio]")
+    c.add_argument("--simular", action="store_true", help="con --calculos, muestra el resultado sin modificar el libro")
+    c.add_argument("--sin-respaldo", action="store_true", help="con --calculos, no crea copia de respaldo del libro")
     silence_option(c)
     c.set_defaults(func=cmd_procesar_costes)
 
+    k = sub.add_parser("generar-cliente", help="genera la planificación para el cliente: un .mpp con solo las tareas "
+                                               "marcadas con Sí en [cliente] campo (y en sus tareas superiores), "
+                                               "con la lógica rehecha sin las tareas ocultas, y un informe de "
+                                               "control interno")
+    common_source(k)
+    k.add_argument("--destino", help="archivo .mpp del cliente a crear (por defecto <origen>_cliente.mpp); queda "
+                                     "de solo lectura")
+    k.add_argument("--informe", help="informe de control en Markdown (por defecto <destino>_control.md)")
+    k.add_argument("--simular", action="store_true", help="calcula los cambios y escribe el informe de control sin "
+                                                          "generar el archivo del cliente (admite el XML)")
+    k.add_argument("--sobrescribir", action="store_true", help="reemplaza el archivo del cliente y el informe de "
+                                                               "control si existen")
+    k.set_defaults(func=cmd_generar_cliente)
+
     return p
+
+
+class _LogFile:
+    """--registro: el registro de diagnóstico completo (DEBUG, con fecha y hora) en un archivo. Mientras dura el
+    comando, el registro «evm» escribe en el archivo y en la consola (lo mismo que sin --registro: advertencias, o
+    todo con -v) y no pasa sus mensajes al registro raíz."""
+
+    def __init__(self, path: str, verbose: bool):
+        self.logger = logging.getLogger("evm")
+        self.file = logging.FileHandler(path, mode="w", encoding="utf-8")
+        self.file.setLevel(logging.DEBUG)
+        self.file.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        self.console = logging.StreamHandler(sys.stderr)
+        self.console.setLevel(logging.DEBUG if verbose else logging.WARNING)
+        self.console.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+        self.saved = (self.logger.level, self.logger.propagate)
+        self.logger.setLevel(logging.DEBUG)
+        self.logger.propagate = False
+        self.logger.addHandler(self.file)
+        self.logger.addHandler(self.console)
+
+    def close(self) -> None:
+        for handler in (self.file, self.console):
+            self.logger.removeHandler(handler)
+            handler.close()
+        self.logger.setLevel(self.saved[0])
+        self.logger.propagate = self.saved[1]
+
+
+def _log_detail(args, text: str) -> None:
+    """Detalle técnico de un error: en la consola con -v; con --registro, en el archivo."""
+    if args.verbose:
+        log.exception(text)
+    elif getattr(args, "registro", None):
+        log.debug(text, exc_info=True)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -882,36 +1073,43 @@ def main(argv: list[str] | None = None) -> int:
                         format="%(levelname)s %(name)s: %(message)s")
     print(f"Exportador EVM {__version__}", flush=True)
     started = time.monotonic()
+    log_file = None
     try:
+        if args.registro:
+            log_file = _LogFile(args.registro, args.verbose)
+            log.info("Exportador EVM %s; Python %s; %s", __version__, sys.version.split()[0], platform.platform())
+            log.info("Argumentos: %s", sys.argv[1:] if argv is None else argv)
         code = args.func(args)
         if progress.bar_was_shown():          # consola interactiva: la barra se borró al terminar
             print(f"Tiempo total: {progress.clock_text(time.monotonic() - started)}")
         return code
     except EvmError as exc:                 # errores previstos, con su código del catálogo (docs/codigos.md)
-        if args.verbose:
-            log.exception("Error")
+        _log_detail(args, "Error")
         _error(exc.id, str(exc))
         return 2
     except (FileNotFoundError, PermissionError, ValueError, RuntimeError) as exc:
-        if args.verbose:
-            log.exception("Error")
+        _log_detail(args, "Error")
         _error("SIS-003", str(exc))
         return 2
     except OSError as exc:  # disco lleno, unidad de red no disponible, ruta no válida...
-        if args.verbose:
-            log.exception("Error")
+        _log_detail(args, "Error")
         _error("SIS-002", f"no se pudo leer o escribir un archivo: {exc}")
         return 2
     except KeyboardInterrupt:
         print("Cancelado.", file=sys.stderr)
         return 130
-    except Exception as exc:  # errores no previstos: mensaje breve; con -v, el detalle completo
-        if args.verbose:
-            log.exception("Error inesperado")
-        else:
-            print("Para ver el detalle técnico se debe ejecutar de nuevo con -v.", file=sys.stderr)
+    except Exception as exc:  # errores no previstos: mensaje breve; con -v o --registro, el detalle completo
+        _log_detail(args, "Error inesperado")
+        if args.registro and not args.verbose:
+            print(f"El detalle técnico está en el registro de diagnóstico: {args.registro}", file=sys.stderr)
+        elif not args.verbose:
+            print("Para ver el detalle técnico se debe ejecutar de nuevo con -v (o con --registro RUTA).",
+                  file=sys.stderr)
         _error("SIS-001", f"error inesperado: {type(exc).__name__}: {exc}")
         return 3
+    finally:
+        if log_file is not None:
+            log_file.close()
 
 
 def _error(id: str, text: str) -> None:

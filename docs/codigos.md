@@ -33,7 +33,8 @@ cómo **silenciar** las observaciones que ya se revisaron y no se quieren volver
    13. [Depuración de costes](#413-dep--depuración-de-costes)
    14. [Actualizar y analizar](#414-act--actualizar-y-analizar)
    15. [Fichas de tareas](#415-fic--fichas-de-tareas)
-   16. [Errores del sistema](#416-sis--errores-del-sistema)
+   16. [Planificación para el cliente](#416-cli--planificación-para-el-cliente)
+   17. [Errores del sistema](#417-sis--errores-del-sistema)
 
 ---
 
@@ -102,8 +103,8 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 
 | Área | Nombre | Tema en la hoja Validación | Dónde aparecen | Códigos |
 |---|---|---|---|---|
-| [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 53 |
-| [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 25 |
+| [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 55 |
+| [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 26 |
 | [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 22 |
 | [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 10 |
 | [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 17 |
@@ -114,10 +115,11 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [LOG](#410-log--lógica-del-cronograma) | Lógica del cronograma | Lógica del cronograma | validar | 19 |
 | [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) | 15 |
 | [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 20 |
-| [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 18 |
+| [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 26 |
 | [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 51 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
-| [SIS](#416-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
+| [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 33 |
+| [SIS](#417-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
 
 ---
 
@@ -182,6 +184,8 @@ Archivo de configuración, opciones de la línea de comandos, horizonte y códig
 | [CFG-051](#cfg-051) | Error (detiene el programa) | No existe la carpeta de salida |
 | [CFG-052](#cfg-052) | Advertencia | Fin previsto posterior al último mes |
 | [CFG-053](#cfg-053) | Error (detiene el programa) | Varias planificaciones fuera de validar |
+| [CFG-054](#cfg-054) | Error (detiene el programa) | Falta el campo del cliente |
+| [CFG-055](#cfg-055) | Error (detiene el programa) | Cálculo del precio mal configurado |
 
 #### CFG-001
 
@@ -497,7 +501,7 @@ Con `[[proyectos]]`, `--origen` debe ser NOMBRE=RUTA, con el nombre de uno de lo
 
 #### CFG-040
 
-**Falta `--salida` con varios archivos** · Error (detiene el programa) · generar, generar-fichas y validar `--informe` · no se puede silenciar
+**Falta `--salida` con varios archivos** · Error (detiene el programa) · generar, generar-fichas, generar-cliente y validar `--informe` · no se puede silenciar
 
 Con varios archivos no hay un nombre de salida por defecto.
 
@@ -505,17 +509,17 @@ Con varios archivos no hay un nombre de salida por defecto.
 
 #### CFG-041
 
-**Extensión del archivo de salida no válida** · Error (detiene el programa) · generar, generar-fichas y validar `--informe` · no se puede silenciar
+**Extensión del archivo de salida no válida** · Error (detiene el programa) · generar, generar-fichas, generar-cliente y validar `--informe` · no se puede silenciar
 
-El libro se guarda como .xlsx; las fichas y el informe de mejoras de validar, como .md.
+El libro se guarda como .xlsx; las fichas, el informe de mejoras de validar y el informe de control de generar-cliente, como .md; la planificación del cliente, como .mpp.
 
-**Qué hacer:** Indicar `--salida` (o `--informe`) con la extensión que corresponde.
+**Qué hacer:** Indicar `--salida` (o `--informe` o `--destino`) con la extensión que corresponde.
 
 #### CFG-042
 
-**El archivo de salida ya existe** · Error (detiene el programa) · generar, generar-fichas y validar `--informe` · no se puede silenciar
+**El archivo de salida ya existe** · Error (detiene el programa) · generar, generar-fichas, generar-cliente y validar `--informe` · no se puede silenciar
 
-El archivo de `--salida` (o de `--informe`) existe y no se indicó `--sobrescribir`.
+El archivo de `--salida` (o de `--informe` o `--destino`) existe y no se indicó `--sobrescribir`.
 
 **Qué hacer:** Usar `--sobrescribir` para reemplazarlo o indicar otro nombre. Para conservar los EV/AC cargados en un libro, se genera un archivo nuevo con `--migrar-desde`.
 
@@ -585,7 +589,7 @@ Resumen de las observaciones que no se muestran por `[validacion] silenciar` o `
 
 #### CFG-051
 
-**No existe la carpeta de salida** · Error (detiene el programa) · generar, generar-fichas y validar `--informe` · no se puede silenciar
+**No existe la carpeta de salida** · Error (detiene el programa) · generar, generar-fichas, generar-cliente y validar `--informe` · no se puede silenciar
 
 La carpeta del archivo indicado en `--salida` no existe.
 
@@ -606,6 +610,22 @@ El fin previsto del cronograma actual (las fechas de las tareas de las filas del
 Se indicaron varias planificaciones separadas por comas (p. ej. INTERNO,CLIENTE): solo validar las revisa, una por una, y con un solo archivo (sin `[[proyectos]]`).
 
 **Qué hacer:** Indicar una sola planificación en planificacion o `--planificacion`; para revisar varias, usar validar `--planificacion` INTERNO,CLIENTE.
+
+#### CFG-054
+
+**Falta el campo del cliente** · Error (detiene el programa) · generar-cliente · no se puede silenciar
+
+generar-cliente necesita el campo de MS Project que indica qué tareas se muestran al cliente.
+
+**Qué hacer:** Indicarlo en [cliente] campo, por ejemplo campo = "Etiqueta Cliente" (ver `config.ejemplo.toml`).
+
+#### CFG-055
+
+**Cálculo del precio mal configurado** · Error (detiene el programa) · Todos los comandos · no se puede silenciar
+
+La sección [depuracion_precio] (precio de las EDT interna en la depuración de costes) no es válida: falta calculo_precio o la lista de componentes, la expresión no se puede leer o usa un nombre que no está en [depuracion_precio.componentes] ni en [depuracion_precio.recargos], un nombre o un texto está repetido o hay más de 8 coeficientes. El mensaje indica el motivo.
+
+**Qué hacer:** Corregir la sección según `config.ejemplo.toml`: la expresión admite números (con punto decimal), los nombres de las dos listas, + - * / y paréntesis.
 
 ---
 
@@ -640,6 +660,7 @@ Apertura del archivo .mpp o .xml y campos configurados que no se encuentran o es
 | [LEC-023](#lec-023) | Advertencia | Campo de reparto vacío |
 | [LEC-024](#lec-024) | Info | Líneas base guardadas |
 | [LEC-025](#lec-025) | Advertencia | Calendario del proyecto no leído |
+| [LEC-026](#lec-026) | Error (detiene el programa) | No se encontró el campo del cliente |
 
 #### LEC-001
 
@@ -841,6 +862,14 @@ Con un .mpp, MS Project no devolvió el calendario del proyecto (la jornada de c
 
 **Qué hacer:** Comparar con el resultado del XML del mismo proyecto (Archivo > Guardar como > XML), que lee el calendario del archivo, y usar el XML si difieren.
 
+#### LEC-026
+
+**No se encontró el campo del cliente** · Error (detiene el programa) · generar-cliente · no se puede silenciar
+
+El campo de [cliente] campo no existe en el archivo de MS Project, ni con ese nombre ni como alias: no se puede saber qué tareas se muestran al cliente.
+
+**Qué hacer:** Revisar el nombre del campo en [cliente] campo (el alias, por ejemplo "Etiqueta Cliente", o el nombre, por ejemplo "Text15").
+
 ---
 
 ### 4.3 EDT · Estructura y códigos EDT
@@ -946,11 +975,11 @@ Varias tareas tienen el mismo código EDT: el libro no puede distinguir sus fila
 
 #### EDT-010
 
-**No se encontró la planificación** · Error (detiene el programa, salvo en validar) · generar, actualizar, generar-fichas y validar · no se puede silenciar
+**No se encontró la planificación** · Error (detiene el programa, salvo en validar) · generar, actualizar, generar-fichas, generar-cliente y validar · no se puede silenciar
 
 Ninguna tarea tiene el código EDT (o el nombre) de la planificación indicada. validar lo informa como error y revisa el proyecto completo.
 
-**Qué hacer:** Revisar planificacion (o `--planificacion`): el mensaje lista las tareas de nivel superior.
+**Qué hacer:** Revisar planificacion (o `--planificacion`): el mensaje lista las tareas de nivel superior. Si el archivo tiene una sola planificación, dejar planificacion vacía (planificacion = "") o quitar la clave: se usa todo el proyecto.
 
 #### EDT-011
 
@@ -2204,7 +2233,7 @@ El libro anterior y el nuevo se generaron con distinto ignorar_ceros_intermedios
 
 ### 4.13 DEP · Depuración de costes
 
-Hoja PV-depuración, su traslado con `--migrar-desde` y el reparto del plan de costes (procesar-costes).
+Hoja PV-depuración, su traslado con `--migrar-desde` y la revisión del plan de costes (procesar-costes).
 
 | Código | Severidad | Descripción |
 |---|---|---|
@@ -2217,15 +2246,23 @@ Hoja PV-depuración, su traslado con `--migrar-desde` y el reparto del plan de c
 | [DEP-007](#dep-007) | Info | Previsión pasada al formato con EDT interna |
 | [DEP-008](#dep-008) | Advertencia o Info | Meses de la previsión desplazados |
 | [DEP-009](#dep-009) | Info | Previsión pasada al formato con la columna EAC |
-| [DEP-010](#dep-010) | Info o Advertencia | Reparto del plan de costes conservado |
-| [DEP-011](#dep-011) | Advertencia | Reparto del plan de costes no combinado |
+| [DEP-010](#dep-010) | Info o Advertencia | Reparto del plan de costes conservado *(retirado)* |
+| [DEP-011](#dep-011) | Advertencia | Reparto del plan de costes no combinado *(retirado)* |
 | [DEP-012](#dep-012) | Error (detiene el programa) | Libro sin depuración de costes |
-| [DEP-013](#dep-013) | Error (detiene el programa) | Plan de costes sin líneas asignadas |
-| [DEP-014](#dep-014) | Advertencia | Líneas del plan de costes sin fila del libro |
+| [DEP-013](#dep-013) | Error (detiene el programa) | Plan de costes sin líneas leídas |
+| [DEP-014](#dep-014) | Advertencia | Líneas de EDT cliente sin leer |
 | [DEP-015](#dep-015) | Advertencia | Plan de costes después del horizonte |
-| [DEP-016](#dep-016) | Info | Filas sin líneas en el plan de costes |
-| [DEP-017](#dep-017) | Advertencia | Filas cuyo plan de costes suma 0 |
-| [DEP-018](#dep-018) | Advertencia | Importes del plan de costes que no se suman |
+| [DEP-016](#dep-016) | Info | Filas sin línea en el plan de costes |
+| [DEP-017](#dep-017) | Advertencia | Filas sin importes en el plan de costes |
+| [DEP-018](#dep-018) | Advertencia | Importes del plan de costes que no se leen |
+| [DEP-019](#dep-019) | Advertencia | EDT cliente repetida en el plan de costes |
+| [DEP-020](#dep-020) | Info | % planificado de MS Project recuperado |
+| [DEP-021](#dep-021) | Advertencia | Filas con el reparto del plan de costes |
+| [DEP-022](#dep-022) | Advertencia | Componentes de coste fuera del precio |
+| [DEP-023](#dep-023) | Advertencia | Tabla Recargos incompleta |
+| [DEP-024](#dep-024) | Error (detiene el programa) | Hoja PV-depuración de una versión anterior |
+| [DEP-025](#dep-025) | Advertencia | Recargos no trasladados |
+| [DEP-026](#dep-026) | Advertencia | Tabla Recargos sin cálculo del precio |
 
 #### DEP-001
 
@@ -2271,7 +2308,7 @@ El libro anterior tiene la previsión de una empresa y el nuevo depura otra.
 
 **Previsión trasladada** · Info · generar con depuracion_costes (hoja Validación) · se puede silenciar
 
-Se conservó el contenido de la hoja PV-depuración.
+Se conservó el contenido de la hoja PV-depuración: el plan de costes y los recargos de la tabla Recargos. El plan de una hoja de la versión 2.5 o anterior, que empezaba en la celda A8, pasa a la celda A12.
 
 **Qué hacer:** Ninguna.
 
@@ -2301,19 +2338,19 @@ La hoja PV-depuración del libro anterior (versión 2.4) no tenía la columna EA
 
 #### DEP-010
 
-**Reparto del plan de costes conservado** · Info o Advertencia · generar `--migrar-desde` (hoja Validación) · se puede silenciar
+**Reparto del plan de costes conservado** · Info o Advertencia · generar `--migrar-desde` (hoja Validación) · se puede silenciar · retirado en la versión 2.6.0
 
-Las filas procesadas con procesar-costes conservan en el libro nuevo el % planificado del plan de costes, en lugar del que resulta de MS Project. Es una advertencia si quedaron meses después del horizonte del libro nuevo: el % planificado de esas filas no suma 100 %.
+Hasta la versión 2.5, `--migrar-desde` conservaba en el libro nuevo el % planificado de las filas procesadas con procesar-costes. Desde la versión 2.6.0, procesar-costes no modifica el % planificado y `--migrar-desde` lo vuelve a calcular con MS Project (ver [DEP-020](#dep-020)).
 
-**Qué hacer:** Ninguna. Si el plan de costes cambió, ejecutar procesar-costes en un libro con depuración de costes.
+**Qué hacer:** Ninguna.
 
 #### DEP-011
 
-**Reparto del plan de costes no combinado** · Advertencia · generar `--migrar-desde` (hoja Validación) · se puede silenciar
+**Reparto del plan de costes no combinado** · Advertencia · generar `--migrar-desde` (hoja Validación) · se puede silenciar · retirado en la versión 2.6.0
 
-La fila nueva reúne varias filas del libro anterior con el reparto del plan de costes (p. ej. al bajar el nivel máximo): su % planificado se calcula con MS Project.
+Hasta la versión 2.5, se informaba la fila nueva que reunía varias filas procesadas con procesar-costes. Desde la versión 2.6.0, el % planificado de todas las filas se calcula con MS Project (ver [DEP-020](#dep-020)).
 
-**Qué hacer:** Ejecutar procesar-costes en un libro con depuración de costes.
+**Qué hacer:** Ninguna.
 
 #### DEP-012
 
@@ -2325,51 +2362,115 @@ procesar-costes necesita un libro generado con depuracion_costes = true, con el 
 
 #### DEP-013
 
-**Plan de costes sin líneas asignadas** · Error (detiene el programa) · procesar-costes · no se puede silenciar
+**Plan de costes sin líneas leídas** · Error (detiene el programa) · procesar-costes · no se puede silenciar
 
-Ninguna línea de la hoja PV-depuración se asigna a una fila de ingreso del libro: la hoja está vacía o sus códigos no son los del libro.
+Ninguna línea de EDT cliente de la hoja PV-depuración tiene el código de una fila de ingreso del libro: la hoja está vacía o sus códigos no son los del libro.
 
-**Qué hacer:** Pegar el plan de costes desde la celda A8 y revisar la columna 'Asignado a'.
+**Qué hacer:** Escribir el plan de costes desde la celda A12 y revisar la columna 'Asignado a'.
 
 #### DEP-014
 
-**Líneas del plan de costes sin fila del libro** · Advertencia · procesar-costes · se puede silenciar
+**Líneas de EDT cliente sin leer** · Advertencia · procesar-costes · se puede silenciar
 
-Líneas que se suman pero no tienen fila en el libro (código inexistente, resumen sin fila propia o sin EDT cliente encima): su importe no forma parte del % planificado.
+Líneas de EDT cliente con importes que no se leen: su código no es el de una fila del libro, o es el de un resumen del libro y ninguna línea de un código inferior se lee. Su importe no llega a ninguna fila «(coste)».
 
-**Qué hacer:** Corregir los códigos en el plan de costes, o agregar las filas al libro (p. ej. con lista_edt).
+**Qué hacer:** Corregir los códigos en el plan de costes, agregar las filas al libro (p. ej. con lista_edt) o detallar el resumen con las EDT cliente de sus filas.
 
 #### DEP-015
 
 **Plan de costes después del horizonte** · Advertencia · procesar-costes · se puede silenciar
 
-El plan de costes tiene importes en meses posteriores al horizonte del libro: no forman parte del % planificado, que en esas filas no suma 100 %.
+El plan de costes tiene importes en meses posteriores al horizonte del libro: forman parte del EAC de la fila «(coste)», pero no de sus meses ni del gráfico.
 
 **Qué hacer:** Ampliar el horizonte del libro (meses) o revisar el plan de costes.
 
 #### DEP-016
 
-**Filas sin líneas en el plan de costes** · Info · procesar-costes · se puede silenciar
+**Filas sin línea en el plan de costes** · Info · procesar-costes · se puede silenciar
 
-Filas de ingreso de la empresa sin líneas en el plan de costes: conservan su % planificado, de MS Project o de un procesado anterior.
+Filas de ingreso de la empresa sin línea de EDT cliente en el plan de costes: su fila «(coste)» queda vacía.
 
 **Qué hacer:** Ninguna, si la empresa no tiene costes en esas filas.
 
 #### DEP-017
 
-**Filas cuyo plan de costes suma 0** · Advertencia · procesar-costes · se puede silenciar
+**Filas sin importes en el plan de costes** · Advertencia · procesar-costes · se puede silenciar
 
-Las líneas asignadas a la fila suman 0: no hay reparto que aplicar y la fila conserva su % planificado.
+La línea de EDT cliente de la fila no tiene importes en los meses (p. ej. faltan los cálculos del plan): su fila «(coste)» queda en 0.
 
-**Qué hacer:** Revisar los importes de esas filas en el plan de costes.
+**Qué hacer:** Completar los cálculos del plan (o ejecutar procesar-costes `--calculos`) y revisar los importes.
 
 #### DEP-018
 
-**Importes del plan de costes que no se suman** · Advertencia · procesar-costes · se puede silenciar
+**Importes del plan de costes que no se leen** · Advertencia · procesar-costes · se puede silenciar
 
-Importes guardados como texto, o celdas con fórmula sin valor calculado (el plan se pegó sin pegado especial > valores y el libro no se guardó en Excel).
+Importes guardados como texto, o celdas con fórmula sin valor calculado (el libro no se guardó en Excel después de escribirlas).
 
-**Qué hacer:** Pegar el plan de costes con pegado especial > valores.
+**Qué hacer:** Escribir números; abrir y guardar el libro en Excel, o ejecutar procesar-costes `--calculos`.
+
+#### DEP-019
+
+**EDT cliente repetida en el plan de costes** · Advertencia · procesar-costes · se puede silenciar
+
+Dos o más líneas de EDT cliente tienen el mismo código: se suman sus importes.
+
+**Qué hacer:** Revisar el plan de costes: cada EDT cliente debería tener una sola línea.
+
+#### DEP-020
+
+**% planificado de MS Project recuperado** · Info · generar `--migrar-desde` (hoja Validación) · se puede silenciar
+
+Filas que en el libro anterior tenían en la hoja % PV el reparto del plan de costes, escrito por procesar-costes en una versión anterior a la 2.6.0: en el libro nuevo, su % planificado vuelve a ser el de MS Project. El plan de costes se compara con el PV en las filas «(coste)».
+
+**Qué hacer:** Ninguna.
+
+#### DEP-021
+
+**Filas con el reparto del plan de costes** · Advertencia · actualizar y procesar-costes · se puede silenciar
+
+El libro tiene filas cuyo % planificado es el reparto del plan de costes, escrito por procesar-costes en una versión anterior a la 2.6.0: no es el de MS Project. actualizar no compara esas filas con la línea base ([ACT-047](#act-047)).
+
+**Qué hacer:** Generar un libro nuevo con `--migrar-desde`: vuelve a calcular su % planificado con MS Project y conserva el BAC, el % ganado y el AC.
+
+#### DEP-022
+
+**Componentes de coste fuera del precio** · Advertencia · procesar-costes · se puede silenciar
+
+Con [depuracion_precio], líneas de componente de coste (solo la columna D) con importes cuyo texto no está en [depuracion_precio.componentes]: no entran en el precio de su EDT interna. Los textos se comparan sin distinguir mayúsculas, tildes ni espacios de más.
+
+**Qué hacer:** Corregir el texto de la línea o agregarlo a [depuracion_precio.componentes] (y a calculo_precio).
+
+#### DEP-023
+
+**Tabla Recargos incompleta** · Advertencia · procesar-costes · se puede silenciar
+
+Con [depuracion_precio], a la tabla Recargos de la hoja PV-depuración le falta la fila de un coeficiente que usa calculo_precio, la columna de un año con importes o el valor de un coeficiente en un año con importes (o la tabla entera, que procesar-costes `--calculos` agrega vacía). En el precio, los coeficientes que faltan se toman como 0.
+
+**Qué hacer:** Completar la tabla Recargos (desde la celda D1): un % por coeficiente y año.
+
+#### DEP-024
+
+**Hoja PV-depuración de una versión anterior** · Error (detiene el programa) · procesar-costes · no se puede silenciar
+
+La hoja PV-depuración tiene el formato de la versión 2.5 o anterior, con el plan desde la celda A8. Desde la versión 2.6.0, el plan empieza en la celda A12, con la tabla Recargos arriba.
+
+**Qué hacer:** Generar un libro nuevo con `--migrar-desde`: pasa el plan a la celda A12 y conserva el BAC, el % ganado y el AC.
+
+#### DEP-025
+
+**Recargos no trasladados** · Advertencia · generar `--migrar-desde` (hoja Validación) · se puede silenciar
+
+La tabla Recargos del libro anterior tiene coeficientes cuyo texto no está en [depuracion_precio.recargos] de la configuración del libro nuevo: sus valores no se trasladaron.
+
+**Qué hacer:** Si el coeficiente cambió de texto, escribir sus valores en la tabla Recargos del libro nuevo.
+
+#### DEP-026
+
+**Tabla Recargos sin cálculo del precio** · Advertencia · procesar-costes · se puede silenciar
+
+La hoja PV-depuración tiene la tabla Recargos, pero la configuración de procesar-costes no tiene [depuracion_precio]: con `--calculos`, las EDT interna suman sus componentes (a coste), en lugar de su precio.
+
+**Qué hacer:** Ejecutar procesar-costes con `--config` y la configuración de la depuración, que tiene [depuracion_precio].
 
 ---
 
@@ -2886,7 +2987,313 @@ El cronograma tiene errores (por ejemplo, códigos EDT duplicados) que pueden af
 
 ---
 
-### 4.16 SIS · Errores del sistema
+### 4.16 CLI · Planificación para el cliente
+
+Comando generar-cliente: tareas que se muestran al cliente, «Otras tareas», resúmenes convertidos, vínculos nuevos y comparación con la planificación interna.
+
+| Código | Severidad | Descripción |
+|---|---|---|
+| [CLI-001](#cli-001) | Error (detiene el programa) | La planificación no es de primer nivel |
+| [CLI-002](#cli-002) | Error (detiene el programa) | Ninguna tarea se muestra al cliente |
+| [CLI-003](#cli-003) | Advertencia | Valor no reconocido en el campo del cliente |
+| [CLI-004](#cli-004) | Advertencia | Tarea con Sí debajo de una tarea sin Sí |
+| [CLI-005](#cli-005) | Info | Resúmenes que pasan a ser tareas |
+| [CLI-006](#cli-006) | Info | Vínculos nuevos en la planificación del cliente |
+| [CLI-007](#cli-007) | Advertencia | Vínculos que no se crean |
+| [CLI-008](#cli-008) | Info | Resúmenes que cambian de fechas |
+| [CLI-009](#cli-009) | Error (detiene el programa) | Varios archivos en generar-cliente |
+| [CLI-010](#cli-010) | Error (detiene el programa) | La generación necesita el archivo .mpp |
+| [CLI-011](#cli-011) | Error (detiene el programa) | El destino es el archivo de origen |
+| [CLI-012](#cli-012) | Advertencia | El origen está abierto en MS Project |
+| [CLI-013](#cli-013) | Info | Fechas fijadas en el archivo del cliente |
+| [CLI-014](#cli-014) | Advertencia | Fechas distintas de la planificación interna |
+| [CLI-015](#cli-015) | Advertencia | Vínculos que MS Project no aceptó |
+| [CLI-016](#cli-016) | Info | Vínculos creados por MS Project al borrar tareas |
+| [CLI-017](#cli-017) | Advertencia | No se pudo quitar el nombre del campo del cliente |
+| [CLI-018](#cli-018) | Error (detiene el programa) | Error de MS Project al generar el archivo del cliente |
+| [CLI-019](#cli-019) | Advertencia | Resúmenes convertidos con datos sin restaurar |
+| [CLI-020](#cli-020) | Advertencia | Resúmenes con otro % completado |
+| [CLI-021](#cli-021) | Advertencia | Tareas que no conservan su % completado |
+| [CLI-022](#cli-022) | Info | Tareas que quedan como «Otras tareas» |
+| [CLI-023](#cli-023) | Advertencia | % completado del proyecto distinto |
+| [CLI-024](#cli-024) | Advertencia | Filas del libro EVM con otras tareas o valores |
+| [CLI-025](#cli-025) | Advertencia | Filas -D en el libro EVM del cliente |
+| [CLI-026](#cli-026) | Advertencia | Tareas con datos distintos en el archivo del cliente |
+| [CLI-027](#cli-027) | Advertencia | Datos de las «Otras tareas» que no se quitaron |
+| [CLI-028](#cli-028) | Advertencia | No se pudo crear el filtro de la vista |
+| [CLI-029](#cli-029) | Advertencia | No se pudo comparar el libro EVM |
+| [CLI-030](#cli-030) | Info | Campos calculados en las «Otras tareas» |
+| [CLI-031](#cli-031) | Advertencia | Tareas sin valor debajo de una tarea que se muestra |
+| [CLI-032](#cli-032) | Info | Calendarios y macros quitados del archivo del cliente |
+| [CLI-033](#cli-033) | Advertencia | Calendarios o macros que no se pudieron quitar |
+
+#### CLI-001
+
+**La planificación no es de primer nivel** · Error (detiene el programa) · generar-cliente · no se puede silenciar
+
+generar-cliente parte de una tarea de primer nivel del esquema (la planificación, por ejemplo INTERNO) y sus subtareas; la planificación indicada está debajo de otra tarea.
+
+**Qué hacer:** Indicar en planificacion una tarea de primer nivel, o dejarla vacía para usar todo el proyecto.
+
+#### CLI-002
+
+**Ninguna tarea se muestra al cliente** · Error (detiene el programa) · generar-cliente · no se puede silenciar
+
+Ninguna tarea de la planificación tiene Sí en el campo de [cliente] campo (en ella y en todas sus tareas superiores).
+
+**Qué hacer:** Revisar el campo configurado en [cliente] campo y marcar con Sí las tareas que debe ver el cliente, empezando por las de primer nivel de la planificación.
+
+#### CLI-003
+
+**Valor no reconocido en el campo del cliente** · Advertencia · generar-cliente · se puede silenciar
+
+El campo de [cliente] campo tiene un valor que no es Sí ni No (por ejemplo, un error de escritura): la tarea no se muestra.
+
+**Qué hacer:** Corregir el valor (Sí o No). El informe de control indica las tareas.
+
+#### CLI-004
+
+**Tarea con Sí debajo de una tarea sin Sí** · Advertencia · generar-cliente · se puede silenciar
+
+La tarea tiene Sí, pero una tarea superior no: no se muestra, con sus subtareas. Una tarea solo se muestra si ella y todas sus tareas superiores tienen Sí.
+
+**Qué hacer:** Si se debe mostrar, poner Sí también en sus tareas superiores; si no, quitarle el Sí.
+
+#### CLI-005
+
+**Resúmenes que pasan a ser tareas** · Info · generar-cliente · se puede silenciar
+
+No se muestra ninguna subtarea del resumen: en el archivo del cliente pasa a ser una tarea con sus fechas, su duración, su avance y sus líneas base, y recibe los vínculos de sus subtareas.
+
+**Qué hacer:** Ninguna, si el cliente no debe ver ese detalle. El informe de control los lista.
+
+#### CLI-006
+
+**Vínculos nuevos en la planificación del cliente** · Info · generar-cliente · se puede silenciar
+
+Vínculos que reemplazan a los que pasan por tareas ocultas (puentes) o que pasan de una subtarea a su resumen convertido. Si un vínculo retrasaría a su sucesora respecto de la planificación interna, su posición se ajusta a las fechas actuales.
+
+**Qué hacer:** Ninguna. El informe de control indica cada vínculo, su tipo y su posición.
+
+#### CLI-007
+
+**Vínculos que no se crean** · Advertencia · generar-cliente · se puede silenciar
+
+El vínculo puente uniría un resumen con una de sus subtareas, o cerraría un ciclo con los vínculos que ya tienen las tareas: MS Project no lo admite.
+
+**Qué hacer:** Revisar en el informe de control la lógica de esas tareas en la planificación interna.
+
+#### CLI-008
+
+**Resúmenes que cambian de fechas** · Info · generar-cliente · se puede silenciar
+
+Una subtarea que no se muestra fija el comienzo o el fin del resumen: en el archivo del cliente, el resumen va de la primera a la última de las subtareas que se muestran.
+
+**Qué hacer:** Ninguna, si es lo esperado. El informe de control indica las fechas.
+
+#### CLI-009
+
+**Varios archivos en generar-cliente** · Error (detiene el programa) · generar-cliente · no se puede silenciar
+
+La configuración tiene secciones `[[proyectos]]`: generar-cliente trabaja con un solo archivo de MS Project.
+
+**Qué hacer:** Usar una configuración sin `[[proyectos]]` e indicar el archivo con `--origen`.
+
+#### CLI-010
+
+**La generación necesita el archivo .mpp** · Error (detiene el programa) · generar-cliente · no se puede silenciar
+
+El archivo del cliente se genera con MS Project a partir de una copia del .mpp de la planificación interna. Con un XML o con 'activo' solo se puede simular.
+
+**Qué hacer:** Indicar en `--origen` el archivo .mpp, o usar `--simular` para ver los cambios sin generar el archivo.
+
+#### CLI-011
+
+**El destino es el archivo de origen** · Error (detiene el programa) · generar-cliente · no se puede silenciar
+
+`--destino` indica el mismo archivo que `--origen`: la planificación interna nunca se modifica.
+
+**Qué hacer:** Indicar otro archivo en `--destino` (por defecto, <origen>_cliente.mpp).
+
+#### CLI-012
+
+**El origen está abierto en MS Project** · Advertencia · generar-cliente · se puede silenciar
+
+El archivo de la planificación interna está abierto en MS Project: se copia la versión guardada en el disco, sin los cambios que no se guardaron.
+
+**Qué hacer:** Guardar el archivo en MS Project y volver a generar el archivo del cliente si había cambios sin guardar.
+
+#### CLI-013
+
+**Fechas fijadas en el archivo del cliente** · Info · generar-cliente · se puede silenciar
+
+Sin las tareas ocultas, MS Project adelantaba estas tareas: su comienzo se fijó con la delimitación «No comenzar antes del» en la fecha de la planificación interna ([cliente] fijar_fechas).
+
+**Qué hacer:** Ninguna. El informe de control lista las tareas.
+
+#### CLI-014
+
+**Fechas distintas de la planificación interna** · Advertencia · generar-cliente · se puede silenciar
+
+Después de recalcular, estas tareas del archivo del cliente no tienen las fechas de la planificación interna y no se pudieron fijar: están comenzadas o terminadas, tienen otra delimitación, se atrasan, o fijar_fechas = false.
+
+**Qué hacer:** Revisar en el informe de control el motivo de cada tarea y, si hace falta, la lógica de la planificación interna.
+
+#### CLI-015
+
+**Vínculos que MS Project no aceptó** · Advertencia · generar-cliente · se puede silenciar
+
+MS Project rechazó un vínculo nuevo (por ejemplo, porque cerraría un ciclo con un resumen).
+
+**Qué hacer:** Revisar en el informe de control el error de cada vínculo. Las fechas de sus tareas se comparan igual.
+
+#### CLI-016
+
+**Vínculos creados por MS Project al borrar tareas** · Info · generar-cliente · se puede silenciar
+
+Al borrar las tareas ocultas, MS Project vinculó las tareas de alrededor (vinculación automática). Esos vínculos no son de la planificación interna y se quitaron.
+
+**Qué hacer:** Ninguna.
+
+#### CLI-017
+
+**No se pudo quitar el nombre del campo del cliente** · Advertencia · generar-cliente · se puede silenciar
+
+Los valores del campo se vaciaron en todas las tareas, pero MS Project no permitió quitar su nombre (alias): el cliente puede ver el campo, vacío, en la lista de campos.
+
+**Qué hacer:** Quitar el nombre a mano en el archivo del cliente (Proyecto > Campos personalizados) o revisar el registro de diagnóstico.
+
+#### CLI-018
+
+**Error de MS Project al generar el archivo del cliente** · Error (detiene el programa) · generar-cliente · no se puede silenciar
+
+MS Project devolvió un error en uno de los pasos (borrar tareas, vincular, recalcular, guardar...) o el resultado no es el esperado (por ejemplo, quedan tareas que no se muestran). No se genera el archivo del cliente; la planificación interna no se modifica.
+
+**Qué hacer:** Volver a ejecutar con `--registro` RUTA y revisar el paso y el error en el registro de diagnóstico.
+
+#### CLI-019
+
+**Resúmenes convertidos con datos sin restaurar** · Advertencia · generar-cliente · se puede silenciar
+
+Al pasar de resumen a tarea, MS Project cambió la duración, el avance o una línea base del resumen y no aceptó el valor original.
+
+**Qué hacer:** Revisar esas tareas en el archivo del cliente (el informe de control indica el dato).
+
+#### CLI-020
+
+**Resúmenes con otro % completado** · Advertencia · generar-cliente · se puede silenciar
+
+MS Project calcula el % completado de un resumen con la duración de sus tareas de detalle. En el archivo del cliente no están las tareas ocultas, y su avance no cuenta; un resumen convertido pesa por su duración, no por la de sus subtareas: el % del resumen cambia.
+
+**Qué hacer:** Revisar la lista del informe de control. Si el cliente debe ver el avance de esos resúmenes, se debe mostrar el detalle que lo explica (marcar con Sí las tareas que lo forman).
+
+#### CLI-021
+
+**Tareas que no conservan su % completado** · Advertencia · generar-cliente · se puede silenciar
+
+Una tarea de detalle o un resumen convertido tiene en el archivo del cliente otro % completado que en la planificación interna (por ejemplo, porque MS Project no aceptó el avance al convertir el resumen).
+
+**Qué hacer:** Revisar esas tareas en el archivo del cliente y el registro de diagnóstico (`--registro`).
+
+#### CLI-022
+
+**Tareas que quedan como «Otras tareas»** · Info · generar-cliente · se puede silenciar
+
+Con [cliente] actividad_interna = true, las tareas que no se muestran quedan en el archivo del cliente como «Otras tareas»: sin nombre, código EDT, notas, hipervínculo ni campos de texto (salvo los que usa el libro EVM), con sus fechas, su duración, su avance, sus líneas base y sus vínculos. Así el % completado de cada tarea, de los resúmenes y del proyecto, y el libro EVM, son los de la planificación interna. Las tareas inactivas que no se muestran se quitan: no cuentan en ningún cálculo.
+
+**Qué hacer:** Ninguna. Con filtrar_vista = true, el archivo se abre con un filtro que oculta las «Otras tareas».
+
+#### CLI-023
+
+**% completado del proyecto distinto** · Advertencia · generar-cliente · se puede silenciar
+
+El % completado del proyecto, calculado como MS Project (con la duración de las tareas de detalle), no es el mismo en el archivo del cliente: con actividad_interna = false se borran las tareas que no se muestran, y su avance deja de contar.
+
+**Qué hacer:** Usar actividad_interna = true (por defecto) para que coincida, o mostrar las tareas que explican el avance (Sí en el campo del cliente). Si ocurre con actividad_interna = true, revisar el registro de diagnóstico.
+
+#### CLI-024
+
+**Filas del libro EVM con otras tareas o valores** · Advertencia · generar-cliente · se puede silenciar
+
+Una fila de ingreso del libro EVM del cliente no tiene las mismas tareas de detalle, el mismo % planificado de cada mes o el mismo % ganado que en el libro de la planificación interna (o solo está en uno de los dos libros). Ocurre al borrar las tareas que no se muestran (actividad_interna = false). Con «Otras tareas», ocurre si no se muestra ningún elemento EDT de un resumen (su fila reúne las de esos elementos) o si no se muestra un elemento EDT que no depende de ninguno que se muestre: sin su código, sus tareas no forman parte de ninguna fila del libro del cliente.
+
+**Qué hacer:** Revisar la lista del informe de control, que indica en qué fila del otro libro están las tareas de cada fila. Para que coincidan, usar actividad_interna = true (por defecto) y mostrar esos elementos EDT (Sí en el campo del cliente) o ubicarlos debajo de un elemento que se muestre.
+
+#### CLI-025
+
+**Filas -D en el libro EVM del cliente** · Advertencia · generar-cliente · se puede silenciar
+
+El libro EVM del cliente tiene filas -D («Otras tareas de …»): tareas sin código EDT dentro de un elemento EDT que tiene filas propias, por ejemplo las de un elemento que no se muestra, cuyo código se quitó. Sus valores son los mismos, pero el cliente ve esas filas en su libro.
+
+**Qué hacer:** Para que no aparezcan, mostrar ese elemento EDT (Sí en el campo del cliente) o reorganizar la EDT para que las tareas internas no queden junto a elementos EDT que se muestran. El informe de control indica la fila interna de cada fila -D.
+
+#### CLI-026
+
+**Tareas con datos distintos en el archivo del cliente** · Advertencia · generar-cliente · se puede silenciar
+
+Con actividad_interna = true, cada tarea del archivo del cliente debe tener las fechas, el avance, la duración y la línea base de la planificación interna; estas tareas no los tienen después de guardar el archivo.
+
+**Qué hacer:** Revisar la lista del informe de control y el registro de diagnóstico (`--registro`).
+
+#### CLI-027
+
+**Datos de las «Otras tareas» que no se quitaron** · Advertencia · generar-cliente · se puede silenciar
+
+MS Project no dejó vaciar un campo de las «Otras tareas» (los campos calculados con una fórmula se informan aparte, con [CLI-030](#cli-030)), o el campo EDT configurado es el de MS Project (EDT o número de esquema) y su código no se puede quitar: el cliente puede ver esos datos.
+
+**Qué hacer:** Revisar el campo en el archivo del cliente. Para quitar los códigos, usar un campo EDT personalizado (`[campos] edt`, por ejemplo un campo de texto).
+
+#### CLI-028
+
+**No se pudo crear el filtro de la vista** · Advertencia · generar-cliente · se puede silenciar
+
+Con [cliente] filtrar_vista = true, MS Project no aceptó crear o aplicar el filtro que oculta las «Otras tareas»: el archivo del cliente se abre con todas las tareas.
+
+**Qué hacer:** Revisar el registro de diagnóstico (`--registro`). El % completado y el libro EVM no cambian.
+
+#### CLI-029
+
+**No se pudo comparar el libro EVM** · Advertencia · generar-cliente · se puede silenciar
+
+El libro EVM de la planificación interna o el del cliente no se pudo calcular para compararlos (por ejemplo, por un error de configuración del libro).
+
+**Qué hacer:** Revisar el error indicado: es el mismo que daría generar con esa configuración.
+
+#### CLI-030
+
+**Campos calculados en las «Otras tareas»** · Info · generar-cliente · se puede silenciar
+
+Un campo personalizado de texto tiene una fórmula: MS Project calcula su valor en cada tarea y no deja vaciarlo. En las «Otras tareas», el valor se calcula con los datos que se conservan (fechas, avance, líneas base...).
+
+**Qué hacer:** Nada, si la fórmula solo usa esos datos. Si usa un campo con información interna, el cliente puede ver el resultado: revisar la fórmula en MS Project.
+
+#### CLI-031
+
+**Tareas sin valor debajo de una tarea que se muestra** · Advertencia · generar-cliente · se puede silenciar
+
+La tarea no tiene valor en el campo del cliente y su tarea superior se muestra: no se muestra (con actividad_interna, queda como «Otras tareas»), con sus subtareas. Lo habitual es una tarea nueva que no se marcó. Se indica la tarea de más arriba de cada rama; las inactivas no se incluyen.
+
+**Qué hacer:** Si el cliente la debe ver, poner Sí. Si no, poner No: así queda decidido y no se vuelve a avisar.
+
+#### CLI-032
+
+**Calendarios y macros quitados del archivo del cliente** · Info · generar-cliente · se puede silenciar
+
+El archivo del cliente es una copia del .mpp. Se quitaron los calendarios que no usa ninguna tarea ni recurso, ni el proyecto (salvo el de MS Project para las líneas base de Project 98), y los módulos de macros. La lista está en el informe de control.
+
+**Qué hacer:** Ninguna.
+
+#### CLI-033
+
+**Calendarios o macros que no se pudieron quitar** · Advertencia · generar-cliente · se puede silenciar
+
+MS Project no dejó quitar un calendario sin uso, o el archivo del cliente guardado todavía tiene módulos de macros (se comprueba leyendo el archivo). Las macros se quitan con el proyecto VBA o, si MS Project no da acceso a él (Centro de confianza), con el Organizador.
+
+**Qué hacer:** Quitarlos en el archivo del cliente con el Organizador de MS Project (Archivo > Información > Organizador), o permitir en el Centro de confianza de MS Project el acceso al modelo de objetos de proyectos de VBA y volver a generar el archivo.
+
+---
+
+### 4.17 SIS · Errores del sistema
 
 Errores de archivos del sistema y errores inesperados del programa.
 
