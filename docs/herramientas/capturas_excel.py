@@ -20,9 +20,16 @@ Para que las capturas muestren el formato español (meses y separadores), la ses
 Excel usa "," como separador decimal y "." como separador de miles; los valores
 originales se restauran al terminar. El libro no se guarda.
 
+Si Excel devuelve un error de automatización que suele ser transitorio (por ejemplo, porque
+todavía está terminando de exportar el PDF anterior), la captura se repite después de una
+pausa, hasta cuatro veces (ticket #18).
+
 Uso (desde la carpeta raíz del repositorio):
     python docs\\herramientas\\capturas_excel.py
     python docs\\herramientas\\capturas_excel.py --solo depuracion    (solo las capturas de un grupo)
+    python docs\\herramientas\\capturas_excel.py --carpeta-trabajo C:\\capturas
+        (libros y PDF intermedios en una subcarpeta nueva de C:\\capturas, que se conserva;
+         por defecto, una carpeta temporal que se borra al terminar)
 """
 from __future__ import annotations
 
@@ -36,6 +43,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -103,7 +111,7 @@ SEVERAL = [
 # Depuración de costes (horizonte de 120 meses): meses 1 a 9, total e indicador de alineamiento
 REVIEW = [
     ("depuracion-pv-empresa-a", "PV-EmpresaA", "$A$1:$DY$26", {"landscape": True, "headings": True, "hide": "P:DV"}),
-    ("depuracion-pegado", "PV-depuración", "$A$1:$DY$31", {"landscape": True, "headings": True, "hide": "N:DV"}),
+    ("depuracion-pegado", "PV-depuración", "$A$1:$DY$35", {"landscape": True, "headings": True, "hide": "N:DV"}),
     ("depuracion-grafico", "Depuración costes", "$A$1:$U$30", {"landscape": True}),
     ("depuracion-grafico-paquete", "Depuración costes", "$A$1:$U$30", {"landscape": True, "value": ("B4", "1.1.2")}),
 ]
@@ -112,6 +120,43 @@ GROUPS = ("una-empresa", "multiempresa", "varios", "depuracion")
 MARKS = [(1, 50, 106), (2, 608, 106), (3, 232, 156), (4, 229, 253), (5, 90, 356), (6, 372, 449), (7, 340, 544),
          (8, 104, 662), (9, 530, 662), (10, 127, 983), (11, 834, 955)]
 DPI = 130
+# Errores de Excel por automatización COM que suelen ser transitorios: se repite la captura. 0x800A01A8 es el del
+# ticket #18 (al leer cell.NumberFormat en la segunda captura, solo en algunas ejecuciones).
+TRANSIENT_COM_ERRORS = {
+    -2146827864: "0x800A01A8",                      # Excel: se requiere un objeto
+    -2147418111: "RPC_E_CALL_REJECTED",             # Excel ocupado: llamada rechazada
+    -2147417846: "RPC_E_SERVERCALL_RETRYLATER",     # Excel ocupado: reintentar más tarde
+}
+DISP_E_EXCEPTION = -2147352567                      # excepción de Excel: el código está en excepinfo[5]
+RETRY_WAITS = (1, 2, 4, 8)                          # segundos de pausa antes de cada nuevo intento
+
+
+def com_error_code(exc: BaseException) -> int | None:
+    """Código (HRESULT) de un error de automatización COM (pywintypes.com_error: hresult, texto, excepinfo,
+    argumento), o None si no lo es."""
+    args = getattr(exc, "args", ())
+    code = args[0] if args and isinstance(args[0], int) else None
+    if code == DISP_E_EXCEPTION and len(args) > 2 and isinstance(args[2], tuple) and len(args[2]) > 5 \
+            and isinstance(args[2][5], int):
+        return args[2][5]
+    return code
+
+
+def with_retries(action, what: str, waits=RETRY_WAITS, sleep=time.sleep):
+    """Resultado de action(); si Excel devuelve un error transitorio, la repite después de cada pausa de waits."""
+    for attempt, wait in enumerate((*waits, None), start=1):
+        try:
+            return action()
+        except Exception as exc:
+            code = com_error_code(exc)
+            if code not in TRANSIENT_COM_ERRORS:
+                raise
+            if wait is None:
+                raise SystemExit(f"Excel no respondió al exportar {what}: error {TRANSIENT_COM_ERRORS[code]} en los "
+                                 f"{attempt} intentos. Se puede repetir solo ese grupo con --solo, o indicar otra "
+                                 "carpeta para los libros intermedios con --carpeta-trabajo.") from exc
+            print(f"  Excel no respondió al exportar {what} ({TRANSIENT_COM_ERRORS[code]}): nuevo intento en {wait} s")
+            sleep(wait)
 
 
 def run(*args: str) -> None:
@@ -177,12 +222,19 @@ def build_review_book(work: Path) -> Path:
     text = re.sub(r"^activar = false", "activar = true", text, flags=re.M)
     text = re.sub(r"^depuracion_costes = false", "depuracion_costes = true", text, flags=re.M)
     text = re.sub(r"^depuracion_alineamiento = false", "depuracion_alineamiento = true", text, flags=re.M)
+    # Precio de las EDT interna: la sección [depuracion_precio] del ejemplo, sin comentar
+    text = re.sub(r'^# (\[depuracion_precio[\w.]*\]|calculo_precio = .*|(?:[A-E]|K[A-G]|BE) = ".*")$', r"\1", text,
+                  flags=re.M)
     cfg = work / "config_depuracion.toml"
     cfg.write_text(text, encoding="utf-8")
     book = work / "EVM_Depuracion.xlsx"
     run("evm_export.py", "generar", "--origen", str(Path("ejemplos") / "programa_ejemplo.xml"), "--config", str(cfg),
         "--salida", str(book))
-    example_helper().fill_book(book)            # BAC de cada fila y previsión pegada en PV-depuración
+    example_helper().fill_book(book)            # BAC de cada fila, previsión pegada en PV-depuración y recargos
+    # Cálculos del plan (fórmulas en naranja, datos en amarillo) y precio de la EDT interna GPR03: procesar-costes
+    # --calculos
+    run("evm_export.py", "procesar-costes", "--libro", str(book), "--config", str(cfg), "--calculos",
+        "--sin-respaldo")
     return book
 
 
@@ -248,10 +300,53 @@ def spanish_dates(ws, area: str) -> None:
                 axis.TickLabels.NumberFormat = "[$-C0A]" + fmt
 
 
+def capture(xl, wb, item: tuple, pdftoppm: str, tmp: Path) -> None:
+    """Exporta una zona de una hoja a PNG. Se puede repetir: vuelve a aplicar las mismas opciones a la hoja."""
+    from PIL import Image
+
+    name, sheet, area, opts = item
+    ws = wb.Worksheets(sheet)
+    spanish_dates(ws, area)
+    if "hide" in opts:
+        ws.Range(opts["hide"]).EntireColumn.Hidden = True
+    if "hide_rows" in opts:
+        ws.Range(opts["hide_rows"]).EntireRow.Hidden = True
+    if "width" in opts:
+        ws.Columns(opts["width"][0]).ColumnWidth = opts["width"][1]
+    if "date" in opts:
+        cell, value = opts["date"]
+        ws.Range(cell).Value = value.replace(tzinfo=dt.timezone.utc)
+    if "value" in opts:
+        cell, value = opts["value"]
+        ws.Range(cell).Value = value
+    for cell, value in opts.get("values", []):
+        ws.Range(cell).Value = value.replace(tzinfo=dt.timezone.utc) if isinstance(value, dt.datetime) else value
+    xl.CalculateFull()
+    xl.PrintCommunication = False
+    ps = ws.PageSetup
+    ps.PrintArea = area
+    ps.Orientation = 2 if opts.get("landscape") else 1
+    ps.Zoom = False
+    ps.FitToPagesWide = 1
+    ps.FitToPagesTall = 1
+    ps.PrintHeadings = bool(opts.get("headings"))
+    ps.LeftHeader = ps.CenterHeader = ps.RightHeader = ""
+    ps.LeftFooter = ps.CenterFooter = ps.RightFooter = ""
+    xl.PrintCommunication = True
+    pdf = tmp / f"{name}.pdf"
+    ws.ExportAsFixedFormat(0, str(pdf), 0, False, False)
+    subprocess.run([pdftoppm, "-r", str(DPI), "-png", "-singlefile", str(pdf), str(tmp / name)], check=True)
+    save_png(trim(Image.open(tmp / f"{name}.png").convert("RGB")), OUT / f"{name}.png")
+    print(f"  {name}.png")
+    if "hide" in opts:
+        ws.Range(opts["hide"]).EntireColumn.Hidden = False
+    if "hide_rows" in opts:
+        ws.Range(opts["hide_rows"]).EntireRow.Hidden = False
+
+
 def export(book: Path, items: list, pdftoppm: str, tmp: Path) -> None:
     import pythoncom
     import win32com.client
-    from PIL import Image
 
     pythoncom.CoInitialize()
     xl = win32com.client.DispatchEx("Excel.Application")
@@ -262,45 +357,9 @@ def export(book: Path, items: list, pdftoppm: str, tmp: Path) -> None:
         xl.UseSystemSeparators = False
         xl.DecimalSeparator = ","
         xl.ThousandsSeparator = "."
-        wb = xl.Workbooks.Open(str(book), UpdateLinks=0, ReadOnly=True)
-        for name, sheet, area, opts in items:
-            ws = wb.Worksheets(sheet)
-            spanish_dates(ws, area)
-            if "hide" in opts:
-                ws.Range(opts["hide"]).EntireColumn.Hidden = True
-            if "hide_rows" in opts:
-                ws.Range(opts["hide_rows"]).EntireRow.Hidden = True
-            if "width" in opts:
-                ws.Columns(opts["width"][0]).ColumnWidth = opts["width"][1]
-            if "date" in opts:
-                cell, value = opts["date"]
-                ws.Range(cell).Value = value.replace(tzinfo=dt.timezone.utc)
-            if "value" in opts:
-                cell, value = opts["value"]
-                ws.Range(cell).Value = value
-            for cell, value in opts.get("values", []):
-                ws.Range(cell).Value = value.replace(tzinfo=dt.timezone.utc) if isinstance(value, dt.datetime) else value
-            xl.CalculateFull()
-            xl.PrintCommunication = False
-            ps = ws.PageSetup
-            ps.PrintArea = area
-            ps.Orientation = 2 if opts.get("landscape") else 1
-            ps.Zoom = False
-            ps.FitToPagesWide = 1
-            ps.FitToPagesTall = 1
-            ps.PrintHeadings = bool(opts.get("headings"))
-            ps.LeftHeader = ps.CenterHeader = ps.RightHeader = ""
-            ps.LeftFooter = ps.CenterFooter = ps.RightFooter = ""
-            xl.PrintCommunication = True
-            pdf = tmp / f"{name}.pdf"
-            ws.ExportAsFixedFormat(0, str(pdf), 0, False, False)
-            subprocess.run([pdftoppm, "-r", str(DPI), "-png", "-singlefile", str(pdf), str(tmp / name)], check=True)
-            save_png(trim(Image.open(tmp / f"{name}.png").convert("RGB")), OUT / f"{name}.png")
-            print(f"  {name}.png")
-            if "hide" in opts:
-                ws.Range(opts["hide"]).EntireColumn.Hidden = False
-            if "hide_rows" in opts:
-                ws.Range(opts["hide_rows"]).EntireRow.Hidden = False
+        wb = with_retries(lambda: xl.Workbooks.Open(str(book), UpdateLinks=0, ReadOnly=True), book.name)
+        for item in items:
+            with_retries(lambda: capture(xl, wb, item, pdftoppm, tmp), f"{item[0]}.png")
         wb.Close(SaveChanges=False)
     finally:
         xl.UseSystemSeparators, xl.DecimalSeparator, xl.ThousandsSeparator = original
@@ -320,28 +379,48 @@ def annotate() -> None:
     print("  cuadro-de-mando-anotado.png")
 
 
+def generate(groups: set[str], work: Path, pdftoppm: str) -> None:
+    """Genera los libros de los grupos en la carpeta de trabajo y exporta sus capturas."""
+    if groups - {"depuracion"}:
+        print("Generando los libros del ejemplo (24 meses)...")
+        single, multi, several = build_books(work)
+        print("Exportando capturas a", OUT)
+        for group, book, items in (("una-empresa", single, SINGLE), ("multiempresa", multi, MULTI),
+                                   ("varios", several, SEVERAL)):
+            if group in groups:
+                export(book, items, pdftoppm, work)
+        if "una-empresa" in groups:
+            annotate()
+            export(build_change_log_book(single, work), CHANGE_LOG, pdftoppm, work)
+    if "depuracion" in groups:
+        print("Generando el libro con depuración de costes...")
+        export(build_review_book(work), REVIEW, pdftoppm, work)
+
+
+def work_folder(parent: Path, now: dt.datetime) -> Path:
+    """Subcarpeta nueva de la carpeta de trabajo indicada, para no mezclar los libros de dos ejecuciones."""
+    folder = parent.resolve() / f"capturas-{now:%Y%m%d-%H%M%S}"
+    folder.mkdir(parents=True)
+    return folder
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description="Regenera las capturas del libro Excel de la documentación.")
     p.add_argument("--solo", nargs="+", choices=GROUPS, help="grupos de capturas a regenerar (por defecto, todos)")
-    groups = set(p.parse_args().solo or GROUPS)
+    p.add_argument("--carpeta-trabajo", type=Path, metavar="RUTA",
+                   help="carpeta para los libros y los PDF intermedios: se usa una subcarpeta nueva, que se conserva "
+                        "(por defecto, una carpeta temporal que se borra al terminar)")
+    args = p.parse_args()
+    groups = set(args.solo or GROUPS)
     pdftoppm = find_pdftoppm()
     OUT.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        work = Path(tmp_dir)
-        if groups - {"depuracion"}:
-            print("Generando los libros del ejemplo (24 meses)...")
-            single, multi, several = build_books(work)
-            print("Exportando capturas a", OUT)
-            for group, book, items in (("una-empresa", single, SINGLE), ("multiempresa", multi, MULTI),
-                                       ("varios", several, SEVERAL)):
-                if group in groups:
-                    export(book, items, pdftoppm, work)
-            if "una-empresa" in groups:
-                annotate()
-                export(build_change_log_book(single, work), CHANGE_LOG, pdftoppm, work)
-        if "depuracion" in groups:
-            print("Generando el libro con depuración de costes...")
-            export(build_review_book(work), REVIEW, pdftoppm, work)
+    if args.carpeta_trabajo:
+        work = work_folder(args.carpeta_trabajo, dt.datetime.now())
+        print("Carpeta de trabajo:", work)
+        generate(groups, work, pdftoppm)
+    else:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            generate(groups, Path(tmp_dir), pdftoppm)
 
 
 if __name__ == "__main__":

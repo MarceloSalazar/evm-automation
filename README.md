@@ -27,7 +27,7 @@ simulado.*
   cronograma, con la evaluación DCMA de 14 puntos. Revisa varias planificaciones a la vez y las compara, y
   escribe un **informe de mejoras** por prioridad, sin nombres de tareas, para compartirlo.
 - Cálculo del **% ganado** de cada paquete a la fecha de corte, según su **método de medición** (0/100,
-  50/50, hitos ponderados, % completado, % físico completado, unidades y LOE), y carga del valor del mes
+  50/50, hitos ponderados, % completado, % físico completado, unidades y avance lineal (LOE)), y carga del valor del mes
   en el libro. El **AC** se carga a mano.
 - **Cuadro de Mando** con el mes de reporte seleccionable: BAC, PV, EV, AC, desviaciones, índices con
   semáforo, pronósticos (ETC, EAC, VAC, TCPI), **tendencia** (CPI y SPI de los últimos 3 meses y
@@ -48,9 +48,9 @@ simulado.*
 - Opcional: **multi-empresa**, con el BAC, el PV, el EV y el AC de dos empresas por separado.
 - Opcional: **varios archivos de MS Project** en un mismo informe, cada uno con sus códigos EDT (por
   ejemplo, `1.0.0` a `8.0.0` en un archivo y `9.0.0` en otro).
-- Opcional: **depuración de costes**, para comparar el PV planificado de una empresa con la previsión
-  mensual de su plan de costes y alinear con ella las tareas e hitos de MS Project, o usar el reparto
-  del plan como PV de la empresa (comando `procesar-costes`).
+- Opcional: **depuración de costes**, para comparar, fila a fila, el PV planificado de una empresa con la
+  previsión mensual de su plan de costes y alinear con ella las tareas e hitos de MS Project. El comando
+  `procesar-costes` revisa el plan y escribe sus cálculos.
 - Opcional: **fichas de tareas** para el cliente (comando `generar-fichas`), en un documento Markdown sin
   importes: fechas y duración de la línea base, predecesoras y sucesoras de cada elemento de la EDT.
 - Montos en **euros (EUR)** por defecto.
@@ -173,14 +173,14 @@ El [tutorial](docs/ejemplo-paso-a-paso.md) recorre el ciclo completo con 24 mese
 | Puesta en marcha, cierre mensual, cambios de línea base y buenas prácticas | [Proceso de reporte EVM](docs/proceso-reporte-evm.md) |
 | BAC en el libro, % planificado y % ganado de MS Project, filas del libro, AC, valor del mes y controles | [Cálculo del PV y el EV](docs/calculo-pv-ev.md) |
 | Código EDT, campos personalizados, línea base, fecha de estado y avance | [Preparación en MS Project](docs/preparacion-ms-project.md) |
-| 0/100, fórmulas fijas, hitos ponderados, % completado, % físico, unidades y LOE; cómo elegir y aprobar el método de cada paquete | [Métodos de medición](docs/metodos-de-medicion.md) |
+| 0/100, fórmulas fijas, hitos ponderados, % completado, % físico, unidades y avance lineal (LOE); cómo elegir y aprobar el método de cada paquete | [Métodos de medición](docs/metodos-de-medicion.md) |
 | PV, EV y AC de dos empresas | [Multi-empresa (opcional)](docs/multiempresa.md) |
 | Varios archivos de MS Project en un mismo informe | [Varios archivos (opcional)](docs/varios-archivos.md) |
 | PV planificado frente al plan de costes de una empresa | [Depuración de costes (opcional)](docs/depuracion-costes.md) |
 | Hojas del libro, reglas de uso y `--migrar-desde` | [El libro Excel](docs/libro-excel.md) |
 | Tablero, gráficos, fórmulas e interpretación | [Cuadro de Mando e indicadores](docs/cuadro-de-mando.md) |
 | Paquetes fuera de umbral: causa, impacto y acción correctiva | [Análisis de desviaciones](docs/analisis-desviaciones.md) |
-| `validar`, `generar`, `actualizar`, `analizar`, `generar-fichas` (fichas de tareas para el cliente), `procesar-costes` (PV con el plan de costes) y sus opciones | [Comandos y opciones](docs/comandos.md) |
+| `validar`, `generar`, `actualizar`, `analizar`, `generar-fichas` (fichas de tareas para el cliente), `procesar-costes` (revisión del plan de costes) y sus opciones | [Comandos y opciones](docs/comandos.md) |
 | `config.toml` | [Configuración](docs/configuracion.md) |
 | Comando `validar`, hoja `Validación`, limitaciones y mensajes de error | [Validaciones y solución de problemas](docs/validaciones-y-problemas.md) |
 | Código de cada error y advertencia (`FEC-003`...), qué hacer y cómo silenciarlo | [Códigos de errores y advertencias](docs/codigos.md) |
@@ -232,9 +232,11 @@ análisis). Para cambios grandes conviene acordar el enfoque en el ticket antes 
 Se aceptan Pull Requests con correcciones de problemas o con mejoras. Al abrirlo, la descripción se
 completa con la plantilla del repositorio, que incluye una lista de control con estas buenas prácticas:
 
-- **Un propósito por Pull Request**, en una rama propia creada desde `main`. Quien no tiene permiso de
+- **Un propósito por Pull Request**, en una rama propia creada desde `desarrollo` y con el Pull Request
+  hacia `desarrollo`, la rama que reúne los cambios de la versión siguiente. Quien no tiene permiso de
   escritura en el repositorio trabaja en un *fork* y abre el Pull Request desde allí. `main` contiene
-  solo versiones estables y no admite commits directos.
+  solo las versiones publicadas: recibe únicamente el Pull Request de cada versión, desde `desarrollo`, y
+  no admite commits directos.
 - **Pruebas:** `python -m pytest` debe pasar. Cada corrección o función nueva se acompaña de pruebas; en
   una corrección, una prueba que falle sin ella. Las pruebas y la estructura del código se describen en
   [Desarrollo](docs/desarrollo.md).
@@ -249,11 +251,11 @@ completa con la plantilla del repositorio, que incluye una lista de control con 
   código sigue el estilo del código existente.
 - **Datos:** no se suben libros generados, configuraciones personales ni archivos de proyectos reales.
 - **Descripción:** qué cambia, por qué y cómo se probó, con el ticket relacionado si lo hay
-  (`Closes #<número>`).
+  (`Ticket #<número>`; el ticket se cierra al publicarse la versión que incluye el cambio).
 
-Todos los Pull Requests se revisan antes de incorporarse a `main`, y se pueden pedir cambios. El
+Todos los Pull Requests se revisan antes de incorporarse a `desarrollo`, y se pueden pedir cambios. El
 responsable del repositorio define el número de versión y publica cada versión con sus notas
-([proceso de versiones](docs/desarrollo.md#31-versiones-y-publicaciones)). Al contribuir, se acepta que el
+([flujo de trabajo y proceso de versiones](docs/desarrollo.md#3-flujo-de-trabajo-del-repositorio)). Al contribuir, se acepta que el
 aporte se distribuya bajo la licencia MIT del proyecto.
 
 ---

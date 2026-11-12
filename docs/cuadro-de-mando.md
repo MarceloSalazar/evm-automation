@@ -242,7 +242,8 @@ planificada de 58 meses, la duración estimada es 58 / 0,94 ≈ 62 meses.
 
 Si la curva PV no alcanza el BAC dentro del horizonte, la duración planificada, la duración estimada y
 el término estimado quedan vacíos (el ES, el SV(t) y el SPI(t) se calculan igual); en ese caso se debe
-aumentar `meses`.
+aumentar `meses`. Sin BAC (antes de ingresarlo en el libro) no hay curva PV: el ES, el SV(t), el SPI(t) y
+las duraciones quedan vacíos en la hoja Resumen y se muestran como «-» en la consola de `actualizar`.
 
 ---
 

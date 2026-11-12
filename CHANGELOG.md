@@ -11,7 +11,7 @@ MENOR para funciones nuevas que no impiden usar los libros ya generados, CORRECC
 MAYOR para cambios que exigen regenerar los libros o cambiar la configuración. La versión instalada se
 consulta con `python evm_export.py --version` (con el instalador de Windows, `evm_export --version`).
 
-Los cambios incorporados a `main` que todavía no forman parte de una versión se anotan en
+Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de una versión se anotan en
 *Sin publicar*; al publicar la versión siguiente, esa sección pasa a ser su entrada.
 
 ---
@@ -28,6 +28,226 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 ### Otros
 
+- Ninguna.
+
+<a id="v2.6.0"></a>
+
+## [2.6.0] - 2026-11-12 · Planificación para el cliente y plan de costes por EDT cliente
+
+### Resumen
+
+**Nuevas funciones**
+
+- **Planificación para el cliente (`generar-cliente`):** genera, a partir de la planificación interna, el
+  `.mpp` que se entrega al cliente, con solo las tareas marcadas para él y el mismo avance y el mismo libro
+  EVM que la planificación interna ([Planificación para el cliente](docs/generar-cliente.md)).
+- **Plan de costes por EDT cliente:** la hoja `PV-depuración` suma los importes hasta la EDT cliente, y el
+  EAC del plan se ve debajo del PV de cada fila; `procesar-costes --calculos` escribe en la hoja las
+  fórmulas del plan ([Depuración de costes](docs/depuracion-costes.md#42-qué-líneas-se-leen)).
+- **Precio de las EDT interna:** con el plan a coste, la tabla `Recargos` de la hoja y una expresión de la
+  configuración calculan su precio
+  ([Depuración de costes](docs/depuracion-costes.md#44-precio-de-las-edt-interna-tabla-recargos)).
+- **Registro de diagnóstico** de cualquier comando en un archivo, con `--registro`, para informar
+  problemas ([Comandos](docs/comandos.md)).
+- **Más controles en la revisión del cronograma:** `generar` y `validar` avisan de las líneas base que no
+  corresponden a la tarea (un hito con duración o una tarea larga con una línea base de un día) y de los
+  archivos combinados con fechas de estado distintas; `validar` revisa también las marcas del campo del
+  cliente y muestra las esperas de la más larga a la más corta
+  ([Validaciones](docs/validaciones-y-problemas.md#1-validaciones)).
+- **Proyecto sin línea base:** el aviso indica las otras líneas base guardadas y cómo usarlas, y la
+  consola de `generar` lo muestra siempre primero
+  ([Validaciones](docs/validaciones-y-problemas.md#14-línea-base-validar)).
+- **Menos códigos en la revisión:** cada problema tiene un solo código, con una observación general y una
+  por tarea, y los casos parecidos se informan con el mismo código; el informe de mejoras indica la fecha y
+  la versión, deja las informativas de la estructura en el resumen y los índices DCMA en su tabla
+  ([Códigos](docs/codigos.md#5-códigos-retirados)).
+
+**Correcciones**
+
+- **`procesar-costes` ya no reemplaza el % planificado de MS Project:** el plan de costes se compara con él
+  ([Depuración de costes](docs/depuracion-costes.md#8-revisión-y-cálculos-del-plan-procesar-costes)).
+- **Menos avisos repetidos o innecesarios:** `validar` informa las tareas sin predecesoras o sin sucesoras
+  sin un aviso de resumen que las repita, un campo de la configuración vacío ya no se informa también
+  fila por fila o tarea por tarea, y una tarea de las dos empresas sin `% Reparto` ya no genera un aviso:
+  usa el reparto por defecto
+  ([Validaciones](docs/validaciones-y-problemas.md)).
+- **Índices y fecha de estado más precisos:** el BEI cuenta solo las tareas terminadas con línea base, el
+  último día laborable del mes cierra el mes, una tarea sin vínculos en el comienzo del proyecto se informa
+  sin predecesoras y, sin BAC, el cronograma ganado no se calcula
+  ([Evaluación DCMA](docs/evaluacion-dcma.md#414-bei-punto-14)).
+
+**Otros**
+
+- Los libros con depuración de costes de la versión 2.5 se regeneran con `--migrar-desde`, para tener las
+  fórmulas nuevas y el % planificado de MS Project.
+- Instalador de Windows adjunto a la publicación, con las funciones de las versiones 2.5.0 y 2.6.0.
+- El método `Avance lineal (LOE)` se llama `Avance lineal`; el nombre anterior se sigue reconociendo
+  ([Métodos de medición](docs/metodos-de-medicion.md#37-avance-lineal)).
+- Desde una copia del repositorio que no está en una versión publicada, la versión se indica como
+  `2.5.0 + desarrollo (b513fbb)`: la última versión publicada y el commit
+  ([Comandos](docs/comandos.md#informe-de-mejoras)).
+
+### Nuevas funciones
+
+- **Planificación para el cliente (`generar-cliente`).** Genera, a partir del `.mpp` de la planificación
+  interna, el `.mpp` que se entrega al cliente: el cliente ve las tareas con `Sí` (`Si` o `S`) en el campo
+  de `[cliente] campo` y en sus tareas superiores. Por defecto (`[cliente] actividad_interna = true`), las
+  demás quedan como «Otras tareas», sin nombre ni código EDT, notas ni campos de texto que no use el libro
+  EVM, pero con sus fechas, su avance, sus líneas base y sus vínculos: el % completado de cada tarea, de los
+  resúmenes y del proyecto, y el libro EVM, son los de la planificación interna. Por defecto, el archivo se
+  abre con un filtro que las oculta (`filtrar_vista = true`). Con `actividad_interna = false`, se borran: los
+  resúmenes sin tareas visibles pasan a ser tareas, los vínculos de sus subtareas pasan al resumen y los
+  caminos por tareas ocultas se reemplazan por vínculos puente; se avisa de los resúmenes cuyo % cambia. En
+  los dos casos compara la planificación del cliente con la interna: el % completado del proyecto, el libro
+  EVM fila a fila (y avisa de las filas -D que vería el cliente) y, con «Otras tareas», los datos de cada
+  tarea. MS Project trabaja sobre una copia (la planificación interna no se modifica), recalcula y fija con
+  *No comenzar antes del* las fechas que se adelantarían; el campo del cliente se vacía y el archivo queda
+  de solo lectura. Avisa de las tareas sin valor debajo de una tarea que se muestra (`CLI-031`), que suelen
+  ser tareas nuevas sin marcar. Quita del archivo del cliente los calendarios sin uso y las macros, y
+  comprueba en el archivo guardado, sin MS Project, que no le queda ningún módulo de macros (`CLI-032`,
+  `CLI-033`). Con `--simular` (también con el XML) solo calcula los cambios y la comparación. Escribe
+  un informe de control interno, sin nombres de tareas. Nueva sección `[cliente]` de la configuración,
+  códigos `CFG-054`, `LEC-026` y `CLI-001` a `CLI-033`, documento
+  [Planificación para el cliente](docs/generar-cliente.md), diapositiva 31 de la presentación y pruebas con
+  MS Project real (`tests/test_msproject_cliente.py`).
+- **Registro de diagnóstico en un archivo (`--registro RUTA`).** Todos los comandos pueden escribir el
+  registro completo, con fecha y hora y el detalle de los errores, sin cambiar lo que muestra la consola.
+- **Plan de costes por EDT cliente.** En la hoja `PV-depuración`, los importes se suman hacia arriba
+  (componentes de coste en su EDT interna, EDT interna en su EDT cliente y cada EDT cliente en la de su
+  código superior) y **solo se leen las líneas de EDT cliente** cuyo código es el de una fila de ingreso
+  del libro. La fila «(coste)» de la hoja PV de la empresa, debajo del PV de cada fila, muestra sus meses
+  y, en la columna D, su **EAC**; la columna `Asignado a` indica si cada EDT cliente se lee, es un resumen
+  del libro, está incluida en una superior o no tiene fila
+  ([Depuración de costes](docs/depuracion-costes.md#42-qué-líneas-se-leen)). `procesar-costes` revisa el
+  plan con las mismas reglas: muestra el EAC de la línea y el BAC de cada fila con plan, y avisa de las
+  líneas sin leer, los importes después del horizonte, las filas sin plan y las EDT cliente repetidas
+  (código nuevo `DEP-019`). Con la opción nueva `--calculos` (o `[exportacion] depuracion_calculos =
+  true`), escribe en la hoja las fórmulas de los cálculos del plan: las sumas, el EAC de cada línea y el
+  BAC de cada EDT cliente, leído de la hoja PV de la empresa, con las celdas calculadas en naranja y las
+  de datos en amarillo
+  ([Cálculos del plan](docs/depuracion-costes.md#43-cálculos-del-plan-celdas-naranjas)); sin esa opción,
+  no modifica el libro. `--migrar-desde` traslada las celdas con fórmula con su valor y vuelve a escribir
+  las fórmulas de los cálculos. Los libros con depuración de la versión 2.5 se deben regenerar con
+  `--migrar-desde` para tener las fórmulas nuevas.
+- **Precio de las EDT interna en la depuración de costes (`[depuracion_precio]`).** Si la empresa escribe
+  su plan a coste, la sección nueva `[depuracion_precio]` define el precio de cada EDT interna con
+  componentes: la expresión `calculo_precio` (por ejemplo,
+  `(A*(1+KA)+B*(1+KB)+C*(1+KC)+D*(1+KD)+E)*(1+KG)*(1+BE)`), con los componentes de coste por el texto de
+  su columna D y los coeficientes de la tabla `Recargos`, nueva, arriba de la hoja `PV-depuración` (un %
+  por año). `procesar-costes --calculos` escribe la fórmula del precio en cada mes; la EDT cliente suma el
+  precio de sus EDT interna
+  ([Precio de las EDT interna](docs/depuracion-costes.md#44-precio-de-las-edt-interna-tabla-recargos)).
+  Códigos nuevos `CFG-055` y `DEP-022` a `DEP-026`. Para dejar lugar a la tabla, la hoja `PV-depuración`
+  tiene la disposición de la plantilla de la empresa: el plan empieza en la celda **A12** (antes, A8) y
+  los controles están en A2:C4. `--migrar-desde` pasa el plan de un libro anterior a la celda A12 y
+  traslada los recargos; `procesar-costes` pide regenerar los libros con el plan desde A8 (`DEP-024`).
+- **Línea base que no corresponde a la tarea (`generar` y `validar`).** `FEC-004` (hito con duración)
+  revisa también la línea base: un hito con duración en la línea base pesa entero en el mes del fin de la
+  línea base, sin su duración. Código nuevo `FEC-018`: una tarea de 5 días laborables o más con una línea
+  base de un día o menos (pesa como una tarea de un día). Suele pasar cuando la línea base se guardó antes
+  de que la tarea tuviera su forma actual
+  ([Validaciones](docs/validaciones-y-problemas.md#11-datos-del-libro-generar-y-validar)).
+- **Fechas de estado distintas en `[[proyectos]]` (`generar` y `validar`).** Código nuevo `CFG-056`: los
+  archivos tienen fechas de estado distintas, o alguno no tiene. Hasta ahora solo lo indicaba `actualizar`,
+  al detenerse (`ACT-005`); la consola de `generar` lo muestra primero
+  ([Varios archivos](docs/varios-archivos.md#6-cierre-mensual)).
+- **Proyecto sin la línea base seleccionada (`FEC-009`).** El aviso indica las otras líneas base guardadas,
+  con la cantidad de tareas de cada una, y la clave para usarlas (`linea_base`, la del archivo en
+  `[[proyectos]]`, o `--linea-base`); la consola de `generar` lo muestra siempre primero, también con varios
+  archivos, y la fuente del PV de ese archivo dice que se usaron las fechas actuales (antes decía «duración
+  de la línea base»).
+- **Marcas del campo del cliente en `validar`.** Con `[cliente] campo`, `validar` informa los valores no
+  reconocidos, las tareas con Sí debajo de una sin Sí y las tareas sin valor debajo de una que se muestra
+  (`CLI-003`, `CLI-004` y `CLI-031`), como `generar-cliente`
+  ([Planificación para el cliente](docs/generar-cliente.md)). Con un .mpp, `validar` lee el campo del
+  cliente y el formato de la posición de los vínculos.
+- **Esperas de la más larga a la más corta (`LOG-008`).** El aviso de los vínculos con posición positiva
+  los lista de la posición más larga a la más corta, con su valor (días laborables, días transcurridos o
+  en %) y la predecesora ([Evaluación DCMA](docs/evaluacion-dcma.md#43-posiciones-punto-3)).
+- **Un código por problema.** Los códigos de `validar` y de la hoja `Validación` se unificaron: cada
+  problema tiene un solo código, con una observación general (cuántas tareas) y una por tarea, y los casos
+  parecidos comparten código; el mensaje indica el caso. 27 códigos se retiraron y se informan con otro
+  ([Códigos retirados](docs/codigos.md#5-códigos-retirados)):
+  - resumen y detalle con el mismo código: `FEC-007` en `FEC-006`, `FEC-011` en `FEC-010`, `FEC-014` en
+    `FEC-013`, `FEC-016` en `FEC-015`, `EMP-004` en `EMP-003`, `VIS-008` en `VIS-007`, `EDT-014` en
+    `EDT-013`, `AVA-009` y `AVA-010` en `AVA-011`, `AVA-017` en `AVA-016`, `LOG-012` en `LOG-011`, `LOG-015`
+    en `LOG-014` y `LOG-019` en `LOG-018`;
+  - el mismo hecho en dos controles: `AVA-012` y `AVA-014` en `AVA-013` (tareas atrasadas respecto de la
+    línea base: las que debían terminar o comenzar), `EDT-004` en `EDT-005` (código que no depende del de
+    la tarea superior, también si es el mismo), `LOG-004` y `LOG-005` en `LOG-003` (tarea sin predecesoras
+    o sin sucesoras) y `FEC-002` en `FEC-001` (fin anterior al comienzo, en la línea base o en el programa
+    actual);
+  - campos de la configuración: `LEC-011` a `LEC-016` en `LEC-010` (no se encontró el campo) y `LEC-020` y
+    `LEC-021` en `LEC-019` (campo vacío en todas las tareas). Con el campo de método vacío o sin encontrar,
+    las filas sin método ya no se informan también con `MET-005`; con el de empresa, las tareas sin empresa
+    ya no se informan también con `EMP-003`.
+
+  Un código retirado en `silenciar` no silencia nada: se informa con `CFG-047`, que indica el código que
+  lo informa ahora. Los mensajes de `validar` ya no repiten el % de la evaluación DCMA ni su umbral: están
+  en la tabla de la evaluación; `LOG-009` indica cuántos vínculos son de cada otro tipo y sus tareas, y
+  `AVA-015`, los días que quedan y el atraso. `docs/codigos.md` lista los códigos retirados en una tabla
+  final, con el código que los informa.
+- **Informe de mejoras (`validar --informe`).** Indica la fecha y la hora de la revisión y la versión del
+  programa. Las informativas que solo describen la estructura (`EDT-016`, `EDT-017`, `EDT-018`, `EDT-022`,
+  `VIS-007` y `LEC-024`) no se listan como mejoras: el resumen tiene sus datos, con dos filas nuevas (filas
+  «Otras tareas» y tareas sumadas en la fila de su elemento superior). Las tareas de un código con varios
+  casos se agrupan por caso (por ejemplo, `LOG-003` sin predecesoras y sin sucesoras), y las mejoras de
+  prioridad alta del resumen se ordenan por la cantidad de tareas
+  ([Comandos](docs/comandos.md#informe-de-mejoras)).
+- **Versión de desarrollo.** Al ejecutar desde una copia del repositorio que no está en una versión
+  publicada, la consola, `--version`, el registro de diagnóstico, el libro y el informe de mejoras indican la
+  última versión publicada y el commit, como lo muestra GitHub: `2.5.0 + desarrollo (b513fbb)`. El
+  instalador y una copia en una versión publicada indican su número.
+
+### Correcciones
+
+- **`procesar-costes` ya no reemplaza el % planificado de MS Project.** Hasta la versión 2.5, escribía
+  en la hoja `% PV` de la empresa el reparto del plan de costes, y en esas filas se perdía la comparación
+  con MS Project. Ahora el % planificado es siempre el de MS Project, y el plan se compara con él en las
+  filas «(coste)» y en la hoja `Depuración costes`
+  ([Revisión y cálculos del plan](docs/depuracion-costes.md#8-revisión-y-cálculos-del-plan-procesar-costes)).
+  En un libro procesado con una versión anterior, `procesar-costes` y `actualizar` avisan de esas filas
+  (`DEP-021`), y `--migrar-desde` les devuelve el % de MS Project y conserva el BAC, el % ganado y el AC
+  (`DEP-020`). Códigos `DEP-010` y `DEP-011` retirados.
+- **Tareas sin vínculos sin un resumen repetido (`validar`).** Las tareas sin terminar sin predecesoras o
+  sin sucesoras se contaban en un aviso de resumen (`LOG-002`) que repetía lo que informa la línea de cada
+  tarea y el punto 1 de la tabla de la evaluación DCMA. Ahora cada tarea se informa solo en su línea
+  (`LOG-003`), con lo que le falta: predecesoras y sucesoras, solo predecesoras o solo sucesoras, y el % de
+  las tareas sin terminar sigue en el punto 1 de la tabla
+  ([Evaluación DCMA](docs/evaluacion-dcma.md#41-lógica-punto-1)). Código `LOG-002` retirado.
+- **Sin aviso por `% Reparto` vacío (multi-empresa).** `generar` y `validar` ya no avisan cuando el campo
+  de reparto existe, pero está vacío en todas las tareas: una tarea `Ambas` sin reparto se reparte con
+  `reparto_por_defecto` (50 % por defecto), como está previsto
+  ([Multi-empresa](docs/multiempresa.md#7-validaciones-y-controles)). Código `LEC-023` retirado.
+- **BEI con las tareas terminadas sin línea base.** El índice contaba en el numerador todas las
+  tareas terminadas, también las que no tienen línea base (por ejemplo, agregadas después de guardarla), y
+  podía superar 1 aunque faltaran tareas por terminar. Ahora cuenta solo las terminadas con línea base, e
+  indica cuántas terminadas no la tienen
+  ([Evaluación DCMA](docs/evaluacion-dcma.md#414-bei-punto-14)).
+- **Tarea sin vínculos en el comienzo del proyecto (`LOG-003`).** No se avisaba que le faltaban
+  las predecesoras a ninguna tarea que comenzara el día del comienzo del proyecto, y una tarea sin vínculos
+  queda justamente ahí (por ejemplo, un hito que perdió sus vínculos). Ahora solo no necesita predecesoras
+  la tarea que comienza con el proyecto y tiene sucesoras, y solo no necesita sucesoras la que termina con
+  el proyecto y tiene predecesoras ([Evaluación DCMA](docs/evaluacion-dcma.md#41-lógica-punto-1)).
+- **Último día laborable del mes (`AVA-018` y `ACT-018`).** Una fecha de estado o de corte en el último día
+  laborable del mes, según el calendario del proyecto (por ejemplo el viernes 30, si el 31 es sábado), ya no
+  se avisa como si no fuera fin de mes.
+- **Cronograma ganado sin BAC.** Sin BAC en el libro, `actualizar` mostraba un ES de 1 mes y un SPI(t) que
+  no correspondían; ahora el ES, el SV(t), el SPI(t) y las duraciones se muestran como «-», y la hoja
+  `Resumen` de los libros nuevos los deja vacíos
+  ([Cuadro de mando](docs/cuadro-de-mando.md#7-earned-schedule-cronograma-ganado)).
+
+### Otros
+
+- Presentación: la versión en la portada. Capturas de la hoja `PV-depuración` actualizadas.
+- **Método `Avance lineal`.** El método `Avance lineal (LOE)` pasa a llamarse `Avance lineal`, como en la
+  documentación de los métodos: en el desplegable de la columna C y la hoja `Listas`, en la configuración
+  de ejemplo, en el proyecto de ejemplo, en las capturas del libro y en la diapositiva 22 de la
+  presentación. El nombre anterior se sigue reconociendo en MS Project y en las columnas C de los libros,
+  y en `[metodos] lista` conserva su descripción en la hoja `Listas`. Una configuración con lista propia
+  muestra el nombre nuevo en el desplegable cuando se cambia en `[metodos] lista`
+  ([Métodos de medición](docs/metodos-de-medicion.md#37-avance-lineal)).
+- Instalador de Windows de nuevo en la publicación, con las funciones de las versiones 2.5.0 y 2.6.0.
 - **Notas de las publicaciones resumidas:** cada versión de este registro empieza con un *Resumen* en
   viñetas, con enlaces a la documentación, y la publicación de GitHub muestra solo ese resumen, con los
   enlaces a las notas detalladas de la versión en este archivo y a los cambios en el código. Las notas de
@@ -35,6 +255,16 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 - `docs/herramientas/notas_version.py` genera esas notas con enlaces completos a la documentación de la
   versión y una línea por viñeta (parte del ticket #18); `--detalle` muestra las notas detalladas
   ([Desarrollo](docs/desarrollo.md#31-versiones-y-publicaciones)).
+- `docs/herramientas/capturas_excel.py` (ticket #18): si Excel devuelve un error de automatización que
+  suele ser transitorio, como el `0x800A01A8` del ticket al leer el formato de las celdas, la captura se
+  repite después de una pausa, hasta cuatro veces, y si sigue sin responder el script termina con un
+  mensaje que indica la captura. La opción nueva `--carpeta-trabajo RUTA` genera los libros y los PDF
+  intermedios en una subcarpeta nueva de esa carpeta, que se conserva
+  ([Desarrollo](docs/desarrollo.md#4-documentación-e-imágenes)).
+- **Rama `desarrollo`:** los cambios se incorporan con un Pull Request hacia la rama nueva `desarrollo`,
+  que reúne los de la versión siguiente; `main` recibe solo el Pull Request de cada versión, desde
+  `desarrollo`, con un commit de fusión. Los tickets se cierran con el Pull Request de la versión
+  ([Flujo de trabajo del repositorio](docs/desarrollo.md#3-flujo-de-trabajo-del-repositorio)).
 
 <a id="v2.5.0"></a>
 
@@ -110,8 +340,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
   conservan ese % al regenerar el libro con `--migrar-desde`, también en el libro de entrega sin
   depuración (`DEP-010` y `DEP-011`, nuevos), y `actualizar` no lo compara con la línea base de MS
   Project (`ACT-047`). Observaciones del comando: `DEP-012` a `DEP-018`, nuevos
-  ([Depuración de costes](docs/depuracion-costes.md#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes),
-  [Comandos](docs/comandos.md#procesar-costes-pv-con-el-reparto-del-plan-de-costes)).
+  ([Depuración de costes](docs/depuracion-costes.md#8-revisión-y-cálculos-del-plan-procesar-costes),
+  [Comandos](docs/comandos.md#procesar-costes-revisión-y-cálculos-del-plan-de-costes)).
 - **Más controles en `validar`:** las líneas base guardadas (cuántas tareas revisadas tienen fecha de
   comienzo en cada una) y la que usa el % planificado (`LEC-024`); las
   tareas resumen cuya línea base no coincide con la de sus tareas de detalle porque no se resumió al
@@ -1133,7 +1363,8 @@ Los cambios incorporados a `main` que todavía no forman parte de una versión s
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.5.0...HEAD
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.6.0...desarrollo
+[2.6.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.1...v2.5.0
 [2.4.1]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.3.0...v2.4.0

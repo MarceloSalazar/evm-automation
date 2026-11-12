@@ -114,12 +114,15 @@ def test_document_is_up_to_date():
     spec.loader.exec_module(tool)
     current = (ROOT / "docs" / "codigos.md").read_text(encoding="utf-8")
     assert current == tool.render(), "docs/codigos.md no está al día: python docs\\herramientas\\codigos.py"
-    for code in CATALOG:
-        assert f"\n#### {code}\n" in current
+    for code in CATALOG.values():
+        if code.retired:                # tabla de códigos retirados, con su ancla
+            assert f'<a id="{code.id.lower()}"></a>{code.id} |' in current
+        else:
+            assert f"\n#### {code.id}\n" in current
 
 
 def test_issue_takes_severity_and_topic_from_the_catalog():
-    i = Issue("FEC-007", "1.2.3", "Montaje", "Duración estimada.")
+    i = Issue("FEC-006", "1.2.3", "Montaje", "Duración estimada.")
     assert (i.severity, i.topic) == (SEV_WARN, TOPIC_DATES)
     assert Issue("LOG-008", message="x", severity=SEV_INFO).severity == SEV_INFO       # severidad variable
     assert Issue("EDT-010").severity == SEV_ERROR       # error que detiene el programa, informado por validar
@@ -129,32 +132,45 @@ def test_issue_takes_severity_and_topic_from_the_catalog():
 # Silenciar
 # ----------------------------------------------------------------------------
 def test_silence_rules_and_invalid_codes():
-    s = parse_silence(["fec-007", " MET-004:1.2.1.0 ", "XXX-001", "nada", "CFG-001", "CFG-049", "EDT-001:", ""])
-    assert s.rules == {"FEC-007": None, "MET-004": {"1.2.1"}}
+    s = parse_silence(["fec-006", " MET-004:1.2.1.0 ", "XXX-001", "nada", "CFG-001", "CFG-049", "EDT-001:", ""])
+    assert s.rules == {"FEC-006": None, "MET-004": {"1.2.1"}}
     assert [i.id for i in s.issues] == ["CFG-047", "CFG-047", "CFG-048", "CFG-048", "CFG-047"]
     assert all(i.severity == SEV_WARN for i in s.issues)
     assert parse_silence(["MET-004:1.2.1", "MET-004"]).rules == {"MET-004": None}
     assert parse_silence(["MET-004", "MET-004:1.2.1"]).rules == {"MET-004": None}
 
 
+def test_retired_code_in_silenciar_is_reported_with_its_replacement():
+    """Un código retirado no silencia nada: CFG-047 indica el código que lo informa desde entonces."""
+    s = parse_silence(["LOG-004", "FEC-007:1.2"])
+    assert s.rules == {}
+    assert [i.id for i in s.issues] == ["CFG-047", "CFG-047"]
+    assert "LOG-004 es un código retirado en la versión 2.6.0 (desde entonces se informa con LOG-003)" \
+        in s.issues[0].message
+    assert "se informa con FEC-006" in s.issues[1].message
+    for code in CATALOG.values():
+        if code.retired and code.by:
+            assert code.by in CATALOG and not CATALOG[code.by].retired, code.id
+
+
 def test_silence_by_code_and_by_wbs_code():
-    s = parse_silence(["FEC-007", "MET-004:1.2.1", "MET-004:2.1-D"])
-    issues = [Issue("FEC-007", "1.1.0", "A", "x"), Issue("MET-004", "1.2.1.0", "B", "y"),
+    s = parse_silence(["FEC-006", "MET-004:1.2.1", "MET-004:2.1-D"])
+    issues = [Issue("FEC-006", "1.1.0", "A", "x"), Issue("MET-004", "1.2.1.0", "B", "y"),
               Issue("MET-004", "1.2.10", "C", "z"), Issue("MET-004", "2.1.0-D", "D", "w"),
               Issue("EDT-009", "3", "E", "v")]
     out = s.apply(issues)
     assert [(i.id, i.code) for i in out] == [("MET-004", "1.2.10"), ("EDT-009", "3"), ("CFG-049", "")]
     assert out[-1].severity == SEV_INFO and "3 observaciones silenciadas" in out[-1].message
-    assert "FEC-007 (1), MET-004 (2)" in out[-1].message
+    assert "FEC-006 (1), MET-004 (2)" in out[-1].message
     assert parse_silence([]).apply(issues) == issues                 # sin silenciar: sin resumen
 
 
 def test_config_key_silenciar(tmp_path):
     path = tmp_path / "c.toml"
-    path.write_text('[validacion]\nsilenciar = ["FEC-007", "LOG-004:1.2"]\n', encoding="utf-8")
-    assert load_config(path).silence == ["FEC-007", "LOG-004:1.2"]
-    path.write_text('[validacion]\nsilenciar = "FEC-007, LOG-004"\n', encoding="utf-8")
-    assert load_config(path).silence == ["FEC-007", "LOG-004"]
+    path.write_text('[validacion]\nsilenciar = ["FEC-006", "LOG-003:1.2"]\n', encoding="utf-8")
+    assert load_config(path).silence == ["FEC-006", "LOG-003:1.2"]
+    path.write_text('[validacion]\nsilenciar = "FEC-006, LOG-003"\n', encoding="utf-8")
+    assert load_config(path).silence == ["FEC-006", "LOG-003"]
     path.write_text("[validacion]\nsilenciar = 3\n", encoding="utf-8")
     with pytest.raises(ConfigError) as exc:
         load_config(path)

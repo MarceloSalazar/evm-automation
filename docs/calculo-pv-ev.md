@@ -334,9 +334,10 @@ Casos especiales (se informan en `Validación`):
 | Tarea sin fechas de línea base (agregada después de guardarla) | Se usan sus fechas actuales y se advierte. |
 | Ninguna tarea de la fila tiene fechas | La fila no tiene % planificado: su BAC no se puede repartir en el tiempo. |
 
-Si el PV de una empresa debe seguir el reparto mensual de su plan de costes, y no el de las tareas, el
-comando `procesar-costes` reemplaza el % planificado de sus filas por el de ese plan
-([Depuración de costes](depuracion-costes.md#8-pv-con-el-reparto-del-plan-de-costes-procesar-costes)).
+El % planificado sale siempre de MS Project. Para comprobar que el PV de una empresa sigue el reparto
+mensual de su plan de costes, se compara con él en un libro con
+[depuración de costes](depuracion-costes.md), y las diferencias se ajustan en MS Project (fechas, hitos y
+su `Peso hito`).
 
 **Ejemplo** (caso ilustrativo, con datos distintos de los del proyecto de ejemplo). Paquete
 `3.2.1 Suministro de equipos`, BAC 1.000.000:
@@ -401,7 +402,7 @@ planificado:
 | `% Completado` | Σ peso de cada tarea × su *% completado*. Un hito cuenta su peso cuando está cumplido. |
 | `% Físico completado` | Igual, con el *% físico completado*. |
 | `Unidades completadas` | Igual que `% Físico completado` (en ese campo se registra el cociente unidades hechas / unidades totales). |
-| `Avance lineal (LOE)` | El % planificado acumulado a la fecha de corte (EV = PV). |
+| `Avance lineal` | El % planificado acumulado a la fecha de corte (EV = PV). |
 | `Por definir` u otro texto | Se usa `% Completado` y se informa. |
 
 Las fórmulas fijas se reconocen también escritas con `%` o con espacios (`50%/50%`, `0 / 100`).
@@ -420,7 +421,7 @@ Particularidades:
   toma como 0; si ningún hito tiene peso positivo, todos pesan igual. Si la fila no tiene hitos, se usa
   *% físico completado* cuando alguna tarea lo tiene registrado y, si no, *% completado*. Cada caso se
   informa en pantalla.
-- **Avance lineal (LOE):** el EV es igual al PV acumulado de la fila, por lo que la fila nunca tiene
+- **Avance lineal:** el EV es igual al PV acumulado de la fila, por lo que la fila nunca tiene
   variación de cronograma (SV = 0, SPI = 1). Sí puede tener variación de costo.
 - **Tareas sin fechas** (sin pesos): el avance de la fila es el promedio simple de sus tareas.
 - **Filas `-D Otras tareas`:** el avance se mide solo con las tareas que forman la fila (las que
@@ -479,8 +480,9 @@ es el % ganado acumulado.*
   registrado en MS Project debe corresponder a la fecha de corte. El XML se debe guardar **después** de
   registrar el avance y fijar la fecha de estado
   ([Preparación en MS Project](preparacion-ms-project.md#7-fecha-de-estado-y-registro-del-avance)).
-- Se debe usar el **último día del mes**. El PV acumulado a la fecha de corte incluye el mes completo;
-  si la fecha de corte es otro día, se advierte.
+- Se debe usar el **último día del mes** (o su último día laborable, según el calendario del proyecto:
+  el viernes 30, si el 31 es sábado). El PV acumulado a la fecha de corte incluye el mes completo; si la
+  fecha de corte es otro día, se advierte.
 - Si la fecha de corte es anterior a la última cargada en el libro, se advierte.
 - Con varios archivos, sin `--fecha-corte` todos deben tener la misma fecha de estado; con
   `--fecha-corte`, se advierte qué archivos tienen otra ([Varios archivos](varios-archivos.md#6-cierre-mensual)).

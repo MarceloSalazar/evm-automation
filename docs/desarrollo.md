@@ -95,7 +95,28 @@ python -m pytest -m msproject -v
 
 Opcionales: `EVM_CONFIG` (archivo de configuración; por defecto `config.toml` si existe y, si no,
 `config.ejemplo.toml`), `EVM_LINEA_BASE` (línea base N) y `EVM_TOLERANCIA_PV` (diferencia admitida en el
-% planificado de cada mes; por defecto 0.005, es decir, 0,5 %). Los dos motores reparten la duración de
+% planificado de cada mes; por defecto 0.005, es decir, 0,5 %).
+
+`test_msproject_cliente.py` (misma marca) prueba `generar-cliente` con el `.mpp` de `EVM_MPP`: genera el
+archivo del cliente en la carpeta temporal de pytest con la configuración de `EVM_CONFIG`, y otra vez con el
+otro valor de `actividad_interna`, y comprueba los dos modos: que el origen no cambió, que quedan
+exactamente las tareas esperadas, que el campo del cliente está vacío y que no hay avisos de algo que MS
+Project no hizo (`CLI-015`, `CLI-017`, `CLI-019`, `CLI-027`, `CLI-028`, `CLI-029`, `CLI-033`). Comprueba
+también que el archivo del cliente solo tiene calendarios en uso y ningún módulo de macros (leído del
+archivo con `evm.mpp_macros`), y que la comprobación de los vínculos reconoce el texto de las predecesoras
+(si no, recorrería cada vínculo y sería lenta); con `-s` muestra las macros del origen, los calendarios y la
+duración de cada etapa. Con «Otras tareas»
+(`actividad_interna = true`), que no tienen nombre ni código EDT, que todas las tareas conservan sus
+fechas, su avance, su duración y su línea base, y que el % completado del proyecto y cada fila del libro
+EVM coinciden con la planificación interna. Con las tareas borradas (`actividad_interna = false`), que
+las fechas son las de la planificación interna (o el informe de control explica por qué no), que las
+tareas de detalle y los resúmenes convertidos conservan su % completado y que el de los demás resúmenes
+es el previsto. Con `filtrar_vista = true` en `EVM_CONFIG`, que el archivo del cliente se abre con el
+filtro *Tareas del cliente*. Comprueba además que el registro y el informe no tienen nombres de tareas y
+que `--sobrescribir` reemplaza el archivo de solo lectura. Si está `EVM_MPP_XML`,
+compara además el cálculo con el `.mpp` y con el XML. Necesita en `EVM_CONFIG` la clave `[cliente] campo`
+y, si el archivo tiene una sola planificación, `[exportacion] planificacion` vacía o sin indicar. Con `-s` muestra la carpeta con el archivo generado, el
+informe y el registro de diagnóstico. Los dos motores reparten la duración de
 las tareas con el calendario del proyecto; el motor COM no lee las excepciones que solo cambian el horario
 de un día laborable, por eso se admite una pequeña diferencia. Los mensajes de las pruebas solo muestran
 códigos EDT, UniqueID, fechas y porcentajes (con multi-empresa, «empresa A» y «empresa B»), y los datos
@@ -123,7 +144,7 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/validation.py` | Controles del archivo de MS Project: códigos EDT, fechas y duración, pesos, método y empresas (hoja `Validación` y `validar`), avance a la fecha de estado y lógica del cronograma con los criterios DCMA (solo `validar`). |
 | `evm/percent.py` | Peso de cada tarea (duración de la línea base y `Peso hito`), % planificado y % ganado de cada fila y de cada empresa. |
 | `evm/cost_review.py` | Depuración de costes: hojas `PV-depuración`, `Depuración costes` y `_depuracion` (asignación con fórmulas de la previsión pegada, y la misma asignación en Python) e indicador de alineamiento. |
-| `evm/cost_plan.py` | Comando `procesar-costes`: reparto mensual del plan de costes de la hoja `PV-depuración` en la hoja `% PV` de la empresa. |
+| `evm/cost_plan.py` | Comando `procesar-costes`: revisión del plan de costes de la hoja `PV-depuración` y, con `--calculos`, sus cálculos. No modifica el % planificado. |
 | `evm/companies.py` | Multi-empresa: parte de cada empresa en cada tarea (columnas `Empresa` y `% Reparto`, con herencia de la tarea superior). |
 | `evm/timeline.py` | Horizonte mensual y utilidades de meses. |
 | `evm/workbook.py` | Escritura del libro Excel y de sus indicadores. |
@@ -182,11 +203,19 @@ resultados no cambian):
 
 ## 3. Flujo de trabajo del repositorio
 
-- La rama `main` contiene solo **versiones estables**. No se hacen commits directos en `main`.
-- Todo cambio se hace en una rama propia y se incorpora mediante un **Pull Request**:
+El repositorio tiene dos ramas permanentes, y en ninguna de las dos se hacen commits directos:
+
+- **`main`** contiene solo las **versiones publicadas**. Recibe únicamente el Pull Request de cada
+  versión, desde `desarrollo`: cada fusión en `main` es una versión, con su etiqueta, su publicación en
+  GitHub y su instalador ([3.1](#31-versiones-y-publicaciones)).
+- **`desarrollo`** reúne los cambios de la versión siguiente.
+
+Todo cambio (corrección, mejora, documentación o herramientas) se hace en una rama propia creada desde
+`desarrollo` y se incorpora con un **Pull Request hacia `desarrollo`**, que se fusiona con *squash* (un
+commit por Pull Request):
 
 ```powershell
-git switch main
+git switch desarrollo
 git pull
 git switch -c mejora/descripcion-breve
 # ... cambios ...
@@ -194,10 +223,15 @@ python -m pytest
 git add -A
 git commit -m "Descripción del cambio"
 git push -u origin mejora/descripcion-breve
-gh pr create --base main --fill
+gh pr create --base desarrollo --fill
 ```
 
 - Antes de abrir el Pull Request, todas las pruebas deben pasar (`python -m pytest`).
+- El cambio se anota en la sección *Sin publicar* de [CHANGELOG.md](../CHANGELOG.md), en el mismo Pull
+  Request.
+- GitHub cierra los tickets indicados con `Closes #N` solo cuando el Pull Request se fusiona en `main`, la
+  rama por defecto. En un Pull Request hacia `desarrollo`, el ticket se indica con `Ticket #N`, y el
+  `Closes #N` se escribe en el Pull Request de la versión que lo incluye.
 - No se deben subir al repositorio libros generados, configuraciones personales (`config.toml`) ni
   archivos de proyectos reales: el repositorio es público.
 - Todos los textos (documentación, mensajes y notas del libro) se escriben en forma impersonal, por
@@ -205,8 +239,9 @@ gh pr create --base main --fill
 
 ### 3.1 Versiones y publicaciones
 
-Cada cambio de versión (`__version__` en `evm/__init__.py`, con el formato descrito en
-[CHANGELOG.md](../CHANGELOG.md)) se acompaña, en el mismo Pull Request, de:
+Una versión se prepara en una rama creada desde `desarrollo` (por ejemplo `version/X.Y.Z`), con su Pull
+Request hacia `desarrollo`. El cambio de versión (`__version__` en `evm/__init__.py`, con el formato
+descrito en [CHANGELOG.md](../CHANGELOG.md)) se acompaña, en ese Pull Request, de:
 
 1. La entrada de la versión en [CHANGELOG.md](../CHANGELOG.md): la sección *Sin publicar* pasa a ser
    `## [X.Y.Z] - AAAA-MM-DD · Título`, precedida del ancla `<a id="vX.Y.Z"></a>`, con las secciones
@@ -227,6 +262,18 @@ Cada cambio de versión (`__version__` en `evm/__init__.py`, con el formato desc
    ```powershell
    python docs\herramientas\version_presentacion.py
    ```
+
+Después se abre el **Pull Request de la versión, de `desarrollo` a `main`**, con los cambios de la
+versión y los tickets que cierra (`Closes #N`). Se fusiona con un **commit de fusión** (*Create a merge
+commit*), no con *squash*: así `main` y `desarrollo` comparten la historia y el Pull Request de la versión
+siguiente muestra solo sus cambios.
+
+```powershell
+gh pr create --base main --head desarrollo --title "Versión X.Y.Z: título"
+gh pr merge <número> --merge
+```
+
+En este Pull Request no se usa `--delete-branch` ni la opción de borrar la rama: `desarrollo` se conserva.
 
 Después de fusionar el Pull Request en `main`, se crea la etiqueta en ese commit y la publicación en
 GitHub con el título y las notas de la versión:
@@ -257,8 +304,9 @@ gh release upload vX.Y.Z dist\ExportadorEVM-X.Y.Z-instalador.exe
 ```
 
 `notas_version.py` verifica que la versión tenga el ancla, el resumen y las tres secciones. Los cambios
-que no modifican la versión (por ejemplo, solo documentación) se anotan en la sección *Sin publicar* del
-CHANGELOG, en el mismo Pull Request, y forman parte de la entrada de la versión siguiente.
+que no modifican la versión (por ejemplo, solo documentación) se incorporan a `desarrollo`, se anotan en
+la sección *Sin publicar* del CHANGELOG, en el mismo Pull Request, y se publican con la versión
+siguiente.
 
 ### 3.2 Instalador de Windows
 
@@ -317,8 +365,17 @@ con Python; sin MS Project se usa el XML.
   con Excel (sin mostrarlo y sin guardar cambios), exporta cada zona a PDF y la convierte a PNG con
   `pdftoppm` (Poppler). Con `--solo` se regenera solo un grupo de capturas (`una-empresa`,
   `multiempresa`, `varios` o `depuracion`), por ejemplo
-  `python docs\herramientas\capturas_excel.py --solo depuracion`. Requiere Windows, Excel y Poppler (`winget install oschwartz10612.Poppler`, o la
-  ruta de `pdftoppm.exe` en la variable de entorno `PDFTOPPM`).
+  `python docs\herramientas\capturas_excel.py --solo depuracion`. Con `--carpeta-trabajo RUTA`, los libros
+  y los PDF intermedios se generan en una subcarpeta nueva de esa carpeta, que se conserva para
+  revisarlos, en lugar de una carpeta temporal. Si Excel devuelve un error de automatización que suele
+  ser transitorio (por ejemplo `0x800A01A8` o una llamada rechazada porque Excel está ocupado), la captura
+  se repite después de una pausa, hasta cuatro veces; si sigue sin responder, el script termina con un
+  mensaje que indica la captura. Requiere Windows, Excel y Poppler
+  (`winget install oschwartz10612.Poppler`, o la ruta de `pdftoppm.exe` en la variable de entorno
+  `PDFTOPPM`).
+- Las capturas regeneradas cambian también cuando solo cambia la fecha y hora de generación del libro
+  (*Generado* en la cabecera de las hojas `PV`, `% PV`, `EV`, `% EV` y `AC`, y en `Resumen`): esas
+  capturas no se suben si no tienen otro cambio.
 - `docs/img/ms-project/` contiene **esquemas** de pantallas de MS Project en formato SVG (texto
   editable). No son capturas: muestran la ubicación de los campos y opciones. Se pueden reemplazar por
   capturas reales de MS Project en español (formato PNG en la misma carpeta, con el mismo nombre de
@@ -363,9 +420,15 @@ consultan para entender un mensaje y para silenciar los códigos que ya revisaro
 ### 5.2 Reglas
 
 - **Un código no se renumera ni se reutiliza.** Si un mensaje deja de existir, su código queda en el
-  catálogo con `retired="X.Y.Z"` (la versión en que se retiró): el documento lo muestra como retirado y
-  las configuraciones que lo silencian siguen siendo válidas. La prueba de numeración correlativa
-  detecta un código borrado.
+  catálogo con `retired="X.Y.Z"` (la versión en que se retiró) y `by="ÁREA-NNN"` (el código que lo informa
+  desde entonces, si lo hay): el documento lo muestra en la tabla de códigos retirados, y en `silenciar`
+  se informa con `CFG-047` y se ignora. La prueba de numeración correlativa detecta un código borrado. Un
+  código que no llegó a publicarse se puede borrar o renumerar.
+- **Un código por problema.** Si un problema afecta a varias tareas, la observación general (cuántas son)
+  y la de cada tarea llevan el mismo código. Los casos parecidos (por ejemplo, sin predecesoras o sin
+  sucesoras) comparten código: el mensaje indica el caso y, con `variant="..."` en la observación, el
+  informe de mejoras agrupa las tareas por caso. Los valores de la evaluación DCMA (% e índices) y sus
+  umbrales van solo en su tabla, no en los mensajes.
 - Si cambia el texto o la severidad de un mensaje, el código se mantiene y se actualiza su explicación.
 - Un mensaje con otro significado lleva un código nuevo, aunque se parezca a uno existente.
 - Los textos del catálogo se escriben en español y sin Markdown: el generador pone en formato de código

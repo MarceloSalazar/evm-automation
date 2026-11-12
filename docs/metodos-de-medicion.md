@@ -33,7 +33,7 @@ MS Project.
    - [3.4 % Completado](#34--completado)
    - [3.5 % Físico completado](#35--físico-completado)
    - [3.6 Unidades completadas](#36-unidades-completadas)
-   - [3.7 Avance lineal (LOE)](#37-avance-lineal-loe)
+   - [3.7 Avance lineal](#37-avance-lineal)
 4. [Guía para elegir el método](#4-guía-para-elegir-el-método)
 5. [Proceso para definir el método de cada paquete](#5-proceso-para-definir-el-método-de-cada-paquete)
    - [5.1 Roles](#51-roles)
@@ -55,7 +55,7 @@ MS Project.
 | `% Completado` | BAC × *% completado* de las subtareas, ponderado por su duración de línea base (un hito cumplido cuenta su `Peso hito`). | *% completado* (o duración real) de las tareas. |
 | `% Físico completado` | BAC × *% físico completado* de las subtareas, con la misma ponderación. | *% físico completado* estimado o medido. |
 | `Unidades completadas` | BAC × unidades hechas / unidades totales. | El cociente, en *% físico completado*. |
-| `Avance lineal (LOE)` | EV = PV acumulado de la fila. | Nada específico (fechas reales recomendables). |
+| `Avance lineal` | EV = PV acumulado de la fila. | Nada específico (fechas reales recomendables). |
 | `Por definir` u otro texto | Se usa `% Completado` y se informa. | — |
 
 El detalle del cálculo (pesos, % del mes, controles) está en
@@ -135,7 +135,7 @@ El reparto responde a los datos que tiene cada herramienta:
    **Cambiar nombre...** se le asigna el nombre `Método EVM`.
 3. En **Atributos personalizados** se elige **Búsqueda...** y se escriben los valores de la lista:
    `0/100`, `50/50`, `25/75`, `20/80`, `Hitos ponderados`, `% Completado`, `% Físico completado`,
-   `Unidades completadas`, `Avance lineal (LOE)`. Se recomienda **desmarcar**
+   `Unidades completadas`, `Avance lineal`. Se recomienda **desmarcar**
    *Permitir introducir elementos adicionales en los campos*, para que solo se admitan valores de la
    lista.
 4. Se inserta la columna `Método EVM` (clic derecho en un encabezado > *Insertar columna*) y se completa
@@ -305,9 +305,9 @@ equipos instalados).
 **Ejemplo:** movimiento de tierras de 40.000 m³ con BAC 3.200.000 €; al cierre de mes se excavaron
 18.000 m³ → 45 % → EV = 1.440.000 €.
 
-### 3.7 Avance lineal (LOE)
+### 3.7 Avance lineal
 
-**Regla:** EV = PV acumulado de la fila (nivel de esfuerzo, *Level of Effort*). El paquete nunca tiene
+**Regla:** EV = PV acumulado de la fila (nivel de esfuerzo, LOE por *Level of Effort*). El paquete nunca tiene
 variación de cronograma (SV = 0, SPI = 1); sí puede tener variación de costo.
 
 **Cuándo usarlo:** actividades de soporte sin entregables medibles que duran lo que dura el proyecto:
@@ -327,7 +327,7 @@ indispensable y no mezclar en el mismo paquete trabajo de soporte con trabajo me
 
 ```mermaid
 flowchart TD
-    A{"¿Es trabajo de soporte<br/>sin entregables medibles?"} -- "Sí" --> LOE["Avance lineal (LOE)"]
+    A{"¿Es trabajo de soporte<br/>sin entregables medibles?"} -- "Sí" --> LOE["Avance lineal"]
     A -- "No" --> B{"¿Cuántos meses dura<br/>el paquete?"}
     B -- "1 mes" --> Z["0/100"]
     B -- "2 meses" --> C{"¿El valor se concentra<br/>al final?"}
@@ -346,7 +346,7 @@ flowchart TD
 | Hasta 2 meses | `50/50` (o `25/75`, `20/80` si el valor se concentra al final) |
 | 3 meses o más, con entregables intermedios | `Hitos ponderados` (al menos un hito por mes) |
 | Trabajo medible en cantidades (m³, planos, equipos) | `% Físico completado` o `Unidades completadas` |
-| Gestión, soporte, supervisión | `Avance lineal (LOE)`, limitado a lo indispensable |
+| Gestión, soporte, supervisión | `Avance lineal`, limitado a lo indispensable |
 
 ---
 
@@ -396,10 +396,10 @@ flowchart TD
    | `% Físico completado` | Qué se mide (por ejemplo, planos emitidos sobre el total) y de dónde sale la medición. |
    | `Unidades completadas` | La unidad, la cantidad total y la fuente de la medición mensual. |
    | `% Completado` | Por qué no hay una medida física mejor. |
-   | `Avance lineal (LOE)` | Por qué el paquete no tiene entregables medibles. |
+   | `Avance lineal` | Por qué el paquete no tiene entregables medibles. |
 
 4. **Revisar el conjunto.** Antes de aprobar se revisa:
-   - la parte del BAC medida con `Avance lineal (LOE)` y con `% Completado`. Conviene acordar un tope:
+   - la parte del BAC medida con `Avance lineal` y con `% Completado`. Conviene acordar un tope:
      el LOE aporta SPI = 1 y diluye los índices del proyecto, y el *% completado* mide la duración
      transcurrida, no el trabajo realizado;
    - que los paquetes con `Hitos ponderados` tengan al menos un hito por mes;
@@ -444,7 +444,7 @@ sirve de referencia para medir el avance cada mes y para explicar el informe. Ej
 
 | Paquete | Responsable | BAC (€) | Método | Criterio de medición |
 |---|---|---:|---|---|
-| 1.1.1 Oficina de gestión del programa (PMO) | Jefe de Programa | 1.800.000 | `Avance lineal (LOE)` | Soporte durante todo el programa, sin entregables medibles. |
+| 1.1.1 Oficina de gestión del programa (PMO) | Jefe de Programa | 1.800.000 | `Avance lineal` | Soporte durante todo el programa, sin entregables medibles. |
 | 2.1.2 Diseño conceptual | Jefe de ingeniería | 600.000 | `Hitos ponderados` | Bases aprobadas (30), alternativa seleccionada (30) e informe aprobado por el cliente (40). |
 | 2.2.1 Detalle civil | Jefe de ingeniería | 1.600.000 | `% Físico completado` | Planos emitidos para construcción sobre el total del listado de planos. |
 | 3.1.1 Movimiento de tierras | Jefe de obra | 3.200.000 | `Unidades completadas` | m³ excavados según la medición topográfica mensual, sobre 40.000 m³. |
@@ -478,7 +478,7 @@ acumulado**: es la línea base cuyas fechas definen el % planificado, salvo que 
   para paquetes cortos. Evitar porcentajes estimados sin evidencia.
 - Paquetes de duración acotada: un paquete muy largo con `% Completado` esconde los problemas hasta el
   final.
-- Limitar el `Avance lineal (LOE)` a las actividades de soporte.
+- Limitar el `Avance lineal` a las actividades de soporte.
 - Documentar el criterio de medición de cada paquete (en las *Notas* de la tarea o en un anexo del plan
   de gestión, [5.4](#54-registro-de-los-métodos)) y revisarlo con los responsables de paquete.
 - Mantener MS Project como referencia del método: la columna C de la hoja `PV` solo se edita para

@@ -3,6 +3,10 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from evm.messages import Issue
 
 # Identificadores (FieldID del XML = constantes PjField de VBA pjTaskTextN /
 # pjTaskNumberN) de los campos personalizados de tarea.
@@ -70,6 +74,11 @@ def same_name(a: str, b: str) -> bool:
     return _norm(a) == _norm(b)
 
 
+def plain_text(text: str) -> str:
+    """Texto para comparar valores de campos: sin tildes, espacios ni mayúsculas ('Sí ' -> 'si')."""
+    return _norm(text)
+
+
 VISIBLE_YES = {"si", "s", "yes", "y", "x", "1", "true", "verdadero"}
 VISIBLE_NO = {"no", "n", "0", "false", "falso"}
 
@@ -130,3 +139,33 @@ def fmt_number(v: float, decimals: int = 2, trim: bool = False) -> str:
     if trim and decimals:
         text = text.rstrip("0").rstrip(".")
     return text.translate(_SPANISH_SEPARATORS)
+
+
+# Campos de la configuración: clave -> (nombre del campo en el mensaje, opción de la configuración)
+CONFIG_FIELDS = {
+    "edt": ("EDT", "[campos] edt"),
+    "metodo": ("de método", "[campos] metodo"),
+    "peso_hito": ("de peso de hitos", "[campos] peso_hito"),
+    "visible": ("Visible", "[campos] visible"),
+    "descripcion": ("de descripción", "[campos] descripcion"),
+    "campo_empresa": ("de empresa", "[multiempresa] campo_empresa"),
+    "campo_reparto": ("de reparto", "[multiempresa] campo_reparto"),
+}
+
+
+def missing_field(key: str, name: str, where: str, cfg) -> "Issue":
+    """LEC-010: el campo de la configuración `key` ('metodo', 'campo_empresa'...) no existe en el proyecto, con su
+    efecto. where: dónde se buscó ('el XML' o 'MS Project')."""
+    from evm.messages import Issue
+    effects = {
+        "edt": "se usa el campo EDT (WBS)",
+        "metodo": f"todas las filas tienen el método por defecto ('{cfg.default_method}')",
+        "peso_hito": "los hitos no tienen peso",
+        "visible": "las filas del libro siguen el nivel máximo",
+        "descripcion": "las fichas de tareas no tienen descripción",
+        "campo_empresa": f"todas las tareas se tratan como '{cfg.company_both}'",
+        "campo_reparto": (f"las tareas '{cfg.company_both}' se reparten al "
+                          f"{fmt_number(cfg.split_default, trim=True)} %"),
+    }
+    what, option = CONFIG_FIELDS[key]
+    return Issue("LEC-010", message=f"No se encontró el campo {what} '{name}' ({option}) en {where}: {effects[key]}.")

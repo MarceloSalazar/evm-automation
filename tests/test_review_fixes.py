@@ -226,6 +226,16 @@ def test_earned_schedule_plateaus_and_horizon():
     assert planned_duration([100, 200], 500) is None
 
 
+def test_earned_schedule_without_bac_is_not_computed():
+    """Sin BAC no hay curva PV: el ES, el SV(t), el SPI(t) y la duración planificada se muestran como «-»."""
+    from evm.indicators import compute, format_table
+    ind = compute([0.0] * 12, [0.0] * 12, [0.0] * 12, 0.0, 10)
+    assert (ind.es, ind.sv_t, ind.spi_t, ind.planned_duration, ind.estimated_duration) == (None,) * 5
+    [line] = [x for x in format_table(ind).splitlines() if x.startswith("ES (meses)")]
+    assert line.split() == ["ES", "(meses)", "-", "AT", "=", "11", "SV(t)", "=", "-", "SPI(t)", "=", "-"]
+    assert compute([100.0] * 3, [100.0] * 3, [0.0] * 3, 300.0, 1).es == pytest.approx(2.0)
+
+
 def test_earned_schedule_formula_matches_python_in_spreadsheet(tmp_path, recalc):
     """Proyecto con un mes sin PV: el ES de la hoja Resumen debe coincidir con Python."""
     from evm.update import indicators_for
@@ -240,6 +250,12 @@ def test_earned_schedule_formula_matches_python_in_spreadsheet(tmp_path, recalc)
     ws = load_workbook(recalc(book), data_only=True)["Resumen"]
     assert ws["B35"].value == pytest.approx(ind.es)
     assert ws["B38"].value == pytest.approx(ind.spi_t)
+    # Sin BAC: la hoja Resumen tampoco calcula el cronograma ganado (como la consola)
+    empty = tmp_path / "sin_bac.xlsx"
+    make_book(empty, P(tasks), Config(months=12))
+    run_update(P(tasks), Config(months=12), empty, date(2026, 2, 28), backup=False)
+    ws = load_workbook(recalc(empty), data_only=True)["Resumen"]
+    assert all(ws[c].value in (None, "") for c in ("B34", "B35", "B37", "B38"))
 
 
 # ------------------------------------------------------------------ COM

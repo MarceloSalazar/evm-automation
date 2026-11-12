@@ -260,6 +260,11 @@ def test_cutoff_warnings_and_negative_corrections(tmp_path):
     make_book(book, P(base_tasks()), Config(months=12), bac=BAC)
     res = run_update(P(progress_tasks()), Config(), book, date(2026, 1, 15), dry_run=True)
     assert any("último día del mes" in w.message for w in res.warnings)
+    # El último día laborable del mes también cierra el mes (el 31/01/2026 es sábado)
+    res = run_update(P(progress_tasks()), Config(), book, date(2026, 1, 30), dry_run=True)
+    assert not [w for w in res.warnings if w.id == "ACT-018"]
+    res = run_update(P(progress_tasks()), Config(), book, date(2026, 1, 29), dry_run=True)
+    assert [w.id for w in res.warnings if w.id == "ACT-018"] == ["ACT-018"]
 
     # Menos avance que en el mes anterior: valor del mes negativo, informado como corrección
     run_update(P(progress_tasks()), Config(), book, date(2026, 2, 28), backup=False)

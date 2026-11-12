@@ -30,7 +30,7 @@ DEFAULT_METHODS = [
     "% Completado",
     "% Físico completado",
     "Unidades completadas",
-    "Avance lineal (LOE)",
+    "Avance lineal",
 ]
 
 
@@ -126,6 +126,11 @@ class Config:
     cost_review_company: str = ""         # depuracion_empresa: empresa_a o empresa_b ("" = empresa_a)
     cost_review_alignment: bool = False   # depuracion_alineamiento: indicador de alineamiento
     cost_review_threshold: float = 10.0   # depuracion_umbral: % del BAC a partir del cual se resalta un mes
+    cost_review_calcs: bool = False       # depuracion_calculos: procesar-costes escribe los cálculos del plan
+    # [depuracion_precio]: precio de las EDT interna con componentes (evm/cost_price.py). Los nombres, en mayúsculas
+    cost_price_formula: str = ""          # calculo_precio ("" = las EDT interna suman sus componentes)
+    cost_price_components: dict[str, str] = field(default_factory=dict)   # componentes: nombre -> texto (columna D)
+    cost_price_rates: dict[str, str] = field(default_factory=dict)        # recargos: nombre -> texto (tabla Recargos)
 
     # [metodos] -- None = lista por defecto
     methods_list: list[str] | None = None
@@ -154,6 +159,15 @@ class Config:
     max_loe_share: float = 15.0
     # silenciar (y --silenciar): códigos de las observaciones que no se muestran ('FEC-003' o 'FEC-003:1.2.3')
     silence: list[str] = field(default_factory=list)
+
+    # [cliente] -- planificación para el cliente (generar-cliente)
+    client_field: str = ""                # campo: "Sí" = la tarea se muestra al cliente (con sus superiores en Sí)
+    client_plan_name: str = "CLIENTE"     # nombre de la tarea de la planificación en el archivo ("" = el suyo)
+    client_fix_dates: bool = True         # fija con "No comenzar antes del" las fechas que cambian al quitar tareas
+    # actividad_interna: las tareas que no se muestran quedan como «Otras tareas» (sin nombre ni código EDT), para que
+    # el % completado y el libro EVM coincidan con la planificación interna; False = se borran (los % pueden cambiar)
+    client_internal_activity: bool = True
+    client_filter: bool = True            # filtrar_vista: el archivo se abre con un filtro que oculta «Otras tareas»
 
     # [[proyectos]] -- varios archivos de MS Project en un mismo libro (vacío = un solo archivo)
     projects: list[ProjectSpec] = field(default_factory=list)
@@ -247,6 +261,11 @@ class Config:
         if not 0 < self.cost_review_threshold <= 100:
             raise ConfigError("CFG-026",
                               "depuracion_umbral debe ser un % mayor que 0 y como máximo 100 (por defecto 10).")
+        if self.cost_price_formula or self.cost_price_components or self.cost_price_rates:
+            from evm.cost_price import check_config
+            why = check_config(self.cost_price_formula, self.cost_price_components, self.cost_price_rates)
+            if why:
+                raise ConfigError("CFG-055", f"[depuracion_precio]: {why}.")
         if self.projects:
             from evm.fields import same_name
             seen: list[str] = []
@@ -290,7 +309,7 @@ def silence_list(value, key: str) -> list[str]:
     if isinstance(value, str):
         value = value.split(",")
     if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
-        raise ConfigError("CFG-004", f"'{key}' debe ser una lista de códigos, p. ej. [\"FEC-003\", \"LOG-004\"].")
+        raise ConfigError("CFG-004", f"'{key}' debe ser una lista de códigos, p. ej. [\"FEC-003\", \"LOG-003\"].")
     return [x.strip() for x in value if x.strip()]
 
 
@@ -300,6 +319,27 @@ def _section(data: dict, name: str) -> dict:
         raise ConfigError("CFG-005", f"[{name}] debe ser una sección: una línea [{name}] seguida de sus claves "
                           f"(se encontró '{name} = ...').")
     return value
+
+
+def _price_names(section: dict, key: str) -> dict[str, str]:
+    """[depuracion_precio.componentes] o [depuracion_precio.recargos]: nombre (en mayúsculas) -> texto."""
+    from evm.cost_price import NAME
+    value = section.get(key, {})
+    if not isinstance(value, dict):
+        raise ConfigError("CFG-055", f"[depuracion_precio.{key}] debe ser una sección: una línea "
+                                     f"[depuracion_precio.{key}] seguida de un nombre = \"texto\" por línea.")
+    out: dict[str, str] = {}
+    for name, label in value.items():
+        if not NAME.match(name):
+            raise ConfigError("CFG-055", f"[depuracion_precio.{key}] '{name}': el nombre debe empezar con una letra y "
+                                         "tener solo letras sin tilde, números y '_'.")
+        if not isinstance(label, str):
+            raise ConfigError("CFG-055", f"[depuracion_precio.{key}] {name} debe ser texto (entre comillas).")
+        if name.upper() in out:
+            raise ConfigError("CFG-055", f"[depuracion_precio.{key}] {name} está repetido (los nombres no distinguen "
+                                         "mayúsculas).")
+        out[name.upper()] = label.strip()
+    return out
 
 
 def _projects(data: dict, base: Path) -> list[ProjectSpec]:
@@ -426,6 +466,12 @@ def load_config(path: str | Path | None) -> Config:
     cfg.cost_review_company = _get(exp, "depuracion_empresa", cfg.cost_review_company, str).strip()
     cfg.cost_review_alignment = _get(exp, "depuracion_alineamiento", cfg.cost_review_alignment, bool)
     cfg.cost_review_threshold = _get(exp, "depuracion_umbral", cfg.cost_review_threshold, float)
+    cfg.cost_review_calcs = _get(exp, "depuracion_calculos", cfg.cost_review_calcs, bool)
+
+    pre = _section(data, "depuracion_precio")
+    cfg.cost_price_formula = _get(pre, "calculo_precio", cfg.cost_price_formula, str).strip()
+    cfg.cost_price_components = _price_names(pre, "componentes")
+    cfg.cost_price_rates = _price_names(pre, "recargos")
 
     met = _section(data, "metodos")
     lista = met.get("lista")
@@ -460,6 +506,13 @@ def load_config(path: str | Path | None) -> Config:
     cfg.company_both = _get(mul, "ambas", cfg.company_both, str).strip()
     cfg.split_field = _get(mul, "campo_reparto", cfg.split_field, str).strip()
     cfg.split_default = _get(mul, "reparto_por_defecto", cfg.split_default, float)
+
+    cli = _section(data, "cliente")
+    cfg.client_field = _get(cli, "campo", cfg.client_field, str).strip()
+    cfg.client_plan_name = _get(cli, "nombre_planificacion", cfg.client_plan_name, str).strip()
+    cfg.client_fix_dates = _get(cli, "fijar_fechas", cfg.client_fix_dates, bool)
+    cfg.client_internal_activity = _get(cli, "actividad_interna", cfg.client_internal_activity, bool)
+    cfg.client_filter = _get(cli, "filtrar_vista", cfg.client_filter, bool)
 
     cfg.projects = _projects(data, path.parent)
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 import shutil
 import zipfile
 from dataclasses import dataclass, field, replace
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -25,6 +25,7 @@ from evm.workbook import (COL_BAC, COL_CODE, COL_METHOD, FIRST_MONTH_COL, FMT_PC
                           WorkbookFormatError, add_s_curve_chart, book_sources, clean_text, col, company_sheet,
                           pct_sheet, read_meta, read_schedule, read_structure, read_wbs_list, save_workbook,
                           source_meta, split_key, write_meta, write_schedule, write_summary_trend)
+from evm.workcalendar import closes_month
 
 PLAN_TOL = 1e-6         # diferencia del % planificado acumulado (fracción del BAC) que se considera un cambio
 
@@ -581,7 +582,7 @@ def _new_task_warnings(book: BookData, matches: dict[int, Task], scope: Scope, v
       fila -D).
     - Dentro de una fila de ingreso (ACT-051): su avance se suma en esa fila, que forma con toda su rama. No se
       informan las que 'generar' también suma en esa fila: un código de nivel no mayor al máximo debajo de una fila
-      del nivel máximo (p. ej. 3.0.14 debajo de 3.0.1, sin lista EDT), que informan EDT-004 y EDT-005."""
+      del nivel máximo (p. ej. 3.0.14 debajo de 3.0.1, sin lista EDT), que informa EDT-005."""
     from evm.fields import parse_visible
     mine = [s for s in book.structure if s.row in matches and split_key(s.key)[0] == source]
     rows = {matches[s.row].uid for s in mine if s.kind != KIND_RESIDUAL}
@@ -640,10 +641,6 @@ def _new_task_warnings(book: BookData, matches: dict[int, Task], scope: Scope, v
             f"generarlo): {tasks}{more}. Su avance se suma en el % ganado de esa fila, pero su duración no forma parte "
             "del % planificado del libro. Para darle fila propia, se debe regenerar el libro con --migrar-desde.")))
     return out
-
-
-def _month_end(d: date) -> date:
-    return date(d.year + (d.month == 12), d.month % 12 + 1, 1) - timedelta(days=1)
 
 
 def _backup_path(book_path: Path) -> Path:
@@ -707,8 +704,8 @@ def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares:
 def _baseline_drift(book: BookData, s: StructRow, planned: dict[str, list[float]],
                     idx: int) -> tuple[float, float] | None:
     """PV acumulado de la fila a la fecha de corte con el % planificado de MS Project y con el del libro, si el %
-    planificado acumulado de algún mes difiere (None si coinciden). El % planificado con el reparto del plan de costes
-    (procesar-costes) no se compara: no sale de la línea base."""
+    planificado acumulado de algún mes difiere (None si coinciden). Las filas con el reparto del plan de costes
+    (procesar-costes antes de la versión 2.6.0) no se comparan: no sale de la línea base, y DEP-021 las informa."""
     now = book_pv = 0.0
     differs = False
     for role, _company in book.roles():
@@ -724,6 +721,23 @@ def _baseline_drift(book: BookData, s: StructRow, planned: dict[str, list[float]
         now += bac * sum(new[: idx + 1])
         book_pv += bac * sum(old[: idx + 1])
     return (now, book_pv) if differs else None
+
+
+def plan_rows_warning(book: BookData) -> list[Issue]:
+    """DEP-021: filas cuyo % planificado es el reparto del plan de costes, escrito por procesar-costes antes de la
+    versión 2.6.0 (marcadas en la hoja _estructura). --migrar-desde les devuelve el % de MS Project."""
+    sheets = []
+    for role, company in book.roles():
+        codes = [s.code for s in book.input_rows if role in s.plan_pv]
+        if codes:
+            shown = ", ".join(codes[:10]) + (f" y {len(codes) - 10} más" if len(codes) > 10 else "")
+            sheets.append(f"{plural(len(codes), 'fila', 'filas')} de la hoja {pct_sheet(SHEET_PV, company)} ({shown})")
+    if not sheets:
+        return []
+    return [Issue("DEP-021", message=(
+        f"El % planificado de {' y '.join(sheets)} es el reparto del plan de costes, escrito por procesar-costes en "
+        "una versión anterior: no es el de MS Project. Para recuperarlo, se debe generar un libro nuevo con "
+        "--migrar-desde (conserva el BAC, el % ganado y el AC)."))]
 
 
 def _drift_warning(drift: list[tuple[StructRow, float, float]], book: BookData, idx: int) -> Issue:
@@ -788,9 +802,10 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     if not 0 <= idx < book.horizon.months:
         raise InputError("ACT-006", f"La fecha de corte {status:%d/%m/%Y} está fuera del horizonte del libro "
                          f"({book.horizon.start:%m/%Y} a {book.horizon.end:%m/%Y}).")
-    if status != _month_end(status):
-        warnings.append(Issue("ACT-018", message="La fecha de corte no es el último día del mes: el PV acumulado "
-                                                 "incluye el mes completo."))
+    # El último día laborable del mes (en el calendario de cada archivo) también cierra el mes
+    if not all(closes_month(status, calendar_for(p, cfg.project_config(n))) for n, p in projects.items()):
+        warnings.append(Issue("ACT-018", message="La fecha de corte no es el último día del mes ni su último día "
+                                                 "laborable: el PV acumulado incluye el mes completo."))
     for n, project in projects.items():
         if project.status_date and project.status_date.date() != status:
             warnings.append(_tag(n, Issue("ACT-019", message=f"La fecha de estado de MS Project "
@@ -898,6 +913,7 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
 
     if drift:
         warnings.append(_drift_warning(drift, book, idx))
+    warnings += plan_rows_warning(book)
 
     where = (f"las hojas {company_sheet(SHEET_PV, book.company_a)} y {company_sheet(SHEET_PV, book.company_b)}"
              if multi else f"la hoja {SHEET_PV}")

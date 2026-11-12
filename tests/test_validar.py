@@ -171,11 +171,15 @@ def test_dates_and_duration():
     dates = found(rep, TOPIC_DATES)
     reverse = [i for i in dates if i.name.startswith("Al reves")]
     assert {i.severity for i in reverse} == {SEV_ERROR} and len(reverse) == 2
+    assert {i.id for i in reverse} == {"FEC-001"}               # en la línea base y en el programa actual
+    assert {i.variant for i in reverse} == {"en la línea base", "en el programa actual"}
     assert reverse[0].name == "Al reves (Id 3)"                 # sin código EDT: con su Id
-    assert any(i.name.startswith("Hito largo") and "marcada como hito y tiene duración" in i.message for i in dates)
+    assert any(i.name.startswith("Hito largo") and i.id == "FEC-004"
+               and "marcada como hito y dura 1 día en el programa actual" in i.message for i in dates)
     assert any(i.name.startswith("Cero") and "Duración 0" in i.message for i in dates)
-    assert any("1 tarea tiene duración estimada" in i.message for i in dates)
-    assert any(i.name.startswith("Estimada") and i.message == "Duración estimada («?»)." for i in dates)
+    assert any(i.id == "FEC-006" and "1 tarea tiene duración estimada" in i.message for i in dates)
+    assert any(i.id == "FEC-006" and i.name.startswith("Estimada") and i.message == "Duración estimada («?»)."
+               for i in dates)
     manual = [i for i in dates if "manualmente" in i.message]
     assert len(manual) == 1 and manual[0].severity == SEV_WARN and "Id 7" in manual[0].message
 
@@ -351,14 +355,17 @@ def test_progress_against_status_date():
     issues = progress(tasks, status)
     future = [i for i in issues if "posterior a la fecha de estado" in i.message]
     assert [(i.name, i.severity) for i in future] == [("Futuro", SEV_ERROR)]
-    late = {i.name: i.message for i in issues if i.code and "anterior a la fecha de estado" in i.message}
+    late = {i.name: (i.id, i.variant, i.message) for i in issues if i.code and "anterior a la fecha" in i.message}
     assert set(late) == {"Atrasada", "Sin comenzar"}
-    assert "no está terminada (50 %)" in late["Atrasada"] and "no tiene avance" in late["Sin comenzar"]
-    assert any("2 tareas tienen trabajo pendiente" in i.message for i in issues)
-    bei = next(i for i in issues if "BEI" in i.message)
-    assert "= 0,33" in bei.message and bei.severity == SEV_WARN and "1.2.0" in bei.message
-    started = next(i for i in issues if "debían comenzar" in i.message or "debía comenzar" in i.message)
-    assert "1.3.0" in started.message and "1.5.0" not in started.message
+    assert late["Atrasada"][:2] == ("AVA-011", "sin terminar, con el Fin pasado")
+    assert late["Sin comenzar"][:2] == ("AVA-011", "sin comenzar, con el Comienzo pasado")
+    assert "no está terminada (50 %)" in late["Atrasada"][2] and "no tiene avance" in late["Sin comenzar"][2]
+    assert any(i.id == "AVA-011" and "2 tareas tienen trabajo pendiente" in i.message for i in issues)
+    [behind] = [i for i in issues if i.id == "AVA-013"]         # BEI 0,33: advertencia
+    assert behind.severity == SEV_WARN and "BEI" not in behind.message
+    # 1.3.0 debía comenzar y no comenzó, pero ya está entre las que no terminaron: no se repite
+    assert behind.message == ("De 3 tareas que debían terminar a la fecha de estado según la línea base, 2 no "
+                              "terminaron a tiempo: 2 sin terminar (1.2.0, 1.3.0).")
 
 
 def missed_and_cpli_tasks(forecast_finish: datetime) -> list:
@@ -384,27 +391,33 @@ def missed_and_cpli_tasks(forecast_finish: datetime) -> list:
 
 def test_missed_tasks_and_cpli():
     """DCMA 11 y 13: tareas incumplidas respecto de la línea base y CPLI con el fin previsto 10 días atrasado."""
-    issues = progress(missed_and_cpli_tasks(datetime(2026, 4, 10, 17)), date(2026, 2, 27))
-    missed = next(i for i in issues if i.id == "AVA-014")
+    metrics = {}
+    tasks = missed_and_cpli_tasks(datetime(2026, 4, 10, 17))
+    project = P(tasks)
+    part = build_part(project, Config())
+    issues = progress_checks(project, part.scope, part.code_of, date(2026, 2, 27), metrics=metrics)
+    missed = next(i for i in issues if i.id == "AVA-013")
     assert missed.severity == SEV_WARN
     assert missed.message == ("De 3 tareas que debían terminar a la fecha de estado según la línea base, 2 no "
-                              "terminaron a tiempo (66,7 %; DCMA: hasta 5 %): 1 sin terminar y 1 terminada después "
-                              "de su fin de línea base (1.2.0, 1.3.0).")
+                              "terminaron a tiempo: 1 sin terminar y 1 terminada después de su fin de línea base "
+                              "(1.2.0, 1.3.0). Además, 1 tarea debía comenzar a la fecha de estado según la línea "
+                              "base y no comenzó (1.4.0).")
+    assert metrics[11] == ("2 de 3 (66,7 %)", "≤ 5 %", False)    # el % está en la evaluación DCMA
+    assert metrics[13] == ("0,67", "≥ 0,95", False)
     cpli = next(i for i in issues if i.id == "AVA-015")
     assert cpli.severity == SEV_WARN
-    assert cpli.message == ("Índice de longitud del camino crítico (CPLI) = 0,67: quedan 30 días laborables hasta el "
-                            "fin previsto (10/04/2026) y el fin de la línea base es el 27/03/2026 (10 días laborables "
-                            "de atraso) (DCMA: al menos 0,95).")
+    assert cpli.message == ("Quedan 30 días laborables hasta el fin previsto (10/04/2026) y el fin de la línea base "
+                            "es el 27/03/2026: 10 días laborables de atraso.")
 
 
 def test_cpli_ahead_of_baseline_and_not_computed():
     issues = progress(missed_and_cpli_tasks(datetime(2026, 3, 20, 17)), date(2026, 2, 27))
     cpli = next(i for i in issues if i.id == "AVA-015")
-    assert cpli.severity == SEV_INFO and "= 1,33" in cpli.message and "(5 días laborables de adelanto)" in cpli.message
+    assert cpli.severity == SEV_INFO and cpli.message.endswith(": 5 días laborables de adelanto.")
     # Sin fecha de estado, sin línea base o sin trabajo pendiente después de la fecha de estado: no se calcula
-    assert not [i for i in progress(missed_and_cpli_tasks(F), None) if i.id in ("AVA-014", "AVA-015")]
+    assert not [i for i in progress(missed_and_cpli_tasks(F), None) if i.id in ("AVA-013", "AVA-015")]
     no_baseline = progress(missed_and_cpli_tasks(F), date(2026, 2, 27), baseline_found=False)
-    assert not [i for i in no_baseline if i.id in ("AVA-014", "AVA-015")]
+    assert not [i for i in no_baseline if i.id in ("AVA-013", "AVA-015")]
     assert not [i for i in progress(missed_and_cpli_tasks(F), date(2026, 4, 30)) if i.id == "AVA-015"]
 
 
@@ -414,8 +427,8 @@ def test_missed_tasks_within_threshold_is_info():
     for task in tasks[1:]:
         task.actual_start, task.actual_finish, task.percent_complete = S, datetime(2026, 2, 13, 17), 100
     tasks[1].actual_finish = datetime(2026, 2, 16, 17)                 # 1 de 21 terminó tarde: 4,8 %
-    missed = next(i for i in progress(tasks, date(2026, 2, 27)) if i.id == "AVA-014")
-    assert missed.severity == SEV_INFO and "(4,8 %; DCMA: hasta 5 %)" in missed.message
+    missed = next(i for i in progress(tasks, date(2026, 2, 27)) if i.id == "AVA-013")
+    assert missed.severity == SEV_INFO and "1 terminada después de su fin de línea base" in missed.message
 
 
 def test_out_of_sequence_progress():
@@ -440,12 +453,12 @@ def test_out_of_sequence_progress():
             t[name].actual_start, t[name].percent_complete = S, 10
     t["FF"].actual_finish, t["FF"].percent_complete = F, 100
     issues = progress(tasks, None)
-    assert [(i.name, i.message) for i in issues if i.id == "AVA-017"] == [
+    assert [(i.name, i.message) for i in issues if i.id == "AVA-016" and i.code] == [
         ("FC", "Tiene avance y su predecesora 1.1.0 «Comenzada» no terminó (vínculo FC)."),
         ("CC", "Tiene avance y su predecesora 1.2.0 «Sin comenzar» no comenzó (vínculo CC)."),
         ("FF", "Está terminada y su predecesora 1.1.0 «Comenzada» no terminó (vínculo FF)."),
     ]
-    summary = next(i for i in issues if i.id == "AVA-016")
+    summary = next(i for i in issues if i.id == "AVA-016" and not i.code)
     assert summary.severity == SEV_WARN and summary.topic == TOPIC_PROGRESS
     assert summary.message.startswith("3 vínculos tienen avance fuera de secuencia, en 3 tareas:")
 
@@ -500,10 +513,15 @@ def test_links_and_constraints():
     assert by["Resumen"] == ["Tarea resumen con vínculos: se recomienda vincular sus tareas de detalle."]
     assert by["Detalle"] == ["Delimitación «Debe comenzar el 10/02/2026»."]   # su predecesora es la de la resumen
     general = [i.message for i in issues if not i.code]
-    assert any("1 tarea sin predecesoras y 1 tarea sin sucesoras" in m for m in general)
+    # Cada tarea sin vínculos se informa una vez (LOG-003), sin un resumen aparte (LOG-002, retirado)
+    assert "LOG-002" not in {i.id for i in issues}
+    assert sum(1 for i in issues if i.name == "Suelta") == 1
     assert any("1 vínculo tiene posición positiva" in m for m in general)
-    assert any("son fin a comienzo (FC)" in m for m in general)
-    assert any("1 tarea tiene delimitaciones" in m for m in general)
+    assert any(m.startswith("2 de los 4 vínculos no son fin a comienzo (FC): 1 comienzo a comienzo (CC) y 1 "
+                            "comienzo a fin (CF).") for m in general)
+    assert any("1 tarea sin terminar tiene delimitaciones" in m for m in general)
+    assert [i.id for i in issues if i.name == "Detalle"] == ["LOG-011"]
+    assert not [m for m in general if "DCMA" in m]                 # los % están en la evaluación DCMA
 
 
 def test_float_and_duration():
@@ -534,17 +552,16 @@ def test_float_and_duration():
     issues = logic(tasks)
     high = next(i for i in issues if i.id == "LOG-013")
     assert high.severity == SEV_WARN and high.topic == TOPIC_LOGIC
-    assert high.message == ("1 tarea sin terminar tiene más de 44 días laborables de holgura total (25 % de las "
-                            "tareas sin terminar; DCMA: hasta 5 %): 1.1.0 (60 días). Una holgura alta suele indicar "
-                            "que faltan sucesoras.")
-    negative = next(i for i in issues if i.id == "LOG-014")
-    assert "1 tarea sin terminar tiene holgura negativa (20 % de las tareas sin terminar" in negative.message
-    assert [(i.name, i.message) for i in issues if i.id == "LOG-015"] == [
+    assert high.message == ("1 tarea sin terminar tiene más de 44 días laborables de holgura total: 1.1.0 (60 días). "
+                            "Una holgura alta suele indicar que faltan sucesoras.")
+    negative = next(i for i in issues if i.id == "LOG-014" and not i.code)
+    assert negative.message.startswith("1 tarea sin terminar tiene holgura negativa: su fin previsto supera")
+    assert [(i.name, i.message) for i in issues if i.id == "LOG-014" and i.code] == [
         ("Negativa", "Holgura total de -5,5 días laborables.")]
     long = next(i for i in issues if i.id == "LOG-016")
     assert long.severity == SEV_WARN
-    assert long.message.startswith("1 tarea sin terminar dura más de 44 días laborables en la línea base (33,3 % de "
-                                   "las tareas sin terminar; DCMA: hasta 5 %): 1.3.0 (100 días).")
+    assert long.message.startswith("1 tarea sin terminar dura más de 44 días laborables en la línea base: 1.3.0 "
+                                   "(100 días).")
     current = next(i for i in logic(tasks, baseline_found=False) if i.id == "LOG-016")
     assert "en el programa actual" in current.message
 
@@ -556,8 +573,11 @@ def test_high_float_threshold_and_schedule_without_links():
         task.total_slack = 0.0
     tasks[1].total_slack = 45.0 * 480                               # 1 de 21: 4,8 %
     tasks[2].predecessors = [Link(tasks[1].uid)]
-    high = next(i for i in logic(tasks) if i.id == "LOG-013")
-    assert high.severity == SEV_INFO and "(4,8 % de las tareas sin terminar" in high.message
+    metrics = {}
+    project = P(tasks)
+    part = build_part(project, Config())
+    high = next(i for i in logic_checks(project, part.scope, part.code_of, part.rows, metrics) if i.id == "LOG-013")
+    assert high.severity == SEV_INFO and metrics[6] == ("1 (4,8 %)", "≤ 5 %", True)
     tasks[2].predecessors = []                                      # sin vínculos: toda la holgura llega al fin
     assert not [i for i in logic(tasks) if i.id == "LOG-013"]
 
@@ -570,8 +590,8 @@ def test_validate_part_runs_dcma_checks():
     t["Futura"].total_slack = 50.0 * 480
     part = validate_part(P(tasks, status_date=datetime(2026, 2, 27, 17)), Config())
     ids = {i.id for i in part.checks}
-    assert {"AVA-014", "AVA-015", "LOG-013"} <= ids
-    t["Futura"].method = "Avance lineal (LOE)"
+    assert {"AVA-013", "AVA-015", "LOG-013"} <= ids
+    t["Futura"].method = "Avance lineal"
     part = validate_part(P(tasks, status_date=datetime(2026, 2, 27, 17)), Config())
     assert "LOG-013" not in {i.id for i in part.checks}
 
@@ -599,7 +619,7 @@ def test_xml_reads_schedule_fields(tmp_path):
     a, b = p.tasks
     assert (a.duration, a.estimated, a.manual, a.constraint_type) == (28800, True, True, CONSTRAINT_MSO)
     assert a.constraint_date == datetime(2026, 1, 5, 8) and a.predecessors == []
-    assert b.duration == 0 and b.predecessors == [Link(1, LINK_SS, -4800)]
+    assert b.duration == 0 and b.predecessors == [Link(1, LINK_SS, -480)]      # <LinkLag> en décimas de minuto
     assert p.fields_found == {"metodo": "Método EVM", "peso_hito": "Peso hito"}
 
 
@@ -718,7 +738,7 @@ def test_lead_allows_progress_before_the_predecessor_finishes():
     t["Comenzada"].actual_start, t["Comenzada"].percent_complete = S, 40
     t["Con adelanto"].actual_start, t["Con adelanto"].percent_complete = S, 10
     t["Con adelanto"].predecessors = [Link(t["Comenzada"].uid, LINK_FS, -4800)]
-    assert not [i for i in progress(tasks, None) if i.id in ("AVA-016", "AVA-017")]
+    assert not [i for i in progress(tasks, None) if i.id == "AVA-016"]
     assert [i.id for i in logic(tasks) if i.id == "LOG-006"] == ["LOG-006"]       # el adelanto se informa aparte
 
 
@@ -734,7 +754,7 @@ def test_dcma_metrics_count_detail_tasks_only():
     t["Fase"].predecessors = [Link(t["A"].uid, LINK_SS)]        # vínculo de la resumen: LOG-010
     issues = logic(tasks)
     ids = [i.id for i in issues]
-    assert "LOG-011" not in ids and "LOG-012" not in ids
+    assert "LOG-011" not in ids
     assert "LOG-009" not in ids                                 # el vínculo CC de la resumen no cuenta
     assert [i.name for i in issues if i.id == "LOG-010"] == ["Fase"]
 
@@ -760,7 +780,7 @@ def checks_of(tasks, cfg=None, status=None, **project_kw):
 
 
 def test_summary_baseline_that_is_not_rolled_up():
-    """FEC-013 y FEC-014: la línea base de una tarea resumen debe ir del comienzo más temprano al fin más tardío de
+    """FEC-013: la línea base de una tarea resumen debe ir del comienzo más temprano al fin más tardío de
     la de sus tareas de detalle activas (también las de las ramas con Visible = No, como en MS Project)."""
     late = datetime(2026, 4, 30, 17)
     tasks = tree('''
@@ -786,12 +806,12 @@ def test_summary_baseline_that_is_not_rolled_up():
     t["E2"].baseline_finish, t["E2"].visible = late, "No"          # fuera del libro, pero en la línea base
     t["Con oculta"].baseline_finish = late
     issues = checks_of(tasks)
-    details = {i.name: i.message for i in issues if i.id == "FEC-014"}
+    details = {i.name: i.message for i in issues if i.id == "FEC-013" and i.code}
     assert set(details) == {"Sin resumir", "Invertida"}
     assert details["Sin resumir"] == ("Línea base de la tarea resumen: 05/01/2026 a 27/03/2026; de sus tareas de "
                                       "detalle: 05/01/2026 a 30/04/2026.")
     assert "27/03/2026 a 05/01/2026 (fin anterior al comienzo)" in details["Invertida"]
-    [summary] = [i for i in issues if i.id == "FEC-013"]
+    [summary] = [i for i in issues if i.id == "FEC-013" and not i.code]
     assert summary.severity == SEV_WARN and summary.topic == TOPIC_DATES
     assert summary.message.startswith("2 tareas resumen tienen una línea base que no coincide con la de sus tareas "
                                       "de detalle (1.2.0, 1.3.0)")
@@ -803,9 +823,9 @@ def test_summary_baseline_is_checked_only_by_validar_and_with_baseline():
           - A
     ''')
     by_name(tasks)["Fase"].baseline_finish = datetime(2026, 2, 27, 17)
-    assert [i.id for i in checks_of(tasks) if i.id in ("FEC-013", "FEC-014")] == ["FEC-013", "FEC-014"]
-    assert not [i for i in checks_of(tasks, baseline_found=False) if i.id in ("FEC-013", "FEC-014")]
-    assert not [i for i in build_report(P(tasks), Config()).issues if i.id in ("FEC-013", "FEC-014")]
+    assert [(i.id, i.code) for i in checks_of(tasks) if i.id == "FEC-013"] == [("FEC-013", ""), ("FEC-013", "1.0.0")]
+    assert not [i for i in checks_of(tasks, baseline_found=False) if i.id == "FEC-013"]
+    assert not [i for i in build_report(P(tasks), Config()).issues if i.id == "FEC-013"]
 
 
 def test_saved_baselines_are_listed():
@@ -882,21 +902,21 @@ def test_links_with_another_plan_are_reported():
     t["A I"].predecessors = [Link(t["B C"].uid, LINK_FS)]          # INTERNO depende de CLIENTE
     t["B I"].predecessors = [Link(t["A I"].uid, LINK_FS), Link(t["Inactiva I"].uid, LINK_FS)]
     issues = validate_part(P(tasks), Config(plan="INTERNO")).checks
-    [line] = [i for i in issues if i.id == "LOG-018"]
+    [line] = [i for i in issues if i.id == "LOG-018" and not i.code]
     assert line.severity == SEV_WARN and line.topic == TOPIC_LOGIC
     assert line.message.startswith("1 vínculo une 1 tarea de la planificación INTERNO con tareas de fuera de ella")
     assert line.message.endswith("Al quitarlos, 1 tarea de detalle se quedaría sin predecesoras y 0 sin sucesoras "
                                  "en la planificación.")
-    assert [(i.code, i.message) for i in issues if i.id == "LOG-019"] == [
+    assert [(i.code, i.message) for i in issues if i.id == "LOG-018" and i.code] == [
         ("1.1.0", "Vinculada con otra planificación: sucesora de 1.2 (UID 4).")]
     assert not [i for i in issues if i.id == "LOG-001"]
     other = validate_part(P(tasks), Config(plan="CLIENTE")).checks
-    [line] = [i for i in other if i.id == "LOG-018"]
+    [line] = [i for i in other if i.id == "LOG-018" and not i.code]
     assert line.message.endswith("0 tareas de detalle se quedarían sin predecesoras y 1 sin sucesoras en la "
                                  "planificación.")
-    assert [(i.code, i.message) for i in other if i.id == "LOG-019"] == [
+    assert [(i.code, i.message) for i in other if i.id == "LOG-018" and i.code] == [
         ("1.2.0", "Vinculada con otra planificación: predecesora de 1.1 (UID 7).")]
-    assert not [i for i in validate_part(P(tasks), Config()).checks if i.id in ("LOG-018", "LOG-019")]
+    assert not [i for i in validate_part(P(tasks), Config()).checks if i.id == "LOG-018"]
 
 
 def test_multiple_critical_paths():
@@ -919,12 +939,15 @@ def test_multiple_critical_paths():
 
 
 @pytest.mark.parametrize("status, expected", [
-    (date(2026, 11, 4), "La fecha de estado (04/11/2026) no es el último día del mes: «actualizar» cargará el avance "
-                        "en el mes 11/2026, con el PV acumulado del mes completo (ACT-018). Para informar 10/2026, se "
-                        "debe fijar la fecha de estado en el 31/10/2026 (Proyecto > Fecha de estado) o indicar "
-                        "--fecha-corte 2026-10-31; para informar 11/2026, en el 30/11/2026."),
+    (date(2026, 11, 4), "La fecha de estado (04/11/2026) no es el último día del mes ni su último día laborable: "
+                        "«actualizar» cargará el avance en el mes 11/2026, con el PV acumulado del mes completo "
+                        "(ACT-018). Para informar 10/2026, se debe fijar la fecha de estado en el 31/10/2026 (Proyecto "
+                        "> Fecha de estado) o indicar --fecha-corte 2026-10-31; para informar 11/2026, en el "
+                        "30/11/2026."),
     (date(2026, 10, 31), None),
     (date(2028, 2, 29), None),
+    (date(2026, 10, 30), None),         # viernes: el 31 es sábado (último día laborable del mes)
+    (date(2026, 10, 29), "no es el último día del mes ni su último día laborable"),
 ])
 def test_status_date_that_is_not_a_month_end(status, expected):
     tasks = tree('''
@@ -934,8 +957,28 @@ def test_status_date_that_is_not_a_month_end(status, expected):
     found = [i for i in progress(tasks, status) if i.id == "AVA-018"]
     if expected is None:
         assert not found
+    elif expected.startswith("no es"):
+        assert len(found) == 1 and expected in found[0].message
     else:
         assert [(i.message, i.severity, i.topic) for i in found] == [(expected, SEV_WARN, TOPIC_PROGRESS)]
+
+
+def test_status_date_on_the_last_working_day_of_the_project_calendar():
+    """Con el calendario del proyecto: el 30/10/2026 (viernes) no cierra el mes si el sábado 31 es laborable."""
+    from evm.workcalendar import STANDARD_DAY, WorkCalendar
+    tasks = tree('''
+        1 Fase
+          1.1 A
+    ''')
+    project = P(tasks)
+    part = build_part(project, Config())
+    six_days = WorkCalendar({d: list(STANDARD_DAY) for d in range(6)} | {6: []})
+    found = progress_checks(project, part.scope, part.code_of, date(2026, 10, 30), six_days)
+    assert [i.id for i in found if i.id == "AVA-018"] == ["AVA-018"]
+    holiday = WorkCalendar()
+    holiday.add_holidays([date(2026, 12, 31)])
+    found = progress_checks(project, part.scope, part.code_of, date(2026, 12, 30), holiday)
+    assert not [i for i in found if i.id == "AVA-018"]
 
 
 def test_leads_are_reported_once_per_task():
@@ -995,7 +1038,7 @@ def test_com_reads_saved_baselines_and_critical_paths_option():
 
 def test_logic_checks_count_only_the_links_of_the_plan():
     """Con una planificación, los controles de lógica solo cuentan los vínculos entre sus tareas: una tarea de
-    INTERNO cuya única sucesora es de CLIENTE no tiene sucesoras (LOG-005). Sin planificación, sí la tiene."""
+    INTERNO cuya única sucesora es de CLIENTE no tiene sucesoras (LOG-003). Sin planificación, sí la tiene."""
     tasks = tree('''
         - CLIENTE
           1 Fase C
@@ -1014,8 +1057,223 @@ def test_logic_checks_count_only_the_links_of_the_plan():
     t["C I"].predecessors = [Link(t["A I"].uid, LINK_FS)]
     t["A C"].predecessors = [Link(t["B I"].uid, LINK_SS)]          # CLIENTE replica a INTERNO
     plan = logic(tasks, Config(plan="INTERNO"))
-    assert [i.name for i in plan if i.id == "LOG-005"] == ["B I"]
+    assert [i.name for i in plan if i.id == "LOG-003" and i.variant == "sin sucesoras"] == ["B I"]
     assert [i.id for i in plan if i.id == "LOG-009"] == []          # el vínculo CC de CLIENTE no cuenta
-    [line] = [i for i in plan if i.id == "LOG-018"]
+    [line] = [i for i in plan if i.id == "LOG-018" and not i.code]
     assert line.message.startswith("1 vínculo une 1 tarea de la planificación INTERNO con tareas de fuera de ella")
-    assert "B I" not in [i.name for i in logic(tasks) if i.id == "LOG-005"]       # sin planificación
+    assert "B I" not in [i.name for i in logic(tasks) if i.id == "LOG-003"]       # sin planificación
+
+
+# ----------------------------------------------------------------------------
+# Revisión de cronogramas reales: BEI, tareas sin vínculos, línea base de la tarea, posiciones y línea base elegida
+# ----------------------------------------------------------------------------
+def test_bei_counts_only_completed_tasks_with_baseline():
+    """BEI: una tarea terminada sin línea base (p. ej. agregada después de guardarla) no cuenta en el numerador."""
+    tasks = tree('''
+        1 Fase
+          1.1 Terminada
+          1.2 Pendiente
+          1.3 Nueva 1
+          1.4 Nueva 2
+    ''', bf=datetime(2026, 2, 13, 17))
+    t = by_name(tasks)
+    for name in ("Terminada", "Nueva 1", "Nueva 2"):
+        t[name].actual_start, t[name].actual_finish, t[name].percent_complete = S, datetime(2026, 2, 13, 17), 100
+    for name in ("Nueva 1", "Nueva 2"):
+        t[name].baseline_start = t[name].baseline_finish = None
+        t[name].has_baseline = False
+    metrics = {}
+    project = P(tasks)
+    part = build_part(project, Config())
+    [bei] = [i for i in progress_checks(project, part.scope, part.code_of, date(2026, 2, 27), metrics=metrics)
+             if i.id == "AVA-013"]
+    assert metrics[14] == ("0,5", "≥ 0,95", False)
+    assert bei.message == ("De 2 tareas que debían terminar a la fecha de estado según la línea base, 1 no terminó a "
+                           "tiempo: 1 sin terminar (1.2.0). El BEI no cuenta 2 tareas terminadas sin línea base.")
+    assert bei.severity == SEV_WARN
+
+
+def test_unlinked_task_at_the_project_start_is_reported():
+    """Una tarea sin vínculos queda en el comienzo del proyecto: se informa sin predecesoras ni sucesoras (LOG-003). La
+    que comienza con el proyecto y tiene sucesoras no necesita predecesora; la que termina con el proyecto y tiene
+    predecesoras no necesita sucesora."""
+    tasks = tree('''
+        1 Fase
+          1.1 Inicio
+          1.2 Medio
+          1.3 Fin
+          1.4 Hito suelto
+    ''')
+    t = by_name(tasks)
+    t["Inicio"].start, t["Inicio"].finish = S, datetime(2026, 1, 9, 17)
+    t["Medio"].start, t["Medio"].finish = datetime(2026, 1, 12, 8), datetime(2026, 2, 27, 17)
+    t["Fin"].start, t["Fin"].finish = datetime(2026, 3, 2, 8), F
+    t["Hito suelto"].milestone = True
+    t["Hito suelto"].start = t["Hito suelto"].finish = S
+    t["Medio"].predecessors = [Link(t["Inicio"].uid)]
+    t["Fin"].predecessors = [Link(t["Medio"].uid)]
+    by = {i.name: (i.id, i.message) for i in logic(tasks) if i.id == "LOG-003"}
+    assert by == {"Hito suelto": ("LOG-003", "Sin predecesoras ni sucesoras.")}
+
+
+def test_baseline_that_does_not_match_the_task():
+    """FEC-004: hito con duración en la línea base. FEC-018: tarea de 5 días o más con una línea base de un día o
+    menos. Los informan generar y validar, solo con línea base."""
+    tasks = tree('''
+        1 Fase
+          1.1 Hito
+          1.2 Tarea
+          1.3 Corta
+          1.4 Hito sin dato
+    ''')
+    t = by_name(tasks)
+    t["Hito"].milestone, t["Hito"].baseline_duration = True, 20 * 480.0
+    t["Hito"].baseline_start, t["Hito"].baseline_finish = datetime(2026, 1, 5, 8), datetime(2026, 1, 30, 17)
+    t["Hito sin dato"].milestone = True                     # sin la duración de la línea base: no se revisa
+    for name, days in (("Tarea", 10), ("Corta", 4)):
+        t[name].duration = days * 480.0
+        t[name].baseline_start, t[name].baseline_finish = datetime(2026, 2, 2, 8), datetime(2026, 2, 2, 17)
+    rep = report(tasks)
+    found = {i.id: (i.name, i.message) for i in rep.issues if i.id in ("FEC-004", "FEC-018")}
+    assert found == {
+        "FEC-004": ("Hito", "Es un hito y en la línea base dura 20 días (05/01/2026 a 30/01/2026): pesa como hito, "
+                            "entero en el mes del fin de la línea base (01/2026), sin su duración. Si la tarea pasó a "
+                            "ser un hito después de guardar la línea base, se debe guardar de nuevo su línea base, "
+                            "como cambio aprobado."),
+        "FEC-018": ("Tarea", "Dura 10 días en el programa actual y su línea base, un día o menos (02/02/2026): en el % "
+                             "planificado de su fila pesa como una tarea de un día o menos, entero en ese mes. Si la "
+                             "línea base se guardó antes de planificar la tarea, se debe guardar de nuevo su línea "
+                             "base, como cambio aprobado.")}
+    assert all(i.topic == TOPIC_DATES and i.severity == SEV_WARN for i in rep.issues if i.id in found)
+    assert [i.variant for i in rep.issues if i.id == "FEC-004"] == ["en la línea base"]
+    assert not [i for i in report(tasks, baseline_found=False).issues if i.id in ("FEC-004", "FEC-018")]
+    t["Hito"].duration = 2 * 480.0                          # también con duración en el programa actual: una línea
+    [both] = [i for i in report(tasks).issues if i.id == "FEC-004"]
+    assert both.variant == "en el programa actual y en la línea base"
+    assert both.message.startswith("Es un hito y dura 2 días en el programa actual y en la línea base dura 20 días")
+
+
+def test_lags_are_listed_from_the_longest():
+    """LOG-008: los vínculos con posición, de la más larga a la más corta, con su valor y su predecesora (días
+    laborables, días transcurridos o en %)."""
+    tasks = tree('''
+        1 Fase
+          1.1 A
+          1.2 B
+          1.3 C
+          1.4 D
+          1.5 E
+    ''')
+    t = by_name(tasks)
+    t["B"].predecessors = [Link(t["A"].uid, LINK_FS, 2 * 480.0)]
+    t["C"].predecessors = [Link(t["B"].uid, LINK_FS, 30 * 480.0)]
+    t["D"].predecessors = [Link(t["C"].uid, LINK_FS, 10 * 1440.0, 8)]           # 10 días transcurridos
+    t["E"].predecessors = [Link(t["D"].uid, LINK_FS, 500.0, 19)]                # en % de la predecesora
+    [line] = [i for i in logic(tasks) if i.id == "LOG-008"]
+    assert line.message == ("4 vínculos tienen posición positiva, de la más larga a la más corta: 1.3.0 (+30 días "
+                            "desde 1.2.0), 1.4.0 (+10 días transcurridos desde "
+                            "1.3.0), 1.2.0 (+2 días desde 1.1.0), 1.5.0 (posición en % desde 1.4.0). Una espera fija "
+                            "oculta trabajo que conviene representar como tarea.")
+
+
+def test_without_the_baseline_the_saved_ones_are_suggested():
+    """FEC-009: sin la línea base que usa el % planificado, indica las otras guardadas y cómo usarlas; la fuente del
+    PV dice que sigue a las fechas actuales."""
+    from evm.model import use_current_schedule
+    from evm.wbs import CURRENT_PV_SOURCE, PERCENT_PV_SOURCE
+    tasks = tree('''
+        1 Fase
+          1.1 A
+          1.2 B
+    ''')
+    t = by_name(tasks)
+    t["Fase"].baselines, t["A"].baselines = (2,), (2, 3)
+
+    def fec009(name="", **kw):
+        project = P(tasks, **kw)
+        use_current_schedule(project)
+        part = build_part(project, Config(), name)
+        return next(i.message for i in part.issues if i.id == "FEC-009"), part.source.pv_source
+
+    message, source = fec009()
+    assert message == ("El proyecto no tiene guardada la Línea base, que usa el % planificado: el % planificado se "
+                       "calculó con las fechas ACTUALES de las tareas, y el PV sigue al programa actual. Se debe "
+                       "guardar la línea base en MS Project (Proyecto > Establecer línea base) y volver a exportar. "
+                       "Tiene guardadas Línea base 2 (2 tareas) y Línea base 3 (1 tarea): si una de ellas es la "
+                       "aprobada, se puede usar con linea_base (p. ej. [exportacion] linea_base = 2 o --linea-base 2), "
+                       "después de revisar que esté completa.")
+    assert source == CURRENT_PV_SOURCE != PERCENT_PV_SOURCE
+    t["A"].baselines = (2,)
+    message, _ = fec009("P2")
+    assert message.endswith("Tiene guardada la Línea base 2 (2 tareas): si es la aprobada, se puede usar con "
+                            "linea_base = 2 en su sección [[proyectos]], después de revisar que esté completa.")
+    t["Fase"].baselines = t["A"].baselines = ()
+    message, _ = fec009(baseline_number=1)
+    assert message.startswith("El proyecto no tiene guardada la Línea base 1, que usa")
+    assert message.endswith("y volver a exportar.")
+    assert build_part(P(tasks), Config()).source.pv_source == PERCENT_PV_SOURCE
+
+
+# ----------------------------------------------------------------------------
+# Unificación de códigos: un código por problema, sin repetir el mismo hecho
+# ----------------------------------------------------------------------------
+def test_same_wbs_code_as_the_parent_is_edt_005():
+    """EDT-005 informa también el código igual al de la tarea superior (antes EDT-004), con su caso."""
+    tasks = [T(1, 1, "1", "Fase"), T(2, 2, "1.2", "Grupo"), T(3, 3, "1.2", "Igual"), T(4, 3, "1.3.1", "Otra")]
+    found = {i.name: i for i in build_report(P(tasks), Config()).issues if i.id == "EDT-005"}
+    assert found["Igual"].variant == "mismo código que la tarea superior"
+    assert found["Igual"].message.startswith("Tiene el mismo código EDT que su tarea superior 1.2.0")
+    assert found["Otra"].variant == "no empieza por el código de la tarea superior"
+
+
+def test_config_field_not_found_and_empty_are_one_code_each(tmp_path):
+    """LEC-010: cualquier campo de la configuración que no se encuentra; LEC-019: cualquier campo vacío en todas las
+    tareas. Con el campo de método vacío, las filas sin método no se repiten con MET-005."""
+    path = write_xml(tmp_path / "p.xml", project_xml([
+        task_xml(1, 1, "Fase", wbs="1", start=S, finish=F, baselines=[(0, S, F, 0)]),
+        task_xml(2, 2, "A", wbs="1.1", start=S, finish=F, baselines=[(0, S, F, 0)])]))
+    cfg = Config(method_field="No existe", milestone_weight_field="Tampoco")
+    p = read_xml(path, cfg)
+    assert [(w.id, w.message) for w in p.warnings] == [
+        ("LEC-010", "No se encontró el campo de método 'No existe' ([campos] metodo) en el XML: todas las filas "
+                    "tienen el método por defecto ('Por definir')."),
+        ("LEC-010", "No se encontró el campo de peso de hitos 'Tampoco' ([campos] peso_hito) en el XML: los hitos no "
+                    "tienen peso.")]
+    assert "MET-005" not in {i.id for i in build_report(p, cfg).issues}         # ya lo dice LEC-010
+    tasks = tree('''
+        1 Fase
+          1.1 A
+    ''')
+    cfg = Config(method_field="Método")
+    issues = report(tasks, cfg, fields_found={"metodo": "Método"}).issues
+    [empty] = [i for i in issues if i.id == "LEC-019"]
+    assert empty.message.startswith("El campo 'Método' ([campos] metodo) existe, pero está vacío en todas las tareas")
+    assert "MET-005" not in {i.id for i in issues}
+    by_name(tasks)["A"].method = "50/50"                    # con el campo cargado en alguna tarea
+    by_name(tasks)["Fase"].method = ""
+    assert "LEC-019" not in {i.id for i in report(tasks, cfg, fields_found={"metodo": "Método"}).issues}
+    without_field = report(tree('''
+        1 Fase
+          1.1 A
+    ''')).issues                                         # sin campo de método: las filas sin método, MET-005
+    assert "MET-005" in {i.id for i in without_field}
+
+
+def test_empty_company_field_does_not_repeat_the_tasks_without_company():
+    """Multi-empresa: con el campo de empresa vacío en todas las tareas, LEC-019 lo dice una vez; no se listan las
+    tareas sin empresa (EMP-003), que serían todas."""
+    tasks = tree('''
+        1 Fase
+          1.1 A
+          1.2 B
+    ''')
+    cfg = Config(multi_enabled=True)
+    issues = report(tasks, cfg, fields_found={"campo_empresa": "Empresa", "campo_reparto": "% Reparto"}).issues
+    [empty] = [i for i in issues if i.id == "LEC-019"]
+    assert empty.message == ("El campo 'Empresa' ([multiempresa] campo_empresa) existe, pero está vacío en todas las "
+                             "tareas: todas se tratan como 'Ambas'.")
+    assert "EMP-003" not in {i.id for i in issues}
+    by_name(tasks)["A"].company = "EmpresaA"
+    issues = report(tasks, cfg, fields_found={"campo_empresa": "Empresa", "campo_reparto": "% Reparto"}).issues
+    emp = [(i.code, bool(i.code)) for i in issues if i.id == "EMP-003"]
+    assert emp == [("", False), ("1.0.0", True)]          # el resumen y la tarea (con sus subtareas), un código

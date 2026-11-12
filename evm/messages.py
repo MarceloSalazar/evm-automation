@@ -7,8 +7,8 @@ de él (python docs/herramientas/codigos.py) y las pruebas comprueban que está 
 del catálogo.
 
 Un código no se reutiliza ni se renumera: si un mensaje deja de existir, su código queda en el catálogo como
-retirado y las configuraciones que lo silencian siguen siendo válidas. Metodología para agregar un mensaje:
-docs/desarrollo.md, sección 5.
+retirado, con el código que lo informa desde entonces; silenciarlo no tiene efecto y se avisa con CFG-047.
+Metodología para agregar un mensaje: docs/desarrollo.md, sección 5.
 """
 from __future__ import annotations
 
@@ -65,6 +65,8 @@ class Issue:
     row: str = ""               # código EDT de la fila del libro de la tarea: la suya o la fila que la suma
     file: str = ""              # varios archivos ([[proyectos]]): nombre del archivo de la observación
     tasks: int = 0              # línea agrupada (grouped): cantidad de observaciones que reúne
+    variant: str = ""           # caso del código (p. ej. "sin sucesoras" en LOG-003): el informe de mejoras agrupa
+    #                             por él las tareas de un código
 
     def __post_init__(self) -> None:
         entry = CATALOG.get(self.id)
@@ -150,7 +152,7 @@ W_READ = "generar, actualizar, validar y generar-fichas (lectura de MS Project)"
 W_GV = "generar (hoja Validación) y validar"
 W_G = "generar (hoja Validación)"
 W_V = "validar"
-W_OUT = "generar, generar-fichas y validar --informe"
+W_OUT = "generar, generar-fichas, generar-cliente y validar --informe"
 W_BOOK = "actualizar, analizar, procesar-costes y generar --migrar-desde (lectura del libro)"
 W_MIG = "generar --migrar-desde (hoja Validación)"
 W_REVIEW = "generar con depuracion_costes (hoja Validación)"
@@ -159,6 +161,8 @@ W_ACT = "actualizar"
 W_AN = "actualizar y analizar"
 W_ROW = "actualizar (observaciones por fila)"
 W_FIC = "generar-fichas"
+W_CLI = "generar-cliente"
+W_CLI_V = "generar-cliente y validar (con [cliente] campo)"
 
 
 @dataclass(frozen=True)
@@ -198,11 +202,14 @@ AREAS = {a.prefix: a for a in [
     Area("MIG", "Migración (--migrar-desde)", TOPIC_BOOK, W_MIG,
          "Traslado del BAC, el % ganado, el AC y los métodos de un libro anterior."),
     Area("DEP", "Depuración de costes", TOPIC_BOOK, W_REVIEW,
-         "Hoja PV-depuración, su traslado con --migrar-desde y el reparto del plan de costes (procesar-costes)."),
+         "Hoja PV-depuración, su traslado con --migrar-desde y la revisión del plan de costes (procesar-costes)."),
     Area("ACT", "Actualizar y analizar", TOPIC_BOOK, W_ACT,
          "Carga del % ganado del mes: fecha de corte, filas del libro, BAC y observaciones por fila."),
     Area("FIC", "Fichas de tareas", TOPIC_BOOK, W_FIC,
          "Comando generar-fichas."),
+    Area("CLI", "Planificación para el cliente", TOPIC_BOOK, W_CLI,
+         "Comando generar-cliente: tareas que se muestran al cliente, «Otras tareas», resúmenes convertidos, "
+         "vínculos nuevos y comparación con la planificación interna."),
     Area("SIS", "Errores del sistema", TOPIC_BOOK, W_ALL,
          "Errores de archivos del sistema y errores inesperados del programa."),
 ]}
@@ -217,6 +224,7 @@ class Code:
     action: str
     where: str = ""                 # "" = los comandos del área
     retired: str = ""               # versión en que se retiró ("" = vigente)
+    by: str = ""                    # código retirado: el código que lo informa desde entonces ("" = ninguno)
 
     @property
     def area(self) -> Area:
@@ -238,9 +246,9 @@ class Code:
 
 
 def _code(id: str, severity: str | tuple[str, ...], title: str, cause: str, action: str, where: str = "",
-          retired: str = "") -> Code:
+          retired: str = "", by: str = "") -> Code:
     severities = severity if isinstance(severity, tuple) else (severity,)
-    return Code(id, severities, title, cause, action, where, retired)
+    return Code(id, severities, title, cause, action, where, retired, by)
 
 
 F, E, W, I = SEV_FATAL, SEV_ERROR, SEV_WARN, SEV_INFO      # noqa: E741 (abreviaturas del catálogo)
@@ -375,10 +383,11 @@ _CODES = [
           "Con varios archivos no hay un nombre de salida por defecto.",
           "Indicar el archivo a crear con --salida (o con --informe en validar).", W_OUT),
     _code("CFG-041", F, "Extensión del archivo de salida no válida",
-          "El libro se guarda como .xlsx; las fichas y el informe de mejoras de validar, como .md.",
-          "Indicar --salida (o --informe) con la extensión que corresponde.", W_OUT),
+          "El libro se guarda como .xlsx; las fichas, el informe de mejoras de validar y el informe de control de "
+          "generar-cliente, como .md; la planificación del cliente, como .mpp.",
+          "Indicar --salida (o --informe o --destino) con la extensión que corresponde.", W_OUT),
     _code("CFG-042", F, "El archivo de salida ya existe",
-          "El archivo de --salida (o de --informe) existe y no se indicó --sobrescribir.",
+          "El archivo de --salida (o de --informe o --destino) existe y no se indicó --sobrescribir.",
           "Usar --sobrescribir para reemplazarlo o indicar otro nombre. Para conservar los EV/AC cargados en un "
           "libro, se genera un archivo nuevo con --migrar-desde.", W_OUT),
     _code("CFG-043", F, "--migrar-desde igual a --salida",
@@ -396,10 +405,12 @@ _CODES = [
     _code("CFG-046", W, "Monedas distintas en los archivos",
           "Con varios archivos, los proyectos tienen monedas distintas en MS Project; el libro muestra una de ellas.",
           "Indicar la moneda del libro en [exportacion] moneda.", W_GV),
-    _code("CFG-047", W, "Código desconocido en silenciar",
-          "Un elemento de [validacion] silenciar o de --silenciar no es un código del catálogo o no tiene el "
-          "formato ÁREA-NNN (o ÁREA-NNN:EDT).",
-          "Corregir el código según este documento."),
+    _code("CFG-047", W, "Código desconocido o retirado en silenciar",
+          "Un elemento de [validacion] silenciar o de --silenciar no es un código del catálogo, no tiene el formato "
+          "ÁREA-NNN (o ÁREA-NNN:EDT) o es un código retirado: se ignora. Si el código se retiró, el mensaje indica "
+          "con qué código se informa ahora.",
+          "Corregir el código según este documento (un código retirado se reemplaza por el que lo informa "
+          "ahora)."),
     _code("CFG-048", W, "Código que no se puede silenciar",
           "Se pidió silenciar un error que detiene el programa, el resumen de las observaciones silenciadas o un "
           "aviso del registro de diagnóstico (LEC-022).",
@@ -425,6 +436,22 @@ _CODES = [
           "una por una, y con un solo archivo (sin [[proyectos]]).",
           "Indicar una sola planificación en planificacion o --planificacion; para revisar varias, usar validar "
           "--planificacion INTERNO,CLIENTE.", "generar, actualizar, validar y generar-fichas"),
+    _code("CFG-054", F, "Falta el campo del cliente",
+          "generar-cliente necesita el campo de MS Project que indica qué tareas se muestran al cliente.",
+          "Indicarlo en [cliente] campo, por ejemplo campo = \"Etiqueta Cliente\" (ver config.ejemplo.toml).", W_CLI),
+    _code("CFG-055", F, "Cálculo del precio mal configurado",
+          "La sección [depuracion_precio] (precio de las EDT interna en la depuración de costes) no es válida: "
+          "falta calculo_precio o la lista de componentes, la expresión no se puede leer o usa un nombre que no está "
+          "en [depuracion_precio.componentes] ni en [depuracion_precio.recargos], un nombre o un texto está repetido "
+          "o hay más de 8 coeficientes. El mensaje indica el motivo.",
+          "Corregir la sección según config.ejemplo.toml: la expresión admite números (con punto decimal), los "
+          "nombres de las dos listas, + - * / y paréntesis."),
+    _code("CFG-056", W, "Fechas de estado distintas en los archivos",
+          "Con varios archivos ([[proyectos]]), los proyectos tienen fechas de estado distintas, o alguno no tiene: el "
+          "avance de cada archivo corresponde a otro día y actualizar se detiene (ACT-005 o ACT-004) si no se "
+          "indica --fecha-corte. La consola de generar muestra siempre este aviso, antes que los demás.",
+          "Registrar el avance de todos los archivos a la misma fecha (el último día del mes informado o su último "
+          "día laborable) y fijar esa fecha de estado en cada uno (Proyecto > Fecha de estado).", W_GV),
 
     # --- LEC: lectura de MS Project -----------------------------------------------------------------------------
     _code("LEC-001", F, "No existe el archivo de origen",
@@ -457,28 +484,38 @@ _CODES = [
           "MS Project no pudo abrir el .mpp (archivo dañado, de una versión más reciente, bloqueado o con un "
           "diálogo pendiente).",
           "Abrir el archivo a mano en MS Project para ver el problema, o guardarlo como XML y usar ese archivo."),
-    _code("LEC-010", W, "No se encontró el campo EDT",
-          "El campo indicado en [campos] edt no existe en el proyecto: se usa el campo EDT (WBS) de MS Project.",
-          "Revisar el nombre del campo (como se ve en MS Project o el nombre interno, p. ej. Texto1)."),
+    _code("LEC-010", W, "No se encontró un campo de la configuración",
+          "Un campo indicado en [campos] o en [multiempresa] no existe en el proyecto. El mensaje indica cuál y su "
+          "efecto: edt, se usa el campo EDT (WBS) de MS Project; metodo, todas las filas tienen el método por "
+          "defecto; peso_hito, los hitos no tienen peso; visible, las filas del libro siguen el nivel máximo; "
+          "descripcion, las fichas de tareas no tienen descripción; campo_empresa, todas las tareas se tratan como "
+          "compartidas; campo_reparto, las tareas compartidas se reparten con reparto_por_defecto.",
+          "Revisar el nombre del campo (como se ve en MS Project o el nombre interno, p. ej. Texto1), o dejar la "
+          "clave vacía si no se usa."),
     _code("LEC-011", W, "No se encontró el campo de método",
-          "El campo indicado en [campos] metodo no existe: todas las filas tienen el método por defecto.",
-          "Revisar el nombre del campo o dejar la clave vacía si no se usa."),
+          "Desde la versión 2.6.0, todo campo de la configuración que no se encuentra en el proyecto se informa con "
+          "LEC-010.",
+          "Ninguna.", retired="2.6.0", by="LEC-010"),
     _code("LEC-012", W, "No se encontró el campo de peso de hitos",
-          "El campo indicado en [campos] peso_hito no existe: los hitos no tienen peso.",
-          "Revisar el nombre del campo o dejar la clave vacía si no se usa."),
+          "Desde la versión 2.6.0, todo campo de la configuración que no se encuentra en el proyecto se informa con "
+          "LEC-010.",
+          "Ninguna.", retired="2.6.0", by="LEC-010"),
     _code("LEC-013", W, "No se encontró el campo Visible",
-          "El campo indicado en [campos] visible no existe: las filas del libro siguen el nivel máximo.",
-          "Revisar el nombre del campo, o indicar visible = \"\" si no se usa."),
+          "Desde la versión 2.6.0, todo campo de la configuración que no se encuentra en el proyecto se informa con "
+          "LEC-010.",
+          "Ninguna.", retired="2.6.0", by="LEC-010"),
     _code("LEC-014", W, "No se encontró el campo de descripción",
-          "El campo indicado en [campos] descripcion no existe: las fichas de tareas no tienen descripción.",
-          "Revisar el nombre del campo o dejar la clave vacía si no se usa."),
+          "Desde la versión 2.6.0, todo campo de la configuración que no se encuentra en el proyecto se informa con "
+          "LEC-010.",
+          "Ninguna.", retired="2.6.0", by="LEC-010"),
     _code("LEC-015", W, "No se encontró el campo de empresa",
-          "En multi-empresa, el campo indicado en campo_empresa no existe: todas las tareas son de las dos empresas.",
-          "Revisar [multiempresa] campo_empresa."),
+          "Desde la versión 2.6.0, todo campo de la configuración que no se encuentra en el proyecto se informa con "
+          "LEC-010.",
+          "Ninguna.", retired="2.6.0", by="LEC-010"),
     _code("LEC-016", W, "No se encontró el campo de reparto",
-          "En multi-empresa, el campo indicado en campo_reparto no existe: las tareas compartidas se reparten con "
-          "reparto_por_defecto.",
-          "Revisar [multiempresa] campo_reparto."),
+          "Desde la versión 2.6.0, todo campo de la configuración que no se encuentra en el proyecto se informa con "
+          "LEC-010.",
+          "Ninguna.", retired="2.6.0", by="LEC-010"),
     _code("LEC-017", W, "Tareas externas omitidas",
           "El proyecto tiene tareas externas (vínculos con otros proyectos): no forman parte del cálculo.",
           "Ninguna, si es lo esperado."),
@@ -486,16 +523,19 @@ _CODES = [
           "Un calendario del XML tiene una excepción con una periodicidad que el programa no interpreta: se omite. "
           "Solo afecta el reparto de la duración de las tareas entre los meses.",
           "Si la excepción es importante (p. ej. un cierre anual), indicarla como fechas en feriados."),
-    _code("LEC-019", W, "Campo de método vacío",
-          "El campo de método existe, pero está vacío en todas las tareas: todas las filas tienen el método por "
-          "defecto.",
-          "Cargar el método en la tarea de cada paquete, o revisar [campos] metodo.", W_GV),
+    _code("LEC-019", W, "Campo de la configuración vacío",
+          "Un campo indicado en [campos] o en [multiempresa] existe, pero está vacío en todas las tareas. El mensaje "
+          "indica cuál y su efecto: metodo, todas las filas tienen el método por defecto (las filas sin método no "
+          "se informan aparte con MET-005); peso_hito, ningún hito tiene peso y los hitos no tienen % planificado "
+          "propio; campo_empresa, todas las tareas se tratan como compartidas (las tareas sin empresa no se "
+          "informan aparte con EMP-003).",
+          "Cargar el campo en MS Project, o revisar el nombre indicado en la configuración.", W_GV),
     _code("LEC-020", W, "Ningún hito tiene peso",
-          "El campo de peso de hitos existe, pero ningún hito tiene peso: los hitos no tienen % planificado propio.",
-          "Cargar el peso de los hitos (% del paquete), o revisar [campos] peso_hito.", W_GV),
+          "Desde la versión 2.6.0, todo campo de la configuración vacío en todas las tareas se informa con LEC-019.",
+          "Ninguna.", W_GV, retired="2.6.0", by="LEC-019"),
     _code("LEC-021", W, "Campo de empresa vacío",
-          "En multi-empresa, el campo de empresa existe, pero está vacío en todas las tareas.",
-          "Cargar la empresa de cada tarea, o revisar [multiempresa] campo_empresa.", W_GV),
+          "Desde la versión 2.6.0, todo campo de la configuración vacío en todas las tareas se informa con LEC-019.",
+          "Ninguna.", W_GV, retired="2.6.0", by="LEC-019"),
     _code("LEC-022", W, "No se pudo cerrar el proyecto en MS Project",
           "Al terminar la lectura de un .mpp, MS Project no cerró el proyecto (por ejemplo, por un diálogo abierto): "
           "queda abierto, sin guardar cambios. Se muestra en el registro de diagnóstico (WARNING evm.reader_com), "
@@ -503,10 +543,10 @@ _CODES = [
           "Cerrar el proyecto a mano en MS Project, sin guardar.", "generar, actualizar, validar y generar-fichas "
           "con archivos .mpp"),
     _code("LEC-023", W, "Campo de reparto vacío",
-          "En multi-empresa, el campo de reparto existe, pero está vacío en todas las tareas: las tareas compartidas "
-          "(ambas) se reparten con reparto_por_defecto.",
-          "Cargar el % de la empresa A en las tareas compartidas (o en su tarea superior), o confirmar que el reparto "
-          "por defecto es el acordado.", W_GV),
+          "Hasta la versión 2.5, en multi-empresa, se avisaba cuando el campo de reparto existía, pero estaba vacío en "
+          "todas las tareas. Desde la versión 2.6.0 no se avisa: una tarea compartida (ambas) sin reparto se reparte "
+          "con reparto_por_defecto, como está previsto.",
+          "Ninguna.", W_GV, retired="2.6.0"),
     _code("LEC-024", I, "Líneas base guardadas",
           "Líneas base guardadas y la que usa el % planificado: la cantidad de tareas revisadas (las de la "
           "planificación exportada) con fecha de comienzo en cada una.",
@@ -519,6 +559,11 @@ _CODES = [
           "Comparar con el resultado del XML del mismo proyecto (Archivo > Guardar como > XML), que lee el "
           "calendario del archivo, y usar el XML si difieren.", "generar, actualizar, validar y generar-fichas con "
           "archivos .mpp"),
+    _code("LEC-026", F, "No se encontró el campo del cliente",
+          "El campo de [cliente] campo no existe en el archivo de MS Project, ni con ese nombre ni como alias: no se "
+          "puede saber qué tareas se muestran al cliente.",
+          "Revisar el nombre del campo en [cliente] campo (el alias, por ejemplo \"Etiqueta Cliente\", o el nombre, "
+          "por ejemplo \"Text15\").", W_CLI),
 
     # --- EDT: estructura y códigos EDT --------------------------------------------------------------------------
     _code("EDT-001", E, "Código EDT con formato no válido",
@@ -532,11 +577,13 @@ _CODES = [
           "La tarea tiene un código de nivel 2 o más, pero ninguna tarea superior tiene código EDT.",
           "Asignar a la tarea superior el código indicado en el mensaje, o revisar el código de la tarea."),
     _code("EDT-004", E, "Mismo código EDT que la tarea superior",
-          "La tarea repite el código de su tarea superior.",
-          "Asignarle un código de un nivel más (p. ej. 1.2.1 bajo 1.2.0)."),
+          "Desde la versión 2.6.0, un código EDT igual al de la tarea superior se informa con EDT-005: tampoco depende "
+          "del de la tarea superior.",
+          "Ninguna.", retired="2.6.0", by="EDT-005"),
     _code("EDT-005", E, "El código EDT no depende del de la tarea superior",
-          "El código no empieza por el de su tarea superior (p. ej. 1.3.1 bajo 1.2.0).",
-          "Corregir el código según el patrón indicado en el mensaje."),
+          "El código no empieza por el de su tarea superior (p. ej. 1.3.1 bajo 1.2.0), o es el mismo código que el "
+          "de su tarea superior.",
+          "Corregir el código según el patrón indicado en el mensaje (p. ej. 1.2.1 bajo 1.2.0)."),
     _code("EDT-006", W, "El código EDT salta un nivel",
           "El código tiene dos niveles más que su tarea superior: probablemente falta el código de una tarea "
           "intermedia.",
@@ -555,8 +602,10 @@ _CODES = [
     _code("EDT-010", (F, E), "No se encontró la planificación",
           "Ninguna tarea tiene el código EDT (o el nombre) de la planificación indicada. validar lo informa como "
           "error y revisa el proyecto completo.",
-          "Revisar planificacion (o --planificacion): el mensaje lista las tareas de nivel superior.",
-          "generar, actualizar, generar-fichas y validar"),
+          "Revisar planificacion (o --planificacion): el mensaje lista las tareas de nivel superior. Si el archivo "
+          "tiene una sola planificación, dejar planificacion vacía (planificacion = \"\") o quitar la clave: se usa "
+          "todo el proyecto.",
+          "generar, actualizar, generar-fichas, generar-cliente y validar"),
     _code("EDT-011", (F, E), "Código EDT en dos archivos",
           "Con varios archivos de MS Project, el mismo código EDT está en dos de ellos: el libro identifica cada "
           "fila por su código. validar lo informa como error.",
@@ -569,11 +618,11 @@ _CODES = [
           "generar, generar-fichas y validar"),
     _code("EDT-013", W, "Códigos de la lista EDT sin tarea",
           "Algunos códigos de lista_edt no existen en MS Project, o su tarea está inactiva o fuera de la "
-          "planificación: no tienen fila en el libro.",
+          "planificación: no tienen fila en el libro. Un resumen con la cantidad y una línea por código.",
           "Corregir la lista o el código de la tarea."),
     _code("EDT-014", W, "Código de la lista EDT sin tarea",
-          "Detalle de EDT-013: el código de la lista no tiene tarea en MS Project.",
-          "Corregir la lista o el código de la tarea."),
+          "Desde la versión 2.6.0, el resumen y cada código de la lista se informan con EDT-013.",
+          "Ninguna.", retired="2.6.0", by="EDT-013"),
     _code("EDT-015", I, "Elemento de la lista EDT con su tarea superior fuera de la lista",
           "El código está en la lista EDT y el de su tarea superior no: la fila queda debajo del elemento listado "
           "más cercano.",
@@ -628,11 +677,12 @@ _CODES = [
           "Con lista_edt, las filas del libro las decide la lista y el campo Visible no se usa.",
           "Ninguna."),
     _code("VIS-007", I, "Tareas con Visible = No",
-          "Esas tareas (con su rama) no forman parte del % planificado ni del % ganado.",
+          "Esas tareas (con su rama) no forman parte del % planificado ni del % ganado. Un resumen con la cantidad "
+          "y una línea por tarea.",
           "El BAC y el AC que se ingresan en el libro no las deben incluir."),
     _code("VIS-008", I, "Tarea con Visible = No",
-          "Detalle de VIS-007: la tarea queda fuera del PV, el EV y el AC.",
-          "Ninguna, si es lo esperado."),
+          "Desde la versión 2.6.0, el resumen y cada tarea se informan con VIS-007.",
+          "Ninguna.", retired="2.6.0", by="VIS-007"),
     _code("VIS-009", I, "Todas las subtareas con Visible = No",
           "La tarea representa a sus subtareas: su fila es el paquete de trabajo, con toda su rama (o se suman en su "
           "fila superior).",
@@ -642,73 +692,94 @@ _CODES = [
           "Ninguna."),
 
     # --- FEC: fechas y duración ---------------------------------------------------------------------------------
-    _code("FEC-001", E, "Fin previsto anterior al comienzo previsto",
-          "En la línea base, la tarea termina antes de comenzar.",
-          "Corregir la tarea y volver a guardar su línea base."),
+    _code("FEC-001", E, "Fin anterior al comienzo",
+          "La tarea termina antes de comenzar, en la línea base (fin previsto anterior al comienzo previsto) o en el "
+          "programa actual. El mensaje indica cuál.",
+          "Corregir las fechas de la tarea en MS Project; si el error está en la línea base, guardar de nuevo la "
+          "línea base de la tarea."),
     _code("FEC-002", E, "Fin anterior al comienzo",
-          "En el programa actual, la tarea termina antes de comenzar.",
-          "Corregir las fechas de la tarea en MS Project."),
+          "Desde la versión 2.6.0, el fin anterior al comienzo, en la línea base o en el programa actual, se informa "
+          "con FEC-001.",
+          "Ninguna.", retired="2.6.0", by="FEC-001"),
     _code("FEC-003", W, "Tarea sin Comienzo o sin Fin",
           "La tarea no tiene fechas en el programa actual (p. ej. una tarea programada manualmente sin fechas).",
           "Indicar sus fechas o su duración."),
     _code("FEC-004", W, "Hito con duración",
-          "La tarea está marcada como hito y tiene duración: se calcula como hito, sin su duración (sin Peso hito no "
-          "pesa en el % planificado; con Peso hito, pesa entero en el mes de su fecha de fin).",
-          "Si no es un hito, quitar la marca de hito (Información de la tarea > Avanzado)."),
+          "La tarea está marcada como hito y tiene duración en el programa actual o en la línea base que usa el % "
+          "planificado (el mensaje indica dónde): se calcula como hito, sin su duración (sin Peso hito no pesa en el "
+          "% planificado; con Peso hito, pesa entero en el mes de su fecha de fin). La duración en la línea base "
+          "suele aparecer cuando una tarea se convierte en hito después de guardar la línea base.",
+          "Si no es un hito, quitar la marca de hito (Información de la tarea > Avanzado). Si lo es y la duración "
+          "está en la línea base, guardar de nuevo su línea base (Establecer línea base > Tareas seleccionadas), "
+          "como parte de un cambio de línea base aprobado."),
     _code("FEC-005", W, "Duración 0 sin marca de hito",
           "La tarea dura 0 y no es un hito: no pesa en el % planificado de su fila.",
           "Si es un hito, marcarla como hito (y, si corresponde, indicar su peso)."),
-    _code("FEC-006", W, "Tareas con duración estimada",
-          "Algunas tareas tienen duración estimada (con «?», p. ej. «5 días?»): la duración define el % planificado.",
+    _code("FEC-006", W, "Duración estimada",
+          "Algunas tareas tienen duración estimada (con «?», p. ej. «5 días?»): la duración define el % planificado. "
+          "Un resumen con la cantidad y una línea por tarea.",
           "Confirmar o corregir la duración de esas tareas."),
     _code("FEC-007", W, "Duración estimada",
-          "Detalle de FEC-006: la duración de la tarea es estimada.",
-          "Confirmar o corregir la duración."),
+          "Desde la versión 2.6.0, el resumen y cada tarea se informan con FEC-006.",
+          "Ninguna.", retired="2.6.0", by="FEC-006"),
     _code("FEC-008", W, "Tareas programadas manualmente",
           "MS Project no recalcula las fechas de esas tareas cuando cambian sus predecesoras o el avance: la lógica "
           "del cronograma deja de funcionar en ese punto. En un cronograma integrado no debería haber ninguna.",
           "Programarlas automáticamente. Si es intencional (p. ej. fechas impuestas por terceros), silenciar "
           "FEC-008."),
     _code("FEC-009", W, "El proyecto no tiene la línea base seleccionada",
-          "El % planificado se calculó con las fechas actuales de las tareas.",
-          "Guardar la línea base en MS Project (Proyecto > Establecer línea base) o elegir otra con linea_base, y "
-          "volver a exportar."),
+          "El % planificado se calculó con las fechas actuales de las tareas: el PV sigue al programa actual y no "
+          "muestra el atraso respecto del plan aprobado. Si el proyecto tiene otras líneas base guardadas (con un XML; "
+          "con un .mpp, solo en validar), el mensaje las indica, con la cantidad de tareas de cada una. La consola de "
+          "generar muestra siempre este aviso, antes que los demás.",
+          "Guardar la línea base en MS Project (Proyecto > Establecer línea base) y volver a exportar; o, si otra "
+          "línea base guardada es la aprobada y está completa, indicarla con linea_base (en [[proyectos]], la del "
+          "archivo) o --linea-base."),
     _code("FEC-010", W, "Tareas sin fechas de línea base",
           "Algunas tareas no tienen fechas de línea base (p. ej. se agregaron después de guardarla): su % "
-          "planificado se calculó con sus fechas actuales.",
+          "planificado se calculó con sus fechas actuales. Un resumen con la cantidad y una línea por tarea.",
           "Si corresponde, actualizar la línea base de esas tareas."),
     _code("FEC-011", W, "Tarea sin fechas de línea base",
-          "Detalle de FEC-010: se usaron las fechas actuales de la tarea.",
-          "Si corresponde, actualizar la línea base de la tarea."),
+          "Desde la versión 2.6.0, el resumen y cada tarea se informan con FEC-010.",
+          "Ninguna.", retired="2.6.0", by="FEC-010"),
     _code("FEC-012", W, "Tarea sin fechas",
           "La tarea no tiene fechas de línea base ni fechas actuales: no aporta % planificado.",
           "Indicar sus fechas o su duración."),
     _code("FEC-013", W, "Línea base de tareas resumen distinta de la de su detalle",
-          "Resumen de FEC-014: la línea base de algunas tareas resumen no va del comienzo más temprano al fin más "
-          "tardío de la línea base de sus tareas de detalle activas, o termina antes de comenzar. Suele pasar al "
-          "guardar la línea base de tareas seleccionadas sin resumirla en sus tareas resumen. MS Project muestra en "
-          "esas tareas fechas de línea base que no corresponden a su detalle; el libro no se ve afectado, porque usa "
-          "las fechas de las tareas de detalle.",
+          "La línea base de algunas tareas resumen no va del comienzo más temprano al fin más tardío de la línea "
+          "base de sus tareas de detalle activas, o termina antes de comenzar. Suele pasar al guardar la línea base "
+          "de tareas seleccionadas sin resumirla en sus tareas resumen. MS Project muestra en esas tareas fechas de "
+          "línea base que no corresponden a su detalle; el libro no se ve afectado, porque usa las fechas de las "
+          "tareas de detalle. Un resumen y una línea por tarea resumen, con las fechas de su línea base y las de sus "
+          "tareas de detalle.",
           "Guardar la línea base de esas tareas con Establecer línea base > Tareas seleccionadas y Resumir líneas "
           "base: Para todas las tareas de resumen, como parte de un cambio de línea base aprobado.", W_V),
     _code("FEC-014", W, "Tarea resumen con la línea base sin resumir",
-          "Detalle de FEC-013: las fechas de la línea base de la tarea resumen y las de sus tareas de detalle.",
-          "Resumir la línea base de la tarea resumen (FEC-013).", W_V),
-    _code("FEC-015", W, "Tarea con la línea base incompleta",
-          "La tarea de detalle tiene en la línea base que usa el % planificado solo el comienzo o solo el fin: se "
-          "toma como si durara 0 y no pesa en el % planificado de su fila.",
-          "Guardar de nuevo la línea base de la tarea (Establecer línea base > Tareas seleccionadas)."),
+          "Desde la versión 2.6.0, el resumen y cada tarea se informan con FEC-013.",
+          "Ninguna.", W_V, retired="2.6.0", by="FEC-013"),
+    _code("FEC-015", W, "Línea base incompleta",
+          "Tareas con solo el comienzo o solo el fin en una línea base. Cada tarea de detalle con la línea base que "
+          "usa el % planificado incompleta tiene su línea: se toma como si durara 0 y no pesa en el % planificado de "
+          "su fila. validar agrega un resumen de todas las tareas (también las resumen) con una línea base "
+          "incompleta: con un .mpp solo se revisa la línea base que usa el % planificado; con un XML, todas.",
+          "Guardar de nuevo la línea base de esas tareas (Establecer línea base > Tareas seleccionadas), o borrar la "
+          "fecha suelta si esa línea base no se usa."),
     _code("FEC-016", W, "Líneas base incompletas",
-          "Algunas tareas (también tareas resumen) tienen en una línea base solo el comienzo o solo el fin. Con un "
-          ".mpp solo se revisa la línea base que usa el % planificado; con un XML, todas.",
-          "Guardar de nuevo la línea base de esas tareas, o borrar la fecha suelta si la línea base no se usa.",
-          W_V),
+          "Desde la versión 2.6.0, el resumen de las líneas base incompletas y cada tarea se informan con FEC-015.",
+          "Ninguna.", W_V, retired="2.6.0", by="FEC-015"),
     _code("FEC-017", W, "Tareas con calendario propio",
           "Algunas tareas tienen un calendario de tarea distinto del calendario del proyecto: MS Project calcula sus "
           "fechas con él, pero el programa reparte su duración entre los meses con el calendario del proyecto, y "
           "su % planificado puede diferir algo del de MS Project.",
           "Ninguna, si el calendario de la tarea es necesario; si no, quitarlo (Información de la tarea > "
           "Avanzado > Calendario: Ninguno).", W_V),
+    _code("FEC-018", W, "Tarea con la línea base de un día",
+          "La tarea dura al menos 5 días laborables en el programa actual, y en la línea base que usa el % "
+          "planificado, un día o menos (comienzo y fin el mismo día): en el % planificado de su fila pesa como una "
+          "tarea de un día o menos, entera en ese mes. Suele pasar cuando la línea base se guardó antes de planificar "
+          "la tarea (p. ej. cuando era un hito o una tarea de un día).",
+          "Guardar de nuevo la línea base de la tarea (Establecer línea base > Tareas seleccionadas), como parte de un "
+          "cambio de línea base aprobado."),
 
     # --- HIT: hitos y pesos -------------------------------------------------------------------------------------
     _code("HIT-001", W, "Peso en una tarea que no es un hito de detalle",
@@ -757,7 +828,9 @@ _CODES = [
           "Dividir el paquete o usar un método de avance (% completado, hitos ponderados). Los umbrales son "
           "[validacion] meses_0_100 y meses_formula_fija."),
     _code("MET-005", I, "Filas sin método definido",
-          "Algunas filas no tienen método de medición (columna C).",
+          "Algunas filas no tienen método de medición (columna C). No se informa si el campo de método no se "
+          "encontró o está vacío en todas las tareas (LEC-010 o LEC-019): todas las filas tienen el método por "
+          "defecto.",
           "Indicar el método en MS Project o en la columna C del libro."),
 
     # --- EMP: empresas ------------------------------------------------------------------------------------------
@@ -771,11 +844,13 @@ _CODES = [
           "Ninguna, si no se le asigna BAC en esas filas."),
     _code("EMP-003", W, "Tareas sin empresa",
           "Algunas tareas no tienen empresa (ni la heredan de sus tareas superiores): se tratan como compartidas, "
-          "con el reparto por defecto.",
+          "con el reparto por defecto. Un resumen con la cantidad y una línea por tarea (la de nivel más alto de "
+          "cada rama sin empresa, con sus subtareas). No se informa si el campo de empresa no se encontró o está "
+          "vacío en todas las tareas (LEC-010 o LEC-019).",
           "Indicar la empresa de esas tareas o de su tarea superior."),
     _code("EMP-004", W, "Tarea sin empresa",
-          "Detalle de EMP-003: la tarea (y sus subtareas sin empresa) se trata como compartida.",
-          "Indicar la empresa de la tarea."),
+          "Desde la versión 2.6.0, el resumen y cada tarea se informan con EMP-003.",
+          "Ninguna.", retired="2.6.0", by="EMP-003"),
     _code("EMP-005", W, "Empresa no reconocida",
           "El valor del campo de empresa no es empresa_a, empresa_b ni ambas: la tarea se trata como compartida.",
           "Corregir el valor en MS Project."),
@@ -810,64 +885,80 @@ _CODES = [
           "El Comienzo real o el Fin real de la tarea es posterior a la fecha de estado.",
           "Corregir la fecha real o la fecha de estado."),
     _code("AVA-009", W, "Tarea atrasada sin terminar",
-          "El Fin de la tarea es anterior a la fecha de estado y la tarea no está terminada.",
-          "Registrar el avance o reprogramar el trabajo pendiente después de la fecha de estado."),
+          "Desde la versión 2.6.0, cada tarea con trabajo pendiente antes de la fecha de estado se informa con AVA-011,"
+          " como su resumen.",
+          "Ninguna.", retired="2.6.0", by="AVA-011"),
     _code("AVA-010", W, "Tarea sin comenzar con Comienzo pasado",
-          "El Comienzo de la tarea es anterior a la fecha de estado y no tiene avance ni Comienzo real.",
-          "Registrar el avance o reprogramar la tarea después de la fecha de estado."),
+          "Desde la versión 2.6.0, cada tarea con trabajo pendiente antes de la fecha de estado se informa con AVA-011,"
+          " como su resumen.",
+          "Ninguna.", retired="2.6.0", by="AVA-011"),
     _code("AVA-011", W, "Trabajo pendiente antes de la fecha de estado",
-          "Algunas tareas tienen trabajo pendiente programado antes de la fecha de estado: el cronograma no está "
-          "actualizado.",
-          "Registrar el avance o reprogramar el trabajo pendiente (Proyecto > Actualizar proyecto)."),
+          "Tareas sin terminar con trabajo programado antes de la fecha de estado: su Fin es anterior a la fecha de "
+          "estado, o no tienen avance ni Comienzo real y su Comienzo es anterior. El cronograma no está "
+          "actualizado. Un resumen con la cantidad y una línea por tarea.",
+          "Registrar el avance o reprogramar el trabajo pendiente después de la fecha de estado (Proyecto > "
+          "Actualizar proyecto)."),
     _code("AVA-012", I, "Tareas que debían comenzar y no comenzaron",
-          "Según la línea base, algunas tareas debían comenzar a la fecha de estado y no comenzaron.",
-          "Revisar el atraso de esas tareas."),
-    _code("AVA-013", (W, I), "Índice de ejecución de la línea base (BEI)",
-          "Tareas terminadas frente a las que debían terminar a la fecha de estado. Es una advertencia si es menor "
-          "que 0,95 (criterio DCMA).",
-          "Revisar las tareas sin terminar que lista el mensaje."),
-    _code("AVA-014", (W, I), "Tareas incumplidas respecto de la línea base",
-          "De las tareas que debían terminar a la fecha de estado según la línea base, las que no terminaron o "
-          "terminaron después de su fin de línea base. Es una advertencia si superan el 5 % (criterio DCMA).",
+          "Desde la versión 2.6.0, las tareas atrasadas respecto de la línea base (las que debían comenzar o terminar) "
+          "se informan juntas con AVA-013.",
+          "Ninguna.", retired="2.6.0", by="AVA-013"),
+    _code("AVA-013", (W, I), "Tareas atrasadas respecto de la línea base",
+          "Según la línea base, las tareas que debían terminar a la fecha de estado y no terminaron o terminaron "
+          "después de su fin de línea base, y las que debían comenzar y no comenzaron. Es una advertencia si el "
+          "índice de ejecución de la línea base (BEI) es menor que 0,95 o si las tareas incumplidas superan el 5 % "
+          "(criterios DCMA): los dos índices están en la evaluación DCMA (puntos 14 y 11). El BEI solo cuenta las "
+          "tareas terminadas que tienen línea base (el mensaje indica cuántas terminadas no la tienen).",
           "Revisar el atraso de las tareas que lista el mensaje."),
+    _code("AVA-014", (W, I), "Tareas incumplidas respecto de la línea base",
+          "Desde la versión 2.6.0, las tareas atrasadas respecto de la línea base (las que debían comenzar o terminar) "
+          "se informan juntas con AVA-013, y el % de tareas incumplidas está en la evaluación DCMA (punto 11).",
+          "Ninguna.", retired="2.6.0", by="AVA-013"),
     _code("AVA-015", (W, I), "Índice de longitud del camino crítico (CPLI)",
           "Días laborables que quedan hasta el fin previsto del proyecto, más la holgura frente al fin de la línea "
           "base, divididos por los días que quedan. Menor que 1 indica que el fin previsto es posterior al de la "
-          "línea base; es una advertencia si es menor que 0,95 (criterio DCMA).",
+          "línea base; es una advertencia si es menor que 0,95 (criterio DCMA). El mensaje indica los días que "
+          "quedan y el atraso; el índice está en la evaluación DCMA (punto 13).",
           "Revisar las tareas críticas: con un CPLI bajo, cumplir el fin de la línea base exige recuperar el "
           "atraso en el trabajo que queda."),
     _code("AVA-016", W, "Avance fuera de secuencia",
-          "Resumen de AVA-017: tareas con avance que su vínculo con la predecesora no permite todavía (p. ej. la "
-          "sucesora comenzó y la predecesora fin a comienzo no terminó). Las fechas y la holgura del trabajo que "
-          "queda pueden no ser realistas.",
-          "Corregir el avance registrado o el vínculo, si ya no representa la secuencia real del trabajo."),
+          "Tareas con avance que su vínculo con la predecesora todavía no permite: la tarea tiene avance (o está "
+          "terminada) y su predecesora no terminó (vínculo fin a comienzo o fin a fin) o no comenzó (comienzo a "
+          "comienzo o comienzo a fin). Las fechas y la holgura del trabajo que queda pueden no ser realistas. Los "
+          "vínculos con adelanto no se revisan (LOG-006). Un resumen y una línea por tarea.",
+          "Corregir el avance registrado de la tarea o de su predecesora, o el vínculo, si ya no representa la "
+          "secuencia real del trabajo."),
     _code("AVA-017", W, "Tarea con avance fuera de secuencia",
-          "Detalle de AVA-016: la tarea tiene avance y su predecesora no terminó (vínculo fin a comienzo o fin a "
-          "fin) o no comenzó (comienzo a comienzo o comienzo a fin). Los vínculos con adelanto no se revisan "
-          "(LOG-006).",
-          "Corregir el avance de la tarea o de su predecesora, o el vínculo."),
+          "Desde la versión 2.6.0, el resumen y cada tarea se informan con AVA-016.",
+          "Ninguna.", retired="2.6.0", by="AVA-016"),
     _code("AVA-018", W, "Fecha de estado que no es fin de mes",
-          "actualizar carga el avance en el mes de la fecha de estado, y el PV acumulado de ese mes incluye el mes "
-          "completo (ACT-018): el avance y el PV no corresponden a la misma fecha.",
-          "Fijar la fecha de estado en el último día del mes informado (Proyecto > Fecha de estado) o indicar "
-          "--fecha-corte."),
+          "La fecha de estado no es el último día del mes ni su último día laborable (según el calendario del "
+          "proyecto): actualizar carga el avance en el mes de la fecha de estado, y el PV acumulado de ese mes "
+          "incluye el mes completo (ACT-018); el avance y el PV no corresponden a la misma fecha.",
+          "Fijar la fecha de estado en el último día del mes informado, o en su último día laborable (Proyecto > "
+          "Fecha de estado), o indicar --fecha-corte."),
 
     # --- LOG: lógica del cronograma (validar) ---------------------------------------------------------------------
     _code("LOG-001", W, "Cronograma sin vínculos",
           "Las fechas no se recalculan cuando cambian las duraciones o el avance.",
           "Vincular las tareas (cada tarea con al menos una predecesora y una sucesora)."),
     _code("LOG-002", W, "Tareas sin predecesoras o sin sucesoras",
-          "Resumen de LOG-003 a LOG-005, con el % de tareas sin terminar (DCMA: hasta 5 %).",
-          "Vincular esas tareas."),
-    _code("LOG-003", W, "Tarea sin predecesoras ni sucesoras",
-          "Las fechas de la tarea no dependen de la lógica del cronograma.",
-          "Vincular la tarea."),
+          "Hasta la versión 2.5, contaba en un resumen las tareas sin predecesoras o sin sucesoras, con su % de las "
+          "tareas sin terminar. Desde la versión 2.6.0, cada tarea se informa con LOG-003, y el % está en el punto 1 "
+          "de la evaluación DCMA.",
+          "Ninguna.", retired="2.6.0", by="LOG-003"),
+    _code("LOG-003", W, "Tarea sin predecesoras o sin sucesoras",
+          "Tarea de detalle sin terminar a la que le faltan las predecesoras, las sucesoras o las dos (el mensaje "
+          "indica cuáles): sus fechas no dependen de la lógica del cronograma o su fin no afecta a ninguna otra "
+          "tarea. No les faltan predecesoras a las que comienzan con el proyecto y tienen sucesoras, ni sucesoras a "
+          "las que terminan con el proyecto y tienen predecesoras; un vínculo de su tarea resumen cuenta como suyo. "
+          "Cuenta para el punto 1 de la evaluación DCMA (hasta 5 % de las tareas sin terminar).",
+          "Vincular la tarea: agregar la predecesora o la sucesora que le falta."),
     _code("LOG-004", W, "Tarea sin predecesoras",
-          "El comienzo de la tarea no depende de otra tarea.",
-          "Agregar una predecesora."),
+          "Desde la versión 2.6.0, toda tarea sin predecesoras o sin sucesoras se informa con LOG-003.",
+          "Ninguna.", retired="2.6.0", by="LOG-003"),
     _code("LOG-005", W, "Tarea sin sucesoras",
-          "El fin de la tarea no afecta a ninguna otra tarea.",
-          "Agregar una sucesora."),
+          "Desde la versión 2.6.0, toda tarea sin predecesoras o sin sucesoras se informa con LOG-003.",
+          "Ninguna.", retired="2.6.0", by="LOG-003"),
     _code("LOG-006", W, "Vínculo con adelanto",
           "El vínculo tiene posición negativa (adelanto); la evaluación DCMA recomienda no usarlos. Una línea por "
           "tarea, con sus predecesoras con adelanto.",
@@ -876,39 +967,43 @@ _CODES = [
           "Es un tipo de vínculo poco habitual.",
           "Usar un vínculo fin a comienzo (FC), salvo que sea necesario."),
     _code("LOG-008", (W, I), "Vínculos con posición positiva",
-          "Una espera fija oculta trabajo que conviene representar como tarea. Es una advertencia si superan el 5 % "
-          "de los vínculos (criterio DCMA).",
+          "Una espera fija oculta trabajo que conviene representar como tarea. El mensaje indica los vínculos de la "
+          "posición más larga a la más corta, con su valor y la predecesora. Es una advertencia si superan el 5 % de "
+          "los vínculos (criterio DCMA; el % está en la evaluación DCMA, punto 3).",
           "Reemplazar las esperas por tareas, si representan trabajo."),
     _code("LOG-009", W, "Pocos vínculos fin a comienzo",
-          "Menos del 90 % de los vínculos son fin a comienzo (FC) (criterio DCMA).",
+          "Menos del 90 % de los vínculos son fin a comienzo (FC) (criterio DCMA; el % está en la evaluación DCMA, "
+          "punto 4). El mensaje indica cuántos vínculos son de cada otro tipo y las tareas que los tienen.",
           "Revisar los vínculos de otro tipo."),
     _code("LOG-010", W, "Tarea resumen con vínculos",
           "Los vínculos de una tarea resumen ocultan la lógica de sus tareas de detalle.",
           "Vincular las tareas de detalle."),
     _code("LOG-011", W, "Tareas con delimitaciones",
           "Las delimitaciones que fijan fechas (Debe comenzar el, No finalizar después del...) impiden que la lógica "
-          "mueva esas tareas (DCMA: hasta 5 %).",
+          "mueva esas tareas (DCMA: hasta 5 % de las tareas sin terminar, punto 5). Un resumen y una línea por "
+          "tarea, con su delimitación.",
           "Usar «Lo antes posible» y, si hace falta, una fecha límite."),
     _code("LOG-012", W, "Tarea con delimitación",
-          "Detalle de LOG-011: la delimitación de la tarea.",
-          "Usar «Lo antes posible» y, si hace falta, una fecha límite."),
+          "Desde la versión 2.6.0, el resumen y cada tarea se informan con LOG-011.",
+          "Ninguna.", retired="2.6.0", by="LOG-011"),
     _code("LOG-013", (W, I), "Tareas con holgura alta",
           "Tareas sin terminar con más de 44 días laborables de holgura total: suele indicar vínculos que faltan. "
-          "Es una advertencia si superan el 5 % de las tareas sin terminar (criterio DCMA).",
+          "Es una advertencia si superan el 5 % de las tareas sin terminar (criterio DCMA; el % está en la "
+          "evaluación DCMA, punto 6).",
           "Revisar las sucesoras de esas tareas: la holgura alta desaparece al vincularlas con el trabajo que "
           "depende de ellas."),
     _code("LOG-014", W, "Tareas con holgura negativa",
-          "Resumen de LOG-015: tareas sin terminar cuyo fin previsto supera una fecha límite o una delimitación. La "
-          "evaluación DCMA no admite holgura negativa.",
-          "Recuperar el atraso (cambiar la secuencia o la duración del trabajo que queda) o revisar la fecha "
-          "límite."),
+          "Tareas sin terminar cuyo fin previsto supera una fecha límite o una delimitación. La evaluación DCMA no "
+          "admite holgura negativa (punto 7). Un resumen y una línea por tarea, con su holgura total.",
+          "Recuperar el atraso (cambiar la secuencia o la duración del trabajo que queda) o revisar las fechas "
+          "límite y las delimitaciones de esas tareas y de sus predecesoras."),
     _code("LOG-015", W, "Tarea con holgura negativa",
-          "Detalle de LOG-014: la holgura total de la tarea.",
-          "Revisar las predecesoras de la tarea y su fecha límite o delimitación."),
+          "Desde la versión 2.6.0, el resumen y cada tarea se informan con LOG-014.",
+          "Ninguna.", retired="2.6.0", by="LOG-014"),
     _code("LOG-016", (W, I), "Tareas de duración alta",
           "Tareas sin terminar con más de 44 días laborables de duración en la línea base (sin los hitos ni las "
           "filas LOE): son difíciles de seguir y de medir. Es una advertencia si superan el 5 % de las tareas sin "
-          "terminar (criterio DCMA).",
+          "terminar (criterio DCMA; el % está en la evaluación DCMA, punto 8).",
           "Dividir esas tareas en tareas más cortas, con entregables intermedios."),
     _code("LOG-017", W, "Varias rutas críticas",
           "La opción Calcular varias rutas críticas de MS Project está activada: cada cadena de tareas tiene su "
@@ -918,19 +1013,18 @@ _CODES = [
           "Desactivarla (Archivo > Opciones > Avanzadas) y vincular el final de cada rama con el hito de fin del "
           "proyecto."),
     _code("LOG-018", W, "Vínculos con otras planificaciones",
-          "Resumen de LOG-019. Con una planificación (p. ej. INTERNO), algunas de sus tareas están vinculadas con "
-          "tareas activas de fuera de ella (otra planificación del mismo archivo), y las planificaciones no son "
-          "independientes. MS Project calcula con esos vínculos las fechas, la holgura y las tareas críticas de la "
-          "planificación, pero los controles de lógica (DCMA) y de avance fuera de secuencia solo cuentan los "
-          "vínculos entre tareas de la planificación: una tarea cuya única sucesora es de otra planificación se "
-          "informa sin sucesoras. El mensaje indica cuántas tareas se quedarían sin predecesoras o sin sucesoras "
-          "al quitarlos.",
+          "Con una planificación (p. ej. INTERNO), algunas de sus tareas están vinculadas con tareas activas de fuera "
+          "de ella (otra planificación del mismo archivo), y las planificaciones no son independientes. MS Project "
+          "calcula con esos vínculos las fechas, la holgura y las tareas críticas de la planificación, pero los "
+          "controles de lógica (DCMA) y de avance fuera de secuencia solo cuentan los vínculos entre tareas de la "
+          "planificación: una tarea cuya única sucesora es de otra planificación se informa sin sucesoras. Un "
+          "resumen, que indica cuántas tareas se quedarían sin predecesoras o sin sucesoras al quitarlos, y una "
+          "línea por tarea, con las tareas de otras planificaciones con que está vinculada.",
           "Si las planificaciones deben ser independientes, completar la lógica propia de cada una y quitar esos "
-          "vínculos en MS Project. Si deben estar vinculadas (p. ej. una replica a la otra), silenciar LOG-018 y "
-          "LOG-019."),
+          "vínculos en MS Project. Si deben estar vinculadas (p. ej. una replica a la otra), silenciar LOG-018."),
     _code("LOG-019", W, "Tarea vinculada con otra planificación",
-          "Detalle de LOG-018: las tareas de otras planificaciones de las que la tarea es predecesora o sucesora.",
-          "Quitar el vínculo, después de dar a la tarea una predecesora o una sucesora de su planificación."),
+          "Desde la versión 2.6.0, el resumen y cada tarea se informan con LOG-018.",
+          "Ninguna.", retired="2.6.0", by="LOG-018"),
 
     # --- LIB: libro ---------------------------------------------------------------------------------------------
     _code("LIB-001", I, "Cálculo del PV y el EV",
@@ -1072,7 +1166,8 @@ _CODES = [
           "El libro anterior tiene la previsión de una empresa y el nuevo depura otra.",
           "Pegar la previsión de nuevo."),
     _code("DEP-006", I, "Previsión trasladada",
-          "Se conservó el contenido de la hoja PV-depuración.",
+          "Se conservó el contenido de la hoja PV-depuración: el plan de costes y los recargos de la tabla Recargos. "
+          "El plan de una hoja de la versión 2.5 o anterior, que empezaba en la celda A8, pasa a la celda A12.",
           "Ninguna."),
     _code("DEP-007", I, "Previsión pasada al formato con EDT interna",
           "La hoja PV-depuración del libro anterior no tenía las columnas de EDT interna: los códigos numéricos "
@@ -1087,42 +1182,84 @@ _CODES = [
           "los meses de cada línea, y los meses empiezan en la columna G.",
           "Ninguna."),
     _code("DEP-010", (I, W), "Reparto del plan de costes conservado",
-          "Las filas procesadas con procesar-costes conservan en el libro nuevo el % planificado del plan de costes, "
-          "en lugar del que resulta de MS Project. Es una advertencia si quedaron meses después del horizonte del "
-          "libro nuevo: el % planificado de esas filas no suma 100 %.",
-          "Ninguna. Si el plan de costes cambió, ejecutar procesar-costes en un libro con depuración de costes.",
-          W_MIG),
+          "Hasta la versión 2.5, --migrar-desde conservaba en el libro nuevo el % planificado de las filas procesadas "
+          "con procesar-costes. Desde la versión 2.6.0, procesar-costes no modifica el % planificado y --migrar-desde "
+          "lo vuelve a calcular con MS Project (ver DEP-020).",
+          "Ninguna.", W_MIG, retired="2.6.0"),
     _code("DEP-011", W, "Reparto del plan de costes no combinado",
-          "La fila nueva reúne varias filas del libro anterior con el reparto del plan de costes (p. ej. al bajar el "
-          "nivel máximo): su % planificado se calcula con MS Project.",
-          "Ejecutar procesar-costes en un libro con depuración de costes.", W_MIG),
+          "Hasta la versión 2.5, se informaba la fila nueva que reunía varias filas procesadas con procesar-costes. "
+          "Desde la versión 2.6.0, el % planificado de todas las filas se calcula con MS Project (ver DEP-020).",
+          "Ninguna.", W_MIG, retired="2.6.0"),
     _code("DEP-012", F, "Libro sin depuración de costes",
           "procesar-costes necesita un libro generado con depuracion_costes = true, con el plan de costes pegado en la "
           "hoja PV-depuración.",
           "Generar el libro con depuracion_costes = true (y --migrar-desde para conservar el BAC).", W_PROC),
-    _code("DEP-013", F, "Plan de costes sin líneas asignadas",
-          "Ninguna línea de la hoja PV-depuración se asigna a una fila de ingreso del libro: la hoja está vacía o sus "
-          "códigos no son los del libro.",
-          "Pegar el plan de costes desde la celda A8 y revisar la columna 'Asignado a'.", W_PROC),
-    _code("DEP-014", W, "Líneas del plan de costes sin fila del libro",
-          "Líneas que se suman pero no tienen fila en el libro (código inexistente, resumen sin fila propia o sin EDT "
-          "cliente encima): su importe no forma parte del % planificado.",
-          "Corregir los códigos en el plan de costes, o agregar las filas al libro (p. ej. con lista_edt).", W_PROC),
+    _code("DEP-013", F, "Plan de costes sin líneas leídas",
+          "Ninguna línea de EDT cliente de la hoja PV-depuración tiene el código de una fila de ingreso del libro: la "
+          "hoja está vacía o sus códigos no son los del libro.",
+          "Escribir el plan de costes desde la celda A12 y revisar la columna 'Asignado a'.", W_PROC),
+    _code("DEP-014", W, "Líneas de EDT cliente sin leer",
+          "Líneas de EDT cliente con importes que no se leen: su código no es el de una fila del libro, o es el de un "
+          "resumen del libro y ninguna línea de un código inferior se lee. Su importe no llega a ninguna fila "
+          "«(coste)».",
+          "Corregir los códigos en el plan de costes, agregar las filas al libro (p. ej. con lista_edt) o detallar "
+          "el resumen con las EDT cliente de sus filas.", W_PROC),
     _code("DEP-015", W, "Plan de costes después del horizonte",
-          "El plan de costes tiene importes en meses posteriores al horizonte del libro: no forman parte del % "
-          "planificado, que en esas filas no suma 100 %.",
+          "El plan de costes tiene importes en meses posteriores al horizonte del libro: forman parte del EAC de la "
+          "fila «(coste)», pero no de sus meses ni del gráfico.",
           "Ampliar el horizonte del libro (meses) o revisar el plan de costes.", W_PROC),
-    _code("DEP-016", I, "Filas sin líneas en el plan de costes",
-          "Filas de ingreso de la empresa sin líneas en el plan de costes: conservan su % planificado, de MS Project o "
-          "de un procesado anterior.",
+    _code("DEP-016", I, "Filas sin línea en el plan de costes",
+          "Filas de ingreso de la empresa sin línea de EDT cliente en el plan de costes: su fila «(coste)» queda "
+          "vacía.",
           "Ninguna, si la empresa no tiene costes en esas filas.", W_PROC),
-    _code("DEP-017", W, "Filas cuyo plan de costes suma 0",
-          "Las líneas asignadas a la fila suman 0: no hay reparto que aplicar y la fila conserva su % planificado.",
-          "Revisar los importes de esas filas en el plan de costes.", W_PROC),
-    _code("DEP-018", W, "Importes del plan de costes que no se suman",
-          "Importes guardados como texto, o celdas con fórmula sin valor calculado (el plan se pegó sin pegado "
-          "especial > valores y el libro no se guardó en Excel).",
-          "Pegar el plan de costes con pegado especial > valores.", W_PROC),
+    _code("DEP-017", W, "Filas sin importes en el plan de costes",
+          "La línea de EDT cliente de la fila no tiene importes en los meses (p. ej. faltan los cálculos del plan): "
+          "su fila «(coste)» queda en 0.",
+          "Completar los cálculos del plan (o ejecutar procesar-costes --calculos) y revisar los importes.", W_PROC),
+    _code("DEP-018", W, "Importes del plan de costes que no se leen",
+          "Importes guardados como texto, o celdas con fórmula sin valor calculado (el libro no se guardó en Excel "
+          "después de escribirlas).",
+          "Escribir números; abrir y guardar el libro en Excel, o ejecutar procesar-costes --calculos.", W_PROC),
+    _code("DEP-019", W, "EDT cliente repetida en el plan de costes",
+          "Dos o más líneas de EDT cliente tienen el mismo código: se suman sus importes.",
+          "Revisar el plan de costes: cada EDT cliente debería tener una sola línea.", W_PROC),
+    _code("DEP-020", I, "% planificado de MS Project recuperado",
+          "Filas que en el libro anterior tenían en la hoja % PV el reparto del plan de costes, escrito por "
+          "procesar-costes en una versión anterior a la 2.6.0: en el libro nuevo, su % planificado vuelve a ser el de "
+          "MS Project. El plan de costes se compara con el PV en las filas «(coste)».",
+          "Ninguna.", W_MIG),
+    _code("DEP-021", W, "Filas con el reparto del plan de costes",
+          "El libro tiene filas cuyo % planificado es el reparto del plan de costes, escrito por procesar-costes en "
+          "una versión anterior a la 2.6.0: no es el de MS Project. actualizar no compara esas filas con la línea "
+          "base (ACT-047).",
+          "Generar un libro nuevo con --migrar-desde: vuelve a calcular su % planificado con MS Project y conserva el "
+          "BAC, el % ganado y el AC.", f"{W_ACT} y {W_PROC}"),
+    _code("DEP-022", W, "Componentes de coste fuera del precio",
+          "Con [depuracion_precio], líneas de componente de coste (solo la columna D) con importes cuyo texto no "
+          "está en [depuracion_precio.componentes]: no entran en el precio de su EDT interna. Los textos se comparan "
+          "sin distinguir mayúsculas, tildes ni espacios de más.",
+          "Corregir el texto de la línea o agregarlo a [depuracion_precio.componentes] (y a calculo_precio).", W_PROC),
+    _code("DEP-023", W, "Tabla Recargos incompleta",
+          "Con [depuracion_precio], a la tabla Recargos de la hoja PV-depuración le falta la fila de un coeficiente "
+          "que usa calculo_precio, la columna de un año con importes o el valor de un coeficiente en un año con "
+          "importes (o la tabla entera, que procesar-costes --calculos agrega vacía). En el precio, los coeficientes "
+          "que faltan se toman como 0.",
+          "Completar la tabla Recargos (desde la celda D1): un % por coeficiente y año.", W_PROC),
+    _code("DEP-024", F, "Hoja PV-depuración de una versión anterior",
+          "La hoja PV-depuración tiene el formato de la versión 2.5 o anterior, con el plan desde la celda A8. Desde "
+          "la versión 2.6.0, el plan empieza en la celda A12, con la tabla Recargos arriba.",
+          "Generar un libro nuevo con --migrar-desde: pasa el plan a la celda A12 y conserva el BAC, el % ganado y el "
+          "AC.", W_PROC),
+    _code("DEP-025", W, "Recargos no trasladados",
+          "La tabla Recargos del libro anterior tiene coeficientes cuyo texto no está en [depuracion_precio.recargos] "
+          "de la configuración del libro nuevo: sus valores no se trasladaron.",
+          "Si el coeficiente cambió de texto, escribir sus valores en la tabla Recargos del libro nuevo.", W_MIG),
+    _code("DEP-026", W, "Tabla Recargos sin cálculo del precio",
+          "La hoja PV-depuración tiene la tabla Recargos, pero la configuración de procesar-costes no tiene "
+          "[depuracion_precio]: con --calculos, las EDT interna suman sus componentes (a coste), en lugar de su "
+          "precio.",
+          "Ejecutar procesar-costes con --config y la configuración de la depuración, que tiene [depuracion_precio].",
+          W_PROC),
 
     # --- ACT: actualizar y analizar -----------------------------------------------------------------------------
     _code("ACT-001", F, "El libro es de un solo archivo",
@@ -1181,8 +1318,9 @@ _CODES = [
           "generó.",
           "Para aplicar los cambios, regenerar el libro con --migrar-desde."),
     _code("ACT-018", W, "Fecha de corte que no es fin de mes",
-          "El PV acumulado incluye el mes completo.",
-          "Usar el último día del mes como fecha de corte."),
+          "La fecha de corte no es el último día del mes ni su último día laborable (según el calendario del "
+          "proyecto): el PV acumulado incluye el mes completo.",
+          "Usar el último día del mes, o su último día laborable, como fecha de corte."),
     _code("ACT-019", W, "Fecha de estado distinta de la fecha de corte",
           "El avance registrado en MS Project debe corresponder a la fecha de corte.",
           "Usar la fecha de estado de MS Project como fecha de corte, o actualizar el avance a esa fecha."),
@@ -1330,6 +1468,170 @@ _CODES = [
           "El cronograma tiene errores (por ejemplo, códigos EDT duplicados) que pueden afectar las fichas.",
           "Revisarlo con validar."),
 
+    # --- CLI: planificación para el cliente (generar-cliente) ---------------------------------------------------
+    _code("CLI-001", F, "La planificación no es de primer nivel",
+          "generar-cliente parte de una tarea de primer nivel del esquema (la planificación, por ejemplo INTERNO) y "
+          "sus subtareas; la planificación indicada está debajo de otra tarea.",
+          "Indicar en planificacion una tarea de primer nivel, o dejarla vacía para usar todo el proyecto."),
+    _code("CLI-002", F, "Ninguna tarea se muestra al cliente",
+          "Ninguna tarea de la planificación tiene Sí en el campo de [cliente] campo (en ella y en todas sus tareas "
+          "superiores).",
+          "Revisar el campo configurado en [cliente] campo y marcar con Sí las tareas que debe ver el cliente, "
+          "empezando por las de primer nivel de la planificación."),
+    _code("CLI-003", W, "Valor no reconocido en el campo del cliente",
+          "El campo de [cliente] campo tiene un valor que no es Sí ni No (por ejemplo, un error de escritura): la "
+          "tarea no se muestra.",
+          "Corregir el valor (Sí o No). El informe de control indica las tareas.", W_CLI_V),
+    _code("CLI-004", W, "Tarea con Sí debajo de una tarea sin Sí",
+          "La tarea tiene Sí, pero una tarea superior no: no se muestra, con sus subtareas. Una tarea solo se muestra "
+          "si ella y todas sus tareas superiores tienen Sí.",
+          "Si se debe mostrar, poner Sí también en sus tareas superiores; si no, quitarle el Sí.", W_CLI_V),
+    _code("CLI-005", I, "Resúmenes que pasan a ser tareas",
+          "No se muestra ninguna subtarea del resumen: en el archivo del cliente pasa a ser una tarea con sus fechas, "
+          "su duración, su avance y sus líneas base, y recibe los vínculos de sus subtareas.",
+          "Ninguna, si el cliente no debe ver ese detalle. El informe de control los lista."),
+    _code("CLI-006", I, "Vínculos nuevos en la planificación del cliente",
+          "Vínculos que reemplazan a los que pasan por tareas ocultas (puentes) o que pasan de una subtarea a su "
+          "resumen convertido. Si un vínculo retrasaría a su sucesora respecto de la planificación interna, su "
+          "posición se ajusta a las fechas actuales.",
+          "Ninguna. El informe de control indica cada vínculo, su tipo y su posición."),
+    _code("CLI-007", W, "Vínculos que no se crean",
+          "El vínculo puente uniría un resumen con una de sus subtareas, o cerraría un ciclo con los vínculos que ya "
+          "tienen las tareas: MS Project no lo admite.",
+          "Revisar en el informe de control la lógica de esas tareas en la planificación interna."),
+    _code("CLI-008", I, "Resúmenes que cambian de fechas",
+          "Una subtarea que no se muestra fija el comienzo o el fin del resumen: en el archivo del cliente, el resumen "
+          "va de la primera a la última de las subtareas que se muestran.",
+          "Ninguna, si es lo esperado. El informe de control indica las fechas."),
+    _code("CLI-009", F, "Varios archivos en generar-cliente",
+          "La configuración tiene secciones [[proyectos]]: generar-cliente trabaja con un solo archivo de MS Project.",
+          "Usar una configuración sin [[proyectos]] e indicar el archivo con --origen."),
+    _code("CLI-010", F, "La generación necesita el archivo .mpp",
+          "El archivo del cliente se genera con MS Project a partir de una copia del .mpp de la planificación "
+          "interna. Con un XML o con 'activo' solo se puede simular.",
+          "Indicar en --origen el archivo .mpp, o usar --simular para ver los cambios sin generar el archivo."),
+    _code("CLI-011", F, "El destino es el archivo de origen",
+          "--destino indica el mismo archivo que --origen: la planificación interna nunca se modifica.",
+          "Indicar otro archivo en --destino (por defecto, <origen>_cliente.mpp)."),
+    _code("CLI-012", W, "El origen está abierto en MS Project",
+          "El archivo de la planificación interna está abierto en MS Project: se copia la versión guardada en el "
+          "disco, sin los cambios que no se guardaron.",
+          "Guardar el archivo en MS Project y volver a generar el archivo del cliente si había cambios sin guardar."),
+    _code("CLI-013", I, "Fechas fijadas en el archivo del cliente",
+          "Sin las tareas ocultas, MS Project adelantaba estas tareas: su comienzo se fijó con la delimitación «No "
+          "comenzar antes del» en la fecha de la planificación interna ([cliente] fijar_fechas).",
+          "Ninguna. El informe de control lista las tareas."),
+    _code("CLI-014", W, "Fechas distintas de la planificación interna",
+          "Después de recalcular, estas tareas del archivo del cliente no tienen las fechas de la planificación "
+          "interna y no se pudieron fijar: están comenzadas o terminadas, tienen otra delimitación, se atrasan, o "
+          "fijar_fechas = false.",
+          "Revisar en el informe de control el motivo de cada tarea y, si hace falta, la lógica de la planificación "
+          "interna."),
+    _code("CLI-015", W, "Vínculos que MS Project no aceptó",
+          "MS Project rechazó un vínculo nuevo (por ejemplo, porque cerraría un ciclo con un resumen).",
+          "Revisar en el informe de control el error de cada vínculo. Las fechas de sus tareas se comparan igual."),
+    _code("CLI-016", I, "Vínculos creados por MS Project al borrar tareas",
+          "Al borrar las tareas ocultas, MS Project vinculó las tareas de alrededor (vinculación automática). Esos "
+          "vínculos no son de la planificación interna y se quitaron.",
+          "Ninguna."),
+    _code("CLI-017", W, "No se pudo quitar el nombre del campo del cliente",
+          "Los valores del campo se vaciaron en todas las tareas, pero MS Project no permitió quitar su nombre "
+          "(alias): el cliente puede ver el campo, vacío, en la lista de campos.",
+          "Quitar el nombre a mano en el archivo del cliente (Proyecto > Campos personalizados) o revisar el "
+          "registro de diagnóstico."),
+    _code("CLI-018", F, "Error de MS Project al generar el archivo del cliente",
+          "MS Project devolvió un error en uno de los pasos (borrar tareas, vincular, recalcular, guardar...) o el "
+          "resultado no es el esperado (por ejemplo, quedan tareas que no se muestran). No se genera el archivo del "
+          "cliente; la planificación interna no se modifica.",
+          "Volver a ejecutar con --registro RUTA y revisar el paso y el error en el registro de diagnóstico."),
+    _code("CLI-019", W, "Resúmenes convertidos con datos sin restaurar",
+          "Al pasar de resumen a tarea, MS Project cambió la duración, el avance o una línea base del resumen y no "
+          "aceptó el valor original.",
+          "Revisar esas tareas en el archivo del cliente (el informe de control indica el dato)."),
+    _code("CLI-020", W, "Resúmenes con otro % completado",
+          "MS Project calcula el % completado de un resumen con la duración de sus tareas de detalle. En el archivo del "
+          "cliente no están las tareas ocultas, y su avance no cuenta; un resumen convertido pesa por su duración, no "
+          "por la de sus subtareas: el % del resumen cambia.",
+          "Revisar la lista del informe de control. Si el cliente debe ver el avance de esos resúmenes, se debe "
+          "mostrar el detalle que lo explica (marcar con Sí las tareas que lo forman)."),
+    _code("CLI-021", W, "Tareas que no conservan su % completado",
+          "Una tarea de detalle o un resumen convertido tiene en el archivo del cliente otro % completado que en la "
+          "planificación interna (por ejemplo, porque MS Project no aceptó el avance al convertir el resumen).",
+          "Revisar esas tareas en el archivo del cliente y el registro de diagnóstico (--registro)."),
+    _code("CLI-022", I, "Tareas que quedan como «Otras tareas»",
+          "Con [cliente] actividad_interna = true, las tareas que no se muestran quedan en el archivo del cliente como "
+          "«Otras tareas»: sin nombre, código EDT, notas, hipervínculo ni campos de texto (salvo los que usa el libro "
+          "EVM), con sus fechas, su duración, su avance, sus líneas base y sus vínculos. Así el % completado de cada "
+          "tarea, de los resúmenes y del proyecto, y el libro EVM, son los de la planificación interna. Las tareas "
+          "inactivas que no se muestran se quitan: no cuentan en ningún cálculo.",
+          "Ninguna. Con filtrar_vista = true, el archivo se abre con un filtro que oculta las «Otras tareas»."),
+    _code("CLI-023", W, "% completado del proyecto distinto",
+          "El % completado del proyecto, calculado como MS Project (con la duración de las tareas de detalle), no es "
+          "el mismo en el archivo del cliente: con actividad_interna = false se borran las tareas que no se muestran, "
+          "y su avance deja de contar.",
+          "Usar actividad_interna = true (por defecto) para que coincida, o mostrar las tareas que explican el avance "
+          "(Sí en el campo del cliente). Si ocurre con actividad_interna = true, revisar el registro de diagnóstico."),
+    _code("CLI-024", W, "Filas del libro EVM con otras tareas o valores",
+          "Una fila de ingreso del libro EVM del cliente no tiene las mismas tareas de detalle, el mismo % planificado "
+          "de cada mes o el mismo % ganado que en el libro de la planificación interna (o solo está en uno de los dos "
+          "libros). Ocurre al borrar las tareas que no se muestran (actividad_interna = false). Con «Otras tareas», "
+          "ocurre si no se muestra ningún elemento EDT de un resumen (su fila reúne las de esos elementos) o si no se "
+          "muestra un elemento EDT que no depende de ninguno que se muestre: sin su código, sus tareas no forman parte "
+          "de ninguna fila del libro del cliente.",
+          "Revisar la lista del informe de control, que indica en qué fila del otro libro están las tareas de cada "
+          "fila. Para que coincidan, usar actividad_interna = true (por defecto) y mostrar esos elementos EDT (Sí en "
+          "el campo del cliente) o ubicarlos debajo de un elemento que se muestre."),
+    _code("CLI-025", W, "Filas -D en el libro EVM del cliente",
+          "El libro EVM del cliente tiene filas -D («Otras tareas de …»): tareas sin código EDT dentro de un elemento "
+          "EDT que tiene filas propias, por ejemplo las de un elemento que no se muestra, cuyo código se quitó. Sus "
+          "valores son los mismos, pero el cliente ve esas filas en su libro.",
+          "Para que no aparezcan, mostrar ese elemento EDT (Sí en el campo del cliente) o reorganizar la EDT para que "
+          "las tareas internas no queden junto a elementos EDT que se muestran. El informe de control indica la fila "
+          "interna de cada fila -D."),
+    _code("CLI-026", W, "Tareas con datos distintos en el archivo del cliente",
+          "Con actividad_interna = true, cada tarea del archivo del cliente debe tener las fechas, el avance, la "
+          "duración y la línea base de la planificación interna; estas tareas no los tienen después de guardar el "
+          "archivo.",
+          "Revisar la lista del informe de control y el registro de diagnóstico (--registro)."),
+    _code("CLI-027", W, "Datos de las «Otras tareas» que no se quitaron",
+          "MS Project no dejó vaciar un campo de las «Otras tareas» (los campos calculados con una fórmula se informan "
+          "aparte, con CLI-030), o el campo EDT configurado es el de MS Project (EDT o número de esquema) y su código "
+          "no se puede quitar: el cliente puede ver esos datos.",
+          "Revisar el campo en el archivo del cliente. Para quitar los códigos, usar un campo EDT personalizado "
+          "([campos] edt, por ejemplo un campo de texto)."),
+    _code("CLI-028", W, "No se pudo crear el filtro de la vista",
+          "Con [cliente] filtrar_vista = true, MS Project no aceptó crear o aplicar el filtro que oculta las «Otras "
+          "tareas»: el archivo del cliente se abre con todas las tareas.",
+          "Revisar el registro de diagnóstico (--registro). El % completado y el libro EVM no cambian."),
+    _code("CLI-029", W, "No se pudo comparar el libro EVM",
+          "El libro EVM de la planificación interna o el del cliente no se pudo calcular para compararlos (por ejemplo, "
+          "por un error de configuración del libro).",
+          "Revisar el error indicado: es el mismo que daría generar con esa configuración."),
+    _code("CLI-030", I, "Campos calculados en las «Otras tareas»",
+          "Un campo personalizado de texto tiene una fórmula: MS Project calcula su valor en cada tarea y no deja "
+          "vaciarlo. En las «Otras tareas», el valor se calcula con los datos que se conservan (fechas, avance, líneas "
+          "base...).",
+          "Nada, si la fórmula solo usa esos datos. Si usa un campo con información interna, el cliente puede ver el "
+          "resultado: revisar la fórmula en MS Project."),
+    _code("CLI-031", W, "Tareas sin valor debajo de una tarea que se muestra",
+          "La tarea no tiene valor en el campo del cliente y su tarea superior se muestra: no se muestra (con "
+          "actividad_interna, queda como «Otras tareas»), con sus subtareas. Lo habitual es una tarea nueva que no se "
+          "marcó. Se indica la tarea de más arriba de cada rama; las inactivas no se incluyen.",
+          "Si el cliente la debe ver, poner Sí. Si no, poner No: así queda decidido y no se vuelve a avisar.",
+          W_CLI_V),
+    _code("CLI-032", I, "Calendarios y macros quitados del archivo del cliente",
+          "El archivo del cliente es una copia del .mpp. Se quitaron los calendarios que no usa ninguna tarea ni "
+          "recurso, ni el proyecto (salvo el de MS Project para las líneas base de Project 98), y los módulos de "
+          "macros. La lista está en el informe de control.",
+          "Ninguna."),
+    _code("CLI-033", W, "Calendarios o macros que no se pudieron quitar",
+          "MS Project no dejó quitar un calendario sin uso, o el archivo del cliente guardado todavía tiene módulos "
+          "de macros (se comprueba leyendo el archivo). Las macros se quitan con el proyecto VBA o, si MS Project no "
+          "da acceso a él (Centro de confianza), con el Organizador.",
+          "Quitarlos en el archivo del cliente con el Organizador de MS Project (Archivo > Información > "
+          "Organizador), o permitir en el Centro de confianza de MS Project el acceso al modelo de objetos de "
+          "proyectos de VBA y volver a generar el archivo."),
+
     # --- SIS: errores del sistema -------------------------------------------------------------------------------
     _code("SIS-001", F, "Error inesperado",
           "Un error no previsto del programa (código de salida 3).",
@@ -1408,7 +1710,7 @@ class Silence:
 
 def parse_silence(entries: list[str]) -> Silence:
     """Reglas de silenciar: 'FEC-003' (todas sus observaciones) o 'FEC-003:1.2.3' (solo las de ese código EDT). Los
-    códigos desconocidos o que no se pueden silenciar se informan con CFG-047 y CFG-048."""
+    códigos desconocidos o retirados se informan con CFG-047, y los que no se pueden silenciar, con CFG-048."""
     out = Silence()
     for raw in entries:
         text = str(raw).strip()
@@ -1420,6 +1722,11 @@ def parse_silence(entries: list[str]) -> Silence:
         if entry is None or (sep and not wbs.strip()):
             out.issues.append(Issue("CFG-047", message=f"'{text}' no es un código del catálogo (ÁREA-NNN o "
                                                        "ÁREA-NNN:EDT, ver docs/codigos.md): se ignora."))
+            continue
+        if entry.retired:
+            now = f" (desde entonces se informa con {entry.by})" if entry.by else ""
+            out.issues.append(Issue("CFG-047", message=f"'{text}': {entry.id} es un código retirado en la versión "
+                                                       f"{entry.retired}{now}: se ignora."))
             continue
         if not entry.silenceable:
             why = ("detiene el programa" if SEV_FATAL in entry.severities

@@ -148,7 +148,8 @@ gantt
 
 ### 4.3 Pasos detallados
 
-1. **Fijar la fecha de estado** en el último día del mes (*Proyecto > Fecha de estado*).
+1. **Fijar la fecha de estado** en el último día del mes, o en su último día laborable (*Proyecto >
+   Fecha de estado*).
 2. **Registrar el avance** en MS Project a esa fecha de estado: *% completado* o duración real,
    *% físico completado*, fechas de comienzo y fin reales, hitos cumplidos al 100 %
    ([Preparación en MS Project](preparacion-ms-project.md#7-fecha-de-estado-y-registro-del-avance)).
@@ -254,7 +255,7 @@ flowchart TD
 - Método de medición definido **antes** de comenzar cada paquete y mantenido durante toda su ejecución.
 - Preferir métodos **objetivos** (hitos con criterio de aceptación, cantidades medidas, fórmulas fijas
   para paquetes cortos) frente a porcentajes estimados.
-- `Avance lineal (LOE)` solo para actividades de soporte sin entregables medibles, y limitado a una parte
+- `Avance lineal` solo para actividades de soporte sin entregables medibles, y limitado a una parte
   pequeña del BAC.
 - Paquetes de duración acotada: idealmente no más de 2 o 3 períodos de informe por paquete o por hito.
 

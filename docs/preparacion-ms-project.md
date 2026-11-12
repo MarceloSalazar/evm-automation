@@ -50,7 +50,7 @@ MS Project **no necesita costos ni recursos**: el BAC de cada fila se ingresa en
 
 **Cada mes, antes de `actualizar`:**
 
-- [ ] **Fecha de estado** = último día del mes.
+- [ ] **Fecha de estado** = último día del mes (o su último día laborable).
 - [ ] Avance registrado (*% completado*, *% físico completado*, fechas reales, hitos cumplidos).
 - [ ] Trabajo pendiente reprogramado después de la fecha de estado.
 - [ ] Si se usa XML: archivo guardado **después** de fijar la fecha de estado y registrar el avance.
@@ -181,8 +181,9 @@ base guardada se usan las fechas actuales de las tareas y se advierte
 ## 7. Fecha de estado y registro del avance
 
 - Antes de cada `actualizar` se define **Proyecto > Fecha de estado** (grupo *Estado*) = **último día
-  del mes** informado. También en *Proyecto > Información del proyecto > Fecha de estado*. `validar`
-  avisa si no es el último día del mes.
+  del mes** informado (o su último día laborable, según el calendario del proyecto). También en
+  *Proyecto > Información del proyecto > Fecha de estado*. `validar` avisa si no es el último día del
+  mes ni su último día laborable.
 - Sin fecha de estado, el programa exige `--fecha-corte`.
 - Con archivos `.mpp`, si se indica `--fecha-corte`, el programa fija esa fecha de estado en la copia
   abierta (no guarda el archivo).

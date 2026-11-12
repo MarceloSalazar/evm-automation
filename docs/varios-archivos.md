@@ -159,7 +159,7 @@ python evm_export.py generar --config config.toml --salida EVM_Programa.xlsx
 Ejemplo de salida con los dos archivos de ejemplo:
 
 ```text
-Exportador EVM 2.5.0
+Exportador EVM 2.6.0
 Leyendo P1: ...\ejemplos\programa_ejemplo.xml ...
 Leyendo P2: ...\ejemplos\proyecto2_ejemplo.xml ...
 Informe: Programa de ejemplo con dos proyectos
@@ -206,7 +206,8 @@ python evm_export.py actualizar --config config.toml --libro EVM_Programa.xlsx
 ```
 
 - **Fecha de corte.** Sin `--fecha-corte`, todos los archivos deben tener la misma fecha de estado; si
-  difieren, `actualizar` se detiene e indica la fecha de cada archivo. Con `--fecha-corte`, se usa esa
+  difieren, `actualizar` se detiene e indica la fecha de cada archivo. `validar` y `generar` ya lo avisan
+  (`CFG-056`; la consola de `generar` lo muestra primero), para corregirlo antes del cierre. Con `--fecha-corte`, se usa esa
   fecha y se advierte qué archivos tienen otra fecha de estado (con `.mpp`, el programa fija la fecha
   de corte en la copia abierta de cada archivo).
 - **Todos los archivos del libro.** La configuración debe tener los mismos archivos (con los mismos

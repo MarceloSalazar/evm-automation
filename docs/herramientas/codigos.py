@@ -31,12 +31,12 @@ SEVERITIES = [
      "error inesperado, `SIS-001`)."),
     ("Error", "`[X] EDT-009 ...`", "Dato incorrecto que se debe corregir, o dato que no se pudo trasladar o calcular. "
                                    "`validar` termina con código de salida 1."),
-    ("Advertencia", "`[!] FEC-007 ...`", "Se debe revisar: puede afectar el resultado."),
+    ("Advertencia", "`[!] FEC-006 ...`", "Se debe revisar: puede afectar el resultado."),
     ("Info", "`[i] EDT-016 ...`", "Información sobre lo que hizo el programa."),
 ]
 FORMS = [
     ("Forma", "Qué silencia"),
-    ("`LOG-004`", "Todas las observaciones de ese código."),
+    ("`LOG-003`", "Todas las observaciones de ese código."),
     ("`MET-004:1.2.1`", "Solo las de la fila o tarea con ese código EDT (los ceros finales no cuentan: `1.2.1` es "
                         "`1.2.1.0`). Las demás filas siguen mostrando el aviso."),
 ]
@@ -68,6 +68,7 @@ cómo **silenciar** las observaciones que ya se revisaron y no se quieren volver
 3. [Áreas](#3-áreas)
 4. [Códigos](#4-códigos)
 {areas_toc}
+5. [Códigos retirados](#5-códigos-retirados)
 
 ---
 
@@ -75,7 +76,11 @@ cómo **silenciar** las observaciones que ya se revisaron y no se quieren volver
 
 El código tiene la forma **ÁREA-NNN**: tres letras del área (por ejemplo `FEC`, *Fechas y duración*) y un
 número. El código de un mensaje no cambia aunque cambien su texto o su severidad, y un código que deja de
-usarse no se reutiliza: queda en este documento como *retirado*.
+usarse no se reutiliza: queda en la sección [Códigos retirados](#5-códigos-retirados), con el código que lo
+informa desde entonces.
+
+Cada problema tiene un solo código: cuando afecta a varias tareas, el código tiene una observación general
+(cuántas son) y una por tarea, con el mismo código.
 
 {severities}
 
@@ -86,7 +91,7 @@ En la **consola**, cada observación muestra su código, el código EDT y el nom
 corresponde) y el mensaje:
 
 ```text
-  [!] FEC-007 1.2.3 Montaje: Duración estimada («?»).
+  [!] FEC-006 1.2.3 Montaje: Duración estimada («?»).
   [i] EDT-016 Se excluyeron 2 tareas inactivas: no forman parte del % planificado.
 ```
 
@@ -103,14 +108,14 @@ no aplica al proyecto). Se indica en el archivo de configuración, en la secció
 
 ```toml
 [validacion]
-silenciar = ["LOG-004", "MET-004:1.2.1", "FEC-007"]
+silenciar = ["LOG-003", "MET-004:1.2.1", "FEC-006"]
 ```
 
 o con la opción `--silenciar` de cualquier comando (se puede repetir, y los códigos se separan con comas);
 se suma a los de la configuración:
 
 ```powershell
-python evm_export.py validar --origen "C:\\Programa\\Programa.mpp" --silenciar LOG-004,FEC-007
+python evm_export.py validar --origen "C:\\Programa\\Programa.mpp" --silenciar LOG-003,FEC-006
 ```
 
 {forms}
@@ -120,7 +125,8 @@ python evm_export.py validar --origen "C:\\Programa\\Programa.mpp" --silenciar L
 - Los errores silenciados no cuentan para el código de salida de `validar`.
 - Los errores que detienen el programa no se pueden silenciar (`CFG-048`).
 - Un código que no existe en el catálogo se informa con `CFG-047` y se ignora.
-- Un código retirado se acepta y no silencia nada: las configuraciones que lo usan siguen siendo válidas.
+- Un código retirado no silencia nada: se informa con `CFG-047`, que indica el código que lo informa
+  desde entonces, y se ignora.
 
 ---
 
@@ -133,6 +139,15 @@ python evm_export.py validar --origen "C:\\Programa\\Programa.mpp" --silenciar L
 ---
 
 ## 4. Códigos"""
+
+
+RETIRED_INTRO = """
+## 5. Códigos retirados
+
+Códigos que el programa ya no muestra. No se reutilizan: un código de un informe o de un libro anterior
+sigue significando lo mismo. Si se indica uno en `silenciar`, se informa con `CFG-047` y se ignora; se debe
+reemplazar por el código que lo informa ahora.
+"""
 
 
 def _anchor(title: str) -> str:
@@ -165,7 +180,9 @@ def render() -> str:
     """Contenido de docs/codigos.md."""
     by_area: dict[str, list] = {p: [] for p in AREAS}
     for code in CATALOG.values():
-        by_area[code.id[:3]].append(code)
+        if not code.retired:
+            by_area[code.id[:3]].append(code)
+    retired = [c for c in CATALOG.values() if c.retired]
     titles = {p: f"4.{i} {p} · {a.title}" for i, (p, a) in enumerate(AREAS.items(), start=1)}
     toc = "\n".join(f"   {i}. [{a.title}](#{_anchor(titles[p])})"
                     for i, (p, a) in enumerate(AREAS.items(), start=1))
@@ -175,20 +192,22 @@ def render() -> str:
     for p, area in AREAS.items():
         out.append(f"\n### {titles[p]}\n\n{_md(area.summary)}\n")
         rows = [("Código", "Severidad", "Descripción")]
-        rows += [(f"[{c.id}](#{c.id.lower()})", _severity(c), _md(c.title) + (" *(retirado)*" if c.retired else ""))
-                 for c in by_area[p]]
+        rows += [(f"[{c.id}](#{c.id.lower()})", _severity(c), _md(c.title)) for c in by_area[p]]
         out.append(_table(rows))
         for code in by_area[p]:
             out.append(f"\n#### {code.id}\n")
             facts = [f"**{_md(code.title)}**", _severity(code), _md(code.location),
                      "se puede silenciar" if code.silenceable else "no se puede silenciar"]
-            if code.retired:
-                facts.append(f"retirado en la versión {code.retired}")
             out.append(" · ".join(facts) + "\n")
             out.append(f"{_md(code.cause)}\n")
             out.append(f"**Qué hacer:** {_md(code.action)}")
         out.append("\n---")
-    return "\n".join(out[:-1]) + "\n"
+    out.append(RETIRED_INTRO)
+    rows = [("Código", "Descripción", "Retirado en", "Se informa con", "Motivo")]
+    rows += [(f'<a id="{c.id.lower()}"></a>{c.id}', _md(c.title), c.retired, _md(c.by) if c.by else "-",
+              _md(c.cause)) for c in retired]
+    out.append(_table(rows))
+    return "\n".join(out) + "\n"
 
 
 def main() -> None:

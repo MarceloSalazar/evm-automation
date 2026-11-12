@@ -102,9 +102,10 @@ def compute(pv_month: list[float], ev_month: list[float], ac_month: list[float],
     if cpi and spi:
         eac_cpi_spi = ac + (bac - ev) / (cpi * spi)
     at = k + 1
-    es = earned_schedule(cum_pv, ev, bac, at)
+    # Sin BAC no hay curva PV: el cronograma ganado y la duración planificada no se calculan (como en la hoja Resumen)
+    es = earned_schedule(cum_pv, ev, bac, at) if bac > EPS else None
     spi_t = _div(es, at)
-    pd = planned_duration(cum_pv, bac)
+    pd = planned_duration(cum_pv, bac) if bac > EPS else None
 
     def last_loaded(back: int) -> int | None:
         """Último mes con datos (índice) hasta `back` meses antes del mes de corte."""

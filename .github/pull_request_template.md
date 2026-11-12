@@ -1,6 +1,10 @@
+<!-- El Pull Request va hacia la rama `desarrollo` (base: desarrollo). Solo el Pull Request de una
+versión, de `desarrollo` a `main`, va hacia `main`. -->
+
 ## Resumen
 
-<!-- Qué cambia y por qué. Si resuelve un ticket, indicarlo: Closes #<número> -->
+<!-- Qué cambia y por qué. Si resuelve un ticket, indicarlo: Ticket #<número>. En el Pull Request de
+una versión (de `desarrollo` a `main`): Closes #<número>, con cada ticket que cierra. -->
 
 ## Tipo de cambio
 

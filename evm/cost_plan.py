@@ -1,14 +1,21 @@
-"""Comando procesar-costes: % planificado de cada fila con el reparto mensual del plan de costes.
+"""Comando procesar-costes: revisión del plan de costes de la hoja PV-depuración y, con --calculos, sus cálculos.
 
-Lee la hoja PV-depuración de un libro con depuración de costes, asigna cada línea a una fila del libro con las mismas
-reglas que las fórmulas de la hoja _depuracion (cost_review.assign_lines) y escribe en la hoja '% PV' de la empresa que
-se depura el % planificado de cada fila de ingreso con líneas del plan: el importe de cada mes dividido por el total de
-sus líneas (el EAC de la fila). El PV del mes sigue siendo el BAC × el %: si el BAC de la fila coincide con su EAC, el
-PV es el importe del plan; si no, el plan da el reparto en el tiempo y el total es el BAC.
+Lee la hoja PV-depuración de un libro con depuración de costes: solo las líneas de EDT cliente cuyo código es el de una
+fila de ingreso de la hoja PV de la empresa que se depura (cost_review.read_lines, las mismas reglas que las fórmulas
+de la hoja _depuracion, que llevan esas líneas a las filas «(coste)»). Informa las líneas que no se leen, los importes
+después del horizonte, las EDT cliente repetidas y las filas sin plan, y lista el EAC y el BAC de cada fila con plan.
 
-Las filas procesadas quedan marcadas en la hoja _estructura: 'actualizar' no compara su % planificado con la línea base
-de MS Project y --migrar-desde lo conserva en el libro nuevo (también en el libro de entrega, sin depuración). Las
-filas sin líneas en el plan conservan su % planificado.
+Con --calculos ([exportacion] depuracion_calculos) escribe en la hoja PV-depuración las fórmulas de los cálculos del
+plan (cost_review.calc_plan y write_calcs): las sumas de los componentes en su EDT interna y de las EDT interna en su
+EDT cliente, el EAC y el BAC de la EDT cliente. Con [depuracion_precio], los meses de cada EDT interna con componentes
+son su precio, con los recargos de la tabla Recargos (evm/cost_price.py); si la hoja no tiene la tabla, la agrega
+vacía. Sin --calculos, usa los importes que tiene la hoja y no modifica el libro. Una hoja con el plan desde la celda
+A8 (versión 2.5 o anterior) se debe pasar al formato actual con --migrar-desde (DEP-024).
+
+No modifica el % planificado: el PV de todas las filas es el de MS Project, y el plan de costes se compara con él en las
+filas «(coste)» y en la hoja 'Depuración costes'. Antes de la versión 2.6.0, procesar-costes escribía el reparto del
+plan en la hoja '% PV' y marcaba esas filas en la hoja _estructura: en esos libros se avisa (DEP-021) y --migrar-desde
+les devuelve el % de MS Project (DEP-020).
 """
 from __future__ import annotations
 
@@ -22,11 +29,9 @@ from evm import progress
 from evm.config import Config
 from evm.messages import InputError, Issue
 from evm.update import (BookData, _refresh_charts, _save, _write_fixable, check_sheets, fixable_warning,
-                        read_book)
+                        plan_rows_warning, read_book)
 from evm.wbs import fmt_money, plural
-from evm.workbook import (FIRST_MONTH_COL, FIRST_ROW, FMT_PCT_MONTH, FONT_COST, PCT_PREFIX, SHEET_PV, SHEET_STRUCT,
-                          STRUCT_PLAN_COL, STRUCT_PLAN_HEAD, TITLE_ROW, company_sheet, pct_pv_title, plan_text,
-                          put_text, styled)
+from evm.workbook import SHEET_PV, company_sheet
 
 TOLERANCE = 0.005                       # importe que se considera 0
 
@@ -34,15 +39,18 @@ TOLERANCE = 0.005                       # importe que se considera 0
 @dataclass
 class CostPlanResult:
     sheet: str                          # hoja PV de la empresa que se procesó ('PV-EmpresaA' o 'PV')
-    lines: int                          # líneas pegadas con contenido
-    counted: int                        # líneas que se suman (sin los subtotales)
-    total: float                        # importe de las líneas que se suman
-    assigned: float                     # parte del total asignada a filas procesadas, dentro del horizonte
-    rows: list[tuple[str, str, float]]  # filas procesadas: código, actividad y EAC (total de sus líneas)
+    lines: int                          # líneas de EDT cliente de la hoja PV-depuración
+    counted: int                        # líneas de EDT cliente que se leen (con fila de ingreso del libro)
+    total: float                        # importe de las líneas que se leen
+    assigned: float                     # parte de ese importe en las filas con plan, dentro del horizonte
+    rows: list[tuple[str, str, float, float | None]]  # filas con plan: código, actividad, EAC de su línea y BAC
     inputs: int                         # filas de ingreso del libro
+    calculated: int | None              # líneas con los cálculos del plan escritos (None: sin --calculos)
+    priced: int | None                  # de ellas, líneas con el cálculo del precio (None: sin [depuracion_precio])
     warnings: list[Issue]
     backup: Path | None
     dry_run: bool
+    saved: bool                         # el libro se guardó (solo con los cálculos, fuera de la simulación)
     book: BookData
 
 
@@ -55,33 +63,9 @@ def _company_role(book: BookData, sheet: str) -> tuple[str, str]:
                                 "generar de nuevo con depuracion_costes = true.")
 
 
-def _paste_rows(path: Path, ws, months: int) -> tuple[list[list], int]:
-    """Líneas de la hoja PV-depuración en el formato actual. Las celdas con fórmula (pegadas sin 'valores') toman el
-    valor que calculó Excel; devuelve también cuántas no tienen valor calculado."""
-    rows, _fmt = cr.read_paste(ws, months)
-    cells = [(k, c) for k, values in enumerate(rows) for c, v in enumerate(values)
-             if isinstance(v, str) and v.startswith("=")]
-    if not cells:
-        return rows, 0
-    wv = load_workbook(path, data_only=True, read_only=True)
-    try:
-        cached, _fmt = cr.read_paste(wv[cr.SHEET_PASTE], months)
-    finally:
-        wv.close()
-    missing = 0
-    for k, c in cells:
-        value = cached[k][c] if k < len(cached) and c < len(cached[k]) else None
-        missing += value is None
-        rows[k][c] = value
-    return rows, missing
-
-
 def _label(x: cr.PasteLine) -> str:
-    """Línea pegada en los mensajes: su código (EDT cliente, EDT interna o componente) y su fila."""
-    values = x.values + [None] * cr.P_FIRST_MONTH
-    text = next((str(values[c - 1]).strip() for c in (cr.P_CODE, cr.P_INT_CODE, cr.P_INT_DESC)
-                 if str(values[c - 1] or "").strip()), "")
-    return f"{text} (fila {x.row})" if text else f"fila {x.row}"
+    """Línea de EDT cliente en los mensajes: su código, como está escrito, y su fila."""
+    return f"{str(x.values[cr.P_CODE - 1]).strip()} (fila {x.row})"
 
 
 def _listed(items: list[str], limit: int = 10) -> str:
@@ -89,108 +73,203 @@ def _listed(items: list[str], limit: int = 10) -> str:
 
 
 def run_cost_plan(cfg: Config, book_path: str | Path, backup: bool = True, dry_run: bool = False) -> CostPlanResult:
-    """Comando 'procesar-costes': escribe en la hoja '% PV' de la empresa que se depura el reparto mensual del plan
-    de costes pegado en la hoja PV-depuración."""
+    """Comando 'procesar-costes': revisa el plan de costes de la hoja PV-depuración y, con cfg.cost_review_calcs,
+    escribe sus cálculos. No modifica el % planificado."""
     book_path = Path(book_path)
     progress.stage("libro", "Lectura del libro")
     wb = load_workbook(book_path)
     book = read_book(book_path, wb, allow_fix=True)
     if cr.SHEET_PASTE not in wb.sheetnames:
         raise InputError("DEP-012", f"El libro no tiene la hoja {cr.SHEET_PASTE}: procesar-costes usa un libro "
-                                    "generado con depuracion_costes = true, con el plan de costes pegado en esa hoja.")
+                                    "generado con depuracion_costes = true, con el plan de costes en esa hoja.")
     check_sheets(wb.sheetnames, book.meta, charts=True)
     sheet = str(book.meta.get("depuracion_hoja") or SHEET_PV)
-    role, company = _company_role(book, sheet)
+    role, _company = _company_role(book, sheet)
     months = book.horizon.months
-    warnings = fixable_warning(book, dry_run)
+    save = cfg.cost_review_calcs and not dry_run
+    warnings = fixable_warning(book, dry_run) if cfg.cost_review_calcs else []
 
-    progress.stage("procesar", "Reparto del plan de costes")
-    rows, missing = _paste_rows(book_path, wb[cr.SHEET_PASTE], months)
-    lines = cr.assign_lines(rows, cr.structure_table(book.structure))
-    counted = [x for x in lines if x.counted]
-    amounts: dict[int, list[float]] = {}            # fila del libro -> importe de cada mes del plan
-    for x in counted:
-        if x.target > 0:
-            vec = amounts.setdefault(x.target, [0.0] * len(x.months))
-            for i, v in enumerate(x.months):
-                if cr.is_amount(v):
-                    vec[i] += v
+    progress.stage("procesar", "Plan de costes")
+    ws_paste = wb[cr.SHEET_PASTE]
+    if cr.paste_first_row(ws_paste) != cr.P_FIRST:
+        raise InputError("DEP-024", f"La hoja {cr.SHEET_PASTE} tiene el formato de una versión anterior, con el "
+                                    f"plan desde la celda A{cr.OLD_FIRST}: se debe generar un libro nuevo con "
+                                    f"--migrar-desde, que pasa el plan a la celda A{cr.P_FIRST} y conserva el BAC, "
+                                    "el % ganado y el AC.")
+    rows, _fmt = cr.read_paste(ws_paste, months)
+    rows, _formulas, missing_cells = cr.resolve_formulas(book_path, rows, months)
+    n_paste = cr.paste_months(months)
+    table, added = cr.read_rates(ws_paste), False
+    if cfg.cost_price_formula and cfg.cost_price_rates and cfg.cost_review_calcs and not table.present:
+        cr.write_rates(ws_paste, cfg, book.horizon.start, n_paste)        # tabla vacía, para escribir los recargos
+        table, added = cr.read_rates(ws_paste), True
+    price = cr.price_setup(cfg, table, book.horizon.start, n_paste, _cached_rates(book_path, table))
+    calculated = priced = None
+    if cfg.cost_review_calcs:
+        rows, plan = cr.calc_plan(rows, price)
+        missing_cells = []              # las celdas calculadas toman el valor de los cálculos
+        calculated = sum(1 for x in plan if x.kind)
+        if price is not None:
+            priced = sum(1 for k in range(len(plan)) if cr.priced(plan, k, price))
+        if save:
+            cr.write_calcs(ws_paste, plan, months, sheet, int(book.meta["fila_total"]),
+                           int(book.meta.get("decimales") or 0), price)
+    lines = cr.read_lines(rows, cr.structure_table(book.structure))
+    read = [x for x in lines if x.state == cr.STATE_READ]
+    read_rows = {x.row - cr.P_FIRST for x in read}
+    missing = sum(1 for k, c in missing_cells if k in read_rows and c >= cr.P_FIRST_MONTH - 1)
+    amounts: dict[int, list[float]] = {}            # fila de ingreso del libro -> importe de cada mes del plan
+    for x in read:
+        vec = amounts.setdefault(x.match, [0.0] * len(x.months))
+        for i, v in enumerate(x.months):
+            if cr.is_amount(v):
+                vec[i] += v
     inputs = book.input_rows
     if not any(s.row in amounts for s in inputs):
-        raise InputError("DEP-013", f"Ninguna línea de la hoja {cr.SHEET_PASTE} se asigna a una fila del libro: se "
-                                    f"debe pegar el plan de costes desde la celda A{cr.P_FIRST} y revisar la columna "
-                                    "'Asignado a'.")
+        raise InputError("DEP-013", f"Ninguna línea de EDT cliente de la hoja {cr.SHEET_PASTE} tiene el código de una "
+                                    f"fila de ingreso de la hoja {sheet}: se debe escribir el plan de costes desde la "
+                                    f"celda A{cr.P_FIRST} y revisar la columna 'Asignado a'.")
 
-    processed: list[tuple] = []                     # (fila, EAC, % de cada mes)
+    with_plan: list[tuple] = []                     # (fila, EAC de su línea)
     no_lines, zero = [], []
     for s in inputs:
         vec = amounts.get(s.row)
         if vec is None:
             no_lines.append(s.code)
-        elif abs(sum(vec)) < TOLERANCE:
+        elif all(abs(v) < TOLERANCE for v in vec):
             zero.append(s.code)
         else:
-            total = sum(vec)
-            processed.append((s, total, [v / total for v in vec[:months]]))
+            with_plan.append((s, sum(vec)))
     code_of = {s.row: s.code for s in book.structure}
-    warnings += _warnings(lines, counted, amounts, months, missing, no_lines, zero, sheet, code_of)
+    warnings += _warnings(lines, amounts, months, missing, no_lines, zero, sheet, code_of, cfg.cost_review_calcs)
+    if price is not None:
+        warnings += _price_warnings(rows, cr.plan_lines(rows), price, table, added)
+    elif table.present:
+        sums = "suman" if cfg.cost_review_calcs else "se calculan sumando"
+        warnings.append(Issue("DEP-026", message=(
+            f"La hoja {cr.SHEET_PASTE} tiene la tabla Recargos, pero la configuración no tiene [depuracion_precio]: "
+            f"las EDT interna {sums} sus componentes (a coste). Se debe indicar --config con la configuración de la "
+            "depuración.")))
+    warnings += plan_rows_warning(book)
 
-    if not dry_run:
-        ws_pct = wb[PCT_PREFIX + sheet]
-        ws_struct = wb[SHEET_STRUCT]
-        ws_struct.cell(row=1, column=STRUCT_PLAN_COL, value=STRUCT_PLAN_HEAD)
-        for s, _total, pct in processed:
-            for i, p in enumerate(pct):
-                cell = ws_pct.cell(row=s.row, column=FIRST_MONTH_COL + i)
-                cell.value = p if abs(p) > 1e-12 else None
-                if cell.value is not None:
-                    styled(cell, number_format=FMT_PCT_MONTH, font=FONT_COST)
-            put_text(ws_struct, s.row - (FIRST_ROW - 2), STRUCT_PLAN_COL, plan_text(set(s.plan_pv) | {role}))
-            book.pct_pv[role][s.row] = list(pct)
-        ws_pct.cell(row=TITLE_ROW, column=1, value=pct_pv_title(company, True))
+    backup_path = None
+    if save:
         _write_fixable(wb, book)
         idx = book.horizon.index(book.status_date) if book.status_date is not None else None
         _refresh_charts(wb, book, idx if idx is not None and 0 <= idx < months else None, book.meta)
         progress.stage("guardar", "Guardado del libro")
-    backup_path = None if dry_run else _save(wb, book_path, backup, cfg.fast_save)
-    total = sum(x.total for x in counted)
-    rows_done = {s.row for s, _t, _p in processed}
+        backup_path = _save(wb, book_path, backup, cfg.fast_save)
+    rows_done = {s.row for s, _t in with_plan}
     assigned = sum(sum(v[:months]) for r, v in amounts.items() if r in rows_done)
-    return CostPlanResult(sheet, sum(1 for x in lines if x.numeric or x.child), len(counted), total, assigned,
-                          [(s.code, s.name, t) for s, t, _p in processed], len(inputs), warnings, backup_path,
-                          dry_run, book)
+    return CostPlanResult(sheet, sum(1 for x in lines if x.client), len(read), sum(x.total for x in read), assigned,
+                          [(s.code, s.name, t, book.bac_role[role][s.row]) for s, t in with_plan], len(inputs),
+                          calculated, priced, warnings, backup_path, dry_run, save, book)
 
 
-def _warnings(lines: list[cr.PasteLine], counted: list[cr.PasteLine], amounts: dict[int, list[float]], months: int,
-              missing: int, no_lines: list[str], zero: list[str], sheet: str, code_of: dict[int, str]) -> list[Issue]:
-    """Observaciones de procesar-costes: líneas sin fila del libro, meses fuera del horizonte, filas sin reparto e
-    importes que no se pueden sumar."""
+def _cached_rates(path: Path, table: cr.RatesTable) -> cr.RatesTable | None:
+    """La tabla Recargos con los valores que calculó Excel, si algún coeficiente está escrito con una fórmula."""
+    if not any(isinstance(v, str) and v.startswith("=") for v in table.cells.values()):
+        return None
+    wv = load_workbook(path, data_only=True, read_only=True)
+    try:
+        return cr.read_rates(wv[cr.SHEET_PASTE])
+    finally:
+        wv.close()
+
+
+def _years(years: list[int]) -> str:
+    """Años, con los consecutivos en un rango: '2026 a 2028, 2030'."""
+    out: list[str] = []
+    for y in sorted(years):
+        if out and out[-1].split(" a ")[-1] == str(y - 1):
+            out[-1] = f"{out[-1].split(' a ')[0]} a {y}"
+        else:
+            out.append(str(y))
+    return ", ".join(out)
+
+
+def _price_warnings(rows: list[list], plan: list[cr.PlanLine], price, table: cr.RatesTable,
+                    added: bool) -> list[Issue]:
+    """Observaciones del cálculo del precio: componentes con un texto que no está en [depuracion_precio.componentes]
+    (DEP-022) y coeficientes que faltan en la tabla Recargos en los años con importes (DEP-023)."""
     out: list[Issue] = []
-    unassigned = [x for x in counted if x.target <= 0 and abs(x.total) >= TOLERANCE]
-    if unassigned:
-        why = {cr.NO_ROW: "resumen sin fila propia"}
-        items = [f"{_label(x)}: {why.get(x.target, 'sin EDT cliente encima' if not x.effective else 'sin fila')}"
-                 for x in unassigned]
+    unknown, years = [], set()
+    for k, x in enumerate(plan):
+        if x.kind != cr.KIND_COMPONENT or x.parent is None:
+            continue
+        used = [i for i, v in enumerate(rows[k][cr.P_FIRST_MONTH - 1:]) if cr.is_amount(v) and abs(v) >= TOLERANCE]
+        if not used:
+            continue
+        if price.component(x.label) is None:
+            unknown.append(f"{str(rows[k][cr.P_INT_DESC - 1]).strip()} (fila {cr.P_FIRST + k})")
+        else:
+            years.update(price.year(i) for i in used)
+    if unknown:
+        out.append(Issue("DEP-022", message=(
+            f"{plural(len(unknown), 'línea', 'líneas')} de componente de coste de la hoja {cr.SHEET_PASTE} con un "
+            f"texto que no está en [depuracion_precio.componentes]: {_listed(unknown)}. No entran en el precio de su "
+            "EDT interna.")))
+    parts = []
+    if added:
+        parts.append(f"se agregó la tabla, desde la celda {cr.col(cr.R_LABEL)}{cr.R_HEAD_ROW}: se deben escribir los "
+                     "coeficientes de cada año")
+    elif not table.present:
+        parts.append(f"falta la tabla (desde la celda {cr.col(cr.R_LABEL)}{cr.R_HEAD_ROW}), que se agrega con "
+                     "procesar-costes --calculos")
+    else:
+        rates = price.used_rates()
+        no_row = [f"{price.rates[n]} ({n})" for n in rates if n not in price.rate_rows]
+        no_year = [y for y in years if y not in price.year_cols]
+        empty = []
+        for n in rates:
+            missing = [y for y in years if y in price.year_cols and (n, y) not in price.values]
+            if n in price.rate_rows and missing:
+                empty.append(f"{price.rates[n]} ({n}), {_years(missing)}")
+        if no_row:
+            parts.append(f"falta la fila de {', '.join(no_row)}")
+        if no_year:
+            parts.append(f"faltan las columnas de los años {_years(no_year)}")
+        if empty:
+            parts.append("sin un número en años con importes: " + "; ".join(empty))
+    if parts:
+        out.append(Issue("DEP-023", message=f"Tabla Recargos de la hoja {cr.SHEET_PASTE}: {'; '.join(parts)}. En el "
+                                            "precio, los coeficientes que faltan se toman como 0."))
+    return out
+
+
+def _warnings(lines: list[cr.PasteLine], amounts: dict[int, list[float]], months: int, missing: int,
+              no_lines: list[str], zero: list[str], sheet: str, code_of: dict[int, str], calcs: bool) -> list[Issue]:
+    """Observaciones de procesar-costes: líneas sin leer, meses fuera del horizonte, filas sin plan e importes que no
+    se pueden sumar."""
+    out: list[Issue] = []
+    unread = [x for x in lines if x.state in cr.UNREAD and abs(x.total) >= TOLERANCE]
+    if unread:
+        items = [f"{_label(x)}: {cr.STATUS_OF[x.state].lower()}" for x in unread]
         out.append(Issue("DEP-014", message=(
-            f"{plural(len(unassigned), 'línea', 'líneas')} de la hoja {cr.SHEET_PASTE} sin fila del libro, por "
-            f"{fmt_money(sum(x.total for x in unassigned))}: {_listed(items)}. Su importe no forma parte del % "
-            "planificado.")))
+            f"{plural(len(unread), 'línea', 'líneas')} de EDT cliente de la hoja {cr.SHEET_PASTE} sin leer, por "
+            f"{fmt_money(sum(x.total for x in unread))}: {_listed(items)}. Su importe no llega a ninguna fila "
+            "«(coste)».")))
+    repeated = sorted({x.key for x in lines if x.state == cr.STATE_READ and x.repeated})
+    if repeated:
+        out.append(Issue("DEP-019", message=(
+            f"EDT cliente repetidas en la hoja {cr.SHEET_PASTE} ({_listed(repeated)}): se suman sus líneas.")))
     later = {r: sum(v[months:]) for r, v in amounts.items() if abs(sum(v[months:])) >= TOLERANCE}
     if later:
         out.append(Issue("DEP-015", message=(
             f"Hay {fmt_money(sum(later.values()))} del plan de costes en meses posteriores al horizonte del libro, en "
             f"{plural(len(later), 'fila', 'filas')} ({_listed([code_of.get(r, str(r)) for r in sorted(later)])}): "
-            "no forman parte del % planificado, que en esas filas no suma 100 %.")))
+            "forman parte del EAC de su fila «(coste)», pero no de sus meses.")))
     if no_lines:
         out.append(Issue("DEP-016", message=(
-            f"Filas de ingreso de la hoja {sheet} sin líneas en el plan de costes ({len(no_lines)}): "
-            f"{_listed(no_lines)}. Conservan su % planificado (de MS Project o de un procesado anterior).")))
+            f"Filas de ingreso de la hoja {sheet} sin línea de EDT cliente en el plan de costes ({len(no_lines)}): "
+            f"{_listed(no_lines)}. Su fila «(coste)» queda vacía.")))
     if zero:
+        hint = "" if calcs else " Si faltan los cálculos del plan, se puede ejecutar procesar-costes --calculos."
         out.append(Issue("DEP-017", message=(
-            f"Filas cuyas líneas del plan de costes suman 0 ({len(zero)}): {_listed(zero)}. No hay reparto que "
-            "aplicar: conservan su % planificado.")))
-    texts = [x for x in lines if (x.numeric or x.child) and any(
-        isinstance(v, str) and v.strip() for v in x.values[cr.P_BAC - 1:])]
+            f"Filas cuya línea de EDT cliente no tiene importes en el plan de costes ({len(zero)}): {_listed(zero)}. "
+            f"Su fila «(coste)» queda en 0.{hint}")))
+    texts = [x for x in lines if x.state == cr.STATE_READ and any(
+        isinstance(v, str) and v.strip() for v in x.months)]
     if texts or missing:
         parts = []
         if texts:
@@ -198,6 +277,6 @@ def _warnings(lines: list[cr.PasteLine], counted: list[cr.PasteLine], amounts: d
                          f"se suman ({_listed([_label(x) for x in texts])})")
         if missing:
             parts.append(f"{plural(missing, 'celda tiene', 'celdas tienen')} una fórmula sin valor calculado: se debe "
-                         "pegar el plan con pegado especial > valores, o abrir y guardar el libro en Excel")
+                         "abrir y guardar el libro en Excel, o ejecutar procesar-costes --calculos")
         out.append(Issue("DEP-018", message=f"Hoja {cr.SHEET_PASTE}: " + "; ".join(parts) + "."))
     return out

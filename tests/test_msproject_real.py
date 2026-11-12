@@ -248,7 +248,7 @@ def test_same_project_options_and_saved_baselines(projects):
 
     saved = (counts(com), counts(xml))
     assert saved[0] == saved[1], f"Tareas con comienzo en cada línea base: COM {saved[0]} / XML {saved[1]}"
-    # Línea base usada incompleta (FEC-015, FEC-016) y tareas con calendario propio (FEC-017): las mismas tareas
+    # Línea base usada incompleta (FEC-015) y tareas con calendario propio (FEC-017): las mismas tareas
     n = xml.baseline_number
     incomplete = (sorted(t.uid for t in com.tasks if n in t.incomplete_baselines),
                   sorted(t.uid for t in xml.tasks if n in t.incomplete_baselines))
