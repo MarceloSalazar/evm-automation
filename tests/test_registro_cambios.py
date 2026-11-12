@@ -106,7 +106,7 @@ def test_ac_already_above_bac_and_last_month_with_ac():
 
 
 def test_loe_share_of_bac():
-    book = fake_book({"1.1": {"bac": 3000, "method": "Avance lineal (LOE)"}, "1.2": {"bac": 1000},
+    book = fake_book({"1.1": {"bac": 3000, "method": "Avance lineal"}, "1.2": {"bac": 1000},
                       "1.3": {"bac": 1000, "method": "Nivel de esfuerzo"}, "1.4": {"bac": 5000}})
     (issue,) = consistency.loe_share(book, 15)
     assert issue.id == "ACT-049"

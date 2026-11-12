@@ -126,14 +126,14 @@ def build_program(factor: float = 1.0) -> list[T]:
     prog = [
         T("Gestión del programa", 1, children=[
             T("Dirección y control", 2, children=[
-                wp("Oficina de gestión del programa (PMO)", 0, 1250, 1_800_000, "Avance lineal (LOE)"),
-                wp("Control de proyectos y EVM", 0, 1250, 650_000, "Avance lineal (LOE)"),
-                wp("Gestión de riesgos", 1, 1200, 300_000, "Avance lineal (LOE)"),
+                wp("Oficina de gestión del programa (PMO)", 0, 1250, 1_800_000, "Avance lineal"),
+                wp("Control de proyectos y EVM", 0, 1250, 650_000, "Avance lineal"),
+                wp("Gestión de riesgos", 1, 1200, 300_000, "Avance lineal"),
             ]),
             T("Gestión de contratos", 2, children=[
                 wp("Licitación de ingeniería", 0, 80, 120_000, "0/100"),
                 wp("Licitación de obras", 8, 100, 180_000, "50/50"),
-                wp("Administración de contratos", 10, 1000, 420_000, "Avance lineal (LOE)"),
+                wp("Administración de contratos", 10, 1000, 420_000, "Avance lineal"),
             ]),
         ]),
         T("Ingeniería", 1, children=[
@@ -218,7 +218,7 @@ def build_second() -> list[T]:
                     ("Montaje de módulos", 60, 650_000), ("Hito: módulos habilitados", 0, 0, 60),
                     ("Servicios del campamento", 40, 250_000), ("Hito: campamento en servicio", 0, 0, 40),
                 ]),
-                wp("Gestión del proyecto de accesos", 0, 500, 380_000, "Avance lineal (LOE)"),
+                wp("Gestión del proyecto de accesos", 0, 500, 380_000, "Avance lineal"),
             ]),
         ]),
     ]
@@ -313,7 +313,7 @@ def progress(n: T, status: date) -> None:
     n.actual_cost = round(n.cost * n.pct * 1.08, 2)
 
 
-LOE = "Avance lineal (LOE)"
+LOE = "Avance lineal"
 
 
 def _shift(d: date, n: int) -> date:

@@ -30,7 +30,7 @@ DEFAULT_METHODS = [
     "% Completado",
     "% Físico completado",
     "Unidades completadas",
-    "Avance lineal (LOE)",
+    "Avance lineal",
 ]
 
 

@@ -402,7 +402,7 @@ planificado:
 | `% Completado` | Σ peso de cada tarea × su *% completado*. Un hito cuenta su peso cuando está cumplido. |
 | `% Físico completado` | Igual, con el *% físico completado*. |
 | `Unidades completadas` | Igual que `% Físico completado` (en ese campo se registra el cociente unidades hechas / unidades totales). |
-| `Avance lineal (LOE)` | El % planificado acumulado a la fecha de corte (EV = PV). |
+| `Avance lineal` | El % planificado acumulado a la fecha de corte (EV = PV). |
 | `Por definir` u otro texto | Se usa `% Completado` y se informa. |
 
 Las fórmulas fijas se reconocen también escritas con `%` o con espacios (`50%/50%`, `0 / 100`).
@@ -421,7 +421,7 @@ Particularidades:
   toma como 0; si ningún hito tiene peso positivo, todos pesan igual. Si la fila no tiene hitos, se usa
   *% físico completado* cuando alguna tarea lo tiene registrado y, si no, *% completado*. Cada caso se
   informa en pantalla.
-- **Avance lineal (LOE):** el EV es igual al PV acumulado de la fila, por lo que la fila nunca tiene
+- **Avance lineal:** el EV es igual al PV acumulado de la fila, por lo que la fila nunca tiene
   variación de cronograma (SV = 0, SPI = 1). Sí puede tener variación de costo.
 - **Tareas sin fechas** (sin pesos): el avance de la fila es el promedio simple de sus tareas.
 - **Filas `-D Otras tareas`:** el avance se mide solo con las tareas que forman la fila (las que

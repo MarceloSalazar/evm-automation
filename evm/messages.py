@@ -518,10 +518,10 @@ _CODES = [
           "Cerrar el proyecto a mano en MS Project, sin guardar.", "generar, actualizar, validar y generar-fichas "
           "con archivos .mpp"),
     _code("LEC-023", W, "Campo de reparto vacío",
-          "En multi-empresa, el campo de reparto existe, pero está vacío en todas las tareas: las tareas compartidas "
-          "(ambas) se reparten con reparto_por_defecto.",
-          "Cargar el % de la empresa A en las tareas compartidas (o en su tarea superior), o confirmar que el reparto "
-          "por defecto es el acordado.", W_GV),
+          "Hasta la versión 2.5, en multi-empresa, se avisaba cuando el campo de reparto existía, pero estaba vacío en "
+          "todas las tareas. Desde la versión 2.6.0 no se avisa: una tarea compartida (ambas) sin reparto se reparte "
+          "con reparto_por_defecto, como está previsto.",
+          "Ninguna.", W_GV, retired="2.6.0"),
     _code("LEC-024", I, "Líneas base guardadas",
           "Líneas base guardadas y la que usa el % planificado: la cantidad de tareas revisadas (las de la "
           "planificación exportada) con fecha de comienzo en cada una.",
@@ -879,16 +879,25 @@ _CODES = [
           "Las fechas no se recalculan cuando cambian las duraciones o el avance.",
           "Vincular las tareas (cada tarea con al menos una predecesora y una sucesora)."),
     _code("LOG-002", W, "Tareas sin predecesoras o sin sucesoras",
-          "Resumen de LOG-003 a LOG-005, con el % de tareas sin terminar (DCMA: hasta 5 %).",
-          "Vincular esas tareas."),
+          "Hasta la versión 2.5, contaba en un resumen las tareas de LOG-003 a LOG-005, con su % de las tareas sin "
+          "terminar, y repetía lo que informan esos códigos y el punto 1 de la evaluación DCMA. Desde la versión "
+          "2.6.0, cada tarea se informa solo con LOG-003, LOG-004 o LOG-005, y el % está en el punto 1 de la "
+          "evaluación DCMA.",
+          "Ninguna.", retired="2.6.0"),
     _code("LOG-003", W, "Tarea sin predecesoras ni sucesoras",
-          "Las fechas de la tarea no dependen de la lógica del cronograma.",
+          "Tarea de detalle sin terminar a la que le faltan las predecesoras y las sucesoras: sus fechas no dependen de "
+          "la lógica del cronograma. Un vínculo de su tarea resumen cuenta como suyo. Cuenta para el punto 1 de la "
+          "evaluación DCMA (hasta 5 % de las tareas sin terminar).",
           "Vincular la tarea."),
     _code("LOG-004", W, "Tarea sin predecesoras",
-          "El comienzo de la tarea no depende de otra tarea.",
+          "Tarea de detalle sin terminar a la que solo le faltan las predecesoras: su comienzo no depende de otra "
+          "tarea. No les faltan a las que comienzan con el proyecto, y un vínculo de su tarea resumen cuenta como "
+          "suyo. Cuenta para el punto 1 de la evaluación DCMA (hasta 5 % de las tareas sin terminar).",
           "Agregar una predecesora."),
     _code("LOG-005", W, "Tarea sin sucesoras",
-          "El fin de la tarea no afecta a ninguna otra tarea.",
+          "Tarea de detalle sin terminar a la que solo le faltan las sucesoras: su fin no afecta a ninguna otra tarea. "
+          "No les faltan a las que terminan con el proyecto, y un vínculo de su tarea resumen cuenta como suyo. "
+          "Cuenta para el punto 1 de la evaluación DCMA (hasta 5 % de las tareas sin terminar).",
           "Agregar una sucesora."),
     _code("LOG-006", W, "Vínculo con adelanto",
           "El vínculo tiene posición negativa (adelanto); la evaluación DCMA recomienda no usarlos. Una línea por "

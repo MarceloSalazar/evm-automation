@@ -206,7 +206,7 @@ depuracion_calculos = false
 #   "% Completado",
 #   "% Físico completado",
 #   "Unidades completadas",
-#   "Avance lineal (LOE)",
+#   "Avance lineal",
 # ]
 
 [semaforo]
@@ -231,7 +231,7 @@ rojo_superior = 1.10
 meses_0_100 = 1
 meses_formula_fija = 2
 
-# % del BAC total en filas con método "Avance lineal (LOE)" a partir del cual
+# % del BAC total en filas con método "Avance lineal" (LOE) a partir del cual
 # actualizar y analizar avisan (ACT-049): el EV del LOE es igual a su PV y acerca
 # el SPI a 1. La norma no fija un número. 0 = no se controla.
 loe_maximo = 15

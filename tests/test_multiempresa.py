@@ -7,7 +7,7 @@ import pytest
 from openpyxl import load_workbook
 
 from evm.cli import main
-from evm.companies import resolve_shares
+from evm.companies import explicit_share, resolve_shares
 from evm.config import Config, ConfigError, load_config
 from evm.model import Task
 from evm.reader_xml import read_xml
@@ -446,9 +446,10 @@ def test_multi_formulas_recalculate(multi_book, example_files, recalc):
     assert summary["EV - Valor ganado acumulado"] == pytest.approx(ev_total)
 
 
-def test_empty_split_field_is_reported():
-    """LEC-023: el campo de reparto existe pero está vacío en todas las tareas: las tareas de detalle compartidas
-    (propias o heredadas de su tarea superior) se reparten con reparto_por_defecto."""
+def test_empty_split_field_is_not_reported():
+    """El campo de reparto existe, pero está vacío en todas las tareas: las tareas de detalle 'Ambas' (propias o
+    heredadas de su tarea superior) se reparten con reparto_por_defecto, como está previsto, sin aviso (LEC-023,
+    retirado en la versión 2.6.0)."""
     from builders import P, by_name, tree
     tasks = tree('''
         1 Fase
@@ -461,12 +462,6 @@ def test_empty_split_field_is_reported():
     t["Fase"].company, t["B"].company = "Ambas", "EmpresaB"
     cfg = Config(multi_enabled=True)
     both = {"campo_empresa": "Empresa", "campo_reparto": "% Reparto"}
-    [issue] = [i for i in build_report(P(tasks, fields_found=both), cfg).issues if i.id == "LEC-023"]
-    assert issue.message == ("El campo '% Reparto' existe, pero está vacío en todas las tareas: 2 tareas de detalle "
-                             "'Ambas' se reparten al 50 % para EmpresaA ([multiempresa] reparto_por_defecto). Se debe "
-                             "cargar el % de EmpresaA en esas tareas o en su tarea superior, o confirmar que el reparto "
-                             "por defecto es el acordado.")
-    assert not [i for i in build_report(P(tasks, fields_found={"campo_empresa": "Empresa"}), cfg).issues
-                if i.id == "LEC-023"]                               # sin el campo (LEC-016)
-    t["A"].split_a = 30
-    assert not [i for i in build_report(P(tasks, fields_found=both), cfg).issues if i.id == "LEC-023"]
+    report = build_report(P(tasks, fields_found=both), cfg)
+    assert "LEC-023" not in {i.id for i in report.issues}
+    assert explicit_share(t["Fase"], cfg) == (0.5, "")                  # reparto_por_defecto

@@ -66,7 +66,7 @@ contratos del gobierno de EE. UU. no son obligatorios; se usan como buena práct
 - **44 días laborables** (unos 2 meses) es el límite de la DCMA para una holgura o una duración alta.
 - **Fecha de estado:** la del proyecto en MS Project (*Proyecto > Información del proyecto*) o la de
   `--fecha-corte`. Sin fecha de estado, no se calculan los puntos que dependen de ella (9, 11, 13 y 14).
-- **Filas LOE:** las tareas de las filas con método *Avance lineal (LOE)* no cuentan para la holgura
+- **Filas LOE:** las tareas de las filas con método *Avance lineal* no cuentan para la holgura
   alta ni para la duración alta: un nivel de esfuerzo dura todo el proyecto por definición.
 - **Varios archivos** (`[[proyectos]]`): cada archivo se evalúa por separado y sus observaciones llevan
   su nombre (`[P1]`).
@@ -77,7 +77,7 @@ contratos del gobierno de EE. UU. no son obligatorios; se usan como buena práct
 
 | # | Punto | Qué mide | Criterio DCMA | `validar` | Código |
 |---|---|---|---|---|---|
-| 1 | Lógica | Tareas sin terminar sin predecesoras o sin sucesoras | Hasta 5 % | Sí | [LOG-002](codigos.md#log-002) a [LOG-005](codigos.md#log-005) ([LOG-001](codigos.md#log-001) sin vínculos) |
+| 1 | Lógica | Tareas sin terminar sin predecesoras o sin sucesoras | Hasta 5 % | Sí | [LOG-003](codigos.md#log-003) a [LOG-005](codigos.md#log-005), una vez por tarea ([LOG-001](codigos.md#log-001) sin vínculos) |
 | 2 | Adelantos | Vínculos con posición negativa | Ninguno | Sí | [LOG-006](codigos.md#log-006) |
 | 3 | Posiciones | Vínculos con posición positiva (esperas) | Hasta 5 % de los vínculos | Sí | [LOG-008](codigos.md#log-008) |
 | 4 | Tipos de vínculo | Vínculos fin a comienzo (FC) | Al menos 90 % | Sí | [LOG-009](codigos.md#log-009) ([LOG-007](codigos.md#log-007) para los CF) |
@@ -109,6 +109,10 @@ holgura negativa, fechas no válidas), cada caso es una advertencia o un error.
   terminar. No cuentan la tarea que empieza el proyecto (no necesita predecesora) ni la que lo termina
   (no necesita sucesora). Un vínculo de una tarea resumen cuenta para sus subtareas, aunque se recomienda
   vincular las tareas de detalle ([LOG-010](codigos.md#log-010)).
+- **Cómo se informa:** el % y la cantidad de tareas sin predecesoras y sin sucesoras, en la tabla de la
+  evaluación. Cada tarea, una vez, con lo que le falta: predecesoras y sucesoras
+  ([LOG-003](codigos.md#log-003)), solo predecesoras ([LOG-004](codigos.md#log-004)) o solo sucesoras
+  ([LOG-005](codigos.md#log-005)).
 - **Qué hacer:** cada tarea con al menos una predecesora y una sucesora, y cada rama del cronograma
   vinculada hasta el hito de fin. Sin vínculos, MS Project no mueve las fechas cuando cambian las
   duraciones o el avance.

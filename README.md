@@ -27,7 +27,7 @@ simulado.*
   cronograma, con la evaluación DCMA de 14 puntos. Revisa varias planificaciones a la vez y las compara, y
   escribe un **informe de mejoras** por prioridad, sin nombres de tareas, para compartirlo.
 - Cálculo del **% ganado** de cada paquete a la fecha de corte, según su **método de medición** (0/100,
-  50/50, hitos ponderados, % completado, % físico completado, unidades y LOE), y carga del valor del mes
+  50/50, hitos ponderados, % completado, % físico completado, unidades y avance lineal (LOE)), y carga del valor del mes
   en el libro. El **AC** se carga a mano.
 - **Cuadro de Mando** con el mes de reporte seleccionable: BAC, PV, EV, AC, desviaciones, índices con
   semáforo, pronósticos (ETC, EAC, VAC, TCPI), **tendencia** (CPI y SPI de los últimos 3 meses y
@@ -173,7 +173,7 @@ El [tutorial](docs/ejemplo-paso-a-paso.md) recorre el ciclo completo con 24 mese
 | Puesta en marcha, cierre mensual, cambios de línea base y buenas prácticas | [Proceso de reporte EVM](docs/proceso-reporte-evm.md) |
 | BAC en el libro, % planificado y % ganado de MS Project, filas del libro, AC, valor del mes y controles | [Cálculo del PV y el EV](docs/calculo-pv-ev.md) |
 | Código EDT, campos personalizados, línea base, fecha de estado y avance | [Preparación en MS Project](docs/preparacion-ms-project.md) |
-| 0/100, fórmulas fijas, hitos ponderados, % completado, % físico, unidades y LOE; cómo elegir y aprobar el método de cada paquete | [Métodos de medición](docs/metodos-de-medicion.md) |
+| 0/100, fórmulas fijas, hitos ponderados, % completado, % físico, unidades y avance lineal (LOE); cómo elegir y aprobar el método de cada paquete | [Métodos de medición](docs/metodos-de-medicion.md) |
 | PV, EV y AC de dos empresas | [Multi-empresa (opcional)](docs/multiempresa.md) |
 | Varios archivos de MS Project en un mismo informe | [Varios archivos (opcional)](docs/varios-archivos.md) |
 | PV planificado frente al plan de costes de una empresa | [Depuración de costes (opcional)](docs/depuracion-costes.md) |

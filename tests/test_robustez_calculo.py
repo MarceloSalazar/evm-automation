@@ -177,7 +177,7 @@ def test_earned_fraction_always_in_unit_interval(seed):
                       {(2026, 1): 1.0} if rng.random() < 0.9 else {}, True) for t in kids]
     rw = row_weights(times) or RowWeights({}, [])
     for text in ("0/100", "30/70", "Hitos ponderados", "% Completado", "% Físico completado", "Unidades",
-                 "Avance lineal (LOE)", "Por definir", "otro"):
+                 "Avance lineal", "Avance lineal (LOE)", "Por definir", "otro"):
         frac, _ = earned_fraction(parse_method(text), rw, rng.uniform(-0.5, 1.5))
         assert 0.0 <= frac <= 1.0, text
 
@@ -213,7 +213,7 @@ def company_row():
 
 
 @pytest.mark.parametrize("text", ["0/100", "30/70", "% Completado", "% Físico completado", "Unidades completadas",
-                                  "Hitos ponderados", "Avance lineal (LOE)"])
+                                  "Hitos ponderados", "Avance lineal"])
 def test_multi_all_company_a_matches_single_mode(text):
     times = company_row()
     method = parse_method(text)

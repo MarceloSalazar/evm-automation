@@ -181,7 +181,7 @@ resultante.*
 | `% Completado`, `% Físico completado`, `Unidades completadas` | Avance de sus tareas, ponderado por el peso que cada tarea tiene para la empresa. |
 | `0/100`, `X/Y` | Según comiencen y terminen **sus** tareas: una empresa que terminó su parte no espera a la otra. |
 | `Hitos ponderados` | Sus hitos cumplidos, ponderados por su `Peso hito`. |
-| `Avance lineal (LOE)` | Su % planificado acumulado a la fecha de corte. |
+| `Avance lineal` | Su % planificado acumulado a la fecha de corte. |
 
 Si una empresa **no participa** en ninguna tarea de la fila y se le asigna BAC, se usan el % planificado
 y el avance de la fila completa (se informa en `Validación` y en `actualizar`).
@@ -205,8 +205,9 @@ está en [Cálculo del PV y el EV](calculo-pv-ev.md#10-multi-empresa).
 - `% Reparto` **fuera de rango** (negativo o mayor que 100).
 - `% Reparto` en una tarea que no es `Ambas` (informativo: se ignora).
 - Campo de empresa que existe, pero está vacío en todas las tareas (revisar `campo_empresa`).
-- Campo `% Reparto` que existe, pero está vacío en todas las tareas: las tareas de detalle `Ambas` se
-  reparten con `reparto_por_defecto` (cargar el reparto acordado o confirmar el valor por defecto).
+
+Una tarea `Ambas` con `% Reparto` vacío no se informa: se reparte con `reparto_por_defecto`, como está
+previsto.
 
 `actualizar` indica en las observaciones de la fila cuándo una empresa con BAC no participa en sus
 tareas y se usó el avance de la fila completa.

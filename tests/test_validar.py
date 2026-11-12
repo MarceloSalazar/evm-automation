@@ -500,7 +500,9 @@ def test_links_and_constraints():
     assert by["Resumen"] == ["Tarea resumen con vínculos: se recomienda vincular sus tareas de detalle."]
     assert by["Detalle"] == ["Delimitación «Debe comenzar el 10/02/2026»."]   # su predecesora es la de la resumen
     general = [i.message for i in issues if not i.code]
-    assert any("1 tarea sin predecesoras y 1 tarea sin sucesoras" in m for m in general)
+    # Cada tarea sin vínculos se informa una vez (LOG-003 a LOG-005), sin un resumen aparte (LOG-002, retirado)
+    assert "LOG-002" not in {i.id for i in issues}
+    assert sum(1 for i in issues if i.name == "Suelta") == 1
     assert any("1 vínculo tiene posición positiva" in m for m in general)
     assert any("son fin a comienzo (FC)" in m for m in general)
     assert any("1 tarea tiene delimitaciones" in m for m in general)
@@ -571,7 +573,7 @@ def test_validate_part_runs_dcma_checks():
     part = validate_part(P(tasks, status_date=datetime(2026, 2, 27, 17)), Config())
     ids = {i.id for i in part.checks}
     assert {"AVA-014", "AVA-015", "LOG-013"} <= ids
-    t["Futura"].method = "Avance lineal (LOE)"
+    t["Futura"].method = "Avance lineal"
     part = validate_part(P(tasks, status_date=datetime(2026, 2, 27, 17)), Config())
     assert "LOG-013" not in {i.id for i in part.checks}
 
