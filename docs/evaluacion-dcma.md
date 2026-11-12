@@ -106,9 +106,11 @@ holgura negativa, fechas no válidas), cada caso es una advertencia o un error.
 ### 4.1 Lógica (punto 1)
 
 - **Qué cuenta:** tareas sin terminar sin predecesora o sin sucesora, sobre el total de tareas sin
-  terminar. No cuentan la tarea que empieza el proyecto (no necesita predecesora) ni la que lo termina
-  (no necesita sucesora). Un vínculo de una tarea resumen cuenta para sus subtareas, aunque se recomienda
-  vincular las tareas de detalle ([LOG-010](codigos.md#log-010)).
+  terminar. No cuentan la tarea que empieza el proyecto, si tiene sucesoras (no necesita predecesora), ni
+  la que lo termina, si tiene predecesoras (no necesita sucesora). Una tarea sin ningún vínculo cuenta
+  siempre: sin predecesoras, MS Project la programa justamente en el comienzo del proyecto (es lo habitual
+  en un hito que perdió sus vínculos). Un vínculo de una tarea resumen cuenta para sus subtareas, aunque
+  se recomienda vincular las tareas de detalle ([LOG-010](codigos.md#log-010)).
 - **Cómo se informa:** el % y la cantidad de tareas sin predecesoras y sin sucesoras, en la tabla de la
   evaluación. Cada tarea, una vez, con lo que le falta: predecesoras y sucesoras
   ([LOG-003](codigos.md#log-003)), solo predecesoras ([LOG-004](codigos.md#log-004)) o solo sucesoras
@@ -127,6 +129,9 @@ holgura negativa, fechas no válidas), cada caso es una advertencia o un error.
 ### 4.3 Posiciones (punto 3)
 
 - **Qué cuenta:** vínculos con posición positiva (por ejemplo, `FC+10 días`), sobre el total de vínculos.
+- **Cómo se informa:** el % en la tabla de la evaluación y, en [LOG-008](codigos.md#log-008), los
+  vínculos de la posición más larga a la más corta, con su valor (días laborables, días transcurridos o
+  posición en %) y la predecesora: las esperas más largas suelen ser las que más trabajo ocultan.
 - **Qué hacer:** una espera fija suele ocultar trabajo (un plazo de aprobación, un curado, un transporte)
   que conviene representar como tarea, con su duración y su responsable.
 
@@ -248,9 +253,11 @@ CPLI = (días que quedan + holgura del proyecto) / días que quedan
 
 ### 4.14 BEI (punto 14)
 
-- **Qué cuenta:** tareas terminadas (todas, también las que terminaron antes de lo previsto) dividido por
-  las tareas que debían terminar a la fecha de estado según la línea base. Es informativa si llega a
-  0,95 y una advertencia si no; el mensaje lista las tareas que debían terminar y no terminaron.
+- **Qué cuenta:** tareas terminadas con línea base (también las que terminaron antes de lo previsto)
+  dividido por las tareas que debían terminar a la fecha de estado según la línea base. Una tarea
+  terminada sin línea base (por ejemplo, agregada después de guardarla) no estaba en el plan con el que
+  se compara y no cuenta: el mensaje indica cuántas hay. Es informativa si llega a 0,95 y una advertencia
+  si no; el mensaje lista las tareas que debían terminar y no terminaron.
 
 ---
 

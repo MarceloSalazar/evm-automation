@@ -49,6 +49,14 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   ([Depuración de costes](docs/depuracion-costes.md#44-precio-de-las-edt-interna-tabla-recargos)).
 - **Registro de diagnóstico** de cualquier comando en un archivo, con `--registro`, para informar
   problemas ([Comandos](docs/comandos.md)).
+- **Más controles en la revisión del cronograma:** `generar` y `validar` avisan de las líneas base que no
+  corresponden a la tarea (un hito con duración o una tarea larga con una línea base de un día) y de los
+  archivos combinados con fechas de estado distintas; `validar` revisa también las marcas del campo del
+  cliente y muestra las esperas de la más larga a la más corta
+  ([Validaciones](docs/validaciones-y-problemas.md#1-validaciones)).
+- **Proyecto sin línea base:** el aviso indica las otras líneas base guardadas y cómo usarlas, y la
+  consola de `generar` lo muestra siempre primero
+  ([Validaciones](docs/validaciones-y-problemas.md#14-línea-base-validar)).
 
 **Correcciones**
 
@@ -58,6 +66,10 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   sin un aviso de resumen que las repita, y una tarea de las dos empresas sin `% Reparto` ya no genera un
   aviso: usa el reparto por defecto
   ([Validaciones](docs/validaciones-y-problemas.md)).
+- **Índices y fecha de estado más precisos:** el BEI cuenta solo las tareas terminadas con línea base, el
+  último día laborable del mes cierra el mes, una tarea sin vínculos en el comienzo del proyecto se informa
+  sin predecesoras y, sin BAC, el cronograma ganado no se calcula
+  ([Evaluación DCMA](docs/evaluacion-dcma.md#414-bei-punto-14)).
 
 **Otros**
 
@@ -121,6 +133,28 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   tiene la disposición de la plantilla de la empresa: el plan empieza en la celda **A12** (antes, A8) y
   los controles están en A2:C4. `--migrar-desde` pasa el plan de un libro anterior a la celda A12 y
   traslada los recargos; `procesar-costes` pide regenerar los libros con el plan desde A8 (`DEP-024`).
+- **Línea base que no corresponde a la tarea (`generar` y `validar`).** Códigos nuevos `FEC-018`, un hito
+  con duración en la línea base (pesa entero en el mes del fin de la línea base, sin su duración), y
+  `FEC-019`, una tarea de 5 días laborables o más con una línea base de un día o menos (pesa como una tarea
+  de un día). Suele pasar cuando la línea base se guardó antes de que la tarea tuviera su forma actual
+  ([Validaciones](docs/validaciones-y-problemas.md#11-datos-del-libro-generar-y-validar)).
+- **Fechas de estado distintas en `[[proyectos]]` (`generar` y `validar`).** Código nuevo `CFG-056`: los
+  archivos tienen fechas de estado distintas, o alguno no tiene. Hasta ahora solo lo indicaba `actualizar`,
+  al detenerse (`ACT-005`); la consola de `generar` lo muestra primero
+  ([Varios archivos](docs/varios-archivos.md#6-cierre-mensual)).
+- **Proyecto sin la línea base seleccionada (`FEC-009`).** El aviso indica las otras líneas base guardadas,
+  con la cantidad de tareas de cada una, y la clave para usarlas (`linea_base`, la del archivo en
+  `[[proyectos]]`, o `--linea-base`); la consola de `generar` lo muestra siempre primero, también con varios
+  archivos, y la fuente del PV de ese archivo dice que se usaron las fechas actuales (antes decía «duración
+  de la línea base»).
+- **Marcas del campo del cliente en `validar`.** Con `[cliente] campo`, `validar` informa los valores no
+  reconocidos, las tareas con Sí debajo de una sin Sí y las tareas sin valor debajo de una que se muestra
+  (`CLI-003`, `CLI-004` y `CLI-031`), como `generar-cliente`
+  ([Planificación para el cliente](docs/generar-cliente.md)). Con un .mpp, `validar` lee el campo del
+  cliente y el formato de la posición de los vínculos.
+- **Esperas de la más larga a la más corta (`LOG-008`).** El aviso de los vínculos con posición positiva
+  los lista de la posición más larga a la más corta, con su valor (días laborables, días transcurridos o
+  en %) y la predecesora ([Evaluación DCMA](docs/evaluacion-dcma.md#43-posiciones-punto-3)).
 
 ### Correcciones
 
@@ -142,6 +176,23 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   de reparto existe, pero está vacío en todas las tareas: una tarea `Ambas` sin reparto se reparte con
   `reparto_por_defecto` (50 % por defecto), como está previsto
   ([Multi-empresa](docs/multiempresa.md#7-validaciones-y-controles)). Código `LEC-023` retirado.
+- **BEI con las tareas terminadas sin línea base (`AVA-013`).** El índice contaba en el numerador todas las
+  tareas terminadas, también las que no tienen línea base (por ejemplo, agregadas después de guardarla), y
+  podía superar 1 aunque faltaran tareas por terminar. Ahora cuenta solo las terminadas con línea base, e
+  indica cuántas terminadas no la tienen
+  ([Evaluación DCMA](docs/evaluacion-dcma.md#414-bei-punto-14)).
+- **Tarea sin vínculos en el comienzo del proyecto (`LOG-003` y `LOG-004`).** No se avisaba que le faltaban
+  las predecesoras a ninguna tarea que comenzara el día del comienzo del proyecto, y una tarea sin vínculos
+  queda justamente ahí (por ejemplo, un hito que perdió sus vínculos). Ahora solo no necesita predecesoras
+  la tarea que comienza con el proyecto y tiene sucesoras, y solo no necesita sucesoras la que termina con
+  el proyecto y tiene predecesoras ([Evaluación DCMA](docs/evaluacion-dcma.md#41-lógica-punto-1)).
+- **Último día laborable del mes (`AVA-018` y `ACT-018`).** Una fecha de estado o de corte en el último día
+  laborable del mes, según el calendario del proyecto (por ejemplo el viernes 30, si el 31 es sábado), ya no
+  se avisa como si no fuera fin de mes.
+- **Cronograma ganado sin BAC.** Sin BAC en el libro, `actualizar` mostraba un ES de 1 mes y un SPI(t) que
+  no correspondían; ahora el ES, el SV(t), el SPI(t) y las duraciones se muestran como «-», y la hoja
+  `Resumen` de los libros nuevos los deja vacíos
+  ([Cuadro de mando](docs/cuadro-de-mando.md#7-earned-schedule-cronograma-ganado)).
 
 ### Otros
 

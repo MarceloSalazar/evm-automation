@@ -952,11 +952,12 @@ def _write_summary(ws, report: Report, cfg: Config, lay: _Layout, generated: dat
                  f"${col(C_PVC)}${CURVE_FIRST_ROW + lay.months - 1}")
     rows += [
         (34, "Duración planificada (meses)",
-         f'=IFERROR(IF(INDEX({curve_pvc},{lay.months})<B16-0.005,"",COUNTIF({curve_pvc},"<"&(B16-0.005))+1),"")',
+         f'=IFERROR(IF(OR(B16<=0.005,INDEX({curve_pvc},{lay.months})<B16-0.005),"",'
+         f'COUNTIF({curve_pvc},"<"&(B16-0.005))+1),"")',
          "0.0", "Meses del horizonte hasta completar el BAC."),
         (35, "ES - Cronograma ganado (meses)",
-         '=IFERROR(IF(B18="","",IF(B18>=B16-0.005,B34,IF(B41>B44,MIN(MAX(B36,IF(B18>0,B44+1,0)),B41),'
-         'B41+(B18-B42)/(B43-B42)))),"")', "0.00",
+         '=IFERROR(IF(OR(B18="",B16<=0.005),"",IF(B18>=B16-0.005,B34,IF(B41>B44,MIN(MAX(B36,IF(B18>0,B44+1,0)),'
+         'B41),B41+(B18-B42)/(B43-B42)))),"")', "0.00",
          "Momento en que el plan preveía el EV actual."),
         (36, "AT - Tiempo transcurrido (meses)", '=B6', "0", "Meses desde el inicio del horizonte hasta el corte."),
         (37, "SV(t) = ES - AT (meses)", '=IFERROR(B35-B36,"")', "0.00", "< 0: meses de atraso."),

@@ -3,6 +3,7 @@ informe de control."""
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import replace
 from datetime import date, datetime
 
 import pytest
@@ -537,8 +538,38 @@ def test_com_reads_the_client_field_and_lag_format():
     session = make_session([a, b])
     ta, tb = session.read_project(cfg, client=True).tasks
     assert (ta.client_mark, tb.client_mark, tb.predecessors) == ("Sí", "No", [Link(1, LINK_FS, 2880, 8)])
+    ta, tb = session.read_project(cfg, review=True).tasks       # validar también los lee
+    assert (ta.client_mark, tb.client_mark, tb.predecessors) == ("Sí", "No", [Link(1, LINK_FS, 2880, 8)])
     ta, tb = session.read_project(cfg).tasks                    # los demás comandos no los leen
     assert (ta.client_mark, tb.predecessors) == ("", [Link(1, LINK_FS, 2880, 7)])
+
+
+def test_validar_reviews_the_client_marks():
+    """validar informa las marcas del campo del cliente como generar-cliente (CLI-003, CLI-004 y CLI-031), en una
+    copia de las tareas: no cambia el árbol de las demás revisiones. Sin el campo en el archivo, no informa nada."""
+    from evm.client_plan import mark_issues
+    tasks = [root(),
+             task(2, 2, "Fase A", wbs="5"), task(3, 3, "Nueva", "", wbs="5.1"), task(4, 3, "Rara", "quizá", wbs="5.2"),
+             task(5, 2, "Fase B", "No", wbs="6"), task(6, 3, "Huérfana", wbs="6.1")]
+    project = P(tasks, fields_found={"cliente": "Etiqueta Cliente"})
+    parents = [t.parent for t in tasks]
+    issues = {i.id: i.message for i in mark_issues(project, ANON)}
+    assert set(issues) == {"CLI-003", "CLI-004", "CLI-031"}
+    assert "«quizá» (1)" in issues["CLI-003"] and "6.1 (UID 6)" in issues["CLI-004"]
+    assert issues["CLI-031"].startswith("1 tarea no tiene valor en 'Etiqueta Cliente' y su tarea superior se muestra: "
+                                        "queda como «Otras tareas».")
+    assert [t.parent for t in tasks] == parents                 # las tareas del proyecto no cambian
+    assert mark_issues(P(tasks), ANON) == []                    # el campo no está en el archivo
+    assert mark_issues(project, Config(plan="INTERNO")) == []   # sin [cliente] campo
+    assert mark_issues(project, replace(ANON, plan="OTRA")) == []   # planificación que no existe
+
+
+def test_validar_command_reports_the_client_marks(tmp_path, capsys):
+    path = client_xml(tmp_path, mark_h="quizá")
+    config = write_config(tmp_path)
+    main(["validar", "--config", str(config), "--origen", str(path), "--todas"])
+    out = capsys.readouterr().out
+    assert "CLI-003 1 tarea tiene un valor no reconocido en 'Etiqueta Cliente': «quizá» (1)." in out
 
 
 def test_config_client_section(tmp_path):

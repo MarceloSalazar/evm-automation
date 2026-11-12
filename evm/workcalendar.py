@@ -67,6 +67,20 @@ class WorkCalendar:
         return out
 
 
+def closes_month(d: date, calendar: WorkCalendar | None = None) -> bool:
+    """La fecha cierra su mes: es el último día del mes o los días que quedan del mes no son laborables (p. ej. el
+    viernes 30, si el 31 es sábado). Sin calendario, solo el último día del mes."""
+    last = date(d.year, d.month, _cal.monthrange(d.year, d.month)[1])
+    if calendar is None:
+        return d == last
+    day = d + timedelta(days=1)
+    while day <= last:
+        if calendar.is_working_day(day):
+            return False
+        day += timedelta(days=1)
+    return True
+
+
 def elapsed_by_month(start: datetime, finish: datetime) -> dict[MonthKey, float]:
     """Minutos transcurridos (días corridos) del intervalo [start, finish) por mes."""
     out: dict[MonthKey, float] = {}

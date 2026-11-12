@@ -75,7 +75,8 @@ Además, revisa aspectos del cronograma que no afectan al libro:
 - **Línea base:** las líneas base guardadas y la que usa el % planificado, y las tareas resumen cuya
   línea base no coincide con la de sus tareas de detalle (no se resumió al guardarla).
 - **Avance a la fecha de estado:** *Comienzo real* y *Fin real* coherentes con el *% completado*,
-  avance posterior a la fecha de estado, fecha de estado que no es el último día del mes, trabajo
+  avance posterior a la fecha de estado, fecha de estado que no es el último día del mes (ni su último
+  día laborable), trabajo
   pendiente programado antes de la fecha de estado (cronograma sin actualizar), avance fuera de
   secuencia, índice de ejecución de la línea base (BEI), tareas incumplidas respecto de la línea base e
   índice de longitud del camino crítico (CPLI).
@@ -136,7 +137,7 @@ Método de medición: 6 advertencias, 1 informativa
 Empresas: sin observaciones
 
 Avance a la fecha de estado: 2 advertencias, 1 informativa
-  [!] AVA-013 Índice de ejecución de la línea base (BEI) = 0,33: 4 tareas terminadas y 12 que debían terminar a la fecha de estado (DCMA: al menos 0,95). Sin terminar: 1.2.1, 1.2.2, 2.1.1, 2.1.2.1, 2.1.2.2, 2.1.2.3, 2.1.3, 2.1.4.
+  [!] AVA-013 Índice de ejecución de la línea base (BEI) = 0,33: 4 tareas terminadas con línea base y 12 que debían terminar a la fecha de estado (DCMA: al menos 0,95). Sin terminar: 1.2.1, 1.2.2, 2.1.1, 2.1.2.1, 2.1.2.2, 2.1.2.3, 2.1.3, 2.1.4.
   [!] AVA-014 De 12 tareas que debían terminar a la fecha de estado según la línea base, 12 no terminaron a tiempo (100 %; DCMA: hasta 5 %): 8 sin terminar y 4 terminadas después de su fin de línea base (Id 2, 1.2.1, 1.2.2, 2.1.1, 2.1.2.1, Id 17, 2.1.2.2, Id 19, 2.1.2.3, Id 21 y 2 más).
   [i] AVA-015 Índice de longitud del camino crítico (CPLI) = 0,96: quedan 898 días laborables hasta el fin previsto (09/12/2030) y el fin de la línea base es el 18/10/2030 (36 días laborables de atraso) (DCMA: al menos 0,95).
 

@@ -55,7 +55,9 @@ hasta que se marca.
 Una tarea vacía debajo de una que se muestra suele ser una tarea nueva que nadie marcó: el cliente deja de
 verla sin que nadie lo haya decidido. `CLI-031` la avisa en cada ejecución, también con `--simular`, con la
 tarea de más arriba de cada rama (las inactivas no cuentan). Si el cliente no la debe ver, se le pone
-`No`: así queda decidido y no se vuelve a avisar.
+`No`: así queda decidido y no se vuelve a avisar. Con `[cliente] campo` en la configuración, `validar`
+revisa las mismas marcas (`CLI-003`, `CLI-004` y `CLI-031`), sin generar el archivo del cliente: así las
+tareas nuevas sin marcar aparecen en la revisión mensual de la planificación interna.
 
 Qué pasa con las tareas que no se muestran lo decide `[cliente] actividad_interna`:
 

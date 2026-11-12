@@ -311,6 +311,26 @@ def test_update_status_dates(xml, tmp_path, capsys):
     assert read_book(book).status_date == date(2027, 6, 30)
 
 
+def test_different_status_dates_are_warned_before_updating(xml, tmp_path, capsys):
+    """CFG-056: generar y validar avisan que los archivos tienen fechas de estado distintas (actualizar se detendría
+    sin --fecha-corte). La consola de generar lo muestra primero, como FEC-009."""
+    cfg = write_config(xml, "fechas.toml", [("P1", "p1_jun.xml", ""), ("P2", "p2_jul.xml", 'planificacion = ""\n')])
+    book = tmp_path / "EVM.xlsx"
+    assert main(["generar", "--config", str(cfg), "--salida", str(book)]) == 0
+    out = capsys.readouterr().out.splitlines()
+    [line] = [x for x in out if "CFG-056" in x]
+    assert "Los archivos tienen fechas de estado distintas (P1: 30/06/2027, P2: 31/07/2027)" in line
+    first = next(k for k, x in enumerate(out) if x.startswith("  ["))         # primera observación
+    assert out[first] == line
+    assert [r["codigo"] for r in validation_rows(book) if r["codigo"] == "CFG-056"] == ["CFG-056"]
+    main(["validar", "--config", str(cfg)])
+    assert "CFG-056" in capsys.readouterr().out
+    same = write_config(xml, "misma_fecha.toml",
+                        [("P1", "p1_jun.xml", ""), ("P2", "p2_jun.xml", 'planificacion = ""\n')])
+    main(["validar", "--config", str(same)])
+    assert "CFG-056" not in capsys.readouterr().out
+
+
 def test_update_analysis_of_deviations(books):
     """La hoja Análisis de desviaciones asocia cada paquete con su archivo (UniqueID repetidos)."""
     from evm.analysis import A_BAC, SHEET_ANALYSIS, read_entries

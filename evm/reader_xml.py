@@ -129,7 +129,7 @@ def _resolve(name: str, defs: dict[int, tuple[str, str]]) -> tuple[str, object] 
 def read_xml(path: str | Path, cfg: Config, links: bool = True, client: bool = False) -> ProjectData:
     """links: lee los vínculos y las delimitaciones de las tareas (solo los usan validar, generar-fichas y
     generar-cliente; como con COM, donde son varias llamadas a MS Project por tarea). client: lee el campo de
-    [cliente] campo (generar-cliente)."""
+    [cliente] campo (validar y generar-cliente)."""
     path = Path(path)
     try:
         tree = ET.parse(path)

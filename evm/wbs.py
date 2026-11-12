@@ -460,6 +460,9 @@ def prune_hidden(scope: Scope, visibility: Visibility) -> dict[int, list[Task]]:
 # ----------------------------------------------------------------------------
 PERCENT_PV_SOURCE = ("% planificado de MS Project (duración de la línea base de las tareas y peso de los hitos) "
                      "× BAC ingresado en el libro")
+# Sin la línea base seleccionada (FEC-009): el % planificado sale de las fechas actuales
+CURRENT_PV_SOURCE = ("% planificado de MS Project con las fechas ACTUALES de las tareas (sin línea base) y el peso de "
+                     "los hitos × BAC ingresado en el libro")
 
 
 def leaf_span(leaves: list[Task], start: datetime | None = None,
@@ -551,6 +554,36 @@ def build_report(project: ProjectData, cfg: Config) -> Report:
     return assemble_report([build_part(project, cfg)], cfg)
 
 
+def _without_baseline(project: ProjectData, name: str) -> Issue:
+    """FEC-009: el proyecto no tiene la línea base que usa el % planificado. Si tiene otras guardadas (con XML; con
+    un .mpp, solo en validar), se indican, con la clave para usarlas."""
+    n = project.baseline_number
+    used = "la Línea base" if n == 0 else f"la Línea base {n}"
+    counts: dict[int, int] = {}
+    for t in project.tasks:
+        for k in t.baselines:
+            if k != n:
+                counts[k] = counts.get(k, 0) + 1
+    other = ""
+    if counts:
+        best = max(counts, key=lambda k: (counts[k], -k))
+        items = [f"{'Línea base' if k == 0 else f'Línea base {k}'} ({fmt_number(c, 0)} "
+                 f"{'tarea' if c == 1 else 'tareas'})" for k, c in sorted(counts.items())]
+        saved = items[0] if len(items) == 1 else ", ".join(items[:-1]) + " y " + items[-1]
+        key = (f"linea_base = {best} en su sección [[proyectos]]" if name else
+               f"[exportacion] linea_base = {best} o --linea-base {best}")
+        if len(counts) == 1:
+            other = f" Tiene guardada la {saved}: si es la aprobada, se puede usar con {key}, después de revisar que "
+            other += "esté completa."
+        else:
+            other = (f" Tiene guardadas {saved}: si una de ellas es la aprobada, se puede usar con linea_base (p. ej. "
+                     f"{key}), después de revisar que esté completa.")
+    return Issue("FEC-009", "", "",
+                 f"El proyecto no tiene guardada {used}, que usa el % planificado: el % planificado se calculó con las "
+                 "fechas ACTUALES de las tareas, y el PV sigue al programa actual. Se debe guardar la línea base en "
+                 f"MS Project (Proyecto > Establecer línea base) y volver a exportar.{other}")
+
+
 def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
     """Filas EDT y % planificado (por mes calendario) de un archivo de MS Project.
 
@@ -587,11 +620,7 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
                             f"{sum(1 for _ in scope.tasks())} tareas que dependen de ella."))
 
     if not project.baseline_found:
-        issues.append(Issue(
-            "FEC-009", "", "",
-            "El proyecto no tiene guardada la línea base seleccionada: el % planificado se calculó con las "
-            "fechas ACTUALES de las tareas. Se debe guardar la línea base en MS Project (Proyecto > Establecer "
-            "línea base) y volver a exportar."))
+        issues.append(_without_baseline(project, name))
 
     def code_of(t: Task) -> str:
         raw = scope.raw_code(t)
@@ -819,7 +848,8 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
     dates = [t.baseline_start or t.start for t in scope.tasks() if (t.baseline_start or t.start)]
     ref = min(dates) if dates else project.project_start
     first_date = (ref.date() if isinstance(ref, datetime) else ref) if ref else None
-    return ReportPart(Source(name, project, scope.prefix, PERCENT_PV_SOURCE), rows, report_roots, issues, checks,
+    pv_source = PERCENT_PV_SOURCE if project.baseline_found else CURRENT_PV_SOURCE
+    return ReportPart(Source(name, project, scope.prefix, pv_source), rows, report_roots, issues, checks,
                       first_date, scope, code_of, visibility.matched if visibility.listed else None)
 
 
@@ -1083,6 +1113,14 @@ def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:
                             "Los archivos tienen monedas distintas en MS Project ("
                             + ", ".join(f"{k}: {v}" for k, v in symbols.items()) + f"): el libro muestra {currency}. "
                             "Se debe indicar la moneda en [exportacion] moneda."))
+    status = {s.name: s.project.status_date.date() if s.project.status_date else None for s in sources}
+    if len(sources) > 1 and len(set(status.values())) > 1:
+        dates = ", ".join(f"{k}: {f'{d:%d/%m/%Y}' if d else 'sin fecha de estado'}" for k, d in status.items())
+        issues.append(Issue("CFG-056", "", "",
+                            f"Los archivos tienen fechas de estado distintas ({dates}): el avance de cada uno "
+                            "corresponde a otro día. «actualizar» se detiene (ACT-005 o ACT-004) si no se indica "
+                            "--fecha-corte. Se debe registrar el avance de todos los archivos a la misma fecha y fijar "
+                            "esa fecha de estado en cada uno (Proyecto > Fecha de estado)."))
     if len(sources) > 1 or sources[0].name:
         pv_source = "  |  ".join(f"{s.name}: {s.pv_source}" for s in sources)
         title = cfg.title or " + ".join(dict.fromkeys(s.project.name for s in sources))

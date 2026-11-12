@@ -110,4 +110,4 @@ def test_xml_without_baseline_uses_current_schedule(tmp_path):
     assert not p.baseline_found
     rep = build_report(p, Config())
     assert rep.rows[0].pct[""] == {(2026, 1): pytest.approx(1.0)}
-    assert any("no tiene guardada la línea base" in i.message for i in rep.issues)
+    assert any(i.id == "FEC-009" and "no tiene guardada la Línea base" in i.message for i in rep.issues)

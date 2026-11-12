@@ -110,7 +110,7 @@ Los valores mensuales son el **valor del mes**, no el acumulado.
 - Las fórmulas se calculan al abrir el libro en Excel. En la vista protegida o en vistas previas de
   archivos, los indicadores pueden aparecer vacíos hasta habilitar la edición.
 - El PV acumulado a la fecha de corte incluye **el mes completo** de esa fecha. Como fecha de corte se
-  debe usar el **último día del mes**.
+  debe usar el **último día del mes** (o su último día laborable).
 - `actualizar` guarda una **copia de respaldo** antes de modificar el libro
   (`<libro>.respaldo-AAAAMMDD-HHMMSS.xlsx`) y lo guarda primero en un archivo temporal, de modo que un
   error al guardar no daña el libro anterior. Si el libro está abierto en Excel, avisa antes de leer

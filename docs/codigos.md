@@ -103,11 +103,11 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 
 | Área | Nombre | Tema en la hoja Validación | Dónde aparecen | Códigos |
 |---|---|---|---|---|
-| [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 55 |
+| [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 56 |
 | [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 26 |
 | [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 22 |
 | [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 10 |
-| [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 17 |
+| [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 19 |
 | [HIT](#46-hit--hitos-y-pesos) | Hitos y pesos | Hitos y pesos | generar (hoja Validación) y validar | 9 |
 | [MET](#47-met--método-de-medición) | Método de medición | Método de medición | generar (hoja Validación) y validar | 5 |
 | [EMP](#48-emp--empresas) | Empresas | Empresas | generar (hoja Validación) y validar | 6 |
@@ -186,6 +186,7 @@ Archivo de configuración, opciones de la línea de comandos, horizonte y códig
 | [CFG-053](#cfg-053) | Error (detiene el programa) | Varias planificaciones fuera de validar |
 | [CFG-054](#cfg-054) | Error (detiene el programa) | Falta el campo del cliente |
 | [CFG-055](#cfg-055) | Error (detiene el programa) | Cálculo del precio mal configurado |
+| [CFG-056](#cfg-056) | Advertencia | Fechas de estado distintas en los archivos |
 
 #### CFG-001
 
@@ -626,6 +627,14 @@ generar-cliente necesita el campo de MS Project que indica qué tareas se muestr
 La sección [depuracion_precio] (precio de las EDT interna en la depuración de costes) no es válida: falta calculo_precio o la lista de componentes, la expresión no se puede leer o usa un nombre que no está en [depuracion_precio.componentes] ni en [depuracion_precio.recargos], un nombre o un texto está repetido o hay más de 8 coeficientes. El mensaje indica el motivo.
 
 **Qué hacer:** Corregir la sección según `config.ejemplo.toml`: la expresión admite números (con punto decimal), los nombres de las dos listas, + - * / y paréntesis.
+
+#### CFG-056
+
+**Fechas de estado distintas en los archivos** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+Con varios archivos (`[[proyectos]]`), los proyectos tienen fechas de estado distintas, o alguno no tiene: el avance de cada archivo corresponde a otro día y actualizar se detiene ([ACT-005](#act-005) o [ACT-004](#act-004)) si no se indica `--fecha-corte`. La consola de generar muestra siempre este aviso, antes que los demás.
+
+**Qué hacer:** Registrar el avance de todos los archivos a la misma fecha (el último día del mes informado o su último día laborable) y fijar esa fecha de estado en cada uno (Proyecto > Fecha de estado).
 
 ---
 
@@ -1201,6 +1210,8 @@ Fechas de la línea base y del programa actual, hitos y duración de las tareas.
 | [FEC-015](#fec-015) | Advertencia | Tarea con la línea base incompleta |
 | [FEC-016](#fec-016) | Advertencia | Líneas base incompletas |
 | [FEC-017](#fec-017) | Advertencia | Tareas con calendario propio |
+| [FEC-018](#fec-018) | Advertencia | Hito con duración en la línea base |
+| [FEC-019](#fec-019) | Advertencia | Tarea con la línea base de un día |
 
 #### FEC-001
 
@@ -1270,9 +1281,9 @@ MS Project no recalcula las fechas de esas tareas cuando cambian sus predecesora
 
 **El proyecto no tiene la línea base seleccionada** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-El % planificado se calculó con las fechas actuales de las tareas.
+El % planificado se calculó con las fechas actuales de las tareas: el PV sigue al programa actual y no muestra el atraso respecto del plan aprobado. Si el proyecto tiene otras líneas base guardadas (con un XML; con un .mpp, solo en validar), el mensaje las indica, con la cantidad de tareas de cada una. La consola de generar muestra siempre este aviso, antes que los demás.
 
-**Qué hacer:** Guardar la línea base en MS Project (Proyecto > Establecer línea base) o elegir otra con linea_base, y volver a exportar.
+**Qué hacer:** Guardar la línea base en MS Project (Proyecto > Establecer línea base) y volver a exportar; o, si otra línea base guardada es la aprobada y está completa, indicarla con linea_base (en `[[proyectos]]`, la del archivo) o `--linea-base`.
 
 #### FEC-010
 
@@ -1337,6 +1348,22 @@ Algunas tareas (también tareas resumen) tienen en una línea base solo el comie
 Algunas tareas tienen un calendario de tarea distinto del calendario del proyecto: MS Project calcula sus fechas con él, pero el programa reparte su duración entre los meses con el calendario del proyecto, y su % planificado puede diferir algo del de MS Project.
 
 **Qué hacer:** Ninguna, si el calendario de la tarea es necesario; si no, quitarlo (Información de la tarea > Avanzado > Calendario: Ninguno).
+
+#### FEC-018
+
+**Hito con duración en la línea base** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+La tarea es un hito, pero en la línea base que usa el % planificado dura uno o más días: el programa la calcula como hito, entera en el mes del fin de la línea base y sin su duración. Suele pasar cuando una tarea se convierte en hito después de guardar la línea base.
+
+**Qué hacer:** Guardar de nuevo la línea base de la tarea (Establecer línea base > Tareas seleccionadas), como parte de un cambio de línea base aprobado.
+
+#### FEC-019
+
+**Tarea con la línea base de un día** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+La tarea dura al menos 5 días laborables en el programa actual, y en la línea base que usa el % planificado, un día o menos (comienzo y fin el mismo día): en el % planificado de su fila pesa como una tarea de un día o menos, entera en ese mes. Suele pasar cuando la línea base se guardó antes de planificar la tarea (p. ej. cuando era un hito o una tarea de un día).
+
+**Qué hacer:** Guardar de nuevo la línea base de la tarea (Establecer línea base > Tareas seleccionadas), como parte de un cambio de línea base aprobado.
 
 ---
 
@@ -1672,7 +1699,7 @@ Según la línea base, algunas tareas debían comenzar a la fecha de estado y no
 
 **Índice de ejecución de la línea base (BEI)** · Advertencia o Info · validar · se puede silenciar
 
-Tareas terminadas frente a las que debían terminar a la fecha de estado. Es una advertencia si es menor que 0,95 (criterio DCMA).
+Tareas terminadas frente a las que debían terminar a la fecha de estado según la línea base. Solo cuentan las tareas terminadas que tienen línea base (el mensaje indica cuántas terminadas no la tienen). Es una advertencia si es menor que 0,95 (criterio DCMA).
 
 **Qué hacer:** Revisar las tareas sin terminar que lista el mensaje.
 
@@ -1712,9 +1739,9 @@ Detalle de [AVA-016](#ava-016): la tarea tiene avance y su predecesora no termin
 
 **Fecha de estado que no es fin de mes** · Advertencia · validar · se puede silenciar
 
-actualizar carga el avance en el mes de la fecha de estado, y el PV acumulado de ese mes incluye el mes completo ([ACT-018](#act-018)): el avance y el PV no corresponden a la misma fecha.
+La fecha de estado no es el último día del mes ni su último día laborable (según el calendario del proyecto): actualizar carga el avance en el mes de la fecha de estado, y el PV acumulado de ese mes incluye el mes completo ([ACT-018](#act-018)); el avance y el PV no corresponden a la misma fecha.
 
-**Qué hacer:** Fijar la fecha de estado en el último día del mes informado (Proyecto > Fecha de estado) o indicar `--fecha-corte`.
+**Qué hacer:** Fijar la fecha de estado en el último día del mes informado, o en su último día laborable (Proyecto > Fecha de estado), o indicar `--fecha-corte`.
 
 ---
 
@@ -1772,7 +1799,7 @@ Tarea de detalle sin terminar a la que le faltan las predecesoras y las sucesora
 
 **Tarea sin predecesoras** · Advertencia · validar · se puede silenciar
 
-Tarea de detalle sin terminar a la que solo le faltan las predecesoras: su comienzo no depende de otra tarea. No les faltan a las que comienzan con el proyecto, y un vínculo de su tarea resumen cuenta como suyo. Cuenta para el punto 1 de la evaluación DCMA (hasta 5 % de las tareas sin terminar).
+Tarea de detalle sin terminar a la que solo le faltan las predecesoras: su comienzo no depende de otra tarea. No les faltan a las que comienzan con el proyecto y tienen sucesoras, y un vínculo de su tarea resumen cuenta como suyo. Cuenta para el punto 1 de la evaluación DCMA (hasta 5 % de las tareas sin terminar).
 
 **Qué hacer:** Agregar una predecesora.
 
@@ -1780,7 +1807,7 @@ Tarea de detalle sin terminar a la que solo le faltan las predecesoras: su comie
 
 **Tarea sin sucesoras** · Advertencia · validar · se puede silenciar
 
-Tarea de detalle sin terminar a la que solo le faltan las sucesoras: su fin no afecta a ninguna otra tarea. No les faltan a las que terminan con el proyecto, y un vínculo de su tarea resumen cuenta como suyo. Cuenta para el punto 1 de la evaluación DCMA (hasta 5 % de las tareas sin terminar).
+Tarea de detalle sin terminar a la que solo le faltan las sucesoras: su fin no afecta a ninguna otra tarea. No les faltan a las que terminan con el proyecto y tienen predecesoras, y un vínculo de su tarea resumen cuenta como suyo. Cuenta para el punto 1 de la evaluación DCMA (hasta 5 % de las tareas sin terminar).
 
 **Qué hacer:** Agregar una sucesora.
 
@@ -1804,7 +1831,7 @@ Es un tipo de vínculo poco habitual.
 
 **Vínculos con posición positiva** · Advertencia o Info · validar · se puede silenciar
 
-Una espera fija oculta trabajo que conviene representar como tarea. Es una advertencia si superan el 5 % de los vínculos (criterio DCMA).
+Una espera fija oculta trabajo que conviene representar como tarea. El mensaje indica los vínculos de la posición más larga a la más corta, con su valor y la predecesora. Es una advertencia si superan el 5 % de los vínculos (criterio DCMA).
 
 **Qué hacer:** Reemplazar las esperas por tareas, si representan trabajo.
 
@@ -2672,9 +2699,9 @@ La lista EDT de la configuración cambió después de generar el libro: se usa l
 
 **Fecha de corte que no es fin de mes** · Advertencia · actualizar · se puede silenciar
 
-El PV acumulado incluye el mes completo.
+La fecha de corte no es el último día del mes ni su último día laborable (según el calendario del proyecto): el PV acumulado incluye el mes completo.
 
-**Qué hacer:** Usar el último día del mes como fecha de corte.
+**Qué hacer:** Usar el último día del mes, o su último día laborable, como fecha de corte.
 
 #### ACT-019
 
@@ -3045,7 +3072,7 @@ Ninguna tarea de la planificación tiene Sí en el campo de [cliente] campo (en 
 
 #### CLI-003
 
-**Valor no reconocido en el campo del cliente** · Advertencia · generar-cliente · se puede silenciar
+**Valor no reconocido en el campo del cliente** · Advertencia · generar-cliente y validar (con [cliente] campo) · se puede silenciar
 
 El campo de [cliente] campo tiene un valor que no es Sí ni No (por ejemplo, un error de escritura): la tarea no se muestra.
 
@@ -3053,7 +3080,7 @@ El campo de [cliente] campo tiene un valor que no es Sí ni No (por ejemplo, un 
 
 #### CLI-004
 
-**Tarea con Sí debajo de una tarea sin Sí** · Advertencia · generar-cliente · se puede silenciar
+**Tarea con Sí debajo de una tarea sin Sí** · Advertencia · generar-cliente y validar (con [cliente] campo) · se puede silenciar
 
 La tarea tiene Sí, pero una tarea superior no: no se muestra, con sus subtareas. Una tarea solo se muestra si ella y todas sus tareas superiores tienen Sí.
 
@@ -3269,7 +3296,7 @@ Un campo personalizado de texto tiene una fórmula: MS Project calcula su valor 
 
 #### CLI-031
 
-**Tareas sin valor debajo de una tarea que se muestra** · Advertencia · generar-cliente · se puede silenciar
+**Tareas sin valor debajo de una tarea que se muestra** · Advertencia · generar-cliente y validar (con [cliente] campo) · se puede silenciar
 
 La tarea no tiene valor en el campo del cliente y su tarea superior se muestra: no se muestra (con actividad_interna, queda como «Otras tareas»), con sus subtareas. Lo habitual es una tarea nueva que no se marcó. Se indica la tarea de más arriba de cada rama; las inactivas no se incluyen.
 

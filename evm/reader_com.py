@@ -91,7 +91,7 @@ def _number(v) -> float | None:
 
 def _predecessors(t, uid: int, lag_format: bool = False) -> list[Link]:
     """Vínculos con las predecesoras de la tarea (TaskDependencies tiene también los de sus sucesoras). lag_format:
-    lee también el formato de la posición (una llamada más por vínculo; solo generar-cliente)."""
+    lee también el formato de la posición (una llamada más por vínculo; validar y generar-cliente)."""
     links: list[Link] = []
     # Cada lectura es una llamada a MS Project: una tarea sin predecesoras (texto vacío) no recorre sus vínculos
     if _get(t, "UniqueIDPredecessors") == "":
@@ -475,7 +475,8 @@ class ComSession:
                      review: bool = False, client: bool = False) -> ProjectData:
         """links: lee los vínculos y las delimitaciones de las tareas (solo los usan validar, generar-fichas y
         generar-cliente; son varias llamadas a MS Project por tarea). review: lecturas que solo usa validar, unas doce
-        llamadas más por tarea: en qué líneas base (0 a 10) tiene comienzo cada tarea y su calendario de tarea.
+        llamadas más por tarea: en qué líneas base (0 a 10) tiene comienzo cada tarea y su calendario de tarea, el
+        formato de la posición de los vínculos (una llamada más por vínculo) y el campo de [cliente] campo.
         client: el campo de [cliente] campo y el formato de la posición de los vínculos (generar-cliente)."""
         p = self.project
         self._activate()
@@ -514,7 +515,7 @@ class ComSession:
             warnings.append(Issue("LEC-014", message=f"No se encontró el campo de descripción "
                                                      f"'{cfg.description_field}' en MS Project: las fichas de tareas "
                                                      "no tienen descripción."))
-        client_ref = self._resolve_field(cfg.client_field) if client and cfg.client_field else None
+        client_ref = self._resolve_field(cfg.client_field) if (client or review) and cfg.client_field else None
         if client_ref is not None:
             found["cliente"] = cfg.client_field
         company_ref = split_ref = None
@@ -585,7 +586,7 @@ class ComSession:
                 constraint_type=(int(_number(_get(t, "ConstraintType", CONSTRAINT_ASAP)) or CONSTRAINT_ASAP)
                                  if links else CONSTRAINT_ASAP),
                 constraint_date=_dt(_get(t, "ConstraintDate")) if links else None,
-                predecessors=_predecessors(t, uid, lag_format=client) if links else [], baselines=saved,
+                predecessors=_predecessors(t, uid, lag_format=client or review) if links else [], baselines=saved,
                 incomplete_baselines=(n,) if (bl_start is None) != (bl_finish is None) else (),
                 calendar=own_calendar,
                 method=str(self._field_value(t, method_ref) or "").strip(),
