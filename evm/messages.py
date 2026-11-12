@@ -160,6 +160,7 @@ W_AN = "actualizar y analizar"
 W_ROW = "actualizar (observaciones por fila)"
 W_FIC = "generar-fichas"
 W_CLI = "generar-cliente"
+W_CLI_V = "generar-cliente y validar (con [cliente] campo)"
 
 
 @dataclass(frozen=True)
@@ -440,6 +441,12 @@ _CODES = [
           "o hay más de 8 coeficientes. El mensaje indica el motivo.",
           "Corregir la sección según config.ejemplo.toml: la expresión admite números (con punto decimal), los "
           "nombres de las dos listas, + - * / y paréntesis."),
+    _code("CFG-056", W, "Fechas de estado distintas en los archivos",
+          "Con varios archivos ([[proyectos]]), los proyectos tienen fechas de estado distintas, o alguno no tiene: el "
+          "avance de cada archivo corresponde a otro día y actualizar se detiene (ACT-005 o ACT-004) si no se "
+          "indica --fecha-corte. La consola de generar muestra siempre este aviso, antes que los demás.",
+          "Registrar el avance de todos los archivos a la misma fecha (el último día del mes informado o su último "
+          "día laborable) y fijar esa fecha de estado en cada uno (Proyecto > Fecha de estado).", W_GV),
 
     # --- LEC: lectura de MS Project -----------------------------------------------------------------------------
     _code("LEC-001", F, "No existe el archivo de origen",
@@ -692,9 +699,13 @@ _CODES = [
           "Programarlas automáticamente. Si es intencional (p. ej. fechas impuestas por terceros), silenciar "
           "FEC-008."),
     _code("FEC-009", W, "El proyecto no tiene la línea base seleccionada",
-          "El % planificado se calculó con las fechas actuales de las tareas.",
-          "Guardar la línea base en MS Project (Proyecto > Establecer línea base) o elegir otra con linea_base, y "
-          "volver a exportar."),
+          "El % planificado se calculó con las fechas actuales de las tareas: el PV sigue al programa actual y no "
+          "muestra el atraso respecto del plan aprobado. Si el proyecto tiene otras líneas base guardadas (con un XML; "
+          "con un .mpp, solo en validar), el mensaje las indica, con la cantidad de tareas de cada una. La consola de "
+          "generar muestra siempre este aviso, antes que los demás.",
+          "Guardar la línea base en MS Project (Proyecto > Establecer línea base) y volver a exportar; o, si otra "
+          "línea base guardada es la aprobada y está completa, indicarla con linea_base (en [[proyectos]], la del "
+          "archivo) o --linea-base."),
     _code("FEC-010", W, "Tareas sin fechas de línea base",
           "Algunas tareas no tienen fechas de línea base (p. ej. se agregaron después de guardarla): su % "
           "planificado se calculó con sus fechas actuales.",
@@ -731,6 +742,19 @@ _CODES = [
           "su % planificado puede diferir algo del de MS Project.",
           "Ninguna, si el calendario de la tarea es necesario; si no, quitarlo (Información de la tarea > "
           "Avanzado > Calendario: Ninguno).", W_V),
+    _code("FEC-018", W, "Hito con duración en la línea base",
+          "La tarea es un hito, pero en la línea base que usa el % planificado dura uno o más días: el programa la "
+          "calcula como hito, entera en el mes del fin de la línea base y sin su duración. Suele pasar cuando una "
+          "tarea se convierte en hito después de guardar la línea base.",
+          "Guardar de nuevo la línea base de la tarea (Establecer línea base > Tareas seleccionadas), como parte de un "
+          "cambio de línea base aprobado."),
+    _code("FEC-019", W, "Tarea con la línea base de un día",
+          "La tarea dura al menos 5 días laborables en el programa actual, y en la línea base que usa el % "
+          "planificado, un día o menos (comienzo y fin el mismo día): en el % planificado de su fila pesa como una "
+          "tarea de un día o menos, entera en ese mes. Suele pasar cuando la línea base se guardó antes de planificar "
+          "la tarea (p. ej. cuando era un hito o una tarea de un día).",
+          "Guardar de nuevo la línea base de la tarea (Establecer línea base > Tareas seleccionadas), como parte de un "
+          "cambio de línea base aprobado."),
 
     # --- HIT: hitos y pesos -------------------------------------------------------------------------------------
     _code("HIT-001", W, "Peso en una tarea que no es un hito de detalle",
@@ -845,8 +869,9 @@ _CODES = [
           "Según la línea base, algunas tareas debían comenzar a la fecha de estado y no comenzaron.",
           "Revisar el atraso de esas tareas."),
     _code("AVA-013", (W, I), "Índice de ejecución de la línea base (BEI)",
-          "Tareas terminadas frente a las que debían terminar a la fecha de estado. Es una advertencia si es menor "
-          "que 0,95 (criterio DCMA).",
+          "Tareas terminadas frente a las que debían terminar a la fecha de estado según la línea base. Solo cuentan "
+          "las tareas terminadas que tienen línea base (el mensaje indica cuántas terminadas no la tienen). Es una "
+          "advertencia si es menor que 0,95 (criterio DCMA).",
           "Revisar las tareas sin terminar que lista el mensaje."),
     _code("AVA-014", (W, I), "Tareas incumplidas respecto de la línea base",
           "De las tareas que debían terminar a la fecha de estado según la línea base, las que no terminaron o "
@@ -869,10 +894,11 @@ _CODES = [
           "(LOG-006).",
           "Corregir el avance de la tarea o de su predecesora, o el vínculo."),
     _code("AVA-018", W, "Fecha de estado que no es fin de mes",
-          "actualizar carga el avance en el mes de la fecha de estado, y el PV acumulado de ese mes incluye el mes "
-          "completo (ACT-018): el avance y el PV no corresponden a la misma fecha.",
-          "Fijar la fecha de estado en el último día del mes informado (Proyecto > Fecha de estado) o indicar "
-          "--fecha-corte."),
+          "La fecha de estado no es el último día del mes ni su último día laborable (según el calendario del "
+          "proyecto): actualizar carga el avance en el mes de la fecha de estado, y el PV acumulado de ese mes "
+          "incluye el mes completo (ACT-018); el avance y el PV no corresponden a la misma fecha.",
+          "Fijar la fecha de estado en el último día del mes informado, o en su último día laborable (Proyecto > "
+          "Fecha de estado), o indicar --fecha-corte."),
 
     # --- LOG: lógica del cronograma (validar) ---------------------------------------------------------------------
     _code("LOG-001", W, "Cronograma sin vínculos",
@@ -891,12 +917,14 @@ _CODES = [
           "Vincular la tarea."),
     _code("LOG-004", W, "Tarea sin predecesoras",
           "Tarea de detalle sin terminar a la que solo le faltan las predecesoras: su comienzo no depende de otra "
-          "tarea. No les faltan a las que comienzan con el proyecto, y un vínculo de su tarea resumen cuenta como "
-          "suyo. Cuenta para el punto 1 de la evaluación DCMA (hasta 5 % de las tareas sin terminar).",
+          "tarea. No les faltan a las que comienzan con el proyecto y tienen sucesoras, y un vínculo de su tarea "
+          "resumen cuenta como suyo. Cuenta para el punto 1 de la evaluación DCMA (hasta 5 % de las tareas sin "
+          "terminar).",
           "Agregar una predecesora."),
     _code("LOG-005", W, "Tarea sin sucesoras",
           "Tarea de detalle sin terminar a la que solo le faltan las sucesoras: su fin no afecta a ninguna otra tarea. "
-          "No les faltan a las que terminan con el proyecto, y un vínculo de su tarea resumen cuenta como suyo. "
+          "No les faltan a las que terminan con el proyecto y tienen predecesoras, y un vínculo de su tarea resumen "
+          "cuenta como suyo. "
           "Cuenta para el punto 1 de la evaluación DCMA (hasta 5 % de las tareas sin terminar).",
           "Agregar una sucesora."),
     _code("LOG-006", W, "Vínculo con adelanto",
@@ -907,8 +935,9 @@ _CODES = [
           "Es un tipo de vínculo poco habitual.",
           "Usar un vínculo fin a comienzo (FC), salvo que sea necesario."),
     _code("LOG-008", (W, I), "Vínculos con posición positiva",
-          "Una espera fija oculta trabajo que conviene representar como tarea. Es una advertencia si superan el 5 % "
-          "de los vínculos (criterio DCMA).",
+          "Una espera fija oculta trabajo que conviene representar como tarea. El mensaje indica los vínculos de la "
+          "posición más larga a la más corta, con su valor y la predecesora. Es una advertencia si superan el 5 % de "
+          "los vínculos (criterio DCMA).",
           "Reemplazar las esperas por tareas, si representan trabajo."),
     _code("LOG-009", W, "Pocos vínculos fin a comienzo",
           "Menos del 90 % de los vínculos son fin a comienzo (FC) (criterio DCMA).",
@@ -1255,8 +1284,9 @@ _CODES = [
           "generó.",
           "Para aplicar los cambios, regenerar el libro con --migrar-desde."),
     _code("ACT-018", W, "Fecha de corte que no es fin de mes",
-          "El PV acumulado incluye el mes completo.",
-          "Usar el último día del mes como fecha de corte."),
+          "La fecha de corte no es el último día del mes ni su último día laborable (según el calendario del "
+          "proyecto): el PV acumulado incluye el mes completo.",
+          "Usar el último día del mes, o su último día laborable, como fecha de corte."),
     _code("ACT-019", W, "Fecha de estado distinta de la fecha de corte",
           "El avance registrado en MS Project debe corresponder a la fecha de corte.",
           "Usar la fecha de estado de MS Project como fecha de corte, o actualizar el avance a esa fecha."),
@@ -1417,11 +1447,11 @@ _CODES = [
     _code("CLI-003", W, "Valor no reconocido en el campo del cliente",
           "El campo de [cliente] campo tiene un valor que no es Sí ni No (por ejemplo, un error de escritura): la "
           "tarea no se muestra.",
-          "Corregir el valor (Sí o No). El informe de control indica las tareas."),
+          "Corregir el valor (Sí o No). El informe de control indica las tareas.", W_CLI_V),
     _code("CLI-004", W, "Tarea con Sí debajo de una tarea sin Sí",
           "La tarea tiene Sí, pero una tarea superior no: no se muestra, con sus subtareas. Una tarea solo se muestra "
           "si ella y todas sus tareas superiores tienen Sí.",
-          "Si se debe mostrar, poner Sí también en sus tareas superiores; si no, quitarle el Sí."),
+          "Si se debe mostrar, poner Sí también en sus tareas superiores; si no, quitarle el Sí.", W_CLI_V),
     _code("CLI-005", I, "Resúmenes que pasan a ser tareas",
           "No se muestra ninguna subtarea del resumen: en el archivo del cliente pasa a ser una tarea con sus fechas, "
           "su duración, su avance y sus líneas base, y recibe los vínculos de sus subtareas.",
@@ -1553,7 +1583,8 @@ _CODES = [
           "La tarea no tiene valor en el campo del cliente y su tarea superior se muestra: no se muestra (con "
           "actividad_interna, queda como «Otras tareas»), con sus subtareas. Lo habitual es una tarea nueva que no se "
           "marcó. Se indica la tarea de más arriba de cada rama; las inactivas no se incluyen.",
-          "Si el cliente la debe ver, poner Sí. Si no, poner No: así queda decidido y no se vuelve a avisar."),
+          "Si el cliente la debe ver, poner Sí. Si no, poner No: así queda decidido y no se vuelve a avisar.",
+          W_CLI_V),
     _code("CLI-032", I, "Calendarios y macros quitados del archivo del cliente",
           "El archivo del cliente es una copia del .mpp. Se quitaron los calendarios que no usa ninguna tarea ni "
           "recurso, ni el proyecto (salvo el de MS Project para las líneas base de Project 98), y los módulos de "

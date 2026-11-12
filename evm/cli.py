@@ -56,7 +56,8 @@ def open_project(origen: str, cfg: Config, motor: str, visible: bool = False, st
 
     name: nombre del archivo en [[proyectos]] (etapas de la barra de progreso).
     links: lee los vínculos y las delimitaciones de las tareas (validar y generar-fichas).
-    review: con COM, lecturas que solo usa validar (líneas base y calendario de cada tarea; el XML las tiene).
+    review: lecturas que solo usa validar: con COM, las líneas base, el calendario de cada tarea y el formato de la
+    posición de los vínculos (el XML los tiene); con los dos lectores, el campo de [cliente] campo.
     client: el campo de [cliente] campo y el formato de la posición de los vínculos (generar-cliente).
     """
     engine = _engine_for(origen, motor)
@@ -66,7 +67,7 @@ def open_project(origen: str, cfg: Config, motor: str, visible: bool = False, st
     if engine == "xml":
         from evm.reader_xml import read_xml
         progress.stage(f"leer:{name}", f"Lectura del XML{which}")
-        yield read_xml(origen, cfg, links=links, client=client)
+        yield read_xml(origen, cfg, links=links, client=client or review)
         return
     from evm.reader_com import ComSession
     progress.stage(f"abrir:{name}", f"Apertura en MS Project{which}")
@@ -201,10 +202,19 @@ def _targets_text(issues: list[Issue]) -> str:
     return "; ".join(f"{TARGET_LABELS[t]}: {_count_text(v)}" for t, v in found.items() if v)
 
 
+# Avisos que la consola de generar muestra siempre, primero: el PV de un archivo no sigue a su línea base (FEC-009) o
+# los archivos tienen fechas de estado distintas (CFG-056)
+PINNED = ("FEC-009", "CFG-056")
+
+
 def _print_issues(issues: list[Issue], limit: int = 15) -> None:
-    """Las informativas y después las demás, por prioridad (severidad y alcance), con las de las tareas de detalle y
-    fuera del libro agrupadas por código y fila del libro."""
-    lines = by_priority(grouped(issues, "Una por tarea en la hoja 'Validación detalle'."))
+    """Los avisos de PINNED, las informativas y después las demás, por prioridad (severidad y alcance), con las de
+    las tareas de detalle y fuera del libro agrupadas por código y fila del libro."""
+    for i in issues:
+        if i.id in PINNED:
+            print(_issue_line(i))
+    lines = by_priority(grouped([i for i in issues if i.id not in PINNED],
+                                "Una por tarea en la hoja 'Validación detalle'."))
     serious = [i for i in lines if i.severity != SEV_INFO]
     infos = [i for i in lines if i.severity == SEV_INFO]
     for i in infos[:limit]:

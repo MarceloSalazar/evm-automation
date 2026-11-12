@@ -4,7 +4,7 @@ from __future__ import annotations
 import shutil
 import zipfile
 from dataclasses import dataclass, field, replace
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -25,6 +25,7 @@ from evm.workbook import (COL_BAC, COL_CODE, COL_METHOD, FIRST_MONTH_COL, FMT_PC
                           WorkbookFormatError, add_s_curve_chart, book_sources, clean_text, col, company_sheet,
                           pct_sheet, read_meta, read_schedule, read_structure, read_wbs_list, save_workbook,
                           source_meta, split_key, write_meta, write_schedule, write_summary_trend)
+from evm.workcalendar import closes_month
 
 PLAN_TOL = 1e-6         # diferencia del % planificado acumulado (fracción del BAC) que se considera un cambio
 
@@ -642,10 +643,6 @@ def _new_task_warnings(book: BookData, matches: dict[int, Task], scope: Scope, v
     return out
 
 
-def _month_end(d: date) -> date:
-    return date(d.year + (d.month == 12), d.month % 12 + 1, 1) - timedelta(days=1)
-
-
 def _backup_path(book_path: Path) -> Path:
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     path = book_path.with_name(f"{book_path.stem}.respaldo-{stamp}{book_path.suffix}")
@@ -805,9 +802,10 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     if not 0 <= idx < book.horizon.months:
         raise InputError("ACT-006", f"La fecha de corte {status:%d/%m/%Y} está fuera del horizonte del libro "
                          f"({book.horizon.start:%m/%Y} a {book.horizon.end:%m/%Y}).")
-    if status != _month_end(status):
-        warnings.append(Issue("ACT-018", message="La fecha de corte no es el último día del mes: el PV acumulado "
-                                                 "incluye el mes completo."))
+    # El último día laborable del mes (en el calendario de cada archivo) también cierra el mes
+    if not all(closes_month(status, calendar_for(p, cfg.project_config(n))) for n, p in projects.items()):
+        warnings.append(Issue("ACT-018", message="La fecha de corte no es el último día del mes ni su último día "
+                                                 "laborable: el PV acumulado incluye el mes completo."))
     for n, project in projects.items():
         if project.status_date and project.status_date.date() != status:
             warnings.append(_tag(n, Issue("ACT-019", message=f"La fecha de estado de MS Project "

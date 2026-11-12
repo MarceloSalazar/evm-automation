@@ -336,8 +336,9 @@ class ClientPlan:
         code = self.scope.raw_code(t)
         return f"{code} (UID {t.uid})" if code else f"UID {t.uid} (esquema {t.outline_number or '?'})"
 
-    def issues(self) -> list[Issue]:
-        """Observaciones de la consola y del informe de control."""
+    def mark_issues(self) -> list[Issue]:
+        """Observaciones de las marcas del campo del cliente (también las informa validar): valores no reconocidos,
+        Sí debajo de una tarea sin Sí y tareas sin valor debajo de una tarea que se muestra."""
         out: list[Issue] = []
         if self.unknown:
             values = Counter(t.client_mark.strip() for t in self.unknown)
@@ -362,6 +363,11 @@ class ClientPlan:
             out.append(Issue("CLI-031", message=f"{what} valor en '{self.field_name}' y su tarea superior se muestra"
                                                 f"{sub}: {fate}. Si el cliente {them} debe ver, hay que poner Sí; si "
                                                 f"no, No (así no se avisa): {where}."))
+        return out
+
+    def issues(self) -> list[Issue]:
+        """Observaciones de la consola y del informe de control."""
+        out = self.mark_issues()
         if self.internal_activity and self.hidden:
             what = plural(len(self.anonymous), "tarea que no se muestra queda", "tareas que no se muestran quedan")
             code = "sin nombre ni código EDT" if self.codes_removed else "sin nombre"
@@ -514,8 +520,9 @@ class _Candidate:
     working: bool
 
 
-def build_client_plan(project: ProjectData, cfg: Config) -> ClientPlan:
-    """Tareas que se muestran al cliente, resúmenes convertidos y vínculos nuevos de la planificación del cliente."""
+def _marked_plan(project: ProjectData, cfg: Config) -> ClientPlan:
+    """Tareas de la planificación y las que se muestran al cliente según el campo de [cliente] campo, con las
+    observaciones de sus marcas (ClientPlan.mark_issues)."""
     roots = build_tree(project.tasks)
     scope = select_scope(roots, cfg.plan)
     if scope.plan is not None and scope.plan.parent is not None:
@@ -557,6 +564,33 @@ def build_client_plan(project: ProjectData, cfg: Config) -> ClientPlan:
     # arriba de cada rama; las inactivas no cuentan
     plan.unmarked = [t for t in tasks if t.uid in empty and t.parent is not None and t.parent.uid in plan.shown
                      and _active(t)]
+    return plan
+
+
+def mark_issues(project: ProjectData, cfg: Config) -> list[Issue]:
+    """validar: observaciones de las marcas del campo de [cliente] campo, como las informa generar-cliente (CLI-003,
+    CLI-004 y CLI-031). Revisa todas las tareas de la planificación, también las de las ramas con Visible = No y las
+    inactivas, en una copia de las tareas (no cambia el árbol de las demás revisiones). Sin el campo en el archivo, o
+    si ninguna tarea se muestra al cliente, no hay observaciones."""
+    if not cfg.client_field or "cliente" not in project.fields_found:
+        return []
+    from copy import copy
+    from dataclasses import replace
+    try:
+        plan = _marked_plan(replace(project, tasks=[copy(t) for t in project.tasks]), cfg)
+    except (EvmError, ConfigError):         # planificación que no existe o que no es de primer nivel
+        return []
+    if not plan.shown:
+        return []
+    plan.internal_activity = cfg.client_internal_activity
+    return plan.mark_issues()
+
+
+def build_client_plan(project: ProjectData, cfg: Config) -> ClientPlan:
+    """Tareas que se muestran al cliente, resúmenes convertidos y vínculos nuevos de la planificación del cliente."""
+    plan = _marked_plan(project, cfg)
+    tasks = plan.tasks
+    in_scope = {t.uid for t in tasks}
     if not plan.shown:
         raise EvmError("CLI-002", f"Ninguna tarea de la planificación tiene Sí en '{cfg.client_field}' (también en sus "
                                   "tareas superiores): no hay nada que mostrar al cliente.")

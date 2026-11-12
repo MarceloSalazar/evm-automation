@@ -480,8 +480,9 @@ es el % ganado acumulado.*
   registrado en MS Project debe corresponder a la fecha de corte. El XML se debe guardar **después** de
   registrar el avance y fijar la fecha de estado
   ([Preparación en MS Project](preparacion-ms-project.md#7-fecha-de-estado-y-registro-del-avance)).
-- Se debe usar el **último día del mes**. El PV acumulado a la fecha de corte incluye el mes completo;
-  si la fecha de corte es otro día, se advierte.
+- Se debe usar el **último día del mes** (o su último día laborable, según el calendario del proyecto:
+  el viernes 30, si el 31 es sábado). El PV acumulado a la fecha de corte incluye el mes completo; si la
+  fecha de corte es otro día, se advierte.
 - Si la fecha de corte es anterior a la última cargada en el libro, se advierte.
 - Con varios archivos, sin `--fecha-corte` todos deben tener la misma fecha de estado; con
   `--fecha-corte`, se advierte qué archivos tienen otra ([Varios archivos](varios-archivos.md#6-cierre-mensual)).

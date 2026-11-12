@@ -921,12 +921,15 @@ def test_multiple_critical_paths():
 
 
 @pytest.mark.parametrize("status, expected", [
-    (date(2026, 11, 4), "La fecha de estado (04/11/2026) no es el último día del mes: «actualizar» cargará el avance "
-                        "en el mes 11/2026, con el PV acumulado del mes completo (ACT-018). Para informar 10/2026, se "
-                        "debe fijar la fecha de estado en el 31/10/2026 (Proyecto > Fecha de estado) o indicar "
-                        "--fecha-corte 2026-10-31; para informar 11/2026, en el 30/11/2026."),
+    (date(2026, 11, 4), "La fecha de estado (04/11/2026) no es el último día del mes ni su último día laborable: "
+                        "«actualizar» cargará el avance en el mes 11/2026, con el PV acumulado del mes completo "
+                        "(ACT-018). Para informar 10/2026, se debe fijar la fecha de estado en el 31/10/2026 (Proyecto "
+                        "> Fecha de estado) o indicar --fecha-corte 2026-10-31; para informar 11/2026, en el "
+                        "30/11/2026."),
     (date(2026, 10, 31), None),
     (date(2028, 2, 29), None),
+    (date(2026, 10, 30), None),         # viernes: el 31 es sábado (último día laborable del mes)
+    (date(2026, 10, 29), "no es el último día del mes ni su último día laborable"),
 ])
 def test_status_date_that_is_not_a_month_end(status, expected):
     tasks = tree('''
@@ -936,8 +939,28 @@ def test_status_date_that_is_not_a_month_end(status, expected):
     found = [i for i in progress(tasks, status) if i.id == "AVA-018"]
     if expected is None:
         assert not found
+    elif expected.startswith("no es"):
+        assert len(found) == 1 and expected in found[0].message
     else:
         assert [(i.message, i.severity, i.topic) for i in found] == [(expected, SEV_WARN, TOPIC_PROGRESS)]
+
+
+def test_status_date_on_the_last_working_day_of_the_project_calendar():
+    """Con el calendario del proyecto: el 30/10/2026 (viernes) no cierra el mes si el sábado 31 es laborable."""
+    from evm.workcalendar import STANDARD_DAY, WorkCalendar
+    tasks = tree('''
+        1 Fase
+          1.1 A
+    ''')
+    project = P(tasks)
+    part = build_part(project, Config())
+    six_days = WorkCalendar({d: list(STANDARD_DAY) for d in range(6)} | {6: []})
+    found = progress_checks(project, part.scope, part.code_of, date(2026, 10, 30), six_days)
+    assert [i.id for i in found if i.id == "AVA-018"] == ["AVA-018"]
+    holiday = WorkCalendar()
+    holiday.add_holidays([date(2026, 12, 31)])
+    found = progress_checks(project, part.scope, part.code_of, date(2026, 12, 30), holiday)
+    assert not [i for i in found if i.id == "AVA-018"]
 
 
 def test_leads_are_reported_once_per_task():
@@ -1021,3 +1044,144 @@ def test_logic_checks_count_only_the_links_of_the_plan():
     [line] = [i for i in plan if i.id == "LOG-018"]
     assert line.message.startswith("1 vínculo une 1 tarea de la planificación INTERNO con tareas de fuera de ella")
     assert "B I" not in [i.name for i in logic(tasks) if i.id == "LOG-005"]       # sin planificación
+
+
+# ----------------------------------------------------------------------------
+# Revisión de cronogramas reales: BEI, tareas sin vínculos, línea base de la tarea, posiciones y línea base elegida
+# ----------------------------------------------------------------------------
+def test_bei_counts_only_completed_tasks_with_baseline():
+    """BEI: una tarea terminada sin línea base (p. ej. agregada después de guardarla) no cuenta en el numerador."""
+    tasks = tree('''
+        1 Fase
+          1.1 Terminada
+          1.2 Pendiente
+          1.3 Nueva 1
+          1.4 Nueva 2
+    ''', bf=datetime(2026, 2, 13, 17))
+    t = by_name(tasks)
+    for name in ("Terminada", "Nueva 1", "Nueva 2"):
+        t[name].actual_start, t[name].actual_finish, t[name].percent_complete = S, datetime(2026, 2, 13, 17), 100
+    for name in ("Nueva 1", "Nueva 2"):
+        t[name].baseline_start = t[name].baseline_finish = None
+        t[name].has_baseline = False
+    [bei] = [i for i in progress(tasks, date(2026, 2, 27)) if i.id == "AVA-013"]
+    assert bei.message.startswith("Índice de ejecución de la línea base (BEI) = 0,5: 1 tarea terminada con línea "
+                                  "base y 2 que debían terminar a la fecha de estado (DCMA: al menos 0,95). No cuentan "
+                                  "2 tareas terminadas sin línea base. Sin terminar: 1.2.0.")
+    assert bei.severity == SEV_WARN
+
+
+def test_unlinked_task_at_the_project_start_is_reported():
+    """Una tarea sin vínculos queda en el comienzo del proyecto: se informa sin predecesoras ni sucesoras (LOG-003). La
+    que comienza con el proyecto y tiene sucesoras no necesita predecesora; la que termina con el proyecto y tiene
+    predecesoras no necesita sucesora."""
+    tasks = tree('''
+        1 Fase
+          1.1 Inicio
+          1.2 Medio
+          1.3 Fin
+          1.4 Hito suelto
+    ''')
+    t = by_name(tasks)
+    t["Inicio"].start, t["Inicio"].finish = S, datetime(2026, 1, 9, 17)
+    t["Medio"].start, t["Medio"].finish = datetime(2026, 1, 12, 8), datetime(2026, 2, 27, 17)
+    t["Fin"].start, t["Fin"].finish = datetime(2026, 3, 2, 8), F
+    t["Hito suelto"].milestone = True
+    t["Hito suelto"].start = t["Hito suelto"].finish = S
+    t["Medio"].predecessors = [Link(t["Inicio"].uid)]
+    t["Fin"].predecessors = [Link(t["Medio"].uid)]
+    by = {i.name: (i.id, i.message) for i in logic(tasks) if i.id in ("LOG-003", "LOG-004", "LOG-005")}
+    assert by == {"Hito suelto": ("LOG-003", "Sin predecesoras ni sucesoras.")}
+
+
+def test_baseline_that_does_not_match_the_task():
+    """FEC-018: hito con duración en la línea base. FEC-019: tarea de 5 días o más con una línea base de un día o
+    menos. Los informan generar y validar, solo con línea base."""
+    tasks = tree('''
+        1 Fase
+          1.1 Hito
+          1.2 Tarea
+          1.3 Corta
+          1.4 Hito sin dato
+    ''')
+    t = by_name(tasks)
+    t["Hito"].milestone, t["Hito"].baseline_duration = True, 20 * 480.0
+    t["Hito"].baseline_start, t["Hito"].baseline_finish = datetime(2026, 1, 5, 8), datetime(2026, 1, 30, 17)
+    t["Hito sin dato"].milestone = True                     # sin la duración de la línea base: no se revisa
+    for name, days in (("Tarea", 10), ("Corta", 4)):
+        t[name].duration = days * 480.0
+        t[name].baseline_start, t[name].baseline_finish = datetime(2026, 2, 2, 8), datetime(2026, 2, 2, 17)
+    rep = report(tasks)
+    found = {i.id: (i.name, i.message) for i in rep.issues if i.id in ("FEC-018", "FEC-019")}
+    assert found == {
+        "FEC-018": ("Hito", "Es un hito y en la línea base dura 20 días (05/01/2026 a 30/01/2026): pesa como hito, "
+                            "entero en el mes del fin de la línea base (01/2026), sin su duración. Si la tarea pasó a "
+                            "ser un hito después de guardar la línea base, se debe guardar de nuevo su línea base, "
+                            "como cambio aprobado."),
+        "FEC-019": ("Tarea", "Dura 10 días en el programa actual y su línea base, un día o menos (02/02/2026): en el % "
+                             "planificado de su fila pesa como una tarea de un día o menos, entero en ese mes. Si la "
+                             "línea base se guardó antes de planificar la tarea, se debe guardar de nuevo su línea "
+                             "base, como cambio aprobado.")}
+    assert all(i.topic == TOPIC_DATES and i.severity == SEV_WARN for i in rep.issues if i.id in found)
+    assert not [i for i in report(tasks, baseline_found=False).issues if i.id in ("FEC-018", "FEC-019")]
+
+
+def test_lags_are_listed_from_the_longest():
+    """LOG-008: los vínculos con posición, de la más larga a la más corta, con su valor y su predecesora (días
+    laborables, días transcurridos o en %)."""
+    tasks = tree('''
+        1 Fase
+          1.1 A
+          1.2 B
+          1.3 C
+          1.4 D
+          1.5 E
+    ''')
+    t = by_name(tasks)
+    t["B"].predecessors = [Link(t["A"].uid, LINK_FS, 2 * 480.0)]
+    t["C"].predecessors = [Link(t["B"].uid, LINK_FS, 30 * 480.0)]
+    t["D"].predecessors = [Link(t["C"].uid, LINK_FS, 10 * 1440.0, 8)]           # 10 días transcurridos
+    t["E"].predecessors = [Link(t["D"].uid, LINK_FS, 500.0, 19)]                # en % de la predecesora
+    [line] = [i for i in logic(tasks) if i.id == "LOG-008"]
+    assert line.message == ("4 vínculos tienen posición positiva (100 % de los vínculos; DCMA: hasta 5 %), de la más "
+                            "larga a la más corta: 1.3.0 (+30 días desde 1.2.0), 1.4.0 (+10 días transcurridos desde "
+                            "1.3.0), 1.2.0 (+2 días desde 1.1.0), 1.5.0 (posición en % desde 1.4.0). Una espera fija "
+                            "oculta trabajo que conviene representar como tarea.")
+
+
+def test_without_the_baseline_the_saved_ones_are_suggested():
+    """FEC-009: sin la línea base que usa el % planificado, indica las otras guardadas y cómo usarlas; la fuente del
+    PV dice que sigue a las fechas actuales."""
+    from evm.model import use_current_schedule
+    from evm.wbs import CURRENT_PV_SOURCE, PERCENT_PV_SOURCE
+    tasks = tree('''
+        1 Fase
+          1.1 A
+          1.2 B
+    ''')
+    t = by_name(tasks)
+    t["Fase"].baselines, t["A"].baselines = (2,), (2, 3)
+
+    def fec009(name="", **kw):
+        project = P(tasks, **kw)
+        use_current_schedule(project)
+        part = build_part(project, Config(), name)
+        return next(i.message for i in part.issues if i.id == "FEC-009"), part.source.pv_source
+
+    message, source = fec009()
+    assert message == ("El proyecto no tiene guardada la Línea base, que usa el % planificado: el % planificado se "
+                       "calculó con las fechas ACTUALES de las tareas, y el PV sigue al programa actual. Se debe "
+                       "guardar la línea base en MS Project (Proyecto > Establecer línea base) y volver a exportar. "
+                       "Tiene guardadas Línea base 2 (2 tareas) y Línea base 3 (1 tarea): si una de ellas es la "
+                       "aprobada, se puede usar con linea_base (p. ej. [exportacion] linea_base = 2 o --linea-base 2), "
+                       "después de revisar que esté completa.")
+    assert source == CURRENT_PV_SOURCE != PERCENT_PV_SOURCE
+    t["A"].baselines = (2,)
+    message, _ = fec009("P2")
+    assert message.endswith("Tiene guardada la Línea base 2 (2 tareas): si es la aprobada, se puede usar con "
+                            "linea_base = 2 en su sección [[proyectos]], después de revisar que esté completa.")
+    t["Fase"].baselines = t["A"].baselines = ()
+    message, _ = fec009(baseline_number=1)
+    assert message.startswith("El proyecto no tiene guardada la Línea base 1, que usa")
+    assert message.endswith("y volver a exportar.")
+    assert build_part(P(tasks), Config()).source.pv_source == PERCENT_PV_SOURCE
