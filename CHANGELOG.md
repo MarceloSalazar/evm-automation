@@ -32,7 +32,7 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 <a id="v2.6.0"></a>
 
-## [2.6.0] - 2026-11-08 · Planificación para el cliente y plan de costes por EDT cliente
+## [2.6.0] - 2026-11-12 · Planificación para el cliente y plan de costes por EDT cliente
 
 ### Resumen
 
