@@ -14,8 +14,8 @@ from pathlib import Path
 
 from evm import progress
 from evm.config import Config
-from evm.fields import (builtin_kind, field_id, fmt_number, is_notes_name, is_spanish_wbs_name, parse_custom_name,
-                        parse_number, same_name)
+from evm.fields import (builtin_kind, field_id, is_notes_name, is_spanish_wbs_name, missing_field,
+                        parse_custom_name, parse_number, same_name)
 from evm.messages import EvmError, Issue
 from evm.model import CONSTRAINT_ASAP, Link, ProjectData, Task, use_current_schedule
 from evm.workcalendar import WorkCalendar, calendar_from_xml
@@ -157,28 +157,24 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True, client: bool = F
 
     wbs_ref = _resolve(cfg.wbs_field, defs) or ("elem", "WBS")
     if cfg.wbs_field and _resolve(cfg.wbs_field, defs) is None:
-        warnings.append(Issue("LEC-010", message=f"No se encontró el campo EDT '{cfg.wbs_field}' en el XML; se usa el "
-                                                 "campo EDT (WBS)."))
+        warnings.append(missing_field("edt", cfg.wbs_field, "el XML", cfg))
     found: dict[str, str] = {}
     method_ref = _resolve(cfg.method_field, defs) if cfg.method_field else None
     if cfg.method_field and method_ref is None:
-        warnings.append(Issue("LEC-011", message=f"No se encontró el campo de método '{cfg.method_field}' en el XML."))
+        warnings.append(missing_field("metodo", cfg.method_field, "el XML", cfg))
     elif method_ref is not None:
         found["metodo"] = cfg.method_field
     weight_ref = _resolve(cfg.milestone_weight_field, defs) if cfg.milestone_weight_field else None
     if cfg.milestone_weight_field and weight_ref is None:
-        warnings.append(Issue("LEC-012", message=f"No se encontró el campo de peso de hitos "
-                                                 f"'{cfg.milestone_weight_field}' en el XML."))
+        warnings.append(missing_field("peso_hito", cfg.milestone_weight_field, "el XML", cfg))
     elif weight_ref is not None:
         found["peso_hito"] = cfg.milestone_weight_field
     visible_ref = _resolve(cfg.visible_field, defs) if cfg.visible_field else None
     if cfg.visible_field_explicit and visible_ref is None:
-        warnings.append(Issue("LEC-013", message=f"No se encontró el campo Visible '{cfg.visible_field}' en el XML: "
-                                                 "las filas del libro siguen el nivel máximo."))
+        warnings.append(missing_field("visible", cfg.visible_field, "el XML", cfg))
     description_ref = _resolve(cfg.description_field, defs) if cfg.description_field else None
     if cfg.description_field and description_ref is None:
-        warnings.append(Issue("LEC-014", message=f"No se encontró el campo de descripción '{cfg.description_field}' en "
-                                                 "el XML: las fichas de tareas no tienen descripción."))
+        warnings.append(missing_field("descripcion", cfg.description_field, "el XML", cfg))
     client_ref = _resolve(cfg.client_field, defs) if client and cfg.client_field else None
     if client_ref is not None:
         found["cliente"] = cfg.client_field
@@ -186,15 +182,12 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True, client: bool = F
     if cfg.multi_enabled:
         company_ref = _resolve(cfg.company_field, defs)
         if company_ref is None:
-            warnings.append(Issue("LEC-015", message=f"No se encontró el campo de empresa '{cfg.company_field}' en el "
-                                                     f"XML: todas las tareas se tratan como '{cfg.company_both}'."))
+            warnings.append(missing_field("campo_empresa", cfg.company_field, "el XML", cfg))
         else:
             found["campo_empresa"] = cfg.company_field
         split_ref = _resolve(cfg.split_field, defs)
         if split_ref is None:
-            warnings.append(Issue("LEC-016", message=f"No se encontró el campo de reparto '{cfg.split_field}' en el "
-                                                     f"XML: las tareas '{cfg.company_both}' se reparten al "
-                                                     f"{fmt_number(cfg.split_default, trim=True)} %."))
+            warnings.append(missing_field("campo_reparto", cfg.split_field, "el XML", cfg))
         else:
             found["campo_reparto"] = cfg.split_field
 

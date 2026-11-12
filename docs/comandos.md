@@ -136,10 +136,9 @@ Método de medición: 6 advertencias, 1 informativa
 
 Empresas: sin observaciones
 
-Avance a la fecha de estado: 2 advertencias, 1 informativa
-  [!] AVA-013 Índice de ejecución de la línea base (BEI) = 0,33: 4 tareas terminadas con línea base y 12 que debían terminar a la fecha de estado (DCMA: al menos 0,95). Sin terminar: 1.2.1, 1.2.2, 2.1.1, 2.1.2.1, 2.1.2.2, 2.1.2.3, 2.1.3, 2.1.4.
-  [!] AVA-014 De 12 tareas que debían terminar a la fecha de estado según la línea base, 12 no terminaron a tiempo (100 %; DCMA: hasta 5 %): 8 sin terminar y 4 terminadas después de su fin de línea base (Id 2, 1.2.1, 1.2.2, 2.1.1, 2.1.2.1, Id 17, 2.1.2.2, Id 19, 2.1.2.3, Id 21 y 2 más).
-  [i] AVA-015 Índice de longitud del camino crítico (CPLI) = 0,96: quedan 898 días laborables hasta el fin previsto (09/12/2030) y el fin de la línea base es el 18/10/2030 (36 días laborables de atraso) (DCMA: al menos 0,95).
+Avance a la fecha de estado: 1 advertencia, 1 informativa
+  [!] AVA-013 De 12 tareas que debían terminar a la fecha de estado según la línea base, 12 no terminaron a tiempo: 8 sin terminar y 4 terminadas después de su fin de línea base (Id 2, 1.2.1, 1.2.2, 2.1.1, 2.1.2.1, Id 17, 2.1.2.2, Id 19, 2.1.2.3, Id 21 y 2 más).
+  [i] AVA-015 Quedan 898 días laborables hasta el fin previsto (09/12/2030) y el fin de la línea base es el 18/10/2030: 36 días laborables de atraso.
 
 Lógica del cronograma: 1 advertencia
   [!] LOG-001 El cronograma no tiene vínculos entre tareas: las fechas no se recalculan cuando cambian las duraciones o el avance. Se recomienda vincular las tareas (cada tarea con al menos una predecesora y una sucesora).
@@ -155,20 +154,23 @@ Evaluación DCMA de 14 puntos:
   13. CPLI                                   0,96                         ≥ 0,95  cumple
   14. BEI                                    0,33                         ≥ 0,95  no cumple
 
-Resultado: 9 advertencias, 6 informativas.
-  Por alcance: generales: 3 advertencias, 6 informativas; en filas EDT: 6 advertencias.
+Resultado: 8 advertencias, 6 informativas.
+  Por alcance: generales: 2 advertencias, 6 informativas; en filas EDT: 6 advertencias.
 No se creó ni se modificó ningún archivo.
 ```
 
 Cada línea indica la severidad (`[X]` error, `[!]` advertencia, `[i]` informativa), el código de la
 observación (por ejemplo `MET-004`, explicado en [Códigos de errores y advertencias](codigos.md)), el
 código EDT y el nombre de la tarea (las tareas sin código EDT, con su Id de MS Project) y la observación.
+Cada problema tiene un solo código: si afecta a varias tareas, una observación general dice cuántas son
+y cada tarea tiene la suya, con el mismo código. Los valores de la evaluación DCMA (% e índices) y sus
+umbrales están solo en su tabla.
 Una tarea de detalle indica la fila del libro en que se suma, y las observaciones de las tareas de
 detalle de una misma fila se muestran en una sola línea, con `--todas` para verlas una por una:
 
 ```text
-  [!] FEC-007 Duración estimada: 12 tareas de detalle de la fila 2.7.1 (2.7.1.1, 2.7.1.3, ... y 2 más). Una por tarea con --todas.
-  [!] FEC-007 2.7.1.3 Montaje (detalle de 2.7.1): Duración estimada («?»).      (con --todas)
+  [!] FEC-006 Duración estimada: 12 tareas de detalle de la fila 2.7.1 (2.7.1.1, 2.7.1.3, ... y 2 más). Una por tarea con --todas.
+  [!] FEC-006 2.7.1.3 Montaje (detalle de 2.7.1): Duración estimada («?»).      (con --todas)
 ```
 
 La línea *Por alcance* del resultado indica cuántas observaciones son generales, de filas EDT, de tareas
@@ -189,7 +191,7 @@ evaluación DCMA y su resultado. Al final, una tabla las compara lado a lado (ta
 línea base sin resumir, vínculos propios y con otras planificaciones, tareas críticas, fecha de estado,
 fin de la línea base y fin previsto, y observaciones) y lista sus diferencias: las filas del libro que
 solo están en una planificación y las filas comunes con otras fechas de plan (línea base) o con otro fin
-previsto. Los vínculos entre planificaciones se informan con `LOG-018` y `LOG-019`. El código de salida
+previsto. Los vínculos entre planificaciones se informan con `LOG-018`. El código de salida
 es 1 si alguna planificación tiene errores. Los demás comandos admiten una sola planificación
 ([CFG-053](codigos.md#cfg-053)).
 
@@ -202,13 +204,22 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --config config
 `--informe` escribe, además de la salida en pantalla, un documento Markdown para compartir la revisión
 (por defecto `<origen>_mejoras.md`; con `[[proyectos]]` se indica la ruta, `--informe C:\Revisión\mejoras.md`):
 
-1. **Resumen:** las cifras de cada planificación o archivo (las de la comparación de arriba) y las
-   mejoras de prioridad alta con más observaciones.
+Empieza con la **fecha y la hora** de la revisión y la **versión** del programa. Una versión publicada se
+indica con su número (`2.6.0`); al ejecutar desde una copia del repositorio que no está en una versión
+publicada, con la última versión publicada y el commit, como lo muestra GitHub: `2.5.0 + desarrollo
+(b513fbb)`, y `, con cambios locales` si hay cambios sin confirmar. La consola, `--version` y el libro
+indican la versión de la misma forma.
+
+1. **Resumen:** las cifras de cada planificación o archivo (las de la comparación de arriba, más las
+   filas «Otras tareas» y las tareas sumadas en la fila de su elemento superior) y las mejoras de
+   prioridad alta con más tareas.
 2. **Mejoras por prioridad:** cada código de observación con su severidad, las tareas en las que aparece
-   y, del [catálogo](codigos.md), su causa y qué hacer. Prioridad **alta**: errores y advertencias que
-   cambian el libro (filas, % planificado, % ganado u horizonte; los que también informa `generar`);
-   **media**: advertencias de la calidad del cronograma que solo revisa `validar` (línea base, avance y
-   lógica); **baja**: observaciones informativas.
+   (por caso, si el código tiene varios: p. ej. `LOG-003`, sin predecesoras o sin sucesoras) y, del
+   [catálogo](codigos.md), su causa y qué hacer. Prioridad **alta**: errores y advertencias que cambian el
+   libro (filas, % planificado, % ganado u horizonte; los que también informa `generar`); **media**:
+   advertencias de la calidad del cronograma que solo revisa `validar` (línea base, avance y lógica);
+   **baja**: observaciones informativas. Las informativas que solo describen la estructura (`EDT-016`,
+   `EDT-017`, `EDT-018`, `EDT-022`, `VIS-007` y `LEC-024`) no se repiten: sus datos están en el resumen.
 3. **Evaluación DCMA de 14 puntos**, con una columna por planificación.
 4. **Comparación de planificaciones**, si se revisaron varias.
 
@@ -241,7 +252,7 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 | `--migrar-desde libro.xlsx` | Copia al libro nuevo el BAC ingresado, el % ganado y el AC ya cargados, los métodos editados en la columna C, el análisis de desviaciones y la fecha de corte de un libro anterior ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). Con depuración de costes, también la previsión pegada en `PV-depuración` ([Depuración de costes](depuracion-costes.md#9-ciclo-de-ajuste)). El % planificado es siempre el de MS Project. |
 | `--sobrescribir` | Reemplaza el libro de salida si ya existe. |
 | `--visible` | Muestra la ventana de MS Project mientras se lee (solo COM). No tiene relación con el campo `Visible`. |
-| `--silenciar CODIGOS` | Códigos de las observaciones que no se muestran, separados por comas (`LOG-004,FEC-007`, o `MET-004:1.2.1` para una sola fila); se puede repetir y se suma a `[validacion] silenciar` ([Silenciar observaciones](codigos.md#2-silenciar-observaciones)). |
+| `--silenciar CODIGOS` | Códigos de las observaciones que no se muestran, separados por comas (`LOG-003,FEC-006`, o `MET-004:1.2.1` para una sola fila); se puede repetir y se suma a `[validacion] silenciar` ([Silenciar observaciones](codigos.md#2-silenciar-observaciones)). |
 
 Ejemplo de salida con el proyecto de ejemplo (se omiten algunas líneas):
 

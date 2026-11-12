@@ -420,9 +420,15 @@ consultan para entender un mensaje y para silenciar los códigos que ya revisaro
 ### 5.2 Reglas
 
 - **Un código no se renumera ni se reutiliza.** Si un mensaje deja de existir, su código queda en el
-  catálogo con `retired="X.Y.Z"` (la versión en que se retiró): el documento lo muestra como retirado y
-  las configuraciones que lo silencian siguen siendo válidas. La prueba de numeración correlativa
-  detecta un código borrado.
+  catálogo con `retired="X.Y.Z"` (la versión en que se retiró) y `by="ÁREA-NNN"` (el código que lo informa
+  desde entonces, si lo hay): el documento lo muestra en la tabla de códigos retirados, y en `silenciar`
+  se informa con `CFG-047` y se ignora. La prueba de numeración correlativa detecta un código borrado. Un
+  código que no llegó a publicarse se puede borrar o renumerar.
+- **Un código por problema.** Si un problema afecta a varias tareas, la observación general (cuántas son)
+  y la de cada tarea llevan el mismo código. Los casos parecidos (por ejemplo, sin predecesoras o sin
+  sucesoras) comparten código: el mensaje indica el caso y, con `variant="..."` en la observación, el
+  informe de mejoras agrupa las tareas por caso. Los valores de la evaluación DCMA (% e índices) y sus
+  umbrales van solo en su tabla, no en los mensajes.
 - Si cambia el texto o la severidad de un mensaje, el código se mantiene y se actualiza su explicación.
 - Un mensaje con otro significado lleva un código nuevo, aunque se parezca a uno existente.
 - Los textos del catálogo se escriben en español y sin Markdown: el generador pone en formato de código

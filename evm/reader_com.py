@@ -22,8 +22,8 @@ from pathlib import Path
 
 from evm import progress
 from evm.config import Config
-from evm.fields import (TASK_NUMBER_IDS, TASK_TEXT_IDS, builtin_kind, fmt_number, is_notes_name,
-                        is_spanish_wbs_name, parse_custom_name, parse_number, same_name)
+from evm.fields import (TASK_NUMBER_IDS, TASK_TEXT_IDS, builtin_kind, is_notes_name,
+                        is_spanish_wbs_name, missing_field, parse_custom_name, parse_number, same_name)
 from evm.messages import Issue, ProjectAppError
 from evm.model import CONSTRAINT_ASAP, LINK_FS, Link, ProjectData, Task, use_current_schedule
 from evm.workcalendar import STANDARD_DAY, WorkCalendar
@@ -490,31 +490,25 @@ class ComSession:
 
         wbs_ref = self._resolve_field(cfg.wbs_field)
         if wbs_ref is None:
-            warnings.append(Issue("LEC-010", message=f"No se encontró el campo EDT '{cfg.wbs_field}' en MS Project; se "
-                                                     "usa el campo EDT (WBS)."))
+            warnings.append(missing_field("edt", cfg.wbs_field, "MS Project", cfg))
             wbs_ref = ("attr", "WBS")
         found: dict[str, str] = {}
         method_ref = self._resolve_field(cfg.method_field) if cfg.method_field else None
         if cfg.method_field and method_ref is None:
-            warnings.append(Issue("LEC-011", message=f"No se encontró el campo de método '{cfg.method_field}' en MS "
-                                                     "Project."))
+            warnings.append(missing_field("metodo", cfg.method_field, "MS Project", cfg))
         elif method_ref is not None:
             found["metodo"] = cfg.method_field
         weight_ref = self._resolve_field(cfg.milestone_weight_field) if cfg.milestone_weight_field else None
         if cfg.milestone_weight_field and weight_ref is None:
-            warnings.append(Issue("LEC-012", message=f"No se encontró el campo de peso de hitos "
-                                                     f"'{cfg.milestone_weight_field}'."))
+            warnings.append(missing_field("peso_hito", cfg.milestone_weight_field, "MS Project", cfg))
         elif weight_ref is not None:
             found["peso_hito"] = cfg.milestone_weight_field
         visible_ref = self._resolve_field(cfg.visible_field) if cfg.visible_field else None
         if cfg.visible_field_explicit and visible_ref is None:
-            warnings.append(Issue("LEC-013", message=f"No se encontró el campo Visible '{cfg.visible_field}' en MS "
-                                                     "Project: las filas del libro siguen el nivel máximo."))
+            warnings.append(missing_field("visible", cfg.visible_field, "MS Project", cfg))
         description_ref = self._resolve_field(cfg.description_field) if cfg.description_field else None
         if cfg.description_field and description_ref is None:
-            warnings.append(Issue("LEC-014", message=f"No se encontró el campo de descripción "
-                                                     f"'{cfg.description_field}' en MS Project: las fichas de tareas "
-                                                     "no tienen descripción."))
+            warnings.append(missing_field("descripcion", cfg.description_field, "MS Project", cfg))
         client_ref = self._resolve_field(cfg.client_field) if (client or review) and cfg.client_field else None
         if client_ref is not None:
             found["cliente"] = cfg.client_field
@@ -522,16 +516,12 @@ class ComSession:
         if cfg.multi_enabled:
             company_ref = self._resolve_field(cfg.company_field)
             if company_ref is None:
-                warnings.append(Issue("LEC-015", message=f"No se encontró el campo de empresa '{cfg.company_field}' en "
-                                                         f"MS Project: todas las tareas se tratan como "
-                                                         f"'{cfg.company_both}'."))
+                warnings.append(missing_field("campo_empresa", cfg.company_field, "MS Project", cfg))
             else:
                 found["campo_empresa"] = cfg.company_field
             split_ref = self._resolve_field(cfg.split_field)
             if split_ref is None:
-                warnings.append(Issue("LEC-016", message=f"No se encontró el campo de reparto '{cfg.split_field}' en "
-                                                         f"MS Project: las tareas '{cfg.company_both}' se reparten al "
-                                                         f"{fmt_number(cfg.split_default, trim=True)} %."))
+                warnings.append(missing_field("campo_reparto", cfg.split_field, "MS Project", cfg))
             else:
                 found["campo_reparto"] = cfg.split_field
 

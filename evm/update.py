@@ -582,7 +582,7 @@ def _new_task_warnings(book: BookData, matches: dict[int, Task], scope: Scope, v
       fila -D).
     - Dentro de una fila de ingreso (ACT-051): su avance se suma en esa fila, que forma con toda su rama. No se
       informan las que 'generar' también suma en esa fila: un código de nivel no mayor al máximo debajo de una fila
-      del nivel máximo (p. ej. 3.0.14 debajo de 3.0.1, sin lista EDT), que informan EDT-004 y EDT-005."""
+      del nivel máximo (p. ej. 3.0.14 debajo de 3.0.1, sin lista EDT), que informa EDT-005."""
     from evm.fields import parse_visible
     mine = [s for s in book.structure if s.row in matches and split_key(s.key)[0] == source]
     rows = {matches[s.row].uid for s in mine if s.kind != KIND_RESIDUAL}

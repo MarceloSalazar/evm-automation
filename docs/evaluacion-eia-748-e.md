@@ -133,7 +133,7 @@ responsables.
 - **Qué exige:** una estructura organizativa (OBS) a la que se asigna todo el trabajo, incluidos los
   subcontratistas principales.
 - **Qué hace el programa:** en [multi-empresa](multiempresa.md), asigna cada tarea a una de dos empresas
-  (o a las dos) y avisa de las tareas sin empresa (`EMP-003`, `EMP-004`) o con una empresa no reconocida
+  (o a las dos) y avisa de las tareas sin empresa (`EMP-003`) o con una empresa no reconocida
   (`EMP-005`). No tiene un campo de responsable (área o persona) por paquete.
 - **Qué queda a cargo de la organización:** la OBS y la asignación de cada paquete a un responsable.
 
@@ -260,7 +260,7 @@ responsables.
 - **Qué hace el programa:** `actualizar` calcula el % ganado de cada fila con su método y el avance de
   MS Project, con la fecha de estado ([Cálculo del PV y el EV](calculo-pv-ev.md)). `validar` revisa que el
   cronograma esté actualizado: fechas reales coherentes, avance en el futuro, trabajo pendiente antes de
-  la fecha de estado y avance fuera de secuencia (`AVA-001` a `AVA-017`). `actualizar` exige la fecha
+  la fecha de estado y avance fuera de secuencia (`AVA-001` a `AVA-016`). `actualizar` exige la fecha
   de corte y avisa si difiere de la fecha de estado (`ACT-004` a `ACT-006`, `ACT-019`).
 - **Fuera de alcance:** el material (el programa no distingue elementos de costo).
 

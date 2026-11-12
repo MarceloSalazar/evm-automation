@@ -26,11 +26,12 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.hyperlink import Hyperlink
 from openpyxl.worksheet.properties import Outline
 
-from evm import __version__, progress
+from evm import progress
 from evm.config import MODE_PERCENT, Config
 from evm.fields import fmt_number
 from evm.messages import (SEV_ERROR, SEV_INFO, SEV_WARN, TARGET_ROW, TARGETS, EvmError, Issue, SaveError, by_priority,
                           grouped)
+from evm.version import version_label
 from evm.wbs import KIND_LEAF, KIND_RESIDUAL, KIND_SUMMARY, Report, ReportRow, located
 
 # ----------------------------------------------------------------------------
@@ -1510,7 +1511,7 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     p = report.project
     several = report.multi_file
     meta = {
-        "version": __version__,
+        "version": version_label(),
         "proyecto": report.title if several else p.name,
         "titulo": report.title,
         "origen": per_file(report, lambda s: s.project.source) if several else str(p.source),

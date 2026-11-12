@@ -43,7 +43,7 @@ DCMA_MISSED = 5.0               # % máximo de tareas incumplidas respecto de la
 DCMA_CPLI = 0.95                # índice de longitud del camino crítico mínimo
 DCMA_BEI = 0.95                 # índice de ejecución de la línea base mínimo
 
-# Tarea de al menos estos días laborables con una línea base de un día o menos (FEC-019)
+# Tarea de al menos estos días laborables con una línea base de un día o menos (FEC-018)
 BASELINE_ONE_DAY_MIN = 5
 
 # Evaluación DCMA de 14 puntos: punto -> (valor, umbral, cumple: True, False o None si no se evalúa)
@@ -152,8 +152,8 @@ def _label(t: Task, code_of: CodeOf) -> str:
     return f"{code_of(t) or f'Id {t.id}'} «{t.name}»"
 
 
-def _issue(id: str, t: Task, code_of: CodeOf, message: str) -> Issue:
-    return Issue(id, code_of(t), task_name(t, code_of), message, uid=t.uid)
+def _issue(id: str, t: Task, code_of: CodeOf, message: str, variant: str = "") -> Issue:
+    return Issue(id, code_of(t), task_name(t, code_of), message, uid=t.uid, variant=variant)
 
 
 # ----------------------------------------------------------------------------
@@ -254,10 +254,13 @@ def wbs_checks(scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
             continue
         where = f"su tarea superior {_label(parent, code_of)}"
         if mine == top:
-            issues.append(_issue("EDT-004", t, code_of, f"Tiene el mismo código EDT que {where}."))
+            issues.append(_issue("EDT-005", t, code_of,
+                                 f"Tiene el mismo código EDT que {where}: se esperaba {_pattern(top)}.",
+                                 "mismo código que la tarea superior"))
         elif mine[:len(top)] != top or len(mine) <= len(top):
             issues.append(_issue("EDT-005", t, code_of,
-                                 f"El código EDT no depende del de {where}: se esperaba {_pattern(top)}."))
+                                 f"El código EDT no depende del de {where}: se esperaba {_pattern(top)}.",
+                                 "no empieza por el código de la tarea superior"))
         elif _upper(mine) != top:                       # 1.2.3.1 bajo 1.2 (1.2.0.1 bajo 1.2 es su hijo directo)
             issues.append(_issue("EDT-006", t, code_of,
                                  f"El código EDT salta un nivel: depende de {where}, de nivel {depth(top)}, y su "
@@ -340,29 +343,51 @@ def _row_months(row: ReportRow) -> float | None:
     return max(0.0, (row.finish - row.start).total_seconds() / 86400 / MONTH_DAYS)
 
 
-def _baseline_mismatch(t: Task, project: ProjectData, code_of: CodeOf) -> Issue | None:
-    """FEC-018 y FEC-019: la duración de la línea base no corresponde a la tarea. Un hito con duración en la línea
-    base, o una tarea que hoy dura varios días con una línea base de un día o menos: suele pasar cuando la línea base
-    se guardó antes de que la tarea tuviera su forma actual (era una tarea y hoy es un hito, o era un hito o una tarea
-    sin planificar)."""
-    start, finish = t.baseline_start, t.baseline_finish
-    if start is None or finish is None or finish < start:
+def _days(d: float) -> str:
+    return f"{_num(d)} {'día' if d == 1 else 'días'}"
+
+
+def _milestone_duration(t: Task, project: ProjectData, code_of: CodeOf) -> Issue | None:
+    """FEC-004: hito con duración en el programa actual o en la línea base que usa el % planificado (sin el dato de la
+    duración, no se puede saber). La duración en la línea base suele aparecer cuando la tarea pasó a ser un hito
+    después de guardar la línea base."""
+    if not t.milestone:
         return None
     per_day = project.minutes_per_day or 480.0
-    if t.milestone:
-        minutes = t.baseline_duration               # sin el dato de la duración, no se puede saber
-        if minutes is None or minutes <= 1e-9:
-            return None
-        days = minutes / per_day
-        return _issue("FEC-018", t, code_of,
-                      f"Es un hito y en la línea base dura {_num(days)} {'día' if days == 1 else 'días'} "
-                      f"({_day(start)} a {_day(finish)}): pesa como hito, entero en el mes del fin de la línea base "
-                      f"({finish:%m/%Y}), sin su duración. Si la tarea pasó a ser un hito después de guardar la línea "
-                      "base, se debe guardar de nuevo su línea base, como cambio aprobado.")
+    current = t.duration / per_day if _positive_duration(t) else None
+    start, finish = t.baseline_start, t.baseline_finish
+    baseline = None
+    if (project.baseline_found and start is not None and finish is not None and finish >= start
+            and t.baseline_duration is not None and t.baseline_duration > 1e-9):
+        baseline = t.baseline_duration / per_day
+    if current is None and baseline is None:
+        return None
+    if baseline is None:
+        return _issue("FEC-004", t, code_of,
+                      f"Está marcada como hito y dura {_days(current)} en el programa actual: se calcula como hito, "
+                      "sin su duración (sin Peso hito no pesa en el % planificado; con Peso hito, pesa entero en el "
+                      "mes de su fecha de fin). Si no es un hito, se debe quitar la marca de hito en MS Project "
+                      "(Información de la tarea > Avanzado).", "en el programa actual")
+    both = f"dura {_days(current)} en el programa actual y " if current is not None else ""
+    return _issue("FEC-004", t, code_of,
+                  f"Es un hito y {both}en la línea base dura {_days(baseline)} ({_day(start)} a {_day(finish)}): pesa "
+                  f"como hito, entero en el mes del fin de la línea base ({finish:%m/%Y}), sin su duración. Si la "
+                  "tarea pasó a ser un hito después de guardar la línea base, se debe guardar de nuevo su línea base, "
+                  "como cambio aprobado.",
+                  "en el programa actual y en la línea base" if current is not None else "en la línea base")
+
+
+def _one_day_baseline(t: Task, project: ProjectData, code_of: CodeOf) -> Issue | None:
+    """FEC-018: una tarea que hoy dura varios días con una línea base de un día o menos: suele pasar cuando la línea
+    base se guardó antes de que la tarea tuviera su forma actual (era un hito o una tarea sin planificar)."""
+    start, finish = t.baseline_start, t.baseline_finish
+    if t.milestone or start is None or finish is None or finish < start:
+        return None
+    per_day = project.minutes_per_day or 480.0
     current = (t.duration or 0.0) / per_day
     if start.date() != finish.date() or current < BASELINE_ONE_DAY_MIN - 1e-9:
         return None
-    return _issue("FEC-019", t, code_of,
+    return _issue("FEC-018", t, code_of,
                   f"Dura {_num(current)} días en el programa actual y su línea base, un día o menos ({_day(start)}): "
                   "en el % planificado de su fila pesa como una tarea de un día o menos, entero en ese mes. Si la "
                   "línea base se guardó antes de planificar la tarea, se debe guardar de nuevo su línea base, como "
@@ -389,26 +414,24 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
                 and t.baseline_finish < t.baseline_start):
             dates.append(_issue("FEC-001", t, code_of,
                                 f"Fin previsto ({_day(t.baseline_finish)}) anterior al Comienzo previsto "
-                                f"({_day(t.baseline_start)}) en la línea base."))
+                                f"({_day(t.baseline_start)}) en la línea base.", "en la línea base"))
         if t.start and t.finish and t.finish < t.start:
-            dates.append(_issue("FEC-002", t, code_of,
-                                f"Fin ({_day(t.finish)}) anterior al Comienzo ({_day(t.start)})."))
+            dates.append(_issue("FEC-001", t, code_of,
+                                f"Fin ({_day(t.finish)}) anterior al Comienzo ({_day(t.start)}) en el programa actual.",
+                                "en el programa actual"))
         elif (t.start is None or t.finish is None) and (t.baseline_start or t.baseline_finish):
             dates.append(_issue("FEC-003", t, code_of,
                                 "Sin Comienzo o sin Fin en el programa actual (p. ej. una tarea programada "
                                 "manualmente sin fechas)."))
-        if t.milestone and _positive_duration(t):
-            dates.append(_issue("FEC-004", t, code_of,
-                                "Está marcada como hito y tiene duración: se calcula como hito, sin su duración "
-                                "(sin Peso hito no pesa en el % planificado; con Peso hito, pesa entero en el mes "
-                                "de su fecha de fin). Si no es un hito, se debe quitar la marca de hito en MS "
-                                "Project (Información de la tarea > Avanzado)."))
+        milestone = _milestone_duration(t, project, code_of)
+        if milestone is not None:
+            dates.append(milestone)
         elif not t.milestone and _zero_duration(t):
             dates.append(_issue("FEC-005", t, code_of,
                                 "Duración 0 y no está marcada como hito: no pesa en el % planificado de su fila "
                                 "(pesan las tareas con duración y los hitos con peso). Si es un hito, se debe "
                                 "marcar como hito."))
-        baseline = _baseline_mismatch(t, project, code_of) if project.baseline_found else None
+        baseline = _one_day_baseline(t, project, code_of) if project.baseline_found else None
         if baseline is not None:
             dates.append(baseline)
     issues += dates[:LIMIT]
@@ -418,7 +441,7 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
         issues.append(Issue("FEC-006", "", "",
                             f"{plural(len(estimated), 'tarea tiene', 'tareas tienen')} duración estimada (con «?», "
                             "p. ej. «5 días?»): la duración define el % planificado. Se debe confirmar o corregir."))
-        issues += [_issue("FEC-007", t, code_of, "Duración estimada («?»).") for t in estimated[:LIMIT]]
+        issues += [_issue("FEC-006", t, code_of, "Duración estimada («?»).") for t in estimated[:LIMIT]]
     manual = [t for t in leaves if t.manual]
     if manual:
         issues.append(Issue("FEC-008", "", "",
@@ -438,10 +461,10 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
         milestones = [t for t in leaves if t.milestone]
         if ("peso_hito" in project.fields_found and milestones
                 and not any((t.milestone_weight or 0) > 0 for t in milestones)):
-            issues.append(Issue("LEC-020", "", "",
-                                f"El campo '{project.fields_found['peso_hito']}' existe, pero ningún hito tiene peso: "
-                                "los hitos no tienen % planificado propio (con «Hitos ponderados», pesan igual). Se "
-                                "debe revisar el campo indicado en [campos] peso_hito."))
+            issues.append(Issue("LEC-019", "", "",
+                                f"El campo '{project.fields_found['peso_hito']}' ([campos] peso_hito) existe, pero "
+                                "ningún hito tiene peso: los hitos no tienen % planificado propio (con «Hitos "
+                                "ponderados», pesan igual)."))
     for row in rows:
         if not row.is_input or parse_method(row.method).kind != MILESTONES:
             continue
@@ -466,8 +489,9 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
                    "Unidades completadas o Avance lineal"
     if "metodo" in project.fields_found and tasks and not any(t.method for t in tasks):
         issues.append(Issue("LEC-019", "", "",
-                            f"El campo '{project.fields_found['metodo']}' existe, pero está vacío en todas las "
-                            f"tareas: todas las filas tienen el método por defecto ('{cfg.default_method}')."))
+                            f"El campo '{project.fields_found['metodo']}' ([campos] metodo) existe, pero está vacío "
+                            "en todas las tareas: todas las filas tienen el método por defecto "
+                            f"('{cfg.default_method}')."))
     for row in rows:
         if not row.is_input:
             continue
@@ -510,9 +534,9 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
     if cfg.multi_enabled:
         if "campo_empresa" in project.fields_found and tasks and not any(t.company for t in tasks):
             name = project.fields_found["campo_empresa"]
-            issues.append(Issue("LEC-021", "", "",
-                                f"El campo '{name}' existe, pero está vacío en todas las tareas: se debe revisar "
-                                "[multiempresa] campo_empresa."))
+            issues.append(Issue("LEC-019", "", "",
+                                f"El campo '{name}' ([multiempresa] campo_empresa) existe, pero está vacío en todas "
+                                f"las tareas: todas se tratan como '{cfg.company_both}'."))
         ignored = [t for t in tasks if t.split_a and not same_name(t.company or "", cfg.company_both)]
         for t in ignored[:LIMIT]:
             who = f"su empresa es '{t.company}'" if t.company else "no tiene empresa propia (la hereda)"
@@ -536,8 +560,8 @@ def _series(items: list[str]) -> str:
 
 
 def _incomplete_baselines(project: ProjectData, scope: Scope, code_of: CodeOf) -> list[Issue]:
-    """FEC-016: tareas revisadas (también las resumen) con solo el comienzo o solo el fin en una línea base: la que
-    usa el % planificado (los dos lectores) y las demás (solo XML)."""
+    """FEC-015 (resumen): tareas revisadas (también las resumen) con solo el comienzo o solo el fin en una línea base:
+    la que usa el % planificado (los dos lectores) y las demás (solo XML)."""
     n = project.baseline_number
     by_number: dict[int, list[Task]] = {}
     for t in scope.tasks():
@@ -552,7 +576,7 @@ def _incomplete_baselines(project: ProjectData, scope: Scope, code_of: CodeOf) -
     items = [f"{_baseline_label(k)}: {plural(len(v), 'tarea', 'tareas')}" for k, v in sorted(by_number.items())]
     only = (" Con un .mpp solo se revisa la línea base que usa el % planificado." if project.backend == "com"
             else "")
-    return [Issue("FEC-016", "", "",
+    return [Issue("FEC-015", "", "",
                   f"{plural(len(found), 'tarea tiene', 'tareas tienen')} una línea base incompleta, con solo el "
                   f"comienzo o solo el fin ({_series(items)}): {_codes(found, code_of)}. Se debe guardar de nuevo la "
                   f"línea base de esas tareas, o borrar la fecha suelta si esa línea base no se usa.{only}")]
@@ -560,7 +584,7 @@ def _incomplete_baselines(project: ProjectData, scope: Scope, code_of: CodeOf) -
 
 def baseline_checks(project: ProjectData, scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
     """Líneas base guardadas y la que usa el % planificado (LEC-024), y tareas resumen exportadas cuya línea base no
-    coincide con la de sus tareas de detalle activas (FEC-013 y FEC-014): la del comienzo más temprano al fin más
+    coincide con la de sus tareas de detalle activas (FEC-013): la del comienzo más temprano al fin más
     tardío, como la resume MS Project. Las tareas de detalle se toman del árbol completo de MS Project, también las
     de las ramas con Visible = No; las inactivas no cuentan, como en MS Project."""
     issues: list[Issue] = []
@@ -624,7 +648,7 @@ def baseline_checks(project: ProjectData, scope: Scope, code_of: CodeOf, cfg: Co
         if not inverted and (start.date(), finish.date()) == (detail[0].date(), detail[1].date()):
             continue
         found.append(t)
-        details.append(_issue("FEC-014", t, code_of,
+        details.append(_issue("FEC-013", t, code_of,
                               f"Línea base de la tarea resumen: {_day(start)} a {_day(finish)}"
                               f"{' (fin anterior al comienzo)' if inverted else ''}; de sus tareas de detalle: "
                               f"{_day(detail[0])} a {_day(detail[1])}."))
@@ -666,7 +690,7 @@ def _out_of_sequence(project: ProjectData, leaves: list[Task], code_of: CodeOf,
             if is_complete(p) if pred_done else is_started(p):
                 continue
             tasks.add(t.uid)
-            found.append(_issue("AVA-017", t, code_of,
+            found.append(_issue("AVA-016", t, code_of,
                                 f"{'Está terminada' if own_done else 'Tiene avance'} y su predecesora "
                                 f"{_label(p, code_of)} no {'terminó' if pred_done else 'comenzó'} (vínculo {kind})."))
     if not found:
@@ -678,27 +702,59 @@ def _out_of_sequence(project: ProjectData, leaves: list[Task], code_of: CodeOf,
                   "debe corregir el avance o el vínculo.")] + found[:LIMIT]
 
 
-def _missed_tasks(due: list[Task], code_of: CodeOf) -> Issue | None:
-    """Tareas que debían terminar a la fecha de estado según la línea base y no terminaron, o terminaron después de su
-    fin de línea base (DCMA: hasta 5 %)."""
-    open_ = [t for t in due if not is_complete(t)]
-    late = [t for t in due if is_complete(t) and t.actual_finish is not None
-            and t.actual_finish.date() > t.baseline_finish.date()]
-    if not open_ and not late:
+def _behind_baseline(leaves: list[Task], status: date, code_of: CodeOf,
+                     metrics: Metrics) -> Issue | None:
+    """AVA-013: tareas atrasadas respecto de la línea base a la fecha de estado: las que debían terminar y no terminaron
+    o terminaron después de su fin de línea base, y las que debían comenzar y no comenzaron. Calcula los puntos 11
+    (tareas incumplidas) y 14 (BEI) de la evaluación DCMA; la observación es una advertencia si alguno no cumple."""
+    due = [t for t in leaves if t.baseline_finish and t.baseline_finish.date() <= status]
+    sentences: list[str] = []
+    warn = False
+    missed: list[Task] = []
+    if not due:
+        for point in (11, 14):
+            metrics[point] = ("ninguna tarea debía terminar", DCMA_THRESHOLDS[point], None)
+    else:
+        # El BEI cuenta solo las tareas terminadas con línea base: una terminada sin línea base no estaba en el plan
+        done = sum(1 for t in leaves if is_complete(t) and t.baseline_finish)
+        unplanned = sum(1 for t in leaves if is_complete(t) and not t.baseline_finish)
+        bei = done / len(due)
+        metrics[14] = (_num(bei, 2), DCMA_THRESHOLDS[14], bei >= DCMA_BEI - 1e-9)
+        open_ = [t for t in due if not is_complete(t)]
+        late = [t for t in due if is_complete(t) and t.actual_finish is not None
+                and t.actual_finish.date() > t.baseline_finish.date()]
+        ids = {t.uid for t in open_ + late}
+        missed = [t for t in due if t.uid in ids]
+        share = 100.0 * len(missed) / len(due)
+        metrics[11] = (f"{len(missed)} de {len(due)} ({_num(share)} %)", DCMA_THRESHOLDS[11],
+                       share <= DCMA_MISSED + 1e-9)
+        warn = bei < DCMA_BEI - 1e-9 or share > DCMA_MISSED + 1e-9
+        if missed:
+            parts = []
+            if open_:
+                parts.append(f"{len(open_)} sin terminar")
+            if late:
+                parts.append(f"{len(late)} {'terminada' if len(late) == 1 else 'terminadas'} después de su fin de "
+                             "línea base")
+            sentences.append(f"De {plural(len(due), 'tarea que debía', 'tareas que debían')} terminar a la fecha de "
+                             f"estado según la línea base, {len(missed)} no "
+                             f"{'terminó' if len(missed) == 1 else 'terminaron'} a tiempo: {' y '.join(parts)} "
+                             f"({_codes(missed, code_of)}).")
+        if unplanned and (missed or warn):
+            sentences.append(f"El BEI no cuenta {plural(unplanned, 'tarea terminada', 'tareas terminadas')} sin "
+                             "línea base.")
+    # Las que debían comenzar y no comenzaron, sin repetir las que tampoco terminaron
+    listed = {t.uid for t in missed}
+    late_start = [t for t in leaves if t.baseline_start and t.baseline_start.date() <= status and not is_started(t)
+                  and t.uid not in listed]
+    if late_start:
+        also = "Además, " if sentences else ""
+        sentences.append(f"{also}{plural(len(late_start), 'tarea debía', 'tareas debían')} comenzar a la fecha de "
+                         f"estado según la línea base y no {'comenzó' if len(late_start) == 1 else 'comenzaron'} "
+                         f"({_codes(late_start, code_of)}).")
+    if not sentences:
         return None
-    ids = {t.uid for t in open_ + late}
-    missed = [t for t in due if t.uid in ids]
-    share = 100.0 * len(missed) / len(due)
-    parts = []
-    if open_:
-        parts.append(f"{len(open_)} sin terminar")
-    if late:
-        parts.append(f"{len(late)} {'terminada' if len(late) == 1 else 'terminadas'} después de su fin de línea base")
-    return Issue("AVA-014", "", "",
-                 f"De {plural(len(due), 'tarea que debía', 'tareas que debían')} terminar a la fecha de estado según "
-                 f"la línea base, {len(missed)} no {'terminó' if len(missed) == 1 else 'terminaron'} a tiempo "
-                 f"({_num(share)} %; DCMA: hasta {_num(DCMA_MISSED)} %): {' y '.join(parts)} "
-                 f"({_codes(missed, code_of)}).", SEV_WARN if share > DCMA_MISSED + 1e-9 else SEV_INFO)
+    return Issue("AVA-013", "", "", " ".join(sentences), SEV_WARN if warn else SEV_INFO)
 
 
 def _cpli(leaves: list[Task], status: date, calendar: WorkCalendar,
@@ -720,9 +776,8 @@ def _cpli(leaves: list[Task], status: date, calendar: WorkCalendar,
     else:
         variance = "sin desvío"
     return Issue("AVA-015", "", "",
-                 f"Índice de longitud del camino crítico (CPLI) = {_num(cpli, 2)}: quedan {_days_text(remaining)} "
-                 f"hasta el fin previsto ({_day(plan.finish)}) y el fin de la línea base es el "
-                 f"{_day(plan.baseline_finish)} ({variance}) (DCMA: al menos {_num(DCMA_CPLI, 2)}).",
+                 f"Quedan {_days_text(remaining)} hasta el fin previsto ({_day(plan.finish)}) y el fin de la línea "
+                 f"base es el {_day(plan.baseline_finish)}: {variance}.",
                  SEV_WARN if cpli < DCMA_CPLI - 1e-9 else SEV_INFO), cpli
 
 
@@ -792,14 +847,14 @@ def progress_checks(project: ProjectData, scope: Scope, code_of: CodeOf, status:
             continue
         if t.finish and t.finish.date() < status:
             pending.append(t)
-            found.append(_issue("AVA-009", t, code_of,
+            found.append(_issue("AVA-011", t, code_of,
                                 f"Fin ({_day(t.finish)}) anterior a la fecha de estado y no está terminada "
-                                f"({_num(t.percent_complete)} %)."))
+                                f"({_num(t.percent_complete)} %).", "sin terminar, con el Fin pasado"))
         elif not is_started(t) and t.start and t.start.date() < status:
             pending.append(t)
-            found.append(_issue("AVA-010", t, code_of,
+            found.append(_issue("AVA-011", t, code_of,
                                 f"Comienzo ({_day(t.start)}) anterior a la fecha de estado y no tiene avance ni "
-                                "Comienzo real."))
+                                "Comienzo real.", "sin comenzar, con el Comienzo pasado"))
     invalid = len(future | {t.uid for t in pending})
     metrics[9] = (plural(invalid, "tarea", "tareas"), DCMA_THRESHOLDS[9], invalid == 0)
     if pending:
@@ -811,40 +866,9 @@ def progress_checks(project: ProjectData, scope: Scope, code_of: CodeOf, status:
     issues += found[:LIMIT]
 
     if project.baseline_found:
-        late = [t for t in leaves if t.baseline_start and t.baseline_start.date() <= status and not is_started(t)]
-        if late:
-            issues.append(Issue("AVA-012", "", "",
-                                f"{plural(len(late), 'tarea debía', 'tareas debían')} comenzar a la fecha de estado "
-                                f"según la línea base y no {'comenzó' if len(late) == 1 else 'comenzaron'} "
-                                f"({_codes(late, code_of)})."))
-        due = [t for t in leaves if t.baseline_finish and t.baseline_finish.date() <= status]
-        if not due:
-            for point in (11, 14):
-                metrics[point] = ("ninguna tarea debía terminar", DCMA_THRESHOLDS[point], None)
-        if due:
-            # Solo las tareas con línea base: una tarea terminada sin línea base no estaba en el plan comparado
-            done = sum(1 for t in leaves if is_complete(t) and t.baseline_finish)
-            unplanned = sum(1 for t in leaves if is_complete(t) and not t.baseline_finish)
-            missed = [t for t in due if not is_complete(t)]
-            bei = done / len(due)
-            metrics[14] = (_num(bei, 2), DCMA_THRESHOLDS[14], bei >= DCMA_BEI - 1e-9)
-            late_done = [t for t in due if is_complete(t) and t.actual_finish is not None
-                         and t.actual_finish.date() > t.baseline_finish.date()]
-            share = 100.0 * (len(missed) + len(late_done)) / len(due)
-            metrics[11] = (f"{len(missed) + len(late_done)} de {len(due)} ({_num(share)} %)", DCMA_THRESHOLDS[11],
-                           share <= DCMA_MISSED + 1e-9)
-            detail = f" Sin terminar: {_codes(missed, code_of)}." if missed else ""
-            without = (f" No cuentan {plural(unplanned, 'tarea terminada', 'tareas terminadas')} sin línea base."
-                       if unplanned else "")
-            issues.append(Issue("AVA-013", "", "",
-                                f"Índice de ejecución de la línea base (BEI) = {_num(bei, 2)}: "
-                                f"{plural(done, 'tarea terminada', 'tareas terminadas')} con línea base y {len(due)} "
-                                "que debían terminar a la fecha de estado "
-                                f"(DCMA: al menos {_num(DCMA_BEI, 2)}).{without}{detail}",
-                                SEV_WARN if bei < DCMA_BEI - 1e-9 else SEV_INFO))
-            missed = _missed_tasks(due, code_of)
-            if missed is not None:
-                issues.append(missed)
+        behind = _behind_baseline(leaves, status, code_of, metrics)
+        if behind is not None:
+            issues.append(behind)
         cpli, value = _cpli(leaves, status, calendar or WorkCalendar(), project.minutes_per_day or 480.0)
         if cpli is not None:
             issues.append(cpli)
@@ -931,11 +955,12 @@ def logic_checks(project: ProjectData, scope: Scope, code_of: CodeOf,
             found = []
             for t in open_tasks:
                 if t.uid in missing_pred and t.uid in missing_succ:
-                    found.append(_issue("LOG-003", t, code_of, "Sin predecesoras ni sucesoras."))
+                    found.append(_issue("LOG-003", t, code_of, "Sin predecesoras ni sucesoras.",
+                                        "sin predecesoras ni sucesoras"))
                 elif t.uid in missing_pred:
-                    found.append(_issue("LOG-004", t, code_of, "Sin predecesoras."))
+                    found.append(_issue("LOG-003", t, code_of, "Sin predecesoras.", "sin predecesoras"))
                 elif t.uid in missing_succ:
-                    found.append(_issue("LOG-005", t, code_of, "Sin sucesoras."))
+                    found.append(_issue("LOG-003", t, code_of, "Sin sucesoras.", "sin sucesoras"))
             issues += found[:LIMIT]
 
         # Las métricas DCMA cuentan los vínculos de las tareas de detalle (los de las resumen, LOG-010)
@@ -968,18 +993,23 @@ def logic_checks(project: ProjectData, scope: Scope, code_of: CodeOf,
             metrics[3] = (f"{len(lags)} ({_num(share)} %)", DCMA_THRESHOLDS[3], share <= DCMA_LAGS + 1e-9)
             if lags:
                 issues.append(Issue("LOG-008", "", "",
-                                    f"{plural(len(lags), 'vínculo tiene', 'vínculos tienen')} posición positiva "
-                                    f"({_num(share)} % de los vínculos; DCMA: hasta {_num(DCMA_LAGS)} %), de la más "
-                                    f"larga a la más corta: {_lags_text(lags, code_of, pred_code, per_day)}. "
+                                    f"{plural(len(lags), 'vínculo tiene', 'vínculos tienen')} posición positiva, de "
+                                    f"la más larga a la más corta: {_lags_text(lags, code_of, pred_code, per_day)}. "
                                     "Una espera fija oculta trabajo que conviene representar como tarea.",
                                     SEV_WARN if share > DCMA_LAGS else SEV_INFO))
             fs = sum(1 for _, link in own if link.kind == LINK_FS)
             share = 100.0 * fs / len(own)
             metrics[4] = (f"{_num(share)} %", DCMA_THRESHOLDS[4], share >= DCMA_FS - 1e-9)
             if share < DCMA_FS - 1e-9:
+                other = [(t, link) for t, link in own if link.kind != LINK_FS]
+                kinds = [(LINK_SS, "comienzo a comienzo (CC)"), (LINK_FF, "fin a fin (FF)"),
+                         (LINK_SF, "comienzo a fin (CF)")]
+                counts = [f"{n} {name}" for kind, name in kinds
+                          if (n := sum(1 for _, link in other if link.kind == kind))]
+                linked_tasks = list({t.uid: t for t, _ in other}.values())
                 issues.append(Issue("LOG-009", "", "",
-                                    f"El {_num(share)} % de los vínculos son fin a comienzo (FC) (DCMA: al menos "
-                                    f"{_num(DCMA_FS)} %)."))
+                                    f"{len(other)} de los {len(own)} vínculos no son fin a comienzo (FC): "
+                                    f"{_series(counts)}. Tareas con esos vínculos: {_codes(linked_tasks, code_of)}."))
         for t in tasks:
             if t.children and (preds[t.uid] or successors.get(t.uid)):
                 issues.append(_issue("LOG-010", t, code_of,
@@ -990,15 +1020,13 @@ def logic_checks(project: ProjectData, scope: Scope, code_of: CodeOf,
         share = 100.0 * len(hard) / len(open_tasks)
         metrics[5] = (f"{len(hard)} ({_num(share)} %)", DCMA_THRESHOLDS[5], share <= DCMA_CONSTRAINTS + 1e-9)
     if hard:
-        share = _pct(len(hard), len(open_tasks) or len(tasks))
         issues.append(Issue("LOG-011", "", "",
-                            f"{plural(len(hard), 'tarea tiene', 'tareas tienen')} delimitaciones que fijan sus "
-                            f"fechas ({share} % de las tareas sin terminar; DCMA: hasta {_num(DCMA_CONSTRAINTS)} %): "
-                            "la lógica del cronograma no las puede mover. Se recomienda «Lo antes posible» y, si "
-                            "hace falta, una fecha límite."))
+                            f"{plural(len(hard), 'tarea sin terminar tiene', 'tareas sin terminar tienen')} "
+                            "delimitaciones que fijan sus fechas: la lógica del cronograma no las puede mover. Se "
+                            "recomienda «Lo antes posible» y, si hace falta, una fecha límite."))
         for t in hard[:LIMIT]:
             when = f" {_day(t.constraint_date)}" if t.constraint_date else ""
-            issues.append(_issue("LOG-012", t, code_of,
+            issues.append(_issue("LOG-011", t, code_of,
                                  f"Delimitación «{HARD_CONSTRAINTS[t.constraint_type]}{when}»."))
     issues += _float_and_duration(project, open_tasks, code_of, rows, bool(links), metrics)
     if project.multiple_critical_paths:
@@ -1042,7 +1070,7 @@ def plan_links(t: Task, members: set[int] | None) -> list[Link]:
 
 def _links_outside_plan(project: ProjectData, scope: Scope, by_uid: dict[int, Task], members: set[int] | None,
                         code_of: CodeOf, linked: Callable[[Task, str], bool]) -> list[Issue]:
-    """LOG-018 y LOG-019: con una planificación (p. ej. INTERNO), vínculos entre sus tareas y tareas activas de fuera
+    """LOG-018: con una planificación (p. ej. INTERNO), vínculos entre sus tareas y tareas activas de fuera
     de ella (otra planificación). MS Project calcula con ellos las fechas, la holgura y las tareas críticas; los
     controles de lógica y de avance fuera de secuencia de la planificación no los cuentan. linked: si la tarea tiene
     predecesora ('pred') o sucesora ('succ') en la planificación (también por su tarea resumen)."""
@@ -1085,7 +1113,7 @@ def _links_outside_plan(project: ProjectData, scope: Scope, by_uid: dict[int, Ta
     for t in [x for x in project.tasks if x.uid in outside][:LIMIT]:
         succ, pred = outside[t.uid]
         parts = ([f"predecesora de {others(succ)}"] if succ else []) + ([f"sucesora de {others(pred)}"] if pred else [])
-        issues.append(_issue("LOG-019", t, code_of, f"Vinculada con otra planificación: {' y '.join(parts)}."))
+        issues.append(_issue("LOG-018", t, code_of, f"Vinculada con otra planificación: {' y '.join(parts)}."))
     return issues
 
 
@@ -1111,22 +1139,19 @@ def _float_and_duration(project: ProjectData, open_tasks: list[Task], code_of: C
         share = 100.0 * len(high) / len(counted)
         issues.append(Issue("LOG-013", "", "",
                             f"{plural(len(high), 'tarea sin terminar tiene', 'tareas sin terminar tienen')} más de "
-                            f"{DCMA_DAYS} días laborables de holgura total ({_num(share)} % de las tareas sin "
-                            f"terminar; DCMA: hasta {_num(DCMA_HIGH_FLOAT)} %): {_with_days(high, code_of)}. Una "
-                            "holgura alta suele indicar que faltan sucesoras.",
+                            f"{DCMA_DAYS} días laborables de holgura total: {_with_days(high, code_of)}. Una holgura "
+                            "alta suele indicar que faltan sucesoras.",
                             SEV_WARN if share > DCMA_HIGH_FLOAT + 1e-9 else SEV_INFO))
 
     negative = sorted(((t, d) for t, d in with_slack if t.total_slack < -1e-6), key=lambda x: x[1])
     if with_slack:
         metrics[7] = (plural(len(negative), "tarea", "tareas"), DCMA_THRESHOLDS[7], not negative)
     if negative:
-        share = 100.0 * len(negative) / len(with_slack)
         issues.append(Issue("LOG-014", "", "",
                             f"{plural(len(negative), 'tarea sin terminar tiene', 'tareas sin terminar tienen')} "
-                            f"holgura negativa ({_num(share)} % de las tareas sin terminar; DCMA: ninguna): su fin "
-                            "previsto supera una fecha límite o una delimitación. La más negativa es de "
-                            f"{_num(negative[0][1])} días laborables."))
-        issues += [_issue("LOG-015", t, code_of, f"Holgura total de {_num(d)} días laborables.")
+                            "holgura negativa: su fin previsto supera una fecha límite o una delimitación. La más "
+                            f"negativa es de {_num(negative[0][1])} días laborables."))
+        issues += [_issue("LOG-014", t, code_of, f"Holgura total de {_num(d)} días laborables.")
                    for t, d in negative[:LIMIT]]
 
     durations = []
@@ -1143,8 +1168,7 @@ def _float_and_duration(project: ProjectData, open_tasks: list[Task], code_of: C
         source = "en la línea base" if project.baseline_found else "en el programa actual"
         issues.append(Issue("LOG-016", "", "",
                             f"{plural(len(long), 'tarea sin terminar dura', 'tareas sin terminar duran')} más de "
-                            f"{DCMA_DAYS} días laborables {source} ({_num(share)} % de las tareas sin terminar; DCMA: "
-                            f"hasta {_num(DCMA_HIGH_DURATION)} %): {_with_days(long, code_of)}. Se recomienda "
+                            f"{DCMA_DAYS} días laborables {source}: {_with_days(long, code_of)}. Se recomienda "
                             "dividirlas en tareas más cortas, con entregables intermedios.",
                             SEV_WARN if share > DCMA_HIGH_DURATION + 1e-9 else SEV_INFO))
     return issues

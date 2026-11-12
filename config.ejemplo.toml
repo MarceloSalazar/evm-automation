@@ -237,10 +237,10 @@ meses_formula_fija = 2
 loe_maximo = 15
 
 # Códigos de las observaciones que no se muestran en la consola ni en la hoja
-# Validación, una vez revisadas (ver docs/codigos.md): "LOG-004" silencia todas las
+# Validación, una vez revisadas (ver docs/codigos.md): "LOG-003" silencia todas las
 # de ese código y "MET-004:1.2.1", solo las de la fila o tarea 1.2.1. Siempre se
 # informa cuántas se silenciaron. La opción --silenciar se suma a esta lista.
-# silenciar = ["LOG-004", "MET-004:1.2.1"]
+# silenciar = ["LOG-003", "MET-004:1.2.1"]
 
 [multiempresa]
 # Reparto del PV, el EV y el AC entre dos empresas (ver docs/multiempresa.md).

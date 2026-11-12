@@ -5,7 +5,7 @@ import threading
 
 import pytest
 
-from evm import __version__, progress
+from evm import __version__, progress, version
 from evm.cli import _book_stages, main
 from evm.progress import Progress
 
@@ -30,7 +30,25 @@ class Tty(io.StringIO):
 def test_every_command_shows_the_version(tmp_path, capsys):
     assert main(["analizar", "--libro", str(tmp_path / "no_existe.xlsx")]) == 2
     out = capsys.readouterr().out
-    assert out.splitlines()[0] == f"Exportador EVM {__version__}"
+    assert out.splitlines()[0] == f"Exportador EVM {version.version_label()}"
+
+
+def test_development_version_names_the_last_release_and_the_commit():
+    """Fuera de una versión publicada: «2.5.0 + desarrollo (b513fbb)», con la última etiqueta vX.Y.Z y el commit."""
+    assert version.describe("v2.6.0-0-gb513fbb") == "2.6.0"                       # en la versión publicada
+    assert version.describe("v2.5.0-19-gb513fbb") == "2.5.0 + desarrollo (b513fbb)"
+    assert version.describe("v2.5.0-19-gb513fbb-dirty") == "2.5.0 + desarrollo (b513fbb, con cambios locales)"
+    assert version.describe("v2.6.0-0-gb513fbb-dirty") == "2.6.0 + desarrollo (b513fbb, con cambios locales)"
+    assert version.describe("b513fbb") is None and version.describe("") is None
+
+
+def test_version_without_git_is_the_published_one(monkeypatch, tmp_path):
+    version.version_label.cache_clear()
+    monkeypatch.setattr(version, "ROOT", tmp_path)                    # sin .git: p. ej. el instalador
+    try:
+        assert version.version_label() == __version__
+    finally:
+        version.version_label.cache_clear()
 
 
 def test_no_bar_when_the_output_is_not_a_console():

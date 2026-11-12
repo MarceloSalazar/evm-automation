@@ -35,6 +35,7 @@ cómo **silenciar** las observaciones que ya se revisaron y no se quieren volver
    15. [Fichas de tareas](#415-fic--fichas-de-tareas)
    16. [Planificación para el cliente](#416-cli--planificación-para-el-cliente)
    17. [Errores del sistema](#417-sis--errores-del-sistema)
+5. [Códigos retirados](#5-códigos-retirados)
 
 ---
 
@@ -42,13 +43,17 @@ cómo **silenciar** las observaciones que ya se revisaron y no se quieren volver
 
 El código tiene la forma **ÁREA-NNN**: tres letras del área (por ejemplo `FEC`, *Fechas y duración*) y un
 número. El código de un mensaje no cambia aunque cambien su texto o su severidad, y un código que deja de
-usarse no se reutiliza: queda en este documento como *retirado*.
+usarse no se reutiliza: queda en la sección [Códigos retirados](#5-códigos-retirados), con el código que lo
+informa desde entonces.
+
+Cada problema tiene un solo código: cuando afecta a varias tareas, el código tiene una observación general
+(cuántas son) y una por tarea, con el mismo código.
 
 | Severidad | En la consola | Qué indica |
 |---|---|---|
 | Error (detiene el programa) | `ERROR CFG-003: ...` (salida de error) | El comando no puede seguir: termina sin crear ni modificar archivos, con código de salida 2 (3 si es un error inesperado, `SIS-001`). |
 | Error | `[X] EDT-009 ...` | Dato incorrecto que se debe corregir, o dato que no se pudo trasladar o calcular. `validar` termina con código de salida 1. |
-| Advertencia | `[!] FEC-007 ...` | Se debe revisar: puede afectar el resultado. |
+| Advertencia | `[!] FEC-006 ...` | Se debe revisar: puede afectar el resultado. |
 | Info | `[i] EDT-016 ...` | Información sobre lo que hizo el programa. |
 
 Algunos códigos tienen una severidad u otra según el caso (por ejemplo, *Advertencia o Info*); el
@@ -58,7 +63,7 @@ En la **consola**, cada observación muestra su código, el código EDT y el nom
 corresponde) y el mensaje:
 
 ```text
-  [!] FEC-007 1.2.3 Montaje: Duración estimada («?»).
+  [!] FEC-006 1.2.3 Montaje: Duración estimada («?»).
   [i] EDT-016 Se excluyeron 2 tareas inactivas: no forman parte del % planificado.
 ```
 
@@ -75,19 +80,19 @@ no aplica al proyecto). Se indica en el archivo de configuración, en la secció
 
 ```toml
 [validacion]
-silenciar = ["LOG-004", "MET-004:1.2.1", "FEC-007"]
+silenciar = ["LOG-003", "MET-004:1.2.1", "FEC-006"]
 ```
 
 o con la opción `--silenciar` de cualquier comando (se puede repetir, y los códigos se separan con comas);
 se suma a los de la configuración:
 
 ```powershell
-python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG-004,FEC-007
+python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG-003,FEC-006
 ```
 
 | Forma | Qué silencia |
 |---|---|
-| `LOG-004` | Todas las observaciones de ese código. |
+| `LOG-003` | Todas las observaciones de ese código. |
 | `MET-004:1.2.1` | Solo las de la fila o tarea con ese código EDT (los ceros finales no cuentan: `1.2.1` es `1.2.1.0`). Las demás filas siguen mostrando el aviso. |
 
 - Siempre se informa cuántas observaciones se silenciaron y de qué códigos (`CFG-049`), para que no
@@ -95,7 +100,8 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 - Los errores silenciados no cuentan para el código de salida de `validar`.
 - Los errores que detienen el programa no se pueden silenciar (`CFG-048`).
 - Un código que no existe en el catálogo se informa con `CFG-047` y se ignora.
-- Un código retirado se acepta y no silencia nada: las configuraciones que lo usan siguen siendo válidas.
+- Un código retirado no silencia nada: se informa con `CFG-047`, que indica el código que lo informa
+  desde entonces, y se ignora.
 
 ---
 
@@ -104,18 +110,18 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | Área | Nombre | Tema en la hoja Validación | Dónde aparecen | Códigos |
 |---|---|---|---|---|
 | [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 56 |
-| [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 26 |
-| [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 22 |
-| [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 10 |
-| [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 19 |
+| [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 17 |
+| [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 20 |
+| [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 9 |
+| [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 13 |
 | [HIT](#46-hit--hitos-y-pesos) | Hitos y pesos | Hitos y pesos | generar (hoja Validación) y validar | 9 |
 | [MET](#47-met--método-de-medición) | Método de medición | Método de medición | generar (hoja Validación) y validar | 5 |
-| [EMP](#48-emp--empresas) | Empresas | Empresas | generar (hoja Validación) y validar | 6 |
-| [AVA](#49-ava--avance-a-la-fecha-de-estado) | Avance a la fecha de estado | Avance a la fecha de estado | validar | 18 |
-| [LOG](#410-log--lógica-del-cronograma) | Lógica del cronograma | Lógica del cronograma | validar | 19 |
+| [EMP](#48-emp--empresas) | Empresas | Empresas | generar (hoja Validación) y validar | 5 |
+| [AVA](#49-ava--avance-a-la-fecha-de-estado) | Avance a la fecha de estado | Avance a la fecha de estado | validar | 13 |
+| [LOG](#410-log--lógica-del-cronograma) | Lógica del cronograma | Lógica del cronograma | validar | 13 |
 | [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) | 15 |
 | [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 20 |
-| [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 26 |
+| [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 24 |
 | [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 51 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
 | [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 33 |
@@ -177,7 +183,7 @@ Archivo de configuración, opciones de la línea de comandos, horizonte y códig
 | [CFG-044](#cfg-044) | Advertencia | % planificado anterior al mes 1 |
 | [CFG-045](#cfg-045) | Advertencia | % planificado posterior al último mes |
 | [CFG-046](#cfg-046) | Advertencia | Monedas distintas en los archivos |
-| [CFG-047](#cfg-047) | Advertencia | Código desconocido en silenciar |
+| [CFG-047](#cfg-047) | Advertencia | Código desconocido o retirado en silenciar |
 | [CFG-048](#cfg-048) | Advertencia | Código que no se puede silenciar |
 | [CFG-049](#cfg-049) | Info | Observaciones silenciadas |
 | [CFG-050](#cfg-050) | Error (detiene el programa) | loe_maximo fuera de rango |
@@ -558,11 +564,11 @@ Con varios archivos, los proyectos tienen monedas distintas en MS Project; el li
 
 #### CFG-047
 
-**Código desconocido en silenciar** · Advertencia · Todos los comandos · se puede silenciar
+**Código desconocido o retirado en silenciar** · Advertencia · Todos los comandos · se puede silenciar
 
-Un elemento de `[validacion] silenciar` o de `--silenciar` no es un código del catálogo o no tiene el formato ÁREA-NNN (o ÁREA-NNN:EDT).
+Un elemento de `[validacion] silenciar` o de `--silenciar` no es un código del catálogo, no tiene el formato ÁREA-NNN (o ÁREA-NNN:EDT) o es un código retirado: se ignora. Si el código se retiró, el mensaje indica con qué código se informa ahora.
 
-**Qué hacer:** Corregir el código según este documento.
+**Qué hacer:** Corregir el código según este documento (un código retirado se reemplaza por el que lo informa ahora).
 
 #### CFG-048
 
@@ -653,20 +659,11 @@ Apertura del archivo .mpp o .xml y campos configurados que no se encuentran o es
 | [LEC-007](#lec-007) | Error (detiene el programa) | MS Project no responde |
 | [LEC-008](#lec-008) | Error (detiene el programa) | No hay proyectos abiertos en MS Project |
 | [LEC-009](#lec-009) | Error (detiene el programa) | MS Project no pudo abrir el archivo |
-| [LEC-010](#lec-010) | Advertencia | No se encontró el campo EDT |
-| [LEC-011](#lec-011) | Advertencia | No se encontró el campo de método |
-| [LEC-012](#lec-012) | Advertencia | No se encontró el campo de peso de hitos |
-| [LEC-013](#lec-013) | Advertencia | No se encontró el campo Visible |
-| [LEC-014](#lec-014) | Advertencia | No se encontró el campo de descripción |
-| [LEC-015](#lec-015) | Advertencia | No se encontró el campo de empresa |
-| [LEC-016](#lec-016) | Advertencia | No se encontró el campo de reparto |
+| [LEC-010](#lec-010) | Advertencia | No se encontró un campo de la configuración |
 | [LEC-017](#lec-017) | Advertencia | Tareas externas omitidas |
 | [LEC-018](#lec-018) | Advertencia | Excepción de calendario no interpretada |
-| [LEC-019](#lec-019) | Advertencia | Campo de método vacío |
-| [LEC-020](#lec-020) | Advertencia | Ningún hito tiene peso |
-| [LEC-021](#lec-021) | Advertencia | Campo de empresa vacío |
+| [LEC-019](#lec-019) | Advertencia | Campo de la configuración vacío |
 | [LEC-022](#lec-022) | Advertencia | No se pudo cerrar el proyecto en MS Project |
-| [LEC-023](#lec-023) | Advertencia | Campo de reparto vacío *(retirado)* |
 | [LEC-024](#lec-024) | Info | Líneas base guardadas |
 | [LEC-025](#lec-025) | Advertencia | Calendario del proyecto no leído |
 | [LEC-026](#lec-026) | Error (detiene el programa) | No se encontró el campo del cliente |
@@ -745,59 +742,11 @@ MS Project no pudo abrir el .mpp (archivo dañado, de una versión más reciente
 
 #### LEC-010
 
-**No se encontró el campo EDT** · Advertencia · generar, actualizar, validar y generar-fichas (lectura de MS Project) · se puede silenciar
+**No se encontró un campo de la configuración** · Advertencia · generar, actualizar, validar y generar-fichas (lectura de MS Project) · se puede silenciar
 
-El campo indicado en `[campos] edt` no existe en el proyecto: se usa el campo EDT (WBS) de MS Project.
+Un campo indicado en `[campos] o` en `[multiempresa] no` existe en el proyecto. El mensaje indica cuál y su efecto: edt, se usa el campo EDT (WBS) de MS Project; metodo, todas las filas tienen el método por defecto; peso_hito, los hitos no tienen peso; visible, las filas del libro siguen el nivel máximo; descripcion, las fichas de tareas no tienen descripción; campo_empresa, todas las tareas se tratan como compartidas; campo_reparto, las tareas compartidas se reparten con reparto_por_defecto.
 
-**Qué hacer:** Revisar el nombre del campo (como se ve en MS Project o el nombre interno, p. ej. Texto1).
-
-#### LEC-011
-
-**No se encontró el campo de método** · Advertencia · generar, actualizar, validar y generar-fichas (lectura de MS Project) · se puede silenciar
-
-El campo indicado en `[campos] metodo` no existe: todas las filas tienen el método por defecto.
-
-**Qué hacer:** Revisar el nombre del campo o dejar la clave vacía si no se usa.
-
-#### LEC-012
-
-**No se encontró el campo de peso de hitos** · Advertencia · generar, actualizar, validar y generar-fichas (lectura de MS Project) · se puede silenciar
-
-El campo indicado en `[campos] peso_hito` no existe: los hitos no tienen peso.
-
-**Qué hacer:** Revisar el nombre del campo o dejar la clave vacía si no se usa.
-
-#### LEC-013
-
-**No se encontró el campo Visible** · Advertencia · generar, actualizar, validar y generar-fichas (lectura de MS Project) · se puede silenciar
-
-El campo indicado en `[campos] visible` no existe: las filas del libro siguen el nivel máximo.
-
-**Qué hacer:** Revisar el nombre del campo, o indicar visible = "" si no se usa.
-
-#### LEC-014
-
-**No se encontró el campo de descripción** · Advertencia · generar, actualizar, validar y generar-fichas (lectura de MS Project) · se puede silenciar
-
-El campo indicado en `[campos] descripcion` no existe: las fichas de tareas no tienen descripción.
-
-**Qué hacer:** Revisar el nombre del campo o dejar la clave vacía si no se usa.
-
-#### LEC-015
-
-**No se encontró el campo de empresa** · Advertencia · generar, actualizar, validar y generar-fichas (lectura de MS Project) · se puede silenciar
-
-En multi-empresa, el campo indicado en campo_empresa no existe: todas las tareas son de las dos empresas.
-
-**Qué hacer:** Revisar `[multiempresa] campo_empresa`.
-
-#### LEC-016
-
-**No se encontró el campo de reparto** · Advertencia · generar, actualizar, validar y generar-fichas (lectura de MS Project) · se puede silenciar
-
-En multi-empresa, el campo indicado en campo_reparto no existe: las tareas compartidas se reparten con reparto_por_defecto.
-
-**Qué hacer:** Revisar `[multiempresa] campo_reparto`.
+**Qué hacer:** Revisar el nombre del campo (como se ve en MS Project o el nombre interno, p. ej. Texto1), o dejar la clave vacía si no se usa.
 
 #### LEC-017
 
@@ -817,27 +766,11 @@ Un calendario del XML tiene una excepción con una periodicidad que el programa 
 
 #### LEC-019
 
-**Campo de método vacío** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+**Campo de la configuración vacío** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-El campo de método existe, pero está vacío en todas las tareas: todas las filas tienen el método por defecto.
+Un campo indicado en `[campos] o` en `[multiempresa] existe`, pero está vacío en todas las tareas. El mensaje indica cuál y su efecto: metodo, todas las filas tienen el método por defecto (las filas sin método no se informan aparte con [MET-005](#met-005)); peso_hito, ningún hito tiene peso y los hitos no tienen % planificado propio; campo_empresa, todas las tareas se tratan como compartidas (las tareas sin empresa no se informan aparte con [EMP-003](#emp-003)).
 
-**Qué hacer:** Cargar el método en la tarea de cada paquete, o revisar `[campos] metodo`.
-
-#### LEC-020
-
-**Ningún hito tiene peso** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
-
-El campo de peso de hitos existe, pero ningún hito tiene peso: los hitos no tienen % planificado propio.
-
-**Qué hacer:** Cargar el peso de los hitos (% del paquete), o revisar `[campos] peso_hito`.
-
-#### LEC-021
-
-**Campo de empresa vacío** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
-
-En multi-empresa, el campo de empresa existe, pero está vacío en todas las tareas.
-
-**Qué hacer:** Cargar la empresa de cada tarea, o revisar `[multiempresa] campo_empresa`.
+**Qué hacer:** Cargar el campo en MS Project, o revisar el nombre indicado en la configuración.
 
 #### LEC-022
 
@@ -846,14 +779,6 @@ En multi-empresa, el campo de empresa existe, pero está vacío en todas las tar
 Al terminar la lectura de un .mpp, MS Project no cerró el proyecto (por ejemplo, por un diálogo abierto): queda abierto, sin guardar cambios. Se muestra en el registro de diagnóstico (WARNING evm.reader_com), por eso no se puede silenciar.
 
 **Qué hacer:** Cerrar el proyecto a mano en MS Project, sin guardar.
-
-#### LEC-023
-
-**Campo de reparto vacío** · Advertencia · generar (hoja Validación) y validar · se puede silenciar · retirado en la versión 2.6.0
-
-Hasta la versión 2.5, en multi-empresa, se avisaba cuando el campo de reparto existía, pero estaba vacío en todas las tareas. Desde la versión 2.6.0 no se avisa: una tarea compartida (ambas) sin reparto se reparte con reparto_por_defecto, como está previsto.
-
-**Qué hacer:** Ninguna.
 
 #### LEC-024
 
@@ -890,7 +815,6 @@ Formato, dependencia, orden y duplicados de los códigos EDT, planificación, li
 | [EDT-001](#edt-001) | Error | Código EDT con formato no válido |
 | [EDT-002](#edt-002) | Advertencia | Código EDT no numérico |
 | [EDT-003](#edt-003) | Advertencia | Código de nivel inferior sin tarea superior con código |
-| [EDT-004](#edt-004) | Error | Mismo código EDT que la tarea superior |
 | [EDT-005](#edt-005) | Error | El código EDT no depende del de la tarea superior |
 | [EDT-006](#edt-006) | Advertencia | El código EDT salta un nivel |
 | [EDT-007](#edt-007) | Advertencia | Código EDT fuera de orden |
@@ -900,7 +824,6 @@ Formato, dependencia, orden y duplicados de los códigos EDT, planificación, li
 | [EDT-011](#edt-011) | Error (detiene el programa, salvo en validar) | Código EDT en dos archivos |
 | [EDT-012](#edt-012) | Error (detiene el programa, salvo en validar) | Ningún código de la lista EDT existe |
 | [EDT-013](#edt-013) | Advertencia | Códigos de la lista EDT sin tarea |
-| [EDT-014](#edt-014) | Advertencia | Código de la lista EDT sin tarea |
 | [EDT-015](#edt-015) | Info | Elemento de la lista EDT con su tarea superior fuera de la lista |
 | [EDT-016](#edt-016) | Info | Tareas inactivas excluidas |
 | [EDT-017](#edt-017) | Info | Planificación exportada |
@@ -934,21 +857,13 @@ La tarea tiene un código de nivel 2 o más, pero ninguna tarea superior tiene c
 
 **Qué hacer:** Asignar a la tarea superior el código indicado en el mensaje, o revisar el código de la tarea.
 
-#### EDT-004
-
-**Mismo código EDT que la tarea superior** · Error · generar (hoja Validación) y validar · se puede silenciar
-
-La tarea repite el código de su tarea superior.
-
-**Qué hacer:** Asignarle un código de un nivel más (p. ej. 1.2.1 bajo 1.2.0).
-
 #### EDT-005
 
 **El código EDT no depende del de la tarea superior** · Error · generar (hoja Validación) y validar · se puede silenciar
 
-El código no empieza por el de su tarea superior (p. ej. 1.3.1 bajo 1.2.0).
+El código no empieza por el de su tarea superior (p. ej. 1.3.1 bajo 1.2.0), o es el mismo código que el de su tarea superior.
 
-**Qué hacer:** Corregir el código según el patrón indicado en el mensaje.
+**Qué hacer:** Corregir el código según el patrón indicado en el mensaje (p. ej. 1.2.1 bajo 1.2.0).
 
 #### EDT-006
 
@@ -1010,15 +925,7 @@ Ningún código de lista_edt corresponde a una tarea: el libro no tendría filas
 
 **Códigos de la lista EDT sin tarea** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-Algunos códigos de lista_edt no existen en MS Project, o su tarea está inactiva o fuera de la planificación: no tienen fila en el libro.
-
-**Qué hacer:** Corregir la lista o el código de la tarea.
-
-#### EDT-014
-
-**Código de la lista EDT sin tarea** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
-
-Detalle de [EDT-013](#edt-013): el código de la lista no tiene tarea en MS Project.
+Algunos códigos de lista_edt no existen en MS Project, o su tarea está inactiva o fuera de la planificación: no tienen fila en el libro. Un resumen con la cantidad y una línea por código.
 
 **Qué hacer:** Corregir la lista o el código de la tarea.
 
@@ -1101,7 +1008,6 @@ Valores del campo Visible y ramas que quedan fuera del cálculo.
 | [VIS-005](#vis-005) | Advertencia | Todos los elementos de nivel superior con Visible = No |
 | [VIS-006](#vis-006) | Info | Campo Visible sin usar con lista EDT |
 | [VIS-007](#vis-007) | Info | Tareas con Visible = No |
-| [VIS-008](#vis-008) | Info | Tarea con Visible = No |
 | [VIS-009](#vis-009) | Info | Todas las subtareas con Visible = No |
 | [VIS-010](#vis-010) | Info | Visible = Sí por debajo del nivel máximo |
 
@@ -1157,17 +1063,9 @@ Con lista_edt, las filas del libro las decide la lista y el campo Visible no se 
 
 **Tareas con Visible = No** · Info · generar (hoja Validación) y validar · se puede silenciar
 
-Esas tareas (con su rama) no forman parte del % planificado ni del % ganado.
+Esas tareas (con su rama) no forman parte del % planificado ni del % ganado. Un resumen con la cantidad y una línea por tarea.
 
 **Qué hacer:** El BAC y el AC que se ingresan en el libro no las deben incluir.
-
-#### VIS-008
-
-**Tarea con Visible = No** · Info · generar (hoja Validación) y validar · se puede silenciar
-
-Detalle de [VIS-007](#vis-007): la tarea queda fuera del PV, el EV y el AC.
-
-**Qué hacer:** Ninguna, si es lo esperado.
 
 #### VIS-009
 
@@ -1193,41 +1091,27 @@ Fechas de la línea base y del programa actual, hitos y duración de las tareas.
 
 | Código | Severidad | Descripción |
 |---|---|---|
-| [FEC-001](#fec-001) | Error | Fin previsto anterior al comienzo previsto |
-| [FEC-002](#fec-002) | Error | Fin anterior al comienzo |
+| [FEC-001](#fec-001) | Error | Fin anterior al comienzo |
 | [FEC-003](#fec-003) | Advertencia | Tarea sin Comienzo o sin Fin |
 | [FEC-004](#fec-004) | Advertencia | Hito con duración |
 | [FEC-005](#fec-005) | Advertencia | Duración 0 sin marca de hito |
-| [FEC-006](#fec-006) | Advertencia | Tareas con duración estimada |
-| [FEC-007](#fec-007) | Advertencia | Duración estimada |
+| [FEC-006](#fec-006) | Advertencia | Duración estimada |
 | [FEC-008](#fec-008) | Advertencia | Tareas programadas manualmente |
 | [FEC-009](#fec-009) | Advertencia | El proyecto no tiene la línea base seleccionada |
 | [FEC-010](#fec-010) | Advertencia | Tareas sin fechas de línea base |
-| [FEC-011](#fec-011) | Advertencia | Tarea sin fechas de línea base |
 | [FEC-012](#fec-012) | Advertencia | Tarea sin fechas |
 | [FEC-013](#fec-013) | Advertencia | Línea base de tareas resumen distinta de la de su detalle |
-| [FEC-014](#fec-014) | Advertencia | Tarea resumen con la línea base sin resumir |
-| [FEC-015](#fec-015) | Advertencia | Tarea con la línea base incompleta |
-| [FEC-016](#fec-016) | Advertencia | Líneas base incompletas |
+| [FEC-015](#fec-015) | Advertencia | Línea base incompleta |
 | [FEC-017](#fec-017) | Advertencia | Tareas con calendario propio |
-| [FEC-018](#fec-018) | Advertencia | Hito con duración en la línea base |
-| [FEC-019](#fec-019) | Advertencia | Tarea con la línea base de un día |
+| [FEC-018](#fec-018) | Advertencia | Tarea con la línea base de un día |
 
 #### FEC-001
 
-**Fin previsto anterior al comienzo previsto** · Error · generar (hoja Validación) y validar · se puede silenciar
-
-En la línea base, la tarea termina antes de comenzar.
-
-**Qué hacer:** Corregir la tarea y volver a guardar su línea base.
-
-#### FEC-002
-
 **Fin anterior al comienzo** · Error · generar (hoja Validación) y validar · se puede silenciar
 
-En el programa actual, la tarea termina antes de comenzar.
+La tarea termina antes de comenzar, en la línea base (fin previsto anterior al comienzo previsto) o en el programa actual. El mensaje indica cuál.
 
-**Qué hacer:** Corregir las fechas de la tarea en MS Project.
+**Qué hacer:** Corregir las fechas de la tarea en MS Project; si el error está en la línea base, guardar de nuevo la línea base de la tarea.
 
 #### FEC-003
 
@@ -1241,9 +1125,9 @@ La tarea no tiene fechas en el programa actual (p. ej. una tarea programada manu
 
 **Hito con duración** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-La tarea está marcada como hito y tiene duración: se calcula como hito, sin su duración (sin Peso hito no pesa en el % planificado; con Peso hito, pesa entero en el mes de su fecha de fin).
+La tarea está marcada como hito y tiene duración en el programa actual o en la línea base que usa el % planificado (el mensaje indica dónde): se calcula como hito, sin su duración (sin Peso hito no pesa en el % planificado; con Peso hito, pesa entero en el mes de su fecha de fin). La duración en la línea base suele aparecer cuando una tarea se convierte en hito después de guardar la línea base.
 
-**Qué hacer:** Si no es un hito, quitar la marca de hito (Información de la tarea > Avanzado).
+**Qué hacer:** Si no es un hito, quitar la marca de hito (Información de la tarea > Avanzado). Si lo es y la duración está en la línea base, guardar de nuevo su línea base (Establecer línea base > Tareas seleccionadas), como parte de un cambio de línea base aprobado.
 
 #### FEC-005
 
@@ -1255,19 +1139,11 @@ La tarea dura 0 y no es un hito: no pesa en el % planificado de su fila.
 
 #### FEC-006
 
-**Tareas con duración estimada** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
-
-Algunas tareas tienen duración estimada (con «?», p. ej. «5 días?»): la duración define el % planificado.
-
-**Qué hacer:** Confirmar o corregir la duración de esas tareas.
-
-#### FEC-007
-
 **Duración estimada** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-Detalle de [FEC-006](#fec-006): la duración de la tarea es estimada.
+Algunas tareas tienen duración estimada (con «?», p. ej. «5 días?»): la duración define el % planificado. Un resumen con la cantidad y una línea por tarea.
 
-**Qué hacer:** Confirmar o corregir la duración.
+**Qué hacer:** Confirmar o corregir la duración de esas tareas.
 
 #### FEC-008
 
@@ -1289,17 +1165,9 @@ El % planificado se calculó con las fechas actuales de las tareas: el PV sigue 
 
 **Tareas sin fechas de línea base** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-Algunas tareas no tienen fechas de línea base (p. ej. se agregaron después de guardarla): su % planificado se calculó con sus fechas actuales.
+Algunas tareas no tienen fechas de línea base (p. ej. se agregaron después de guardarla): su % planificado se calculó con sus fechas actuales. Un resumen con la cantidad y una línea por tarea.
 
 **Qué hacer:** Si corresponde, actualizar la línea base de esas tareas.
-
-#### FEC-011
-
-**Tarea sin fechas de línea base** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
-
-Detalle de [FEC-010](#fec-010): se usaron las fechas actuales de la tarea.
-
-**Qué hacer:** Si corresponde, actualizar la línea base de la tarea.
 
 #### FEC-012
 
@@ -1313,33 +1181,17 @@ La tarea no tiene fechas de línea base ni fechas actuales: no aporta % planific
 
 **Línea base de tareas resumen distinta de la de su detalle** · Advertencia · validar · se puede silenciar
 
-Resumen de [FEC-014](#fec-014): la línea base de algunas tareas resumen no va del comienzo más temprano al fin más tardío de la línea base de sus tareas de detalle activas, o termina antes de comenzar. Suele pasar al guardar la línea base de tareas seleccionadas sin resumirla en sus tareas resumen. MS Project muestra en esas tareas fechas de línea base que no corresponden a su detalle; el libro no se ve afectado, porque usa las fechas de las tareas de detalle.
+La línea base de algunas tareas resumen no va del comienzo más temprano al fin más tardío de la línea base de sus tareas de detalle activas, o termina antes de comenzar. Suele pasar al guardar la línea base de tareas seleccionadas sin resumirla en sus tareas resumen. MS Project muestra en esas tareas fechas de línea base que no corresponden a su detalle; el libro no se ve afectado, porque usa las fechas de las tareas de detalle. Un resumen y una línea por tarea resumen, con las fechas de su línea base y las de sus tareas de detalle.
 
 **Qué hacer:** Guardar la línea base de esas tareas con Establecer línea base > Tareas seleccionadas y Resumir líneas base: Para todas las tareas de resumen, como parte de un cambio de línea base aprobado.
 
-#### FEC-014
-
-**Tarea resumen con la línea base sin resumir** · Advertencia · validar · se puede silenciar
-
-Detalle de [FEC-013](#fec-013): las fechas de la línea base de la tarea resumen y las de sus tareas de detalle.
-
-**Qué hacer:** Resumir la línea base de la tarea resumen ([FEC-013](#fec-013)).
-
 #### FEC-015
 
-**Tarea con la línea base incompleta** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+**Línea base incompleta** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-La tarea de detalle tiene en la línea base que usa el % planificado solo el comienzo o solo el fin: se toma como si durara 0 y no pesa en el % planificado de su fila.
+Tareas con solo el comienzo o solo el fin en una línea base. Cada tarea de detalle con la línea base que usa el % planificado incompleta tiene su línea: se toma como si durara 0 y no pesa en el % planificado de su fila. validar agrega un resumen de todas las tareas (también las resumen) con una línea base incompleta: con un .mpp solo se revisa la línea base que usa el % planificado; con un XML, todas.
 
-**Qué hacer:** Guardar de nuevo la línea base de la tarea (Establecer línea base > Tareas seleccionadas).
-
-#### FEC-016
-
-**Líneas base incompletas** · Advertencia · validar · se puede silenciar
-
-Algunas tareas (también tareas resumen) tienen en una línea base solo el comienzo o solo el fin. Con un .mpp solo se revisa la línea base que usa el % planificado; con un XML, todas.
-
-**Qué hacer:** Guardar de nuevo la línea base de esas tareas, o borrar la fecha suelta si la línea base no se usa.
+**Qué hacer:** Guardar de nuevo la línea base de esas tareas (Establecer línea base > Tareas seleccionadas), o borrar la fecha suelta si esa línea base no se usa.
 
 #### FEC-017
 
@@ -1350,14 +1202,6 @@ Algunas tareas tienen un calendario de tarea distinto del calendario del proyect
 **Qué hacer:** Ninguna, si el calendario de la tarea es necesario; si no, quitarlo (Información de la tarea > Avanzado > Calendario: Ninguno).
 
 #### FEC-018
-
-**Hito con duración en la línea base** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
-
-La tarea es un hito, pero en la línea base que usa el % planificado dura uno o más días: el programa la calcula como hito, entera en el mes del fin de la línea base y sin su duración. Suele pasar cuando una tarea se convierte en hito después de guardar la línea base.
-
-**Qué hacer:** Guardar de nuevo la línea base de la tarea (Establecer línea base > Tareas seleccionadas), como parte de un cambio de línea base aprobado.
-
-#### FEC-019
 
 **Tarea con la línea base de un día** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
@@ -1505,7 +1349,7 @@ Con 0/100 (o 50/50, 25/75...) el EV queda fijo hasta que el paquete termina: en 
 
 **Filas sin método definido** · Info · generar (hoja Validación) y validar · se puede silenciar
 
-Algunas filas no tienen método de medición (columna C).
+Algunas filas no tienen método de medición (columna C). No se informa si el campo de método no se encontró o está vacío en todas las tareas ([LEC-010](#lec-010) o [LEC-019](#lec-019)): todas las filas tienen el método por defecto.
 
 **Qué hacer:** Indicar el método en MS Project o en la columna C del libro.
 
@@ -1520,7 +1364,6 @@ Multi-empresa: empresa y % de reparto de cada tarea.
 | [EMP-001](#emp-001) | Info | % de reparto en una tarea que no es compartida |
 | [EMP-002](#emp-002) | Info | Empresa sin tareas en la fila |
 | [EMP-003](#emp-003) | Advertencia | Tareas sin empresa |
-| [EMP-004](#emp-004) | Advertencia | Tarea sin empresa |
 | [EMP-005](#emp-005) | Advertencia | Empresa no reconocida |
 | [EMP-006](#emp-006) | Advertencia | % de reparto fuera de rango |
 
@@ -1544,17 +1387,9 @@ La empresa no participa en las tareas de algunas filas: si se le asigna BAC, su 
 
 **Tareas sin empresa** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-Algunas tareas no tienen empresa (ni la heredan de sus tareas superiores): se tratan como compartidas, con el reparto por defecto.
+Algunas tareas no tienen empresa (ni la heredan de sus tareas superiores): se tratan como compartidas, con el reparto por defecto. Un resumen con la cantidad y una línea por tarea (la de nivel más alto de cada rama sin empresa, con sus subtareas). No se informa si el campo de empresa no se encontró o está vacío en todas las tareas ([LEC-010](#lec-010) o [LEC-019](#lec-019)).
 
 **Qué hacer:** Indicar la empresa de esas tareas o de su tarea superior.
-
-#### EMP-004
-
-**Tarea sin empresa** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
-
-Detalle de [EMP-003](#emp-003): la tarea (y sus subtareas sin empresa) se trata como compartida.
-
-**Qué hacer:** Indicar la empresa de la tarea.
 
 #### EMP-005
 
@@ -1588,15 +1423,10 @@ Fechas reales, % completado, avance actualizado a la fecha de estado y fuera de 
 | [AVA-006](#ava-006) | Advertencia | Avance sin fecha de estado |
 | [AVA-007](#ava-007) | Info | Sin fecha de estado ni avance |
 | [AVA-008](#ava-008) | Error | Avance registrado en el futuro |
-| [AVA-009](#ava-009) | Advertencia | Tarea atrasada sin terminar |
-| [AVA-010](#ava-010) | Advertencia | Tarea sin comenzar con Comienzo pasado |
 | [AVA-011](#ava-011) | Advertencia | Trabajo pendiente antes de la fecha de estado |
-| [AVA-012](#ava-012) | Info | Tareas que debían comenzar y no comenzaron |
-| [AVA-013](#ava-013) | Advertencia o Info | Índice de ejecución de la línea base (BEI) |
-| [AVA-014](#ava-014) | Advertencia o Info | Tareas incumplidas respecto de la línea base |
+| [AVA-013](#ava-013) | Advertencia o Info | Tareas atrasadas respecto de la línea base |
 | [AVA-015](#ava-015) | Advertencia o Info | Índice de longitud del camino crítico (CPLI) |
 | [AVA-016](#ava-016) | Advertencia | Avance fuera de secuencia |
-| [AVA-017](#ava-017) | Advertencia | Tarea con avance fuera de secuencia |
 | [AVA-018](#ava-018) | Advertencia | Fecha de estado que no es fin de mes |
 
 #### AVA-001
@@ -1663,51 +1493,19 @@ El Comienzo real o el Fin real de la tarea es posterior a la fecha de estado.
 
 **Qué hacer:** Corregir la fecha real o la fecha de estado.
 
-#### AVA-009
-
-**Tarea atrasada sin terminar** · Advertencia · validar · se puede silenciar
-
-El Fin de la tarea es anterior a la fecha de estado y la tarea no está terminada.
-
-**Qué hacer:** Registrar el avance o reprogramar el trabajo pendiente después de la fecha de estado.
-
-#### AVA-010
-
-**Tarea sin comenzar con Comienzo pasado** · Advertencia · validar · se puede silenciar
-
-El Comienzo de la tarea es anterior a la fecha de estado y no tiene avance ni Comienzo real.
-
-**Qué hacer:** Registrar el avance o reprogramar la tarea después de la fecha de estado.
-
 #### AVA-011
 
 **Trabajo pendiente antes de la fecha de estado** · Advertencia · validar · se puede silenciar
 
-Algunas tareas tienen trabajo pendiente programado antes de la fecha de estado: el cronograma no está actualizado.
+Tareas sin terminar con trabajo programado antes de la fecha de estado: su Fin es anterior a la fecha de estado, o no tienen avance ni Comienzo real y su Comienzo es anterior. El cronograma no está actualizado. Un resumen con la cantidad y una línea por tarea.
 
-**Qué hacer:** Registrar el avance o reprogramar el trabajo pendiente (Proyecto > Actualizar proyecto).
-
-#### AVA-012
-
-**Tareas que debían comenzar y no comenzaron** · Info · validar · se puede silenciar
-
-Según la línea base, algunas tareas debían comenzar a la fecha de estado y no comenzaron.
-
-**Qué hacer:** Revisar el atraso de esas tareas.
+**Qué hacer:** Registrar el avance o reprogramar el trabajo pendiente después de la fecha de estado (Proyecto > Actualizar proyecto).
 
 #### AVA-013
 
-**Índice de ejecución de la línea base (BEI)** · Advertencia o Info · validar · se puede silenciar
+**Tareas atrasadas respecto de la línea base** · Advertencia o Info · validar · se puede silenciar
 
-Tareas terminadas frente a las que debían terminar a la fecha de estado según la línea base. Solo cuentan las tareas terminadas que tienen línea base (el mensaje indica cuántas terminadas no la tienen). Es una advertencia si es menor que 0,95 (criterio DCMA).
-
-**Qué hacer:** Revisar las tareas sin terminar que lista el mensaje.
-
-#### AVA-014
-
-**Tareas incumplidas respecto de la línea base** · Advertencia o Info · validar · se puede silenciar
-
-De las tareas que debían terminar a la fecha de estado según la línea base, las que no terminaron o terminaron después de su fin de línea base. Es una advertencia si superan el 5 % (criterio DCMA).
+Según la línea base, las tareas que debían terminar a la fecha de estado y no terminaron o terminaron después de su fin de línea base, y las que debían comenzar y no comenzaron. Es una advertencia si el índice de ejecución de la línea base (BEI) es menor que 0,95 o si las tareas incumplidas superan el 5 % (criterios DCMA): los dos índices están en la evaluación DCMA (puntos 14 y 11). El BEI solo cuenta las tareas terminadas que tienen línea base (el mensaje indica cuántas terminadas no la tienen).
 
 **Qué hacer:** Revisar el atraso de las tareas que lista el mensaje.
 
@@ -1715,7 +1513,7 @@ De las tareas que debían terminar a la fecha de estado según la línea base, l
 
 **Índice de longitud del camino crítico (CPLI)** · Advertencia o Info · validar · se puede silenciar
 
-Días laborables que quedan hasta el fin previsto del proyecto, más la holgura frente al fin de la línea base, divididos por los días que quedan. Menor que 1 indica que el fin previsto es posterior al de la línea base; es una advertencia si es menor que 0,95 (criterio DCMA).
+Días laborables que quedan hasta el fin previsto del proyecto, más la holgura frente al fin de la línea base, divididos por los días que quedan. Menor que 1 indica que el fin previsto es posterior al de la línea base; es una advertencia si es menor que 0,95 (criterio DCMA). El mensaje indica los días que quedan y el atraso; el índice está en la evaluación DCMA (punto 13).
 
 **Qué hacer:** Revisar las tareas críticas: con un CPLI bajo, cumplir el fin de la línea base exige recuperar el atraso en el trabajo que queda.
 
@@ -1723,17 +1521,9 @@ Días laborables que quedan hasta el fin previsto del proyecto, más la holgura 
 
 **Avance fuera de secuencia** · Advertencia · validar · se puede silenciar
 
-Resumen de [AVA-017](#ava-017): tareas con avance que su vínculo con la predecesora no permite todavía (p. ej. la sucesora comenzó y la predecesora fin a comienzo no terminó). Las fechas y la holgura del trabajo que queda pueden no ser realistas.
+Tareas con avance que su vínculo con la predecesora todavía no permite: la tarea tiene avance (o está terminada) y su predecesora no terminó (vínculo fin a comienzo o fin a fin) o no comenzó (comienzo a comienzo o comienzo a fin). Las fechas y la holgura del trabajo que queda pueden no ser realistas. Los vínculos con adelanto no se revisan ([LOG-006](#log-006)). Un resumen y una línea por tarea.
 
-**Qué hacer:** Corregir el avance registrado o el vínculo, si ya no representa la secuencia real del trabajo.
-
-#### AVA-017
-
-**Tarea con avance fuera de secuencia** · Advertencia · validar · se puede silenciar
-
-Detalle de [AVA-016](#ava-016): la tarea tiene avance y su predecesora no terminó (vínculo fin a comienzo o fin a fin) o no comenzó (comienzo a comienzo o comienzo a fin). Los vínculos con adelanto no se revisan ([LOG-006](#log-006)).
-
-**Qué hacer:** Corregir el avance de la tarea o de su predecesora, o el vínculo.
+**Qué hacer:** Corregir el avance registrado de la tarea o de su predecesora, o el vínculo, si ya no representa la secuencia real del trabajo.
 
 #### AVA-018
 
@@ -1752,24 +1542,18 @@ Vínculos, delimitaciones, holgura y duración de las tareas, según los criteri
 | Código | Severidad | Descripción |
 |---|---|---|
 | [LOG-001](#log-001) | Advertencia | Cronograma sin vínculos |
-| [LOG-002](#log-002) | Advertencia | Tareas sin predecesoras o sin sucesoras *(retirado)* |
-| [LOG-003](#log-003) | Advertencia | Tarea sin predecesoras ni sucesoras |
-| [LOG-004](#log-004) | Advertencia | Tarea sin predecesoras |
-| [LOG-005](#log-005) | Advertencia | Tarea sin sucesoras |
+| [LOG-003](#log-003) | Advertencia | Tarea sin predecesoras o sin sucesoras |
 | [LOG-006](#log-006) | Advertencia | Vínculo con adelanto |
 | [LOG-007](#log-007) | Advertencia | Vínculo comienzo a fin (CF) |
 | [LOG-008](#log-008) | Advertencia o Info | Vínculos con posición positiva |
 | [LOG-009](#log-009) | Advertencia | Pocos vínculos fin a comienzo |
 | [LOG-010](#log-010) | Advertencia | Tarea resumen con vínculos |
 | [LOG-011](#log-011) | Advertencia | Tareas con delimitaciones |
-| [LOG-012](#log-012) | Advertencia | Tarea con delimitación |
 | [LOG-013](#log-013) | Advertencia o Info | Tareas con holgura alta |
 | [LOG-014](#log-014) | Advertencia | Tareas con holgura negativa |
-| [LOG-015](#log-015) | Advertencia | Tarea con holgura negativa |
 | [LOG-016](#log-016) | Advertencia o Info | Tareas de duración alta |
 | [LOG-017](#log-017) | Advertencia | Varias rutas críticas |
 | [LOG-018](#log-018) | Advertencia | Vínculos con otras planificaciones |
-| [LOG-019](#log-019) | Advertencia | Tarea vinculada con otra planificación |
 
 #### LOG-001
 
@@ -1779,37 +1563,13 @@ Las fechas no se recalculan cuando cambian las duraciones o el avance.
 
 **Qué hacer:** Vincular las tareas (cada tarea con al menos una predecesora y una sucesora).
 
-#### LOG-002
-
-**Tareas sin predecesoras o sin sucesoras** · Advertencia · validar · se puede silenciar · retirado en la versión 2.6.0
-
-Hasta la versión 2.5, contaba en un resumen las tareas de [LOG-003](#log-003) a [LOG-005](#log-005), con su % de las tareas sin terminar, y repetía lo que informan esos códigos y el punto 1 de la evaluación DCMA. Desde la versión 2.6.0, cada tarea se informa solo con [LOG-003](#log-003), [LOG-004](#log-004) o [LOG-005](#log-005), y el % está en el punto 1 de la evaluación DCMA.
-
-**Qué hacer:** Ninguna.
-
 #### LOG-003
 
-**Tarea sin predecesoras ni sucesoras** · Advertencia · validar · se puede silenciar
+**Tarea sin predecesoras o sin sucesoras** · Advertencia · validar · se puede silenciar
 
-Tarea de detalle sin terminar a la que le faltan las predecesoras y las sucesoras: sus fechas no dependen de la lógica del cronograma. Un vínculo de su tarea resumen cuenta como suyo. Cuenta para el punto 1 de la evaluación DCMA (hasta 5 % de las tareas sin terminar).
+Tarea de detalle sin terminar a la que le faltan las predecesoras, las sucesoras o las dos (el mensaje indica cuáles): sus fechas no dependen de la lógica del cronograma o su fin no afecta a ninguna otra tarea. No les faltan predecesoras a las que comienzan con el proyecto y tienen sucesoras, ni sucesoras a las que terminan con el proyecto y tienen predecesoras; un vínculo de su tarea resumen cuenta como suyo. Cuenta para el punto 1 de la evaluación DCMA (hasta 5 % de las tareas sin terminar).
 
-**Qué hacer:** Vincular la tarea.
-
-#### LOG-004
-
-**Tarea sin predecesoras** · Advertencia · validar · se puede silenciar
-
-Tarea de detalle sin terminar a la que solo le faltan las predecesoras: su comienzo no depende de otra tarea. No les faltan a las que comienzan con el proyecto y tienen sucesoras, y un vínculo de su tarea resumen cuenta como suyo. Cuenta para el punto 1 de la evaluación DCMA (hasta 5 % de las tareas sin terminar).
-
-**Qué hacer:** Agregar una predecesora.
-
-#### LOG-005
-
-**Tarea sin sucesoras** · Advertencia · validar · se puede silenciar
-
-Tarea de detalle sin terminar a la que solo le faltan las sucesoras: su fin no afecta a ninguna otra tarea. No les faltan a las que terminan con el proyecto y tienen predecesoras, y un vínculo de su tarea resumen cuenta como suyo. Cuenta para el punto 1 de la evaluación DCMA (hasta 5 % de las tareas sin terminar).
-
-**Qué hacer:** Agregar una sucesora.
+**Qué hacer:** Vincular la tarea: agregar la predecesora o la sucesora que le falta.
 
 #### LOG-006
 
@@ -1831,7 +1591,7 @@ Es un tipo de vínculo poco habitual.
 
 **Vínculos con posición positiva** · Advertencia o Info · validar · se puede silenciar
 
-Una espera fija oculta trabajo que conviene representar como tarea. El mensaje indica los vínculos de la posición más larga a la más corta, con su valor y la predecesora. Es una advertencia si superan el 5 % de los vínculos (criterio DCMA).
+Una espera fija oculta trabajo que conviene representar como tarea. El mensaje indica los vínculos de la posición más larga a la más corta, con su valor y la predecesora. Es una advertencia si superan el 5 % de los vínculos (criterio DCMA; el % está en la evaluación DCMA, punto 3).
 
 **Qué hacer:** Reemplazar las esperas por tareas, si representan trabajo.
 
@@ -1839,7 +1599,7 @@ Una espera fija oculta trabajo que conviene representar como tarea. El mensaje i
 
 **Pocos vínculos fin a comienzo** · Advertencia · validar · se puede silenciar
 
-Menos del 90 % de los vínculos son fin a comienzo (FC) (criterio DCMA).
+Menos del 90 % de los vínculos son fin a comienzo (FC) (criterio DCMA; el % está en la evaluación DCMA, punto 4). El mensaje indica cuántos vínculos son de cada otro tipo y las tareas que los tienen.
 
 **Qué hacer:** Revisar los vínculos de otro tipo.
 
@@ -1855,15 +1615,7 @@ Los vínculos de una tarea resumen ocultan la lógica de sus tareas de detalle.
 
 **Tareas con delimitaciones** · Advertencia · validar · se puede silenciar
 
-Las delimitaciones que fijan fechas (Debe comenzar el, No finalizar después del...) impiden que la lógica mueva esas tareas (DCMA: hasta 5 %).
-
-**Qué hacer:** Usar «Lo antes posible» y, si hace falta, una fecha límite.
-
-#### LOG-012
-
-**Tarea con delimitación** · Advertencia · validar · se puede silenciar
-
-Detalle de [LOG-011](#log-011): la delimitación de la tarea.
+Las delimitaciones que fijan fechas (Debe comenzar el, No finalizar después del...) impiden que la lógica mueva esas tareas (DCMA: hasta 5 % de las tareas sin terminar, punto 5). Un resumen y una línea por tarea, con su delimitación.
 
 **Qué hacer:** Usar «Lo antes posible» y, si hace falta, una fecha límite.
 
@@ -1871,7 +1623,7 @@ Detalle de [LOG-011](#log-011): la delimitación de la tarea.
 
 **Tareas con holgura alta** · Advertencia o Info · validar · se puede silenciar
 
-Tareas sin terminar con más de 44 días laborables de holgura total: suele indicar vínculos que faltan. Es una advertencia si superan el 5 % de las tareas sin terminar (criterio DCMA).
+Tareas sin terminar con más de 44 días laborables de holgura total: suele indicar vínculos que faltan. Es una advertencia si superan el 5 % de las tareas sin terminar (criterio DCMA; el % está en la evaluación DCMA, punto 6).
 
 **Qué hacer:** Revisar las sucesoras de esas tareas: la holgura alta desaparece al vincularlas con el trabajo que depende de ellas.
 
@@ -1879,23 +1631,15 @@ Tareas sin terminar con más de 44 días laborables de holgura total: suele indi
 
 **Tareas con holgura negativa** · Advertencia · validar · se puede silenciar
 
-Resumen de [LOG-015](#log-015): tareas sin terminar cuyo fin previsto supera una fecha límite o una delimitación. La evaluación DCMA no admite holgura negativa.
+Tareas sin terminar cuyo fin previsto supera una fecha límite o una delimitación. La evaluación DCMA no admite holgura negativa (punto 7). Un resumen y una línea por tarea, con su holgura total.
 
-**Qué hacer:** Recuperar el atraso (cambiar la secuencia o la duración del trabajo que queda) o revisar la fecha límite.
-
-#### LOG-015
-
-**Tarea con holgura negativa** · Advertencia · validar · se puede silenciar
-
-Detalle de [LOG-014](#log-014): la holgura total de la tarea.
-
-**Qué hacer:** Revisar las predecesoras de la tarea y su fecha límite o delimitación.
+**Qué hacer:** Recuperar el atraso (cambiar la secuencia o la duración del trabajo que queda) o revisar las fechas límite y las delimitaciones de esas tareas y de sus predecesoras.
 
 #### LOG-016
 
 **Tareas de duración alta** · Advertencia o Info · validar · se puede silenciar
 
-Tareas sin terminar con más de 44 días laborables de duración en la línea base (sin los hitos ni las filas LOE): son difíciles de seguir y de medir. Es una advertencia si superan el 5 % de las tareas sin terminar (criterio DCMA).
+Tareas sin terminar con más de 44 días laborables de duración en la línea base (sin los hitos ni las filas LOE): son difíciles de seguir y de medir. Es una advertencia si superan el 5 % de las tareas sin terminar (criterio DCMA; el % está en la evaluación DCMA, punto 8).
 
 **Qué hacer:** Dividir esas tareas en tareas más cortas, con entregables intermedios.
 
@@ -1911,17 +1655,9 @@ La opción Calcular varias rutas críticas de MS Project está activada: cada ca
 
 **Vínculos con otras planificaciones** · Advertencia · validar · se puede silenciar
 
-Resumen de [LOG-019](#log-019). Con una planificación (p. ej. INTERNO), algunas de sus tareas están vinculadas con tareas activas de fuera de ella (otra planificación del mismo archivo), y las planificaciones no son independientes. MS Project calcula con esos vínculos las fechas, la holgura y las tareas críticas de la planificación, pero los controles de lógica (DCMA) y de avance fuera de secuencia solo cuentan los vínculos entre tareas de la planificación: una tarea cuya única sucesora es de otra planificación se informa sin sucesoras. El mensaje indica cuántas tareas se quedarían sin predecesoras o sin sucesoras al quitarlos.
+Con una planificación (p. ej. INTERNO), algunas de sus tareas están vinculadas con tareas activas de fuera de ella (otra planificación del mismo archivo), y las planificaciones no son independientes. MS Project calcula con esos vínculos las fechas, la holgura y las tareas críticas de la planificación, pero los controles de lógica (DCMA) y de avance fuera de secuencia solo cuentan los vínculos entre tareas de la planificación: una tarea cuya única sucesora es de otra planificación se informa sin sucesoras. Un resumen, que indica cuántas tareas se quedarían sin predecesoras o sin sucesoras al quitarlos, y una línea por tarea, con las tareas de otras planificaciones con que está vinculada.
 
-**Qué hacer:** Si las planificaciones deben ser independientes, completar la lógica propia de cada una y quitar esos vínculos en MS Project. Si deben estar vinculadas (p. ej. una replica a la otra), silenciar [LOG-018](#log-018) y [LOG-019](#log-019).
-
-#### LOG-019
-
-**Tarea vinculada con otra planificación** · Advertencia · validar · se puede silenciar
-
-Detalle de [LOG-018](#log-018): las tareas de otras planificaciones de las que la tarea es predecesora o sucesora.
-
-**Qué hacer:** Quitar el vínculo, después de dar a la tarea una predecesora o una sucesora de su planificación.
+**Qué hacer:** Si las planificaciones deben ser independientes, completar la lógica propia de cada una y quitar esos vínculos en MS Project. Si deben estar vinculadas (p. ej. una replica a la otra), silenciar [LOG-018](#log-018).
 
 ---
 
@@ -2273,8 +2009,6 @@ Hoja PV-depuración, su traslado con `--migrar-desde` y la revisión del plan de
 | [DEP-007](#dep-007) | Info | Previsión pasada al formato con EDT interna |
 | [DEP-008](#dep-008) | Advertencia o Info | Meses de la previsión desplazados |
 | [DEP-009](#dep-009) | Info | Previsión pasada al formato con la columna EAC |
-| [DEP-010](#dep-010) | Info o Advertencia | Reparto del plan de costes conservado *(retirado)* |
-| [DEP-011](#dep-011) | Advertencia | Reparto del plan de costes no combinado *(retirado)* |
 | [DEP-012](#dep-012) | Error (detiene el programa) | Libro sin depuración de costes |
 | [DEP-013](#dep-013) | Error (detiene el programa) | Plan de costes sin líneas leídas |
 | [DEP-014](#dep-014) | Advertencia | Líneas de EDT cliente sin leer |
@@ -2360,22 +2094,6 @@ Cambió el mes 1 del horizonte: los meses de la hoja PV-depuración se desplazar
 **Previsión pasada al formato con la columna EAC** · Info · generar con depuracion_costes (hoja Validación) · se puede silenciar
 
 La hoja PV-depuración del libro anterior (versión 2.4) no tenía la columna EAC: se agregó con la suma de los meses de cada línea, y los meses empiezan en la columna G.
-
-**Qué hacer:** Ninguna.
-
-#### DEP-010
-
-**Reparto del plan de costes conservado** · Info o Advertencia · generar `--migrar-desde` (hoja Validación) · se puede silenciar · retirado en la versión 2.6.0
-
-Hasta la versión 2.5, `--migrar-desde` conservaba en el libro nuevo el % planificado de las filas procesadas con procesar-costes. Desde la versión 2.6.0, procesar-costes no modifica el % planificado y `--migrar-desde` lo vuelve a calcular con MS Project (ver [DEP-020](#dep-020)).
-
-**Qué hacer:** Ninguna.
-
-#### DEP-011
-
-**Reparto del plan de costes no combinado** · Advertencia · generar `--migrar-desde` (hoja Validación) · se puede silenciar · retirado en la versión 2.6.0
-
-Hasta la versión 2.5, se informaba la fila nueva que reunía varias filas procesadas con procesar-costes. Desde la versión 2.6.0, el % planificado de todas las filas se calcula con MS Project (ver [DEP-020](#dep-020)).
 
 **Qué hacer:** Ninguna.
 
@@ -3353,3 +3071,45 @@ Error del sistema de archivos: disco lleno, unidad de red no disponible, ruta no
 Un error previsto (archivo, permisos o datos) sin un código propio en este catálogo.
 
 **Qué hacer:** Leer el mensaje; si no es claro, volver a ejecutar con -v e informar el problema.
+
+---
+
+## 5. Códigos retirados
+
+Códigos que el programa ya no muestra. No se reutilizan: un código de un informe o de un libro anterior
+sigue significando lo mismo. Si se indica uno en `silenciar`, se informa con `CFG-047` y se ignora; se debe
+reemplazar por el código que lo informa ahora.
+
+| Código | Descripción | Retirado en | Se informa con | Motivo |
+|---|---|---|---|---|
+| <a id="lec-011"></a>LEC-011 | No se encontró el campo de método | 2.6.0 | [LEC-010](#lec-010) | Desde la versión 2.6.0, todo campo de la configuración que no se encuentra en el proyecto se informa con [LEC-010](#lec-010). |
+| <a id="lec-012"></a>LEC-012 | No se encontró el campo de peso de hitos | 2.6.0 | [LEC-010](#lec-010) | Desde la versión 2.6.0, todo campo de la configuración que no se encuentra en el proyecto se informa con [LEC-010](#lec-010). |
+| <a id="lec-013"></a>LEC-013 | No se encontró el campo Visible | 2.6.0 | [LEC-010](#lec-010) | Desde la versión 2.6.0, todo campo de la configuración que no se encuentra en el proyecto se informa con [LEC-010](#lec-010). |
+| <a id="lec-014"></a>LEC-014 | No se encontró el campo de descripción | 2.6.0 | [LEC-010](#lec-010) | Desde la versión 2.6.0, todo campo de la configuración que no se encuentra en el proyecto se informa con [LEC-010](#lec-010). |
+| <a id="lec-015"></a>LEC-015 | No se encontró el campo de empresa | 2.6.0 | [LEC-010](#lec-010) | Desde la versión 2.6.0, todo campo de la configuración que no se encuentra en el proyecto se informa con [LEC-010](#lec-010). |
+| <a id="lec-016"></a>LEC-016 | No se encontró el campo de reparto | 2.6.0 | [LEC-010](#lec-010) | Desde la versión 2.6.0, todo campo de la configuración que no se encuentra en el proyecto se informa con [LEC-010](#lec-010). |
+| <a id="lec-020"></a>LEC-020 | Ningún hito tiene peso | 2.6.0 | [LEC-019](#lec-019) | Desde la versión 2.6.0, todo campo de la configuración vacío en todas las tareas se informa con [LEC-019](#lec-019). |
+| <a id="lec-021"></a>LEC-021 | Campo de empresa vacío | 2.6.0 | [LEC-019](#lec-019) | Desde la versión 2.6.0, todo campo de la configuración vacío en todas las tareas se informa con [LEC-019](#lec-019). |
+| <a id="lec-023"></a>LEC-023 | Campo de reparto vacío | 2.6.0 | - | Hasta la versión 2.5, en multi-empresa, se avisaba cuando el campo de reparto existía, pero estaba vacío en todas las tareas. Desde la versión 2.6.0 no se avisa: una tarea compartida (ambas) sin reparto se reparte con reparto_por_defecto, como está previsto. |
+| <a id="edt-004"></a>EDT-004 | Mismo código EDT que la tarea superior | 2.6.0 | [EDT-005](#edt-005) | Desde la versión 2.6.0, un código EDT igual al de la tarea superior se informa con [EDT-005](#edt-005): tampoco depende del de la tarea superior. |
+| <a id="edt-014"></a>EDT-014 | Código de la lista EDT sin tarea | 2.6.0 | [EDT-013](#edt-013) | Desde la versión 2.6.0, el resumen y cada código de la lista se informan con [EDT-013](#edt-013). |
+| <a id="vis-008"></a>VIS-008 | Tarea con Visible = No | 2.6.0 | [VIS-007](#vis-007) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [VIS-007](#vis-007). |
+| <a id="fec-002"></a>FEC-002 | Fin anterior al comienzo | 2.6.0 | [FEC-001](#fec-001) | Desde la versión 2.6.0, el fin anterior al comienzo, en la línea base o en el programa actual, se informa con [FEC-001](#fec-001). |
+| <a id="fec-007"></a>FEC-007 | Duración estimada | 2.6.0 | [FEC-006](#fec-006) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [FEC-006](#fec-006). |
+| <a id="fec-011"></a>FEC-011 | Tarea sin fechas de línea base | 2.6.0 | [FEC-010](#fec-010) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [FEC-010](#fec-010). |
+| <a id="fec-014"></a>FEC-014 | Tarea resumen con la línea base sin resumir | 2.6.0 | [FEC-013](#fec-013) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [FEC-013](#fec-013). |
+| <a id="fec-016"></a>FEC-016 | Líneas base incompletas | 2.6.0 | [FEC-015](#fec-015) | Desde la versión 2.6.0, el resumen de las líneas base incompletas y cada tarea se informan con [FEC-015](#fec-015). |
+| <a id="emp-004"></a>EMP-004 | Tarea sin empresa | 2.6.0 | [EMP-003](#emp-003) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [EMP-003](#emp-003). |
+| <a id="ava-009"></a>AVA-009 | Tarea atrasada sin terminar | 2.6.0 | [AVA-011](#ava-011) | Desde la versión 2.6.0, cada tarea con trabajo pendiente antes de la fecha de estado se informa con [AVA-011](#ava-011), como su resumen. |
+| <a id="ava-010"></a>AVA-010 | Tarea sin comenzar con Comienzo pasado | 2.6.0 | [AVA-011](#ava-011) | Desde la versión 2.6.0, cada tarea con trabajo pendiente antes de la fecha de estado se informa con [AVA-011](#ava-011), como su resumen. |
+| <a id="ava-012"></a>AVA-012 | Tareas que debían comenzar y no comenzaron | 2.6.0 | [AVA-013](#ava-013) | Desde la versión 2.6.0, las tareas atrasadas respecto de la línea base (las que debían comenzar o terminar) se informan juntas con [AVA-013](#ava-013). |
+| <a id="ava-014"></a>AVA-014 | Tareas incumplidas respecto de la línea base | 2.6.0 | [AVA-013](#ava-013) | Desde la versión 2.6.0, las tareas atrasadas respecto de la línea base (las que debían comenzar o terminar) se informan juntas con [AVA-013](#ava-013), y el % de tareas incumplidas está en la evaluación DCMA (punto 11). |
+| <a id="ava-017"></a>AVA-017 | Tarea con avance fuera de secuencia | 2.6.0 | [AVA-016](#ava-016) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [AVA-016](#ava-016). |
+| <a id="log-002"></a>LOG-002 | Tareas sin predecesoras o sin sucesoras | 2.6.0 | [LOG-003](#log-003) | Hasta la versión 2.5, contaba en un resumen las tareas sin predecesoras o sin sucesoras, con su % de las tareas sin terminar. Desde la versión 2.6.0, cada tarea se informa con [LOG-003](#log-003), y el % está en el punto 1 de la evaluación DCMA. |
+| <a id="log-004"></a>LOG-004 | Tarea sin predecesoras | 2.6.0 | [LOG-003](#log-003) | Desde la versión 2.6.0, toda tarea sin predecesoras o sin sucesoras se informa con [LOG-003](#log-003). |
+| <a id="log-005"></a>LOG-005 | Tarea sin sucesoras | 2.6.0 | [LOG-003](#log-003) | Desde la versión 2.6.0, toda tarea sin predecesoras o sin sucesoras se informa con [LOG-003](#log-003). |
+| <a id="log-012"></a>LOG-012 | Tarea con delimitación | 2.6.0 | [LOG-011](#log-011) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [LOG-011](#log-011). |
+| <a id="log-015"></a>LOG-015 | Tarea con holgura negativa | 2.6.0 | [LOG-014](#log-014) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [LOG-014](#log-014). |
+| <a id="log-019"></a>LOG-019 | Tarea vinculada con otra planificación | 2.6.0 | [LOG-018](#log-018) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [LOG-018](#log-018). |
+| <a id="dep-010"></a>DEP-010 | Reparto del plan de costes conservado | 2.6.0 | - | Hasta la versión 2.5, `--migrar-desde` conservaba en el libro nuevo el % planificado de las filas procesadas con procesar-costes. Desde la versión 2.6.0, procesar-costes no modifica el % planificado y `--migrar-desde` lo vuelve a calcular con MS Project (ver [DEP-020](#dep-020)). |
+| <a id="dep-011"></a>DEP-011 | Reparto del plan de costes no combinado | 2.6.0 | - | Hasta la versión 2.5, se informaba la fila nueva que reunía varias filas procesadas con procesar-costes. Desde la versión 2.6.0, el % planificado de todas las filas se calcula con MS Project (ver [DEP-020](#dep-020)). |

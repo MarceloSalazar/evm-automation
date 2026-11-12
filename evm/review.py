@@ -5,7 +5,8 @@ El informe es un documento Markdown con las observaciones agrupadas por priorida
 media: las de la calidad del cronograma, que solo revisa validar; baja: las informativas), cada una con la causa y
 qué hacer del catálogo de mensajes. No incluye nombres de tareas, de empresas ni de calendarios, ni el título del
 proyecto: las tareas se identifican por su código EDT o, sin código, por su UniqueID. Los textos de las observaciones
-generales se incluyen sin esos nombres.
+generales se incluyen sin esos nombres. Las observaciones informativas que describen la estructura (FACT_CODES) no se
+listan como mejoras: sus datos están en el resumen.
 """
 from __future__ import annotations
 
@@ -29,6 +30,9 @@ PRIORITY_TEXT = {
     PRIORITY_MEDIUM: "advertencias de la calidad del cronograma (línea base, avance y lógica), que solo revisa validar",
     PRIORITY_LOW: "observaciones informativas",
 }
+# Informativas que describen la estructura del libro: no son mejoras y sus datos están en el resumen (tareas
+# inactivas, planificación, filas «Otras tareas», tareas sumadas en su fila superior, Visible = No y líneas base)
+FACT_CODES = ("EDT-016", "EDT-017", "EDT-018", "EDT-022", "VIS-007", "LEC-024")
 
 
 @dataclass
@@ -89,8 +93,10 @@ class Facts:
     reviewed: int = 0
     rows: int = 0
     inputs: int = 0
+    residual: int = 0                   # filas «Otras tareas» (-D)
+    aggregated: int = 0                 # tareas sumadas en la fila de su elemento superior
     baselines: dict[int, int] = field(default_factory=dict)
-    not_rolled_up: int = 0              # tareas resumen con la línea base sin resumir (FEC-014)
+    not_rolled_up: int = 0              # tareas resumen con la línea base sin resumir (FEC-013)
     links_in: int = 0                   # vínculos entre tareas de la planificación
     links_out: int = 0                  # vínculos con tareas de otras planificaciones
     critical: str = "-"                 # % de tareas de detalle sin terminar que son críticas
@@ -122,7 +128,9 @@ def facts(part: ReportPart, issues: list[Issue], label: str = "", status: date |
         for n in t.baselines:
             out.baselines[n] = out.baselines.get(n, 0) + 1
     out.baselines = dict(sorted(out.baselines.items()))
-    out.not_rolled_up = sum(1 for i in issues if i.id == "FEC-014")
+    out.residual = sum(1 for r in part.rows if r.kind == KIND_RESIDUAL)
+    out.aggregated = part.aggregated
+    out.not_rolled_up = sum(1 for i in issues if i.id == "FEC-013" and (i.code or i.uid is not None))
     by_uid = {t.uid: t for t in project.tasks}
     inside = {t.uid for t in every}
     for t in project.tasks:
@@ -165,6 +173,8 @@ def facts_table(items: list[Facts]) -> list[tuple[str, list[str]]]:
         ("Tareas activas con Visible = No", [n(f.hidden) for f in items]),
         ("Tareas revisadas", [n(f.reviewed) for f in items]),
         ("Filas del libro (de ingreso)", [f"{n(f.rows)} ({n(f.inputs)})" for f in items]),
+        ("Filas «Otras tareas» (-D)", [n(f.residual) for f in items]),
+        ("Tareas sumadas en la fila de su elemento superior", [n(f.aggregated) for f in items]),
         ("Tareas con comienzo en cada línea base", [bl(f) for f in items]),
         ("Tareas resumen con la línea base sin resumir", [n(f.not_rolled_up) for f in items]),
         ("Vínculos entre sus tareas", [n(f.links_in) for f in items]),
@@ -256,11 +266,25 @@ def _md(text: str) -> str:
     return text.replace("|", "\\|").replace("\n", " ")
 
 
+def _where_lines(tasks: list[Issue]) -> list[str]:
+    """Líneas «Dónde» de un código: una por caso (variant) si el código tiene varios casos (p. ej. LOG-003: sin
+    predecesoras, sin sucesoras o sin ninguna)."""
+    variants = list(dict.fromkeys(i.variant for i in tasks))
+    if variants == [""]:
+        return [f"- **Dónde:** {_where(tasks)}"]
+    out = []
+    for v in variants:
+        group = [i for i in tasks if i.variant == v]
+        out.append(f"- **Dónde ({v or 'otros casos'}, {plural(len(group), 'tarea', 'tareas')}):** {_where(group)}")
+    return out
+
+
 def _improvements(issues: list[Issue], clean: Callable[[str], str], level: str) -> list[str]:
     out: list[str] = []
     by_priority: dict[str, dict[str, list[Issue]]] = {p: {} for p in PRIORITIES}
     for i in issues:
-        by_priority[priority(i)].setdefault(i.id, []).append(i)
+        if i.id not in FACT_CODES:
+            by_priority[priority(i)].setdefault(i.id, []).append(i)
     for p in PRIORITIES:
         codes = by_priority[p]
         out += [f"{level} Prioridad {p.lower()}", ""]
@@ -268,7 +292,7 @@ def _improvements(issues: list[Issue], clean: Callable[[str], str], level: str) 
             out += ["Sin observaciones.", ""]
             continue
         out += [f"*{PRIORITY_TEXT[p][0].upper() + PRIORITY_TEXT[p][1:]}.*", ""]
-        # Los errores primero; después, por código (cada resumen junto a su detalle: FEC-013 y FEC-014...)
+        # Los errores primero; después, por código (cada código reúne su resumen y sus tareas)
         order = sorted(codes.items(), key=lambda kv: (kv[1][0].severity != SEV_ERROR, kv[0]))
         for code, found in order:
             entry = CATALOG.get(code)
@@ -281,7 +305,7 @@ def _improvements(issues: list[Issue], clean: Callable[[str], str], level: str) 
             count = f"{len(tasks)} {'tarea' if len(tasks) == 1 else 'tareas'}" if tasks else "general"
             out.append(f"- **{severity}** · {count}")
             if tasks:
-                out.append(f"- **Dónde:** {_where(tasks)}")
+                out += _where_lines(tasks)
             for i in general[:3]:
                 out.append(f"- **Observación:** {_md(clean(i.message))}")
             if entry is not None:
@@ -317,7 +341,8 @@ def write_report(path: str | Path, units: list[Unit], cfg: Config, version: str,
 
     lines = ["# Informe de mejoras del cronograma", "",
              "| | |", "|---|---|",
-             f"| **Revisión** | `validar` del Exportador EVM {version}, el {date.today():%d/%m/%Y} |",
+             f"| **Fecha** | {datetime.now():%d/%m/%Y %H:%M} |",
+             f"| **Versión** | Exportador EVM {version} · `validar --informe` |",
              f"| **Archivo** | {engine} |",
              f"| **Revisado** | {', '.join(labels)} |",
              f"| **Línea base** | {projects[0].baseline_label} |", "",
@@ -329,22 +354,28 @@ def write_report(path: str | Path, units: list[Unit], cfg: Config, version: str,
     for name, values in facts_table(all_facts):
         lines.append(f"| {name} | " + " | ".join(values) + " |")
     lines.append("")
-    top = [(u.title, i) for u in units for i in u.issues if priority(i) == PRIORITY_HIGH]
-    counts: dict[tuple[str, str], int] = {}
-    for title, i in top:
-        counts[(title, i.id)] = counts.get((title, i.id), 0) + 1
+    # Por código: tareas (las observaciones de una tarea) y observaciones generales
+    counts: dict[tuple[str, str], list[int]] = {}
+    for u in units:
+        for i in u.issues:
+            if priority(i) == PRIORITY_HIGH and i.id not in FACT_CODES:
+                c = counts.setdefault((u.title, i.id), [0, 0])
+                c[0 if (i.code or i.uid is not None) else 1] += 1
     if counts:
-        lines += ["**Mejoras de prioridad alta** (las que más observaciones tienen):", ""]
-        for (title, code), n in sorted(counts.items(), key=lambda kv: -kv[1])[:8]:
+        lines += ["**Mejoras de prioridad alta** (las que más tareas u observaciones tienen):", ""]
+        for (title, code), (tasks, general) in sorted(counts.items(), key=lambda kv: -(kv[1][0] or kv[1][1]))[:8]:
             entry = CATALOG.get(code)
             where = f" en {title}" if len(units) > 1 else ""
-            lines.append(f"- `{code}` {entry.title if entry else ''}: {n} {'observación' if n == 1 else 'observaciones'}"
-                         f"{where}.")
+            what = plural(tasks, "tarea", "tareas") if tasks else plural(general, "observación", "observaciones")
+            lines.append(f"- `{code}` {entry.title if entry else ''}: {what}{where}.")
         lines.append("")
 
     lines += ["---", "", "## 2. Mejoras por prioridad", "",
               "Cada código se explica en [Códigos de errores y advertencias]"
-              "(https://github.com/MarceloSalazar/evm-automation/blob/main/docs/codigos.md).", ""]
+              "(https://github.com/MarceloSalazar/evm-automation/blob/main/docs/codigos.md). Las observaciones "
+              f"informativas de la estructura ({', '.join(f'`{c}`' for c in FACT_CODES)}) no se repiten aquí: sus "
+              "datos están en el resumen. Los índices DCMA (% y umbrales) están en la evaluación DCMA (sección 3).",
+              ""]
     for u in units:
         level = "###"
         if len(units) > 1:

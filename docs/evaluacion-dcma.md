@@ -77,17 +77,17 @@ contratos del gobierno de EE. UU. no son obligatorios; se usan como buena práct
 
 | # | Punto | Qué mide | Criterio DCMA | `validar` | Código |
 |---|---|---|---|---|---|
-| 1 | Lógica | Tareas sin terminar sin predecesoras o sin sucesoras | Hasta 5 % | Sí | [LOG-003](codigos.md#log-003) a [LOG-005](codigos.md#log-005), una vez por tarea ([LOG-001](codigos.md#log-001) sin vínculos) |
+| 1 | Lógica | Tareas sin terminar sin predecesoras o sin sucesoras | Hasta 5 % | Sí | [LOG-003](codigos.md#log-003), una vez por tarea ([LOG-001](codigos.md#log-001) sin vínculos) |
 | 2 | Adelantos | Vínculos con posición negativa | Ninguno | Sí | [LOG-006](codigos.md#log-006) |
 | 3 | Posiciones | Vínculos con posición positiva (esperas) | Hasta 5 % de los vínculos | Sí | [LOG-008](codigos.md#log-008) |
 | 4 | Tipos de vínculo | Vínculos fin a comienzo (FC) | Al menos 90 % | Sí | [LOG-009](codigos.md#log-009) ([LOG-007](codigos.md#log-007) para los CF) |
-| 5 | Delimitaciones rígidas | Tareas sin terminar con delimitaciones que fijan sus fechas | Hasta 5 % | Sí | [LOG-011](codigos.md#log-011) y [LOG-012](codigos.md#log-012) |
+| 5 | Delimitaciones rígidas | Tareas sin terminar con delimitaciones que fijan sus fechas | Hasta 5 % | Sí | [LOG-011](codigos.md#log-011) |
 | 6 | Holgura alta | Tareas sin terminar con más de 44 días laborables de holgura total | Hasta 5 % | Sí | [LOG-013](codigos.md#log-013) |
-| 7 | Holgura negativa | Tareas sin terminar con holgura total negativa | Ninguna | Sí | [LOG-014](codigos.md#log-014) y [LOG-015](codigos.md#log-015) |
+| 7 | Holgura negativa | Tareas sin terminar con holgura total negativa | Ninguna | Sí | [LOG-014](codigos.md#log-014) |
 | 8 | Duración alta | Tareas sin terminar con más de 44 días laborables de duración en la línea base | Hasta 5 % | Sí | [LOG-016](codigos.md#log-016) |
-| 9 | Fechas no válidas | Fechas reales posteriores a la fecha de estado y fechas previstas anteriores a ella | Ninguna | Sí | [AVA-008](codigos.md#ava-008); [AVA-009](codigos.md#ava-009) a [AVA-011](codigos.md#ava-011) |
+| 9 | Fechas no válidas | Fechas reales posteriores a la fecha de estado y fechas previstas anteriores a ella | Ninguna | Sí | [AVA-008](codigos.md#ava-008) y [AVA-011](codigos.md#ava-011) |
 | 10 | Recursos | Tareas con duración sin recursos ni costo | Ninguna (si el cronograma tiene recursos) | No aplica | — |
-| 11 | Tareas incumplidas | Tareas que debían terminar según la línea base y no terminaron, o terminaron tarde | Hasta 5 % | Sí | [AVA-014](codigos.md#ava-014) |
+| 11 | Tareas incumplidas | Tareas que debían terminar según la línea base y no terminaron, o terminaron tarde | Hasta 5 % | Sí | [AVA-013](codigos.md#ava-013) |
 | 12 | Prueba del camino crítico | Un atraso en una tarea crítica mueve el fin del proyecto lo mismo | Debe cumplirse | No (prueba manual) | — |
 | 13 | CPLI | Eficiencia necesaria para terminar en la fecha de la línea base | Al menos 0,95 | Sí | [AVA-015](codigos.md#ava-015) |
 | 14 | BEI | Tareas terminadas frente a las que debían terminar según la línea base | Al menos 0,95 | Sí | [AVA-013](codigos.md#ava-013) |
@@ -97,7 +97,10 @@ contratos del gobierno de EE. UU. no son obligatorios; se usan como buena práct
 
 En los puntos con un umbral en %, la observación es una **advertencia** si se supera el umbral y una
 **informativa** si hay casos pero quedan dentro del umbral. En los puntos sin tolerancia (adelantos,
-holgura negativa, fechas no válidas), cada caso es una advertencia o un error.
+holgura negativa, fechas no válidas), cada caso es una advertencia o un error. El valor de cada punto (%
+o índice) y su umbral están solo en la tabla de la evaluación: las observaciones indican las tareas y los
+vínculos que hay que revisar, sin repetirlos. Los puntos 11 y 14 comparten una observación
+([AVA-013](codigos.md#ava-013)): las tareas atrasadas respecto de la línea base.
 
 ---
 
@@ -112,9 +115,8 @@ holgura negativa, fechas no válidas), cada caso es una advertencia o un error.
   en un hito que perdió sus vínculos). Un vínculo de una tarea resumen cuenta para sus subtareas, aunque
   se recomienda vincular las tareas de detalle ([LOG-010](codigos.md#log-010)).
 - **Cómo se informa:** el % y la cantidad de tareas sin predecesoras y sin sucesoras, en la tabla de la
-  evaluación. Cada tarea, una vez, con lo que le falta: predecesoras y sucesoras
-  ([LOG-003](codigos.md#log-003)), solo predecesoras ([LOG-004](codigos.md#log-004)) o solo sucesoras
-  ([LOG-005](codigos.md#log-005)).
+  evaluación. Cada tarea, una vez, con lo que le falta: predecesoras y sucesoras, solo predecesoras o solo
+  sucesoras ([LOG-003](codigos.md#log-003)).
 - **Qué hacer:** cada tarea con al menos una predecesora y una sucesora, y cada rama del cronograma
   vinculada hasta el hito de fin. Sin vínculos, MS Project no mueve las fechas cuando cambian las
   duraciones o el avance.
@@ -186,8 +188,8 @@ holgura negativa, fechas no válidas), cada caso es una advertencia o un error.
   - *Comienzo real* o *Fin real* posteriores a la fecha de estado: avance registrado en el futuro
     ([AVA-008](codigos.md#ava-008), error);
   - trabajo pendiente programado antes de la fecha de estado: tareas sin terminar con *Fin* anterior a
-    ella ([AVA-009](codigos.md#ava-009)) o sin avance con *Comienzo* anterior a ella
-    ([AVA-010](codigos.md#ava-010)), resumidas en [AVA-011](codigos.md#ava-011).
+    ella o sin avance con *Comienzo* anterior a ella ([AVA-011](codigos.md#ava-011): un resumen y una
+    línea por tarea).
 - **Qué hacer:** corregir las fechas reales y reprogramar el trabajo pendiente después de la fecha de
   estado (*Proyecto > Actualizar proyecto*, opción para reprogramar el trabajo no completado). Sin eso,
   el fin previsto del proyecto no es una previsión realista.
@@ -203,10 +205,11 @@ tratar este punto como informativo, porque no todos los cronogramas tienen recur
 
 - **Qué cuenta:** de las tareas cuyo fin de línea base es anterior o igual a la fecha de estado, las que
   no terminaron, o que terminaron con un *Fin real* posterior a su fin de línea base. El mensaje separa
-  las dos causas y lista las tareas.
+  las dos causas y lista las tareas ([AVA-013](codigos.md#ava-013)).
 - **Relación con el BEI (punto 14):** el BEI compara cantidades (cuántas terminaron frente a cuántas
   debían terminar) y da por buena una tarea terminada tarde. Este punto mide el cumplimiento de cada tarea.
-  [AVA-012](codigos.md#ava-012) (informativa) lista además las tareas que debían **comenzar** y no comenzaron.
+  La misma observación lista además las tareas que debían **comenzar** y no comenzaron (sin repetir las
+  que tampoco terminaron).
 
 ### 4.12 Prueba del camino crítico (punto 12)
 
@@ -245,7 +248,8 @@ CPLI = (días que quedan + holgura del proyecto) / días que quedan
 - **Ejemplo:** quedan 100 días laborables y el fin previsto está 5 días atrasado: CPLI = (100 − 5) / 100
   = 0,95, en el límite. Con 20 días de atraso, 0,80: hay que recuperar 20 días en los 100 que quedan.
 - No se calcula sin fecha de estado, sin línea base o sin trabajo pendiente después de la fecha de
-  estado.
+  estado. El índice está en la tabla de la evaluación; la observación
+  ([AVA-015](codigos.md#ava-015)) indica los días que quedan y el atraso o el adelanto.
 
 > Las herramientas de análisis de cronogramas suelen usar la holgura del hito de fin frente a la fecha
 > contractual. Si esa fecha es una **fecha límite** del hito de fin igual al fin de la línea base, el
@@ -256,8 +260,9 @@ CPLI = (días que quedan + holgura del proyecto) / días que quedan
 - **Qué cuenta:** tareas terminadas con línea base (también las que terminaron antes de lo previsto)
   dividido por las tareas que debían terminar a la fecha de estado según la línea base. Una tarea
   terminada sin línea base (por ejemplo, agregada después de guardarla) no estaba en el plan con el que
-  se compara y no cuenta: el mensaje indica cuántas hay. Es informativa si llega a 0,95 y una advertencia
-  si no; el mensaje lista las tareas que debían terminar y no terminaron.
+  se compara y no cuenta: el mensaje indica cuántas hay. El índice está en la tabla de la evaluación; la
+  observación de las tareas atrasadas ([AVA-013](codigos.md#ava-013), común con el punto 11) es una
+  advertencia si el BEI no llega a 0,95 y lista las tareas que debían terminar y no terminaron.
 
 ---
 
@@ -268,11 +273,11 @@ métricas DECM) y las guías de buenas prácticas incluyen:
 
 | Control | Código | Por qué |
 |---|---|---|
-| Avance fuera de secuencia: la tarea comenzó (o terminó) antes de lo que permite el vínculo con su predecesora | [AVA-016](codigos.md#ava-016) y [AVA-017](codigos.md#ava-017) | El avance contradice la lógica: las fechas y la holgura del trabajo que queda pueden no ser realistas. Se corrige el avance o el vínculo. |
+| Avance fuera de secuencia: la tarea comenzó (o terminó) antes de lo que permite el vínculo con su predecesora | [AVA-016](codigos.md#ava-016) | El avance contradice la lógica: las fechas y la holgura del trabajo que queda pueden no ser realistas. Se corrige el avance o el vínculo. |
 | Fechas reales incoherentes (*Fin real* sin *Comienzo real*, invertidas, 100 % sin *Fin real*...) | [AVA-001](codigos.md#ava-001) a [AVA-005](codigos.md#ava-005) | El avance mal registrado distorsiona el % ganado y los índices. |
 | Tareas resumen con vínculos | [LOG-010](codigos.md#log-010) | Ocultan la lógica de las tareas de detalle. |
 | Vínculos comienzo a fin (CF) | [LOG-007](codigos.md#log-007) | Tipo de vínculo poco habitual y difícil de seguir. |
-| Proyecto o tareas sin línea base | [FEC-009](codigos.md#fec-009) a [FEC-011](codigos.md#fec-011) | Sin línea base no hay PV ni puntos 8, 11, 13 y 14. |
+| Proyecto o tareas sin línea base | [FEC-009](codigos.md#fec-009) y [FEC-010](codigos.md#fec-010) | Sin línea base no hay PV ni puntos 8, 11, 13 y 14. |
 | Duraciones estimadas y tareas programadas manualmente | [FEC-006](codigos.md#fec-006) a [FEC-008](codigos.md#fec-008) | Una duración sin confirmar define el % planificado; una tarea manual no se reprograma con la lógica: en un cronograma integrado no debería haber ninguna (advertencia). |
 | Método de medición frente a la duración del paquete | [MET-004](codigos.md#met-004) | 0/100 y fórmulas fijas solo en paquetes cortos (1 y 2 meses por defecto). |
 
@@ -302,7 +307,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --fecha-corte 2
 - Se recomienda ejecutar `validar` antes de `generar` (con la línea base recién guardada: puntos 1 a 8)
   y antes de cada `actualizar` (con el avance cargado: todos los puntos).
 - Un control que no aplica al proyecto, o una observación ya revisada, se puede silenciar con
-  `[validacion] silenciar` o `--silenciar` (por ejemplo `LOG-013`, o `LOG-015:1.2.1` para una sola
+  `[validacion] silenciar` o `--silenciar` (por ejemplo `LOG-013`, o `LOG-014:1.2.1` para una sola
   tarea) ([Silenciar observaciones](codigos.md#2-silenciar-observaciones)).
 - Los controles DCMA son advertencias o informativas: no cambian el código de salida de `validar`,
   salvo el avance registrado en el futuro ([AVA-008](codigos.md#ava-008)), que es un error.

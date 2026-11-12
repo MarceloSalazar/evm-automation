@@ -57,14 +57,19 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 - **Proyecto sin línea base:** el aviso indica las otras líneas base guardadas y cómo usarlas, y la
   consola de `generar` lo muestra siempre primero
   ([Validaciones](docs/validaciones-y-problemas.md#14-línea-base-validar)).
+- **Menos códigos en la revisión:** cada problema tiene un solo código, con una observación general y una
+  por tarea, y los casos parecidos se informan con el mismo código; el informe de mejoras indica la fecha y
+  la versión, deja las informativas de la estructura en el resumen y los índices DCMA en su tabla
+  ([Códigos](docs/codigos.md#5-códigos-retirados)).
 
 **Correcciones**
 
 - **`procesar-costes` ya no reemplaza el % planificado de MS Project:** el plan de costes se compara con él
   ([Depuración de costes](docs/depuracion-costes.md#8-revisión-y-cálculos-del-plan-procesar-costes)).
 - **Menos avisos repetidos o innecesarios:** `validar` informa las tareas sin predecesoras o sin sucesoras
-  sin un aviso de resumen que las repita, y una tarea de las dos empresas sin `% Reparto` ya no genera un
-  aviso: usa el reparto por defecto
+  sin un aviso de resumen que las repita, un campo de la configuración vacío ya no se informa también
+  fila por fila o tarea por tarea, y una tarea de las dos empresas sin `% Reparto` ya no genera un aviso:
+  usa el reparto por defecto
   ([Validaciones](docs/validaciones-y-problemas.md)).
 - **Índices y fecha de estado más precisos:** el BEI cuenta solo las tareas terminadas con línea base, el
   último día laborable del mes cierra el mes, una tarea sin vínculos en el comienzo del proyecto se informa
@@ -78,6 +83,9 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 - Instalador de Windows adjunto a la publicación, con las funciones de las versiones 2.5.0 y 2.6.0.
 - El método `Avance lineal (LOE)` se llama `Avance lineal`; el nombre anterior se sigue reconociendo
   ([Métodos de medición](docs/metodos-de-medicion.md#37-avance-lineal)).
+- Desde una copia del repositorio que no está en una versión publicada, la versión se indica como
+  `2.5.0 + desarrollo (b513fbb)`: la última versión publicada y el commit
+  ([Comandos](docs/comandos.md#informe-de-mejoras)).
 
 ### Nuevas funciones
 
@@ -133,10 +141,11 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   tiene la disposición de la plantilla de la empresa: el plan empieza en la celda **A12** (antes, A8) y
   los controles están en A2:C4. `--migrar-desde` pasa el plan de un libro anterior a la celda A12 y
   traslada los recargos; `procesar-costes` pide regenerar los libros con el plan desde A8 (`DEP-024`).
-- **Línea base que no corresponde a la tarea (`generar` y `validar`).** Códigos nuevos `FEC-018`, un hito
-  con duración en la línea base (pesa entero en el mes del fin de la línea base, sin su duración), y
-  `FEC-019`, una tarea de 5 días laborables o más con una línea base de un día o menos (pesa como una tarea
-  de un día). Suele pasar cuando la línea base se guardó antes de que la tarea tuviera su forma actual
+- **Línea base que no corresponde a la tarea (`generar` y `validar`).** `FEC-004` (hito con duración)
+  revisa también la línea base: un hito con duración en la línea base pesa entero en el mes del fin de la
+  línea base, sin su duración. Código nuevo `FEC-018`: una tarea de 5 días laborables o más con una línea
+  base de un día o menos (pesa como una tarea de un día). Suele pasar cuando la línea base se guardó antes
+  de que la tarea tuviera su forma actual
   ([Validaciones](docs/validaciones-y-problemas.md#11-datos-del-libro-generar-y-validar)).
 - **Fechas de estado distintas en `[[proyectos]]` (`generar` y `validar`).** Código nuevo `CFG-056`: los
   archivos tienen fechas de estado distintas, o alguno no tiene. Hasta ahora solo lo indicaba `actualizar`,
@@ -155,6 +164,41 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 - **Esperas de la más larga a la más corta (`LOG-008`).** El aviso de los vínculos con posición positiva
   los lista de la posición más larga a la más corta, con su valor (días laborables, días transcurridos o
   en %) y la predecesora ([Evaluación DCMA](docs/evaluacion-dcma.md#43-posiciones-punto-3)).
+- **Un código por problema.** Los códigos de `validar` y de la hoja `Validación` se unificaron: cada
+  problema tiene un solo código, con una observación general (cuántas tareas) y una por tarea, y los casos
+  parecidos comparten código; el mensaje indica el caso. 27 códigos se retiraron y se informan con otro
+  ([Códigos retirados](docs/codigos.md#5-códigos-retirados)):
+  - resumen y detalle con el mismo código: `FEC-007` en `FEC-006`, `FEC-011` en `FEC-010`, `FEC-014` en
+    `FEC-013`, `FEC-016` en `FEC-015`, `EMP-004` en `EMP-003`, `VIS-008` en `VIS-007`, `EDT-014` en
+    `EDT-013`, `AVA-009` y `AVA-010` en `AVA-011`, `AVA-017` en `AVA-016`, `LOG-012` en `LOG-011`, `LOG-015`
+    en `LOG-014` y `LOG-019` en `LOG-018`;
+  - el mismo hecho en dos controles: `AVA-012` y `AVA-014` en `AVA-013` (tareas atrasadas respecto de la
+    línea base: las que debían terminar o comenzar), `EDT-004` en `EDT-005` (código que no depende del de
+    la tarea superior, también si es el mismo), `LOG-004` y `LOG-005` en `LOG-003` (tarea sin predecesoras
+    o sin sucesoras) y `FEC-002` en `FEC-001` (fin anterior al comienzo, en la línea base o en el programa
+    actual);
+  - campos de la configuración: `LEC-011` a `LEC-016` en `LEC-010` (no se encontró el campo) y `LEC-020` y
+    `LEC-021` en `LEC-019` (campo vacío en todas las tareas). Con el campo de método vacío o sin encontrar,
+    las filas sin método ya no se informan también con `MET-005`; con el de empresa, las tareas sin empresa
+    ya no se informan también con `EMP-003`.
+
+  Un código retirado en `silenciar` no silencia nada: se informa con `CFG-047`, que indica el código que
+  lo informa ahora. Los mensajes de `validar` ya no repiten el % de la evaluación DCMA ni su umbral: están
+  en la tabla de la evaluación; `LOG-009` indica cuántos vínculos son de cada otro tipo y sus tareas, y
+  `AVA-015`, los días que quedan y el atraso. `docs/codigos.md` lista los códigos retirados en una tabla
+  final, con el código que los informa.
+- **Informe de mejoras (`validar --informe`).** Indica la fecha y la hora de la revisión y la versión del
+  programa. Las informativas que solo describen la estructura (`EDT-016`, `EDT-017`, `EDT-018`, `EDT-022`,
+  `VIS-007` y `LEC-024`) no se listan como mejoras: el resumen tiene sus datos, con dos filas nuevas (filas
+  «Otras tareas» y tareas sumadas en la fila de su elemento superior). Las tareas de un código con varios
+  casos se agrupan por caso (por ejemplo, `LOG-003` sin predecesoras y sin sucesoras), y las mejoras de
+  prioridad alta del resumen se ordenan por la cantidad de tareas
+  ([Comandos](docs/comandos.md#informe-de-mejoras)).
+- **Versión de desarrollo.** Al ejecutar desde una copia del repositorio que no está en una versión
+  publicada, la consola, `--version`, el registro de diagnóstico, el libro y el informe de mejoras indican la
+  última versión publicada y el commit, como lo muestra GitHub: `2.5.0 + desarrollo (b513fbb)` (con
+  `, con cambios locales` si hay cambios sin confirmar). El instalador y una copia en una versión publicada
+  indican su número.
 
 ### Correcciones
 
@@ -168,20 +212,20 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   (`DEP-020`). Códigos `DEP-010` y `DEP-011` retirados.
 - **Tareas sin vínculos sin un resumen repetido (`validar`).** Las tareas sin terminar sin predecesoras o
   sin sucesoras se contaban en un aviso de resumen (`LOG-002`) que repetía lo que informa la línea de cada
-  tarea (`LOG-003` a `LOG-005`) y el punto 1 de la tabla de la evaluación DCMA. Ahora cada tarea se informa
-  solo en su línea, con lo que le falta: predecesoras y sucesoras (`LOG-003`), solo predecesoras (`LOG-004`)
-  o solo sucesoras (`LOG-005`), y el % de las tareas sin terminar sigue en el punto 1 de la tabla
+  tarea y el punto 1 de la tabla de la evaluación DCMA. Ahora cada tarea se informa solo en su línea
+  (`LOG-003`), con lo que le falta: predecesoras y sucesoras, solo predecesoras o solo sucesoras, y el % de
+  las tareas sin terminar sigue en el punto 1 de la tabla
   ([Evaluación DCMA](docs/evaluacion-dcma.md#41-lógica-punto-1)). Código `LOG-002` retirado.
 - **Sin aviso por `% Reparto` vacío (multi-empresa).** `generar` y `validar` ya no avisan cuando el campo
   de reparto existe, pero está vacío en todas las tareas: una tarea `Ambas` sin reparto se reparte con
   `reparto_por_defecto` (50 % por defecto), como está previsto
   ([Multi-empresa](docs/multiempresa.md#7-validaciones-y-controles)). Código `LEC-023` retirado.
-- **BEI con las tareas terminadas sin línea base (`AVA-013`).** El índice contaba en el numerador todas las
+- **BEI con las tareas terminadas sin línea base.** El índice contaba en el numerador todas las
   tareas terminadas, también las que no tienen línea base (por ejemplo, agregadas después de guardarla), y
   podía superar 1 aunque faltaran tareas por terminar. Ahora cuenta solo las terminadas con línea base, e
   indica cuántas terminadas no la tienen
   ([Evaluación DCMA](docs/evaluacion-dcma.md#414-bei-punto-14)).
-- **Tarea sin vínculos en el comienzo del proyecto (`LOG-003` y `LOG-004`).** No se avisaba que le faltaban
+- **Tarea sin vínculos en el comienzo del proyecto (`LOG-003`).** No se avisaba que le faltaban
   las predecesoras a ninguna tarea que comenzara el día del comienzo del proyecto, y una tarea sin vínculos
   queda justamente ahí (por ejemplo, un hito que perdió sus vínculos). Ahora solo no necesita predecesoras
   la tarea que comienza con el proyecto y tiene sucesoras, y solo no necesita sucesoras la que termina con

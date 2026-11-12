@@ -309,7 +309,7 @@ def silence_list(value, key: str) -> list[str]:
     if isinstance(value, str):
         value = value.split(",")
     if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
-        raise ConfigError("CFG-004", f"'{key}' debe ser una lista de códigos, p. ej. [\"FEC-003\", \"LOG-004\"].")
+        raise ConfigError("CFG-004", f"'{key}' debe ser una lista de códigos, p. ej. [\"FEC-003\", \"LOG-003\"].")
     return [x.strip() for x in value if x.strip()]
 
 

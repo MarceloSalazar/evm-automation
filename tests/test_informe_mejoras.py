@@ -1,6 +1,6 @@
 """validar como revisión de mejoras: informe de mejoras (--informe, sin nombres), evaluación DCMA, varias
 planificaciones con su comparación y controles: fin previsto fuera del horizonte (CFG-052), líneas base incompletas
-(FEC-015, FEC-016), tareas con calendario propio (FEC-017) y vínculos con otras planificaciones (LOG-018, LOG-019)."""
+(FEC-015), tareas con calendario propio (FEC-017) y vínculos con otras planificaciones (LOG-018)."""
 from datetime import date, datetime
 
 import pytest
@@ -11,6 +11,7 @@ from evm.messages import SEV_ERROR, SEV_INFO, SEV_WARN, Issue
 from evm.reader_xml import read_xml
 from evm.review import PRIORITY_HIGH, PRIORITY_LOW, PRIORITY_MEDIUM, priority, sanitizer
 from evm.validation import validate_part
+from evm.version import version_label
 from evm.wbs import build_report
 
 from builders import P, T, by_name, tree
@@ -51,8 +52,8 @@ def test_incomplete_baseline_of_a_detail_task():
 
 
 def test_incomplete_baselines_summary_in_validar(tmp_path):
-    """FEC-016 (validar): tareas resumen y de detalle con solo una fecha en la línea base usada y, con XML, en las
-    demás líneas base."""
+    """FEC-015 (resumen de validar): tareas resumen y de detalle con solo una fecha en la línea base usada y, con XML,
+    en las demás líneas base."""
     path = write_xml(tmp_path / "p.xml", project_xml([
         task_xml(1, 1, "Fase", wbs="1", start=S, finish=F, baselines=[(0, S, None, 0)],
                  extra="<Summary>1</Summary>"),
@@ -61,7 +62,7 @@ def test_incomplete_baselines_summary_in_validar(tmp_path):
     ]))
     p = read_xml(path, Config())
     assert [t.incomplete_baselines for t in p.tasks] == [(0,), (1,), ()]
-    [issue] = ids(validate_part(p, Config()).checks, "FEC-016")
+    [issue] = [i for i in ids(validate_part(p, Config()).checks, "FEC-015") if not i.code]
     assert issue.message.startswith("2 tareas tienen una línea base incompleta, con solo el comienzo o solo el fin "
                                     "(Línea base: 1 tarea y Línea base 1: 1 tarea): 1.0.0, 1.1.0.")
 
@@ -194,6 +195,12 @@ def test_validar_report_has_no_names(tmp_path, capsys):
     assert "| 1. Lógica (sin predecesoras o sucesoras) |" in text
     for name in SECRET:
         assert name not in text, name
+    assert f"| **Versión** | Exportador EVM {version_label()} · `validar --informe` |" in text
+    assert f"| **Fecha** | {date.today():%d/%m/%Y} " in text
+    # Las informativas de la estructura no son mejoras: sus datos están en el resumen
+    assert "| Filas «Otras tareas» (-D) |" in text and "| Tareas sumadas en la fila de su elemento superior |" in text
+    for code in ("EDT-016", "EDT-017", "EDT-018", "EDT-022", "VIS-007", "LEC-024"):
+        assert f"#### {code} ·" not in text, code
     assert main(["validar", "--origen", str(path), "--informe"]) == 2          # ya existe: CFG-042
     assert "CFG-042" in capsys.readouterr().err
     assert main(["validar", "--origen", str(path), "--planificacion", "INTERNO", "--informe", "--sobrescribir"]) \
@@ -225,3 +232,22 @@ def test_several_plans_only_in_validar(tmp_path, capsys, command):
         [str(tmp_path / c) if c.endswith(".xlsx") else c for c in command[1:]]
     assert main(cmd) == 2
     assert "CFG-053" in capsys.readouterr().err
+
+
+def test_report_groups_the_tasks_of_a_code_by_case_and_leaves_structure_codes_out():
+    """Un código con varios casos (LOG-003) lista sus tareas por caso; las informativas de la estructura no son
+    mejoras (sus datos están en el resumen)."""
+    from evm.review import _improvements
+    issues = [Issue("LOG-003", "1.1", "A", "Sin sucesoras.", variant="sin sucesoras"),
+              Issue("LOG-003", "1.2", "B", "Sin predecesoras.", variant="sin predecesoras"),
+              Issue("LOG-003", "1.3", "C", "Sin sucesoras.", variant="sin sucesoras"),
+              Issue("FEC-006", "", "", "2 tareas tienen duración estimada."),
+              Issue("FEC-006", "2.1", "D", "Duración estimada («?»)."),
+              Issue("EDT-022", message="3 tareas se agregaron en su elemento EDT superior."),
+              Issue("LEC-024", message="Líneas base guardadas.")]
+    text = "\n".join(_improvements(issues, lambda x: x, "###"))
+    assert "- **Dónde (sin sucesoras, 2 tareas):** `1.1`, `1.3`" in text
+    assert "- **Dónde (sin predecesoras, 1 tarea):** `1.2`" in text
+    assert "#### FEC-006 · Duración estimada" in text and "- **Dónde:** `2.1`" in text
+    assert "- **Observación:** 2 tareas tienen duración estimada." in text
+    assert "EDT-022" not in text and "LEC-024" not in text

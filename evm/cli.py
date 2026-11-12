@@ -21,12 +21,13 @@ from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
-from evm import __version__, progress
+from evm import progress
 from evm.config import Config, ConfigError, load_config, parse_date, parse_month
 from evm.fields import fmt_number
 from evm.messages import (SEV_ERROR, SEV_INFO, SEV_WARN, SUMMARY_ID, TARGET_DETAIL, TARGET_GENERAL, TARGET_OUT,
                           TARGET_ROW, TARGETS, EvmError, Issue, MissingFileError, Silence, by_priority, grouped,
                           parse_silence)
+from evm.version import version_label
 from evm.wbs import assemble_report, build_part, fmt_money, located, plural
 
 log = logging.getLogger("evm")
@@ -715,7 +716,7 @@ def cmd_validar(args) -> int:
     if report_path is not None:
         from evm.review import write_report
         engine = ("MS Project (.mpp)" if units[0].parts[0].source.project.backend == "com" else "XML de MS Project")
-        write_report(report_path, units, cfg, __version__, engine)
+        write_report(report_path, units, cfg, version_label(), engine)
         print(f"Informe de mejoras: {report_path.resolve()} (sin nombres de tareas). No se modificó ningún otro "
               "archivo.")
     else:
@@ -914,7 +915,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="evm_export",
         description="Exporta datos de MS Project a un libro Excel de Valor Ganado (PV mensual, EV, AC, curva S "
                     "e indicadores calculados en Excel).")
-    p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    p.add_argument("--version", action="version", version=f"%(prog)s {version_label()}")
     p.add_argument("-v", "--verbose", action="store_true", help="muestra mensajes de diagnóstico")
     p.add_argument("--registro", metavar="RUTA", help="escribe el registro de diagnóstico completo (con fecha y hora, "
                                                       "y el detalle de los errores) en el archivo indicado, para "
@@ -944,7 +945,7 @@ def build_parser() -> argparse.ArgumentParser:
     def silence_option(sp):
         sp.add_argument("--silenciar", action="append", metavar="CODIGOS",
                         help="códigos de las observaciones que no se muestran, separados por comas (p. ej. "
-                             "FEC-003,LOG-004 o MET-002:1.2.3 para una fila); se suman a [validacion] silenciar. "
+                             "FEC-003,LOG-003 o MET-002:1.2.3 para una fila); se suman a [validacion] silenciar. "
                              "Ver docs/codigos.md")
 
     g = sub.add_parser("generar", help="crea el libro Excel con el PV mensual a partir de MS Project")
@@ -1081,13 +1082,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING,
                         format="%(levelname)s %(name)s: %(message)s")
-    print(f"Exportador EVM {__version__}", flush=True)
+    print(f"Exportador EVM {version_label()}", flush=True)
     started = time.monotonic()
     log_file = None
     try:
         if args.registro:
             log_file = _LogFile(args.registro, args.verbose)
-            log.info("Exportador EVM %s; Python %s; %s", __version__, sys.version.split()[0], platform.platform())
+            log.info("Exportador EVM %s; Python %s; %s", version_label(), sys.version.split()[0], platform.platform())
             log.info("Argumentos: %s", sys.argv[1:] if argv is None else argv)
         code = args.func(args)
         if progress.bar_was_shown():          # consola interactiva: la barra se borró al terminar
