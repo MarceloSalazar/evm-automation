@@ -207,8 +207,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --config config
 Empieza con la **fecha y la hora** de la revisión y la **versión** del programa. Una versión publicada se
 indica con su número (`2.6.0`); al ejecutar desde una copia del repositorio que no está en una versión
 publicada, con la última versión publicada y el commit, como lo muestra GitHub: `2.5.0 + desarrollo
-(b513fbb)`, y `, con cambios locales` si hay cambios sin confirmar. La consola, `--version` y el libro
-indican la versión de la misma forma.
+(b513fbb)`. La consola, `--version` y el libro indican la versión de la misma forma.
 
 1. **Resumen:** las cifras de cada planificación o archivo (las de la comparación de arriba, más las
    filas «Otras tareas» y las tareas sumadas en la fila de su elemento superior) y las mejoras de

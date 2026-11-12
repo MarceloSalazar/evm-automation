@@ -37,8 +37,6 @@ def test_development_version_names_the_last_release_and_the_commit():
     """Fuera de una versión publicada: «2.5.0 + desarrollo (b513fbb)», con la última etiqueta vX.Y.Z y el commit."""
     assert version.describe("v2.6.0-0-gb513fbb") == "2.6.0"                       # en la versión publicada
     assert version.describe("v2.5.0-19-gb513fbb") == "2.5.0 + desarrollo (b513fbb)"
-    assert version.describe("v2.5.0-19-gb513fbb-dirty") == "2.5.0 + desarrollo (b513fbb, con cambios locales)"
-    assert version.describe("v2.6.0-0-gb513fbb-dirty") == "2.6.0 + desarrollo (b513fbb, con cambios locales)"
     assert version.describe("b513fbb") is None and version.describe("") is None
 
 

@@ -196,9 +196,8 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   ([Comandos](docs/comandos.md#informe-de-mejoras)).
 - **Versión de desarrollo.** Al ejecutar desde una copia del repositorio que no está en una versión
   publicada, la consola, `--version`, el registro de diagnóstico, el libro y el informe de mejoras indican la
-  última versión publicada y el commit, como lo muestra GitHub: `2.5.0 + desarrollo (b513fbb)` (con
-  `, con cambios locales` si hay cambios sin confirmar). El instalador y una copia en una versión publicada
-  indican su número.
+  última versión publicada y el commit, como lo muestra GitHub: `2.5.0 + desarrollo (b513fbb)`. El
+  instalador y una copia en una versión publicada indican su número.
 
 ### Correcciones
 
