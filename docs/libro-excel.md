@@ -57,13 +57,14 @@ Las tres hojas tienen la misma estructura:
 | B | Actividad (nombre de la tarea). |
 | C | Método de medición (lista desplegable; solo se edita en la hoja `PV`). |
 | D | BAC: presupuesto de la fila. Se ingresa a mano en la hoja `PV` (en multi-empresa, en `PV-EmpresaA` y `PV-EmpresaB`), en las celdas amarillas; las demás hojas lo toman de allí. |
-| E | Hojas `PV` y `% PV`: **Fecha inicio Plan (PV)**, comienzo más temprano de la línea base de las tareas de detalle que forman el % planificado de la fila (las que no tienen línea base, con sus fechas actuales); en una fila subtotal, el de sus filas. Hojas `EV`, `% EV` y `AC`: **Fecha inicio real o prevista (EV)**, comienzo más temprano de las tareas de detalle que forman el % ganado de la fila según la columna *Comienzo* de MS Project: el *Comienzo real* de las tareas comenzadas y el comienzo previsto de las demás. |
+| E | Hojas `PV` y `% PV`: **Fecha inicio Plan (PV)**, comienzo más temprano de la línea base de las tareas de detalle que forman el % planificado de la fila (las que no tienen línea base, con sus fechas actuales); en una fila subtotal, el de sus filas. Hojas `EV`, `% EV` y `AC`: **Fecha inicio real o prevista (EV)**, *Comienzo real* más temprano de las tareas de detalle que forman el % ganado de la fila; si ninguna comenzó, el comienzo previsto más temprano. Una vez comenzado el trabajo, queda fija. |
 | F | Hojas `PV` y `% PV`: **Fecha fin Plan (PV)**, fin más tardío de esas mismas tareas. Las dos fechas coinciden con los meses del % planificado, aunque la línea base de la tarea resumen no esté resumida (en MS Project la tarea resumen muestra otras fechas de línea base: [FEC-013](codigos.md#fec-013)) o la rama tenga tareas con `Visible = No`. Hojas `EV`, `% EV` y `AC`: **Fecha fin real o prevista (EV)**, fin más tardío de esas tareas según la columna *Fin* de MS Project: el *Fin real* de las terminadas y el fin previsto de las demás (el mismo *Fin previsto* de la hoja `Indicadores EDT`). Todas las filas tienen las dos fechas, como una tarea resumen de MS Project. |
 | G ... DV | Un mes por columna, del mes 1 al último mes del horizonte (`meses`; con 120, el valor por defecto, hasta la columna DV). Fila 3: número de mes; fila 4: fecha del mes. |
 | Al final | Columna **Total horizonte** (en la hoja `PV`, en rojo si no coincide con el BAC) y fila **TOTAL**. |
 
 Las fechas de las columnas E y F de las hojas `EV`, `% EV` y `AC` se leen de MS Project en cada `generar`
-y `actualizar` (las de la última lectura). La hoja `EV` tiene los valores; las hojas `% EV` y `AC` (y las
+y `actualizar` (las de la última lectura): el inicio pasa de previsto a real cuando comienza el trabajo y
+el fin es el previsto hasta que terminan todas las tareas de la fila. La hoja `EV` tiene los valores; las hojas `% EV` y `AC` (y las
 de cada empresa) los toman de ella. En los libros generados con versiones anteriores a la 2.7.0, esas
 hojas repetían las fechas del plan de la hoja `PV`: `actualizar` las reemplaza.
 

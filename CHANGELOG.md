@@ -30,11 +30,11 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   tiene avance pero no fecha de estado, no se carga y se avisa (`LIB-017`, nuevo)
   ([Del % acumulado al % del mes](docs/calculo-pv-ev.md#7-del--acumulado-al--del-mes)).
 - **Fechas de MS Project en las hojas `EV`, `% EV` y `AC`** (y en las de cada empresa): las columnas E y
-  F repetían las fechas del plan de la hoja `PV`. Ahora son *Fecha inicio real o prevista (EV)* y *Fecha
-  fin real o prevista (EV)*: el comienzo más temprano y el fin más tardío de las tareas de detalle de la
-  fila según las columnas *Comienzo* y *Fin* de MS Project (reales en las tareas comenzadas o terminadas,
-  previstas en las demás), en todas las filas. `generar` y `actualizar` las escriben con su lectura de MS
-  Project; `actualizar` convierte los libros de versiones anteriores
+  F repetían las fechas del plan de la hoja `PV`. Ahora son *Fecha inicio real o prevista (EV)* (el
+  comienzo real más temprano de las tareas de detalle de la fila, fijo una vez comenzado el trabajo, o el
+  previsto si ninguna comenzó) y *Fecha fin real o prevista (EV)* (el fin más tardío según la columna *Fin*
+  de MS Project: previsto hasta que terminan todas), en todas las filas. `generar` y cada `actualizar` las
+  escriben con su lectura de MS Project; `actualizar` convierte los libros de versiones anteriores
   ([Hojas PV, EV y AC](docs/libro-excel.md#2-hojas-pv-ev-y-ac)).
 - **Tareas sin código EDT dentro de un elemento EDT** (`EDT-023`, advertencia, nuevo): `validar` y la hoja
   `Validación` informan los hitos, actividades y tareas resumen sin código que dependen de un elemento

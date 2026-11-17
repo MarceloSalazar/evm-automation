@@ -75,8 +75,8 @@ def test_summary_rows_and_total_combine_their_rows():
 
 
 def test_row_dates_are_those_of_ms_project():
-    """Comienzo y fin de la fila como los de una tarea resumen de MS Project: el comienzo real de las tareas comenzadas
-    y el fin real de las terminadas; las demás, con sus fechas previstas."""
+    """Comienzo de la fila: el real más temprano de las tareas comenzadas (queda fijo) o, si ninguna comenzó, el
+    previsto. Fin: el más tardío de MS Project (real en las terminadas, previsto en las demás)."""
     a = T(1, 2, "1.1", "A", percent_complete=100.0, actual_start=datetime(2026, 3, 2, 8),
           actual_finish=datetime(2026, 3, 6, 17))
     b = T(2, 2, "1.2", "B", percent_complete=40.0, actual_start=datetime(2026, 3, 9, 8),
@@ -88,6 +88,11 @@ def test_row_dates_are_those_of_ms_project():
         datetime(2026, 4, 1, 8), datetime(2026, 4, 30, 17))
     done = row_schedule([a], CAL, DAY)
     assert (done.start, done.finish) == (datetime(2026, 3, 2, 8), datetime(2026, 3, 6, 17))
+    # Una tarea sin comenzar con un comienzo previsto anterior no cambia el comienzo de la fila ya comenzada
+    late = T(4, 2, "1.4", "D", start=datetime(2026, 2, 2, 8), finish=datetime(2026, 2, 27, 17))
+    assert row_schedule([a, late], CAL, DAY).start == datetime(2026, 3, 2, 8)
+    assert row_schedule([late], CAL, DAY).start == datetime(2026, 2, 2, 8)
+    assert combine([done, row_schedule([late], CAL, DAY)], CAL).start == datetime(2026, 3, 2, 8)
     # Fila resumen: el comienzo más temprano y el fin más tardío de sus filas
     parts = [done, row_schedule([c], CAL, DAY)]
     assert (combine(parts, CAL).start, combine(parts, CAL).finish) == (datetime(2026, 3, 2, 8),
@@ -209,7 +214,7 @@ def test_ev_ac_and_pct_ev_sheets_show_the_dates_of_ms_project(tmp_path):
     rows = {ev.cell(r, 1).value: r for r in range(5, 9)}
     assert date_columns(ev, rows["1.1"]) == (datetime(2026, 1, 12, 8), datetime(2026, 4, 1, 17))   # real, prevista
     assert date_columns(ev, rows["1.2"]) == (datetime(2026, 1, 5, 8), datetime(2026, 3, 27, 17))   # previstas
-    assert date_columns(ev, rows["1.0"]) == (datetime(2026, 1, 5, 8), datetime(2026, 4, 1, 17))
+    assert date_columns(ev, rows["1.0"]) == (datetime(2026, 1, 12, 8), datetime(2026, 4, 1, 17))  # comenzada
     assert date_columns(ev, rows["2.0"]) == (datetime(2026, 1, 7, 8), datetime(2026, 2, 27, 17))   # reales
     assert date_columns(wb["PV"], rows["2.0"]) == (datetime(2026, 1, 5, 8), datetime(2026, 2, 27, 17))
     r = rows["1.1"]
@@ -241,7 +246,7 @@ def test_actualizar_refreshes_ev_dates_and_converts_old_books(tmp_path):
     for name in ("EV", "% EV", "AC"):
         assert date_columns(wb[name], HEADER_ROW) == EV_DATES, name
     assert date_columns(ev, rows["1.1"]) == (datetime(2026, 1, 12, 8), datetime(2026, 3, 25, 17))
-    assert date_columns(ev, rows["1.0"]) == (datetime(2026, 1, 5, 8), datetime(2026, 3, 27, 17))   # 1.2 prevista
+    assert date_columns(ev, rows["1.0"]) == (datetime(2026, 1, 12, 8), datetime(2026, 3, 27, 17))  # 1.2 prevista
     assert wb["AC"].cell(rows["1.1"], COL_START).value == f"=IF('EV'!E{rows['1.1']}=\"\",\"\",'EV'!E{rows['1.1']})"
     assert date_columns(wb["PV"], HEADER_ROW) == PLAN_DATES
     # Plazo: el paquete terminado ya no tiene la holgura de la lectura anterior (0 al generar el libro)
