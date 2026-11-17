@@ -32,7 +32,7 @@ El BAC de cada fila se ingresa en la hoja `PV`, el PV y el EV son el BAC × el %
 | **PV** | Valor planificado: columnas A–F con la EDT y el BAC, y una columna por mes. El BAC se ingresa en la columna D (celdas amarillas) y cada mes es el BAC × el % planificado. |
 | **% PV** | % planificado de cada mes, que calcula `generar` desde MS Project. |
 | **EV** | Valor ganado de cada mes: el BAC × el % ganado. |
-| **% EV** | % ganado de cada mes, que calcula `actualizar`. |
+| **% EV** | % ganado de cada mes, que calcula `actualizar`. Si el archivo de MS Project ya tiene avance y fecha de estado, `generar` carga el de los meses hasta la fecha de estado ([Cálculo del PV y el EV](calculo-pv-ev.md#7-del--acumulado-al--del-mes)). |
 | **AC** | Costo real de cada mes (celdas amarillas), que se ingresa a mano. |
 | **PV-EmpresaA**, **% PV-EmpresaA**, **EV-EmpresaA**, **% EV-EmpresaA**, **AC-EmpresaA** y las de EmpresaB | Solo en multi-empresa: valores de cada empresa, en lugar de las hojas `% PV` y `% EV`. Las hojas `PV`, `EV` y `AC` son la suma de las dos ([Multi-empresa](multiempresa.md)). |
 | **Evolución mensual** | Tabla mensual del proyecto (datos de la curva S). |
@@ -57,15 +57,15 @@ Las tres hojas tienen la misma estructura:
 | B | Actividad (nombre de la tarea). |
 | C | Método de medición (lista desplegable; solo se edita en la hoja `PV`). |
 | D | BAC: presupuesto de la fila. Se ingresa a mano en la hoja `PV` (en multi-empresa, en `PV-EmpresaA` y `PV-EmpresaB`), en las celdas amarillas; las demás hojas lo toman de allí. |
-| E | Hojas `PV` y `% PV`: **Fecha inicio Plan (PV)**, comienzo más temprano de la línea base de las tareas de detalle que forman el % planificado de la fila (las que no tienen línea base, con sus fechas actuales); en una fila subtotal, el de sus filas. Hojas `EV`, `% EV` y `AC`: **Fecha inicio Real (EV)**, *Comienzo real* más temprano de las tareas de detalle que forman el % ganado de la fila; vacía si ninguna comenzó. |
-| F | Hojas `PV` y `% PV`: **Fecha fin Plan (PV)**, fin más tardío de esas mismas tareas. Las dos fechas coinciden con los meses del % planificado, aunque la línea base de la tarea resumen no esté resumida (en MS Project la tarea resumen muestra otras fechas de línea base: [FEC-013](codigos.md#fec-013)) o la rama tenga tareas con `Visible = No`. Hojas `EV`, `% EV` y `AC`: **Fecha fin Real (EV)**, *Fin real* más tardío, solo cuando todas esas tareas terminaron (como una tarea resumen de MS Project). |
+| E | Hojas `PV` y `% PV`: **Fecha inicio Plan (PV)**, comienzo más temprano de la línea base de las tareas de detalle que forman el % planificado de la fila (las que no tienen línea base, con sus fechas actuales); en una fila subtotal, el de sus filas. Hojas `EV`, `% EV` y `AC`: **Fecha inicio real o prevista (EV)**, comienzo más temprano de las tareas de detalle que forman el % ganado de la fila según la columna *Comienzo* de MS Project: el *Comienzo real* de las tareas comenzadas y el comienzo previsto de las demás. |
+| F | Hojas `PV` y `% PV`: **Fecha fin Plan (PV)**, fin más tardío de esas mismas tareas. Las dos fechas coinciden con los meses del % planificado, aunque la línea base de la tarea resumen no esté resumida (en MS Project la tarea resumen muestra otras fechas de línea base: [FEC-013](codigos.md#fec-013)) o la rama tenga tareas con `Visible = No`. Hojas `EV`, `% EV` y `AC`: **Fecha fin real o prevista (EV)**, fin más tardío de esas tareas según la columna *Fin* de MS Project: el *Fin real* de las terminadas y el fin previsto de las demás (el mismo *Fin previsto* de la hoja `Indicadores EDT`). Todas las filas tienen las dos fechas, como una tarea resumen de MS Project. |
 | G ... DV | Un mes por columna, del mes 1 al último mes del horizonte (`meses`; con 120, el valor por defecto, hasta la columna DV). Fila 3: número de mes; fila 4: fecha del mes. |
 | Al final | Columna **Total horizonte** (en la hoja `PV`, en rojo si no coincide con el BAC) y fila **TOTAL**. |
 
-Las fechas reales de las columnas E y F se leen de MS Project en cada `generar` y `actualizar` (las de la
-última lectura). La hoja `EV` tiene los valores; las hojas `% EV` y `AC` (y las de cada empresa) los
-toman de ella. En los libros generados con versiones anteriores a la 2.6.1, esas hojas repetían las
-fechas del plan de la hoja `PV`: `actualizar` las reemplaza por las fechas reales.
+Las fechas de las columnas E y F de las hojas `EV`, `% EV` y `AC` se leen de MS Project en cada `generar`
+y `actualizar` (las de la última lectura). La hoja `EV` tiene los valores; las hojas `% EV` y `AC` (y las
+de cada empresa) los toman de ella. En los libros generados con versiones anteriores a la 2.7.0, esas
+hojas repetían las fechas del plan de la hoja `PV`: `actualizar` las reemplaza.
 
 ![Hoja PV del proyecto de ejemplo](img/excel/pv.png)
 

@@ -20,21 +20,28 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 ### Nuevas funciones
 
-- Ninguna.
+- **% ganado hasta la fecha de estado al generar el libro:** si el archivo de MS Project ya tiene avance y
+  fecha de estado, `generar` carga el % ganado de cada mes (de cada empresa en multi-empresa) hasta la
+  fecha de estado, que pasa a ser la fecha de corte del `Resumen` (`LIB-016`, nuevo). El acumulado a la
+  fecha de estado es el de MS Project; el de los meses anteriores se reconstruye con las fechas reales:
+  exacto en las fórmulas fijas, los hitos ponderados y el avance lineal, y en línea recta desde el
+  comienzo real en el % completado y el % físico completado. Con `--migrar-desde` se conserva el del libro
+  anterior. Si el archivo tiene avance pero no fecha de estado, no se carga y se avisa (`LIB-017`, nuevo)
+  ([Del % acumulado al % del mes](docs/calculo-pv-ev.md#7-del--acumulado-al--del-mes)).
+- **Fechas de MS Project en las hojas `EV`, `% EV` y `AC`** (y en las de cada empresa): las columnas E y
+  F repetían las fechas del plan de la hoja `PV`. Ahora son *Fecha inicio real o prevista (EV)* y *Fecha
+  fin real o prevista (EV)*: el comienzo más temprano y el fin más tardío de las tareas de detalle de la
+  fila según las columnas *Comienzo* y *Fin* de MS Project (reales en las tareas comenzadas o terminadas,
+  previstas en las demás), en todas las filas. `generar` y `actualizar` las escriben con su lectura de MS
+  Project; `actualizar` convierte los libros de versiones anteriores
+  ([Hojas PV, EV y AC](docs/libro-excel.md#2-hojas-pv-ev-y-ac)).
+- **Tareas sin código EDT dentro de un elemento EDT** (`EDT-023`, advertencia, nuevo): `validar` y la hoja
+  `Validación` informan los hitos, actividades y tareas resumen sin código que dependen de un elemento
+  EDT. Se siguen sumando en su elemento, pero sin código no se identifican en la jerarquía ni se puede
+  comprobar su numeración. La documentación ya no dice que los hitos no necesitan código EDT.
 
 ### Correcciones
 
-- **Fechas reales en las hojas `EV`, `% EV` y `AC`** (y en las de cada empresa): esas hojas repetían en
-  las columnas E y F las fechas del plan de la hoja `PV`. Ahora son *Fecha inicio Real (EV)* (el
-  *Comienzo real* más temprano de las tareas de detalle de la fila) y *Fecha fin Real (EV)* (el *Fin
-  real* más tardío, solo cuando todas terminaron, como una tarea resumen de MS Project). `generar` y
-  `actualizar` las escriben con su lectura de MS Project; `actualizar` convierte los libros de versiones
-  anteriores ([Hojas PV, EV y AC](docs/libro-excel.md#2-hojas-pv-ev-y-ac)).
-- **Hitos y actividades sin código EDT:** la documentación decía que los hitos de un paquete no necesitan
-  código EDT. Ahora llevan su código, de un nivel más que el paquete, y `validar` y la hoja `Validación`
-  informan con `EDT-023` (advertencia, nuevo) las tareas sin código que dependen de un elemento EDT
-  (hitos, actividades o tareas resumen). Se siguen sumando en su elemento, pero sin código no se
-  identifican en la jerarquía ni se puede comprobar su numeración.
 - `actualizar` dejaba en la hoja `Indicadores EDT` y en la sección de plazo del `Resumen` el valor de la
   lectura anterior cuando el nuevo quedaba vacío (por ejemplo, la holgura de un paquete que terminó).
 

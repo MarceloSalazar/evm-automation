@@ -52,9 +52,11 @@ SHEET_META = "_meta"
 SHEET_WBS_LIST = "_lista_edt"       # lista EDT con la que se generó el libro (solo con lista_edt)
 META_SOURCES = "proyectos"          # _meta: nombres de los archivos de un libro con varios archivos ("P1;P2")
 PCT_PREFIX = "% "                   # hojas '% PV' y '% EV' (o '% PV-EmpresaA'...)
-# Columnas E y F: fechas del plan (hojas PV y % PV) o fechas reales (hojas EV, % EV y AC; desde la 2.6.1)
+# Columnas E y F: fechas del plan (hojas PV y % PV) o, desde la 2.7.0, las de MS Project, reales o previstas (hojas
+# EV, % EV y AC)
 PLAN_DATES = ("Fecha inicio Plan (PV)", "Fecha fin Plan (PV)")
-REAL_DATES = ("Fecha inicio Real (EV)", "Fecha fin Real (EV)")
+EV_DATES = ("Fecha inicio real o prevista (EV)", "Fecha fin real o prevista (EV)")
+EV_DATE_WIDTH = 16                  # ancho de las columnas E y F de las hojas EV, % EV y AC (encabezado en 2 líneas)
 KIND_COST = "coste"                 # _estructura: fila «(coste)» de la depuración de costes (sin clave)
 COST_SUFFIX = " (coste)"
 
@@ -408,7 +410,7 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
     multi_total = report.multi and role is None
     company = {"A": report.company_a, "B": report.company_b}.get(role or "", "")
     is_pv = kind == SHEET_PV
-    real = kind != SHEET_PV             # EV y AC: fechas reales en E y F (las escribe write_schedule)
+    real = kind != SHEET_PV             # EV y AC: fechas reales o previstas en E y F (las escribe write_schedule)
     # PV y EV = BAC × % de la hoja '% PV' o '% EV'; el BAC se ingresa en la columna D de las hojas PV
     by_pct = kind in (SHEET_PV, SHEET_EV) and not multi_total
     pct_name = pct_sheet(kind, company) if by_pct else ""
@@ -443,7 +445,7 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
     _header(ws, HEADER_ROW, [
         (COL_CODE, "Código EDT"), (COL_NAME, "Actividad"), (COL_METHOD, "Método de medición"),
         (COL_BAC, "BAC (Presupuesto)" + (f" {company}" if company else "")),
-        *zip((COL_START, COL_FINISH), REAL_DATES if real else PLAN_DATES),
+        *zip((COL_START, COL_FINISH), EV_DATES if real else PLAN_DATES),
         (lay.total_col, "Total horizonte"),
     ])
     _month_header(ws, lay)
@@ -644,7 +646,7 @@ def _write_pct_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
     _header(ws, HEADER_ROW, [
         (COL_CODE, "Código EDT"), (COL_NAME, "Actividad"), (COL_METHOD, "Método de medición"),
         (COL_BAC, "BAC (Presupuesto)" + (f" {company}" if company else "")),
-        *zip((COL_START, COL_FINISH), PLAN_DATES if is_pv else REAL_DATES),
+        *zip((COL_START, COL_FINISH), PLAN_DATES if is_pv else EV_DATES),
         (lay.total_col, "Total horizonte" if is_pv else "% ganado acumulado"),
     ])
     _month_header(ws, lay)
@@ -671,6 +673,8 @@ def _write_pct_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
                     i = report.horizon.index(k)
                     if 0 <= i < lay.months:
                         values[i] = v
+            elif row.ev_hist:               # % ganado hasta la fecha de estado (también 0: mes cargado)
+                values = dict(enumerate(row.ev_hist.get(role or "", [])))
             for i, v in values.items():
                 ws.cell(row=r, column=lay.first_col + i, value=v)
             filled = values
@@ -1060,23 +1064,26 @@ def _summary_section(ws, r: int, text: str) -> None:
     ws.cell(row=r, column=1, value=text).font = FONT_BOLD
 
 
-def real_date_sheets(sheetnames: list[str]) -> list[str]:
-    """Hojas con las fechas reales en las columnas E y F: EV, % EV y AC, y las de cada empresa (EV-EmpresaA...)."""
+def ev_date_sheets(sheetnames: list[str]) -> list[str]:
+    """Hojas con las fechas de MS Project (reales o previstas) en las columnas E y F: EV, % EV y AC, y las de cada
+    empresa (EV-EmpresaA...)."""
     bases = (SHEET_EV, SHEET_AC, pct_sheet(SHEET_EV))
     return [n for n in sheetnames if any(n == b or n.startswith(f"{b}-") for b in bases)]
 
 
-def _write_real_dates(wb, summary, rows: list[int]) -> None:
-    """Columnas E y F de las hojas EV, % EV y AC: comienzo y fin real de cada fila (schedule.actual_dates). La hoja
-    EV tiene los valores; las demás, una fórmula que los toma de ella. En los libros anteriores a la 2.6.1 esas
-    columnas repetían las fechas del plan de la hoja PV: 'actualizar' las reemplaza."""
-    for name in real_date_sheets(wb.sheetnames):
+def _write_ev_dates(wb, summary, rows: list[int]) -> None:
+    """Columnas E y F de las hojas EV, % EV y AC: comienzo y fin de cada fila según MS Project, reales o previstos
+    (schedule.RowSchedule). La hoja EV tiene los valores; las demás, una fórmula que los toma de ella. En los libros
+    anteriores a la 2.7.0 esas columnas repetían las fechas del plan de la hoja PV: 'actualizar' las reemplaza."""
+    for name in ev_date_sheets(wb.sheetnames):
         ws = wb[name]
-        _header(ws, HEADER_ROW, list(zip((COL_START, COL_FINISH), REAL_DATES)))
+        _header(ws, HEADER_ROW, list(zip((COL_START, COL_FINISH), EV_DATES)))
+        for c_ in (COL_START, COL_FINISH):
+            ws.column_dimensions[col(c_)].width = EV_DATE_WIDTH
         for r in rows:
             if name == SHEET_EV:
                 s = summary.rows.get(r)
-                values = (_naive(s.actual_start), _naive(s.actual_finish)) if s is not None else (None, None)
+                values = (_naive(s.start), _naive(s.finish)) if s is not None else (None, None)
             else:
                 values = tuple(f"=IF('{SHEET_EV}'!{col(c_)}{r}=\"\",\"\",'{SHEET_EV}'!{col(c_)}{r})"
                                for c_ in (COL_START, COL_FINISH))
@@ -1088,11 +1095,11 @@ def _write_real_dates(wb, summary, rows: list[int]) -> None:
 
 def write_schedule(wb, summary, rows: list[int], total_row: int, command: str) -> None:
     """Plazo según el cronograma de MS Project (schedule.ScheduleSummary): columnas Q a U de Indicadores EDT y
-    sección del Resumen, y fechas reales de las columnas E y F de las hojas EV, % EV y AC. 'generar' y 'actualizar'
+    sección del Resumen, y fechas de las columnas E y F de las hojas EV, % EV y AC. 'generar' y 'actualizar'
     los escriben con los datos de su lectura de MS Project; los libros de versiones anteriores los reciben con
     'actualizar'."""
     from evm.schedule import RowSchedule
-    _write_real_dates(wb, summary, rows)
+    _write_ev_dates(wb, summary, rows)
     if SHEET_IND in wb.sheetnames:
         ws = wb[SHEET_IND]
         when = f" (fecha de estado {summary.status_date:%d/%m/%Y})" if summary.status_date else ""
@@ -1433,8 +1440,12 @@ def write_meta(ws, meta: dict) -> None:
 
 
 def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
-                   generated: datetime | None = None) -> dict:
-    """Crea el libro Excel completo y lo guarda en `path`. Devuelve los metadatos."""
+                   generated: datetime | None = None, history=None) -> dict:
+    """Crea el libro Excel completo y lo guarda en `path`. Devuelve los metadatos.
+
+    history: % ganado cargado hasta la fecha de estado (history.EarnedHistory, en ReportRow.ev_hist); su fecha de
+    estado es la fecha de corte del Resumen.
+    """
     from evm import analysis, changes, dashboard
     generated = generated or datetime.now()
     lay = _Layout(report)
@@ -1470,7 +1481,7 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     for ws in hidden:
         ws.sheet_state = "hidden"
 
-    status = prior.status_date if prior else None
+    status = prior.status_date if prior else (history.status if history is not None and history.loaded else None)
     methods = list(_method_list(cfg))
     if prior is not None:
         methods += [m for m in prior.methods_list if m not in methods]

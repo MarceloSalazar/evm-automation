@@ -1081,6 +1081,19 @@ _CODES = [
           "El libro (o el archivo de salida) está abierto en Excel o en otro programa, o no hay permiso para "
           "escribirlo.",
           "Cerrar el archivo y volver a ejecutar el comando.", "generar, actualizar y analizar"),
+    _code("LIB-016", I, "% ganado cargado hasta la fecha de estado",
+          "El archivo de MS Project tiene avance y fecha de estado: generar carga el % ganado de cada mes hasta la "
+          "fecha de estado y la usa como fecha de corte del Resumen. El acumulado a la fecha de estado es el de MS "
+          "Project; el de cada mes anterior se reconstruye con las fechas reales (exacto en las fórmulas fijas, los "
+          "hitos ponderados y el avance lineal; en línea recta desde el comienzo real en el % completado y el % "
+          "físico completado). No se carga con --migrar-desde, que conserva el del libro anterior.",
+          "Ingresar el BAC y el AC de esos meses. Los meses siguientes se cargan con actualizar.",
+          "generar (hoja Validación)"),
+    _code("LIB-017", W, "No se cargó el % ganado hasta la fecha de estado",
+          "El archivo de MS Project tiene avance, pero no tiene fecha de estado, los archivos de [[proyectos]] tienen "
+          "fechas de estado distintas o la fecha de estado está fuera del horizonte del libro.",
+          "Definir la fecha de estado en MS Project (Proyecto > Fecha de estado), la misma en todos los archivos, o "
+          "revisar mes_inicio y meses. Si no, el % ganado se carga con actualizar.", "generar (hoja Validación)"),
 
     # --- MIG: --migrar-desde ------------------------------------------------------------------------------------
     _code("MIG-001", F, "Migración entre una y dos empresas",

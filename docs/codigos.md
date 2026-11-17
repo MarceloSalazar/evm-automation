@@ -119,7 +119,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [EMP](#48-emp--empresas) | Empresas | Empresas | generar (hoja Validación) y validar | 5 |
 | [AVA](#49-ava--avance-a-la-fecha-de-estado) | Avance a la fecha de estado | Avance a la fecha de estado | validar | 13 |
 | [LOG](#410-log--lógica-del-cronograma) | Lógica del cronograma | Lógica del cronograma | validar | 13 |
-| [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) | 15 |
+| [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) | 17 |
 | [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 20 |
 | [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 24 |
 | [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 51 |
@@ -1691,6 +1691,8 @@ Libro Excel: recordatorio del BAC y libros dañados, modificados o abiertos en E
 | [LIB-013](#lib-013) | Error (detiene el programa) | Valor no numérico |
 | [LIB-014](#lib-014) | Error (detiene el programa) | Número guardado como texto |
 | [LIB-015](#lib-015) | Error (detiene el programa) | No se puede guardar el archivo |
+| [LIB-016](#lib-016) | Info | % ganado cargado hasta la fecha de estado |
+| [LIB-017](#lib-017) | Advertencia | No se cargó el % ganado hasta la fecha de estado |
 
 #### LIB-001
 
@@ -1811,6 +1813,22 @@ Una celda tiene un número guardado como texto: Excel no lo suma.
 El libro (o el archivo de salida) está abierto en Excel o en otro programa, o no hay permiso para escribirlo.
 
 **Qué hacer:** Cerrar el archivo y volver a ejecutar el comando.
+
+#### LIB-016
+
+**% ganado cargado hasta la fecha de estado** · Info · generar (hoja Validación) · se puede silenciar
+
+El archivo de MS Project tiene avance y fecha de estado: generar carga el % ganado de cada mes hasta la fecha de estado y la usa como fecha de corte del Resumen. El acumulado a la fecha de estado es el de MS Project; el de cada mes anterior se reconstruye con las fechas reales (exacto en las fórmulas fijas, los hitos ponderados y el avance lineal; en línea recta desde el comienzo real en el % completado y el % físico completado). No se carga con `--migrar-desde`, que conserva el del libro anterior.
+
+**Qué hacer:** Ingresar el BAC y el AC de esos meses. Los meses siguientes se cargan con actualizar.
+
+#### LIB-017
+
+**No se cargó el % ganado hasta la fecha de estado** · Advertencia · generar (hoja Validación) · se puede silenciar
+
+El archivo de MS Project tiene avance, pero no tiene fecha de estado, los archivos de `[[proyectos]]` tienen fechas de estado distintas o la fecha de estado está fuera del horizonte del libro.
+
+**Qué hacer:** Definir la fecha de estado en MS Project (Proyecto > Fecha de estado), la misma en todos los archivos, o revisar mes_inicio y meses. Si no, el % ganado se carga con actualizar.
 
 ---
 

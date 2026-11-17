@@ -271,6 +271,11 @@ def cmd_generar(args) -> int:
             progress.stage("migrar", "Lectura del libro anterior")
             prior = prior_from_book(args.migrar_desde, report.project.name)
             report.issues.extend(plan_migration(report, prior, cfg.max_level, cfg.ignore_interior_zeros))
+        history = None
+        if prior is None:                       # % ganado hasta la fecha de estado (con --migrar-desde, el anterior)
+            from evm.history import earned_history
+            history = earned_history(report, cfg)
+            report.issues.extend(history.issues)
         silence = _silence(cfg)
         unmatched = []
         if prior is not None and prior.unmatched:
@@ -280,7 +285,7 @@ def cmd_generar(args) -> int:
                                                                  f"trasladar (EV {fmt_money(lost_ev)}, AC "
                                                                  f"{fmt_money(lost_ac)}). Ver hoja 'Validación'.")])
         report.issues = silence.apply(report.issues)
-        write_workbook(report, cfg, salida, prior)
+        write_workbook(report, cfg, salida, prior, history=history)
 
     leaves = sum(1 for r in report.rows if r.is_input)
     if report.multi_file:
@@ -298,6 +303,10 @@ def cmd_generar(args) -> int:
     print(f"  Horizonte: {report.horizon.start:%m/%Y} a {report.horizon.end:%m/%Y} ({report.horizon.months} meses)")
     sheets = (f"PV-{report.company_a} y PV-{report.company_b}" if report.multi else "PV")
     print(f"  BAC: se debe ingresar el BAC de cada fila en la columna D de {sheets} (celdas amarillas).")
+    if history is not None and history.loaded:
+        first = report.horizon.month_start(0)
+        print(f"  % ganado: cargado de {first:%m/%Y} a {history.status:%m/%Y} (fecha de estado "
+              f"{history.status:%d/%m/%Y}, fecha de corte del Resumen).")
     issues = located(report.rows, report.issues)
     _print_issues(issues)
     if any(i.severity != SEV_INFO for i in issues):

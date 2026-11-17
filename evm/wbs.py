@@ -44,6 +44,9 @@ class ReportRow:
     leaves: list[Task] = field(default_factory=list, repr=False)
     pct: dict[str, dict[MonthKey, float]] = field(default_factory=dict, repr=False)
     pct_vec: dict[str, list[float]] = field(default_factory=dict, repr=False)
+    weights: dict[str, object] = field(default_factory=dict, repr=False)    # percent.RowWeights de cada empresa
+    # % ganado de cada mes hasta la fecha de estado que carga 'generar' (history.earned_history), de cada empresa
+    ev_hist: dict[str, list[float]] = field(default_factory=dict, repr=False)
 
     @property
     def is_input(self) -> bool:
@@ -520,6 +523,7 @@ def _percent_curves(project: ProjectData, cfg: Config, rows: list[ReportRow], co
             if rw.fallback:
                 alone.setdefault(company, []).append(row.code)
             row.pct[role] = pct.curve(times, rw)
+            row.weights[role] = rw
             issues += [replace(note, code=row.code, name=row.name) for note in rw.notes]
         if not any(row.pct.values()):
             issues.append(Issue("HIT-005", row.code, row.name,

@@ -9,13 +9,11 @@ from openpyxl.utils import get_column_letter
 from evm import analysis, dashboard
 from evm.config import Config
 from evm.indicators import compute
-from evm.schedule import (FINISHED, RowSchedule, ScheduleSummary, actual_dates, combine, row_schedule,
-                          working_days)
+from evm.schedule import FINISHED, RowSchedule, ScheduleSummary, combine, row_schedule, working_days
 from evm.update import indicators_for, read_book, run_analysis, run_update
-from evm.workbook import (COL_FINISH, COL_START, HEADER_ROW, I_BL_FINISH, I_CRITICAL, I_SLACK, I_VARIANCE, PLAN_DATES,
-                          REAL_DATES, ROW_BL_FINISH, ROW_CRITICAL, ROW_FINISH, ROW_LATE, ROW_PLAN_STATUS, ROW_VARIANCE,
-                          SHEET_IND, SHEET_META, SHEET_SUMMARY, read_meta, real_date_sheets, write_meta,
-                          write_workbook)
+from evm.workbook import (COL_FINISH, COL_START, EV_DATES, HEADER_ROW, I_BL_FINISH, I_CRITICAL, I_SLACK, I_VARIANCE,
+                          PLAN_DATES, ROW_BL_FINISH, ROW_CRITICAL, ROW_FINISH, ROW_LATE, ROW_PLAN_STATUS, ROW_VARIANCE,
+                          SHEET_IND, SHEET_META, SHEET_SUMMARY, ev_date_sheets, read_meta, write_meta, write_workbook)
 from evm.workcalendar import WorkCalendar
 from evm.wbs import build_report
 
@@ -76,32 +74,30 @@ def test_summary_rows_and_total_combine_their_rows():
     assert (plan.critical, plan.late_critical) == (1, 1)
 
 
-def test_actual_dates_like_a_summary_task_of_ms_project():
-    """Comienzo real: el más temprano de las tareas comenzadas; fin real: el más tardío, solo si todas terminaron."""
+def test_row_dates_are_those_of_ms_project():
+    """Comienzo y fin de la fila como los de una tarea resumen de MS Project: el comienzo real de las tareas comenzadas
+    y el fin real de las terminadas; las demás, con sus fechas previstas."""
     a = T(1, 2, "1.1", "A", percent_complete=100.0, actual_start=datetime(2026, 3, 2, 8),
           actual_finish=datetime(2026, 3, 6, 17))
-    b = T(2, 2, "1.2", "B", percent_complete=40.0, actual_start=datetime(2026, 3, 9, 8))
-    c = T(3, 2, "1.3", "C")
-    assert actual_dates([a, b, c]) == (datetime(2026, 3, 2, 8), None)
-    b.percent_complete, b.actual_finish = 100.0, datetime(2026, 3, 20, 17)
-    assert actual_dates([a, b]) == (datetime(2026, 3, 2, 8), datetime(2026, 3, 20, 17))
-    assert actual_dates([c]) == (None, None)
-    # Comenzada solo con % físico completado: su comienzo actual
-    d = T(4, 2, "1.4", "D", start=datetime(2026, 2, 2, 8), physical_percent_complete=10.0)
-    assert actual_dates([d, c]) == (datetime(2026, 2, 2, 8), None)
-    s = row_schedule([a, b], CAL, DAY)
-    assert (s.actual_start, s.actual_finish) == (datetime(2026, 3, 2, 8), datetime(2026, 3, 20, 17))
-    # Fila resumen: el fin real solo si todas sus filas terminaron
-    open_ = RowSchedule(actual_start=datetime(2026, 2, 2, 8))
-    assert (combine([s, open_], CAL).actual_start, combine([s, open_], CAL).actual_finish) == (
-        datetime(2026, 2, 2, 8), None)
-    assert combine([s, s], CAL).actual_finish == datetime(2026, 3, 20, 17)
+    b = T(2, 2, "1.2", "B", percent_complete=40.0, actual_start=datetime(2026, 3, 9, 8),
+          finish=datetime(2026, 4, 10, 17))
+    c = T(3, 2, "1.3", "C", start=datetime(2026, 4, 1, 8), finish=datetime(2026, 4, 30, 17))
+    s = row_schedule([a, b, c], CAL, DAY)
+    assert (s.start, s.finish) == (datetime(2026, 3, 2, 8), datetime(2026, 4, 30, 17))
+    assert (row_schedule([c], CAL, DAY).start, row_schedule([c], CAL, DAY).finish) == (
+        datetime(2026, 4, 1, 8), datetime(2026, 4, 30, 17))
+    done = row_schedule([a], CAL, DAY)
+    assert (done.start, done.finish) == (datetime(2026, 3, 2, 8), datetime(2026, 3, 6, 17))
+    # Fila resumen: el comienzo más temprano y el fin más tardío de sus filas
+    parts = [done, row_schedule([c], CAL, DAY)]
+    assert (combine(parts, CAL).start, combine(parts, CAL).finish) == (datetime(2026, 3, 2, 8),
+                                                                       datetime(2026, 4, 30, 17))
 
 
-def test_real_date_sheets():
+def test_ev_date_sheets():
     names = ["Resumen", "PV", "EV", "AC", "% PV", "% EV", "PV-EmpresaA", "EV-EmpresaA", "AC-EmpresaB", "% EV-EmpresaB",
              "% PV-EmpresaA", "PV-depuración", "Evolución mensual"]
-    assert real_date_sheets(names) == ["EV", "AC", "% EV", "EV-EmpresaA", "AC-EmpresaB", "% EV-EmpresaB"]
+    assert ev_date_sheets(names) == ["EV", "AC", "% EV", "EV-EmpresaA", "AC-EmpresaB", "% EV-EmpresaB"]
 
 
 # ----------------------------------------------------------------------------
@@ -199,28 +195,29 @@ def date_columns(ws, r):
     return ws.cell(r, COL_START).value, ws.cell(r, COL_FINISH).value
 
 
-def test_ev_ac_and_pct_ev_sheets_show_actual_dates(tmp_path):
-    """Columnas E y F: fechas del plan en PV y % PV; fechas reales en EV (valores), % EV y AC (fórmulas a EV)."""
+def test_ev_ac_and_pct_ev_sheets_show_the_dates_of_ms_project(tmp_path):
+    """Columnas E y F: fechas del plan en PV y % PV; en EV (valores), % EV y AC (fórmulas a EV), las de MS Project:
+    reales o previstas, en todas las filas."""
     cfg = Config(max_level=2)
     book = tmp_path / "libro.xlsx"
     write_workbook(build_report(P(real_dates_tasks(), status_date=datetime(2026, 3, 31)), cfg), cfg, book)
     wb = load_workbook(book)
-    for name, labels in (("PV", PLAN_DATES), ("% PV", PLAN_DATES), ("EV", REAL_DATES), ("% EV", REAL_DATES),
-                         ("AC", REAL_DATES)):
+    for name, labels in (("PV", PLAN_DATES), ("% PV", PLAN_DATES), ("EV", EV_DATES), ("% EV", EV_DATES),
+                         ("AC", EV_DATES)):
         assert date_columns(wb[name], HEADER_ROW) == labels, name
     ev = wb["EV"]
     rows = {ev.cell(r, 1).value: r for r in range(5, 9)}
-    assert date_columns(ev, rows["1.0"]) == (datetime(2026, 1, 12, 8), None)          # 1.2 sin comenzar
-    assert date_columns(ev, rows["1.1"]) == (datetime(2026, 1, 12, 8), None)
-    assert date_columns(ev, rows["1.2"]) == (None, None)
-    assert date_columns(ev, rows["2.0"]) == (datetime(2026, 1, 7, 8), datetime(2026, 2, 27, 17))
+    assert date_columns(ev, rows["1.1"]) == (datetime(2026, 1, 12, 8), datetime(2026, 4, 1, 17))   # real, prevista
+    assert date_columns(ev, rows["1.2"]) == (datetime(2026, 1, 5, 8), datetime(2026, 3, 27, 17))   # previstas
+    assert date_columns(ev, rows["1.0"]) == (datetime(2026, 1, 5, 8), datetime(2026, 4, 1, 17))
+    assert date_columns(ev, rows["2.0"]) == (datetime(2026, 1, 7, 8), datetime(2026, 2, 27, 17))   # reales
     assert date_columns(wb["PV"], rows["2.0"]) == (datetime(2026, 1, 5, 8), datetime(2026, 2, 27, 17))
     r = rows["1.1"]
     for name in ("% EV", "AC"):
         assert date_columns(wb[name], r) == (f"=IF('EV'!E{r}=\"\",\"\",'EV'!E{r})", f"=IF('EV'!F{r}=\"\",\"\",'EV'!F{r})")
 
 
-def test_actualizar_refreshes_actual_dates_and_converts_old_books(tmp_path):
+def test_actualizar_refreshes_ev_dates_and_converts_old_books(tmp_path):
     cfg = Config(max_level=2)
     tasks = real_dates_tasks()
     book = tmp_path / "libro.xlsx"
@@ -242,9 +239,9 @@ def test_actualizar_refreshes_actual_dates_and_converts_old_books(tmp_path):
     ev = wb["EV"]
     rows = {ev.cell(r, 1).value: r for r in range(5, 9)}
     for name in ("EV", "% EV", "AC"):
-        assert date_columns(wb[name], HEADER_ROW) == REAL_DATES, name
+        assert date_columns(wb[name], HEADER_ROW) == EV_DATES, name
     assert date_columns(ev, rows["1.1"]) == (datetime(2026, 1, 12, 8), datetime(2026, 3, 25, 17))
-    assert date_columns(ev, rows["1.0"]) == (datetime(2026, 1, 12, 8), None)           # 1.2 sin comenzar
+    assert date_columns(ev, rows["1.0"]) == (datetime(2026, 1, 5, 8), datetime(2026, 3, 27, 17))   # 1.2 prevista
     assert wb["AC"].cell(rows["1.1"], COL_START).value == f"=IF('EV'!E{rows['1.1']}=\"\",\"\",'EV'!E{rows['1.1']})"
     assert date_columns(wb["PV"], HEADER_ROW) == PLAN_DATES
     # Plazo: el paquete terminado ya no tiene la holgura de la lectura anterior (0 al generar el libro)

@@ -463,8 +463,23 @@ fila:
 - Si hay valores en **meses posteriores** a la fecha de corte, `actualizar` se detiene. Se deben borrar
   esos valores o usar `--forzar`. Con `--forzar` esos meses no se recalculan: se avisa cuáles quedaron
   con un acumulado que ya no coincide con MS Project, para revisarlos o volver a cargarlos en orden.
-- **Primer `actualizar` con el proyecto ya en ejecución:** todo el % ganado acumulado queda en el mes de
-  corte. Si se dispone del historial mensual, se puede cargar antes a mano en la hoja `% EV`;
+- **Libro generado con el proyecto ya en ejecución:** si el archivo de MS Project tiene avance y fecha de
+  estado, `generar` carga el % ganado de cada mes hasta la fecha de estado y la usa como fecha de corte
+  del `Resumen` ([LIB-016](codigos.md#lib-016)). MS Project guarda el avance acumulado, no el de cada
+  mes: el acumulado a la fecha de estado es el de MS Project (el mismo que calcularía `actualizar`), y el
+  de los meses anteriores se reconstruye con las fechas reales de cada tarea de detalle:
+  - **exacto** en las fórmulas fijas (`0/100`, `50/50`...: el mes del comienzo y del fin real), en
+    `Hitos ponderados` (el mes del fin real de cada hito) y en `Avance lineal` (el PV de cada mes);
+  - **estimado** en `% Completado`, `% Físico completado` y `Unidades completadas` (y en las filas sin
+    método): el avance de cada tarea se reparte en línea recta, según el tiempo laborable, entre su
+    comienzo real y su fin real o, si no terminó, la fecha de estado.
+
+  Se cargan todos los meses desde el mes 1 (con 0 donde no hubo avance), como si se hubiera ejecutado
+  `actualizar` cada mes. Los meses siguientes se cargan con `actualizar`. Con `--migrar-desde` no se
+  reconstruye: se conserva el % ganado del libro anterior. Si el archivo tiene avance pero no fecha de
+  estado (o los archivos de `[[proyectos]]` tienen fechas de estado distintas), no se carga y se avisa
+  ([LIB-017](codigos.md#lib-017)); el primer `actualizar` deja entonces todo el acumulado en el mes de
+  corte. Si se dispone del historial mensual real, se puede cargar a mano en la hoja `% EV`:
   `actualizar` respeta esos valores y solo escribe la diferencia.
 - Las celdas de ingreso con números guardados como texto o con fórmulas se reemplazan por su valor
   numérico (Excel no suma texto y la biblioteca que escribe el libro no recalcula fórmulas).
@@ -569,7 +584,7 @@ A 31 de marzo, con la excavación al 100 % y la estructura al 30 % (método `% C
 | `PV` (o `PV-EmpresaA` y `PV-EmpresaB`) | Columna D: BAC de cada fila. Meses: BAC × % planificado. | **El BAC** |
 | `% PV` (o `% PV-EmpresaA` y `% PV-EmpresaB`) | % planificado de cada mes, que calcula `generar`. No se edita. | — |
 | `EV` (o `EV-EmpresaA` y `EV-EmpresaB`) | Meses: BAC × % ganado. | — |
-| `% EV` (o `% EV-EmpresaA` y `% EV-EmpresaB`) | % ganado de cada mes (no acumulado), que calcula `actualizar`. La columna final es el % ganado acumulado. | — |
+| `% EV` (o `% EV-EmpresaA` y `% EV-EmpresaB`) | % ganado de cada mes (no acumulado), que calcula `actualizar` (y `generar`, hasta la fecha de estado, si el archivo ya tiene avance). La columna final es el % ganado acumulado. | — |
 | `AC` (o `AC-EmpresaA` y `AC-EmpresaB`) | AC de cada mes. | **El AC del mes** |
 | `PV`, `EV` y `AC` en multi-empresa | Suma de las dos empresas. | — |
 

@@ -8,8 +8,9 @@ del % ganado):
 - desvío de fin: días laborables entre los dos (> 0 = atraso), con el calendario que reparte la duración;
 - holgura total: la menor de sus tareas sin terminar, en días laborables (la calcula MS Project);
 - crítica: alguna de sus tareas sin terminar es crítica según MS Project;
-- comienzo real: el más temprano de sus tareas comenzadas, y fin real: el más tardío, solo si todas terminaron
-  (columnas E y F de las hojas EV, % EV y AC).
+- comienzo y fin: el comienzo más temprano y el fin más tardío de sus tareas según MS Project (columnas Comienzo y
+  Fin: las fechas reales de las tareas comenzadas o terminadas y las previstas de las demás), en las columnas E y F
+  de las hojas EV, % EV y AC.
 
 Las filas resumen y el proyecto combinan los valores de sus filas.
 """
@@ -18,7 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
-from evm.methods import is_complete, is_started
+from evm.methods import is_complete
 from evm.model import Task
 from evm.workcalendar import WorkCalendar
 
@@ -35,8 +36,7 @@ class RowSchedule:
     slack: float | None = None          # holgura total mínima de las tareas sin terminar (días laborables)
     critical: bool = False              # alguna tarea sin terminar es crítica
     open_tasks: bool = False            # tiene tareas sin terminar
-    actual_start: datetime | None = None    # comienzo real más temprano (None = no comenzó)
-    actual_finish: datetime | None = None   # fin real más tardío, solo si todas sus tareas terminaron
+    start: datetime | None = None       # comienzo más temprano según MS Project (real o previsto)
 
     @property
     def status(self) -> str:
@@ -85,28 +85,18 @@ def _variance(calendar: WorkCalendar, baseline: datetime | None, finish: datetim
     return working_days(calendar, baseline, finish)
 
 
-def actual_dates(leaves: list[Task]) -> tuple[datetime | None, datetime | None]:
-    """Comienzo real (el más temprano de las tareas comenzadas) y fin real (el más tardío, solo si todas las tareas
-    terminaron) de una fila, como MS Project en una tarea resumen. Una tarea comenzada o terminada sin la fecha real
-    (p. ej. solo con % físico completado) toma su comienzo o su fin actual."""
-    starts = [t.actual_start or t.start for t in leaves if is_started(t) or finished(t)]
-    starts = [d for d in starts if d is not None]
-    finishes = [t.actual_finish or t.finish for t in leaves]
-    done = bool(leaves) and all(finished(t) for t in leaves) and all(d is not None for d in finishes)
-    return (min(starts) if starts else None), (max(finishes) if done else None)
-
-
 def row_schedule(leaves: list[Task], calendar: WorkCalendar, minutes_per_day: float) -> RowSchedule:
     """Plazo de una fila con sus tareas de detalle."""
     baselines = [t.baseline_finish for t in leaves if t.has_baseline and t.baseline_finish]
-    finishes = [t.finish for t in leaves if t.finish]
+    finishes = [d for d in (t.actual_finish or t.finish for t in leaves) if d]
     pending = [t for t in leaves if not finished(t)]
     slacks = [t.total_slack / minutes_per_day for t in pending if t.total_slack is not None]
     out = RowSchedule(max(baselines) if baselines else None, max(finishes) if finishes else None,
                       slack=round(min(slacks), 2) if slacks else None,
                       critical=any(t.critical for t in pending), open_tasks=bool(pending))
     out.variance = _variance(calendar, out.baseline_finish, out.finish)
-    out.actual_start, out.actual_finish = actual_dates(leaves)
+    starts = [d for d in (t.actual_start or t.start for t in leaves) if d]
+    out.start = min(starts) if starts else None
     return out
 
 
@@ -119,10 +109,8 @@ def combine(parts: list[RowSchedule], calendar: WorkCalendar) -> RowSchedule:
                       slack=min(slacks) if slacks else None, critical=any(p.critical for p in parts),
                       open_tasks=any(p.open_tasks for p in parts))
     out.variance = _variance(calendar, out.baseline_finish, out.finish)
-    starts = [p.actual_start for p in parts if p.actual_start]
-    out.actual_start = min(starts) if starts else None
-    ends = [p.actual_finish for p in parts]
-    out.actual_finish = max(ends) if parts and all(ends) else None
+    starts = [p.start for p in parts if p.start]
+    out.start = min(starts) if starts else None
     return out
 
 
