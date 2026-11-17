@@ -465,7 +465,8 @@ fila:
   con un acumulado que ya no coincide con MS Project, para revisarlos o volver a cargarlos en orden.
 - **Libro generado con el proyecto ya en ejecución:** si el archivo de MS Project tiene avance y fecha de
   estado, `generar` carga el % ganado de cada mes hasta la fecha de estado y la usa como fecha de corte
-  del `Resumen` ([LIB-016](codigos.md#lib-016)). MS Project guarda el avance acumulado, no el de cada
+  del `Resumen` ([LIB-016](codigos.md#lib-016)); con `[exportacion] ev_historico = false` no lo carga
+  ([Configuración](configuracion.md#claves)). MS Project guarda el avance acumulado, no el de cada
   mes: el acumulado a la fecha de estado es el de MS Project (el mismo que calcularía `actualizar`), y el
   de los meses anteriores se reconstruye con las fechas reales de cada tarea de detalle:
   - **exacto** en las fórmulas fijas (`0/100`, `50/50`...: el mes del comienzo y del fin real), en

@@ -32,7 +32,7 @@ El BAC de cada fila se ingresa en la hoja `PV`, el PV y el EV son el BAC × el %
 | **PV** | Valor planificado: columnas A–F con la EDT y el BAC, y una columna por mes. El BAC se ingresa en la columna D (celdas amarillas) y cada mes es el BAC × el % planificado. |
 | **% PV** | % planificado de cada mes, que calcula `generar` desde MS Project. |
 | **EV** | Valor ganado de cada mes: el BAC × el % ganado. |
-| **% EV** | % ganado de cada mes, que calcula `actualizar`. Si el archivo de MS Project ya tiene avance y fecha de estado, `generar` carga el de los meses hasta la fecha de estado ([Cálculo del PV y el EV](calculo-pv-ev.md#7-del--acumulado-al--del-mes)). |
+| **% EV** | % ganado de cada mes, que calcula `actualizar`. Si el archivo de MS Project ya tiene avance y fecha de estado, `generar` carga el de los meses hasta la fecha de estado (`[exportacion] ev_historico`, activado por defecto; [Cálculo del PV y el EV](calculo-pv-ev.md#7-del--acumulado-al--del-mes)). |
 | **AC** | Costo real de cada mes (celdas amarillas), que se ingresa a mano. |
 | **PV-EmpresaA**, **% PV-EmpresaA**, **EV-EmpresaA**, **% EV-EmpresaA**, **AC-EmpresaA** y las de EmpresaB | Solo en multi-empresa: valores de cada empresa, en lugar de las hojas `% PV` y `% EV`. Las hojas `PV`, `EV` y `AC` son la suma de las dos ([Multi-empresa](multiempresa.md)). |
 | **Evolución mensual** | Tabla mensual del proyecto (datos de la curva S). |

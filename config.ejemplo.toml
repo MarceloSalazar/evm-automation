@@ -132,6 +132,12 @@ decimales = 0
 # ejemplo, si Excel informara un problema al abrir un libro).
 guardado_rapido = true
 
+# % ganado histórico: si el archivo de MS Project ya tiene avance y fecha de estado,
+# generar carga el % ganado de cada mes hasta la fecha de estado (los meses anteriores
+# se reconstruyen con las fechas reales) y la usa como fecha de corte del Resumen.
+# false = el libro se genera sin % ganado y se carga mes a mes con actualizar.
+ev_historico = true
+
 # Título del informe (Cuadro de Mando, Resumen y documento de generar-fichas).
 # Si se omite, se usa el nombre del proyecto en MS Project (con varios archivos,
 # los nombres unidos con "+").

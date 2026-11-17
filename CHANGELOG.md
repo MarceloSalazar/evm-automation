@@ -26,7 +26,8 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   fecha de estado es el de MS Project; el de los meses anteriores se reconstruye con las fechas reales:
   exacto en las fórmulas fijas, los hitos ponderados y el avance lineal, y en línea recta desde el
   comienzo real en el % completado y el % físico completado. Con `--migrar-desde` se conserva el del libro
-  anterior. Si el archivo tiene avance pero no fecha de estado, no se carga y se avisa (`LIB-017`, nuevo)
+  anterior. Se desactiva con `[exportacion] ev_historico = false` (activado por defecto). Si el archivo
+  tiene avance pero no fecha de estado, no se carga y se avisa (`LIB-017`, nuevo)
   ([Del % acumulado al % del mes](docs/calculo-pv-ev.md#7-del--acumulado-al--del-mes)).
 - **Fechas de MS Project en las hojas `EV`, `% EV` y `AC`** (y en las de cada empresa): las columnas E y
   F repetían las fechas del plan de la hoja `PV`. Ahora son *Fecha inicio real o prevista (EV)* y *Fecha

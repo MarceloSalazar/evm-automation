@@ -1086,7 +1086,8 @@ _CODES = [
           "fecha de estado y la usa como fecha de corte del Resumen. El acumulado a la fecha de estado es el de MS "
           "Project; el de cada mes anterior se reconstruye con las fechas reales (exacto en las fórmulas fijas, los "
           "hitos ponderados y el avance lineal; en línea recta desde el comienzo real en el % completado y el % "
-          "físico completado). No se carga con --migrar-desde, que conserva el del libro anterior.",
+          "físico completado). No se carga con --migrar-desde, que conserva el del libro anterior, ni con "
+          "[exportacion] ev_historico = false.",
           "Ingresar el BAC y el AC de esos meses. Los meses siguientes se cargan con actualizar.",
           "generar (hoja Validación)"),
     _code("LIB-017", W, "No se cargó el % ganado hasta la fecha de estado",

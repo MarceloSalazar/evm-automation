@@ -272,7 +272,7 @@ def cmd_generar(args) -> int:
             prior = prior_from_book(args.migrar_desde, report.project.name)
             report.issues.extend(plan_migration(report, prior, cfg.max_level, cfg.ignore_interior_zeros))
         history = None
-        if prior is None:                       # % ganado hasta la fecha de estado (con --migrar-desde, el anterior)
+        if prior is None and cfg.ev_history:    # % ganado hasta la fecha de estado (con --migrar-desde, el anterior)
             from evm.history import earned_history
             history = earned_history(report, cfg)
             report.issues.extend(history.issues)

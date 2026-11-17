@@ -257,7 +257,8 @@ Si el archivo de MS Project ya tiene avance y fecha de estado (un proyecto en ej
 también carga el % ganado de cada mes hasta la fecha de estado, que pasa a ser la fecha de corte del
 `Resumen`, y lo indica en pantalla (`% ganado: cargado de 01/2026 a 11/2026`). El de los meses anteriores
 se reconstruye con las fechas reales ([Del % acumulado al % del mes](calculo-pv-ev.md#7-del--acumulado-al--del-mes)).
-Con `--migrar-desde` se conserva el del libro anterior.
+Con `--migrar-desde` se conserva el del libro anterior, y con `[exportacion] ev_historico = false` no se
+carga ([Configuración](configuracion.md#claves)).
 
 Ejemplo de salida con el proyecto de ejemplo (se omiten algunas líneas):
 

@@ -120,6 +120,8 @@ class Config:
     currency: str = "EUR"                 # "" = código de moneda del proyecto en MS Project
     decimals: int = 0
     fast_save: bool = True                # guardado_rapido: las celdas se escriben como texto al guardar el libro
+    # ev_historico: 'generar' carga el % ganado de cada mes hasta la fecha de estado si el archivo ya tiene avance
+    ev_history: bool = True
     # Depuración de costes: filas «(coste)» con la previsión de una empresa, pegada
     # en la hoja PV-depuración, para alinear las tareas e hitos de MS Project con esa previsión
     cost_review: bool = False             # depuracion_costes
@@ -461,6 +463,7 @@ def load_config(path: str | Path | None) -> Config:
     cfg.currency = _get(exp, "moneda", cfg.currency, str).strip()
     cfg.decimals = _get(exp, "decimales", cfg.decimals, int)
     cfg.fast_save = _get(exp, "guardado_rapido", cfg.fast_save, bool)
+    cfg.ev_history = _get(exp, "ev_historico", cfg.ev_history, bool)
     cfg.title = _get(exp, "titulo", cfg.title, str).strip()
     cfg.cost_review = _get(exp, "depuracion_costes", cfg.cost_review, bool)
     cfg.cost_review_company = _get(exp, "depuracion_empresa", cfg.cost_review_company, str).strip()

@@ -139,3 +139,24 @@ def test_generar_loads_history_but_not_with_migrar_desde(tmp_path, example_files
     assert [m.pct_ev[""][s.row][idx + 1] for s in m.input_rows] == [b2 for b2 in
                                                                     (read_book(book).pct_ev[""][s.row][idx + 1]
                                                                      for s in read_book(book).input_rows)]
+
+
+def test_option_ev_historico(tmp_path, example_files):
+    """[exportacion] ev_historico: activado por defecto (también en config.ejemplo.toml); con false, generar no carga
+    el % ganado."""
+    from pathlib import Path
+
+    from evm.config import ConfigError, load_config
+    assert Config().ev_history and load_config(Path(__file__).parents[1] / "config.ejemplo.toml").ev_history
+    bad = tmp_path / "mal.toml"
+    bad.write_text('[exportacion]\nev_historico = "no"\n', encoding="utf-8")
+    with pytest.raises(ConfigError, match="'ev_historico' debe ser true o false"):
+        load_config(bad)
+    off = tmp_path / "sin_historial.toml"
+    off.write_text(example_files["config"].read_text(encoding="utf-8").replace(
+        "[exportacion]\n", "[exportacion]\nev_historico = false\n"), encoding="utf-8")
+    book = tmp_path / "libro.xlsx"
+    assert main(["generar", "--origen", str(example_files["jun"]), "--config", str(off), "--salida", str(book)]) == 0
+    b = read_book(book)
+    assert b.status_date is None
+    assert all(v is None for s in b.input_rows for v in b.pct_ev[""][s.row])
