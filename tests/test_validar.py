@@ -53,12 +53,42 @@ def test_valid_codes_have_no_wbs_observations():
           1.1 A
             1.1.1 A1
             1.1.2 A2
-              - Actividad sin código
+              1.1.2.1 Actividad
           1.2 B
         2 Fase 2
     ''')
     rep = report(tasks)
     assert not found(rep, TOPIC_WBS, SEV_ERROR) and not found(rep, TOPIC_WBS, SEV_WARN)
+
+
+def test_tasks_without_code_inside_a_wbs_element():
+    """EDT-023: hitos, actividades y tareas resumen sin código EDT dentro de un elemento EDT (advertencia, una línea
+    por tarea); las que dependen solo de la planificación o de ningún elemento no se informan (EDT-020)."""
+    tasks = tree('''
+        INTERNO Plan
+          - Reunión de arranque
+          1 Fase
+            1.1 A
+              1.1.1 A1
+                - Actividad
+                - Hito
+              - Grupo
+                - Dentro del grupo
+        - Suelta
+    ''')
+    by = by_name(tasks)
+    by["Hito"].milestone = True
+    rep = report(tasks, Config(plan="INTERNO"))
+    edt = [i for i in rep.issues if i.id == "EDT-023"]
+    assert all(i.severity == SEV_WARN for i in edt)
+    assert edt[0].message.startswith("4 tareas dependen de un elemento EDT sin tener código EDT, 1 hito (Id 6, Id 7, "
+                                     "Id 8, Id 9): se suman en la fila de su elemento")
+    assert [(i.name, i.message) for i in edt[1:]] == [
+        ("Actividad (Id 6)", "Tarea sin código EDT dentro de 1.1.1 «A1»: se esperaba 1.1.1.x."),
+        ("Hito (Id 7)", "Hito sin código EDT dentro de 1.1.1 «A1»: se esperaba 1.1.1.x."),
+        ("Grupo (Id 8)", "Tarea resumen sin código EDT dentro de 1.1.0 «A»: se esperaba 1.1.x."),
+        ("Dentro del grupo (Id 9)", "Tarea sin código EDT dentro de 1.1.0 «A»: se le debe asignar uno que dependa "
+                                    "del de su tarea superior.")]
 
 
 def test_code_format_errors():

@@ -52,6 +52,9 @@ SHEET_META = "_meta"
 SHEET_WBS_LIST = "_lista_edt"       # lista EDT con la que se generó el libro (solo con lista_edt)
 META_SOURCES = "proyectos"          # _meta: nombres de los archivos de un libro con varios archivos ("P1;P2")
 PCT_PREFIX = "% "                   # hojas '% PV' y '% EV' (o '% PV-EmpresaA'...)
+# Columnas E y F: fechas del plan (hojas PV y % PV) o fechas reales (hojas EV, % EV y AC; desde la 2.6.1)
+PLAN_DATES = ("Fecha inicio Plan (PV)", "Fecha fin Plan (PV)")
+REAL_DATES = ("Fecha inicio Real (EV)", "Fecha fin Real (EV)")
 KIND_COST = "coste"                 # _estructura: fila «(coste)» de la depuración de costes (sin clave)
 COST_SUFFIX = " (coste)"
 
@@ -364,17 +367,15 @@ class _Layout:
         return f"'{sheet}'!${col(self.first_col)}${HEADER_ROW}:${col(self.last_col)}${HEADER_ROW}"
 
 
-def _info_line(report: Report, cfg: Config, generated: datetime) -> str:
+def _info_line(report: Report, generated: datetime) -> str:
+    """Cabecera de las hojas de datos, sin planificación ni moneda (se asume EUR) y con la fecha sin la hora."""
     p = report.project
-    cur = cfg.currency or report.currency or "-"
     companies = f"Empresas: {report.company_a} y {report.company_b}  |  " if report.multi else ""
     if report.multi_file:
         files = ", ".join(f"{s.name} = {Path(s.project.source).name}" for s in report.sources)
-        return (f"Informe: {report.title}  |  {companies}Archivos: {files}  |  Moneda: {cur}  |  "
-                f"Generado: {generated:%d/%m/%Y %H:%M}")
-    plan = f"Planificación: {report.plan}  |  " if report.plan else ""
-    return (f"Proyecto: {report.title}  |  {plan}{companies}Origen: {Path(p.source).name}  |  {p.baseline_label}  |  "
-            f"Moneda: {cur}  |  Generado: {generated:%d/%m/%Y %H:%M}")
+        return f"Informe: {report.title}  |  {companies}Archivos: {files}  |  Generado: {generated:%d/%m/%Y}"
+    return (f"Proyecto: {report.title}  |  {companies}Origen: {Path(p.source).name}  |  {p.baseline_label}  |  "
+            f"Generado: {generated:%d/%m/%Y}")
 
 
 def per_file(report: Report, value) -> str:
@@ -407,6 +408,7 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
     multi_total = report.multi and role is None
     company = {"A": report.company_a, "B": report.company_b}.get(role or "", "")
     is_pv = kind == SHEET_PV
+    real = kind != SHEET_PV             # EV y AC: fechas reales en E y F (las escribe write_schedule)
     # PV y EV = BAC × % de la hoja '% PV' o '% EV'; el BAC se ingresa en la columna D de las hojas PV
     by_pct = kind in (SHEET_PV, SHEET_EV) and not multi_total
     pct_name = pct_sheet(kind, company) if by_pct else ""
@@ -435,13 +437,13 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
     money = money_format(cfg.decimals)
     month_money = money_format_hide_zero(cfg.decimals) if kind != SHEET_AC else money
     ws.cell(row=TITLE_ROW, column=1, value=title).font = FONT_TITLE
-    put_text(ws, INFO_ROW, 1, _info_line(report, cfg, generated)).font = FONT_NOTE
+    put_text(ws, INFO_ROW, 1, _info_line(report, generated)).font = FONT_NOTE
 
     # Fila 3: número de mes; fila 4: encabezados y fecha de cada mes
     _header(ws, HEADER_ROW, [
         (COL_CODE, "Código EDT"), (COL_NAME, "Actividad"), (COL_METHOD, "Método de medición"),
         (COL_BAC, "BAC (Presupuesto)" + (f" {company}" if company else "")),
-        (COL_START, "Fecha inicio Plan (PV)"), (COL_FINISH, "Fecha fin Plan (PV)"),
+        *zip((COL_START, COL_FINISH), REAL_DATES if real else PLAN_DATES),
         (lay.total_col, "Total horizonte"),
     ])
     _month_header(ws, lay)
@@ -462,7 +464,7 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
             ws.cell(row=r, column=COL_START, value=_naive(row.start))
             ws.cell(row=r, column=COL_FINISH, value=_naive(row.finish))
         else:
-            for c_ in (COL_METHOD, COL_START, COL_FINISH):
+            for c_ in ((COL_METHOD,) if real else (COL_METHOD, COL_START, COL_FINISH)):
                 ref = f"'{SHEET_PV}'!{col(c_)}{r}"
                 ws.cell(row=r, column=c_, value=f'=IF({ref}="","",{ref})')
         if is_pv and multi_total:
@@ -638,11 +640,11 @@ def _write_pct_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
         title = ("% ganado por mes" + (f"  -  {company}" if company else "") +
                  "  -  valor DEL MES (no acumulado) que 'actualizar' calcula desde MS Project")
     ws.cell(row=TITLE_ROW, column=1, value=title).font = FONT_TITLE
-    put_text(ws, INFO_ROW, 1, _info_line(report, cfg, generated)).font = FONT_NOTE
+    put_text(ws, INFO_ROW, 1, _info_line(report, generated)).font = FONT_NOTE
     _header(ws, HEADER_ROW, [
         (COL_CODE, "Código EDT"), (COL_NAME, "Actividad"), (COL_METHOD, "Método de medición"),
         (COL_BAC, "BAC (Presupuesto)" + (f" {company}" if company else "")),
-        (COL_START, "Fecha inicio Plan (PV)"), (COL_FINISH, "Fecha fin Plan (PV)"),
+        *zip((COL_START, COL_FINISH), PLAN_DATES if is_pv else REAL_DATES),
         (lay.total_col, "Total horizonte" if is_pv else "% ganado acumulado"),
     ])
     _month_header(ws, lay)
@@ -652,7 +654,7 @@ def _write_pct_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
         r = lay.r(row)
         put_text(ws, r, COL_CODE, row.code)
         styled(put_text(ws, r, COL_NAME, row.name), alignment=indent(row.level))
-        for c_ in (COL_METHOD, COL_START, COL_FINISH):
+        for c_ in ((COL_METHOD, COL_START, COL_FINISH) if is_pv else (COL_METHOD,)):   # '% EV': write_schedule
             ref = f"'{SHEET_PV}'!{col(c_)}{r}"
             ws.cell(row=r, column=c_, value=f'=IF({ref}="","",{ref})')
         ref = f"'{amount}'!{col(COL_BAC)}{r}"
@@ -903,20 +905,17 @@ def _write_summary(ws, report: Report, cfg: Config, lay: _Layout, generated: dat
     ws[START_CELL].number_format = FMT_MONTH
     ws["A8"] = "Meses del horizonte"
     ws["B8"] = report.horizon.months
-    ws["A9"] = "Moneda"
-    put_text(ws, 9, 2, cfg.currency or report.currency or "-")
-    ws["A10"] = "Línea base"
-    put_text(ws, 10, 2, per_file(report, lambda s: s.project.baseline_label) if several else p.baseline_label)
-    ws["A11"] = "Origen" if not several else "Archivos de MS Project"
-    put_text(ws, 11, 2, per_file(report, lambda s: s.project.source) if several else str(p.source))
-    ws["A12"] = "Fuente del PV mensual"
-    put_text(ws, 12, 2, report.pv_source)
-    ws["A13"] = "Generado"
-    ws["B13"] = generated.replace(microsecond=0)
-    ws["B13"].number_format = "dd/mm/yyyy hh:mm"
-    ws["A14"] = "Planificación"
-    put_text(ws, 14, 2, per_file(report, lambda s: s.plan or "todas") if several
-             else report.plan or "Todas (sin filtro)")
+    # Sin moneda (se asume EUR) ni planificación: siguen en _meta ('moneda', 'planificacion').
+    ws["A9"] = "Línea base"
+    put_text(ws, 9, 2, per_file(report, lambda s: s.project.baseline_label) if several else p.baseline_label)
+    ws["A10"] = "Origen" if not several else "Archivos de MS Project"
+    put_text(ws, 10, 2, per_file(report, lambda s: Path(s.project.source).name) if several
+             else Path(p.source).name)
+    ws["A11"] = "Fuente del PV mensual"
+    put_text(ws, 11, 2, report.pv_source)
+    ws["A12"] = "Generado"
+    ws["B12"] = generated.date()
+    ws["B12"].number_format = FMT_DATE
 
     pv_tot = lay.month_range(SHEET_PV, tr)
     ev_tot = lay.month_range(SHEET_EV, tr)
@@ -1061,11 +1060,39 @@ def _summary_section(ws, r: int, text: str) -> None:
     ws.cell(row=r, column=1, value=text).font = FONT_BOLD
 
 
+def real_date_sheets(sheetnames: list[str]) -> list[str]:
+    """Hojas con las fechas reales en las columnas E y F: EV, % EV y AC, y las de cada empresa (EV-EmpresaA...)."""
+    bases = (SHEET_EV, SHEET_AC, pct_sheet(SHEET_EV))
+    return [n for n in sheetnames if any(n == b or n.startswith(f"{b}-") for b in bases)]
+
+
+def _write_real_dates(wb, summary, rows: list[int]) -> None:
+    """Columnas E y F de las hojas EV, % EV y AC: comienzo y fin real de cada fila (schedule.actual_dates). La hoja
+    EV tiene los valores; las demás, una fórmula que los toma de ella. En los libros anteriores a la 2.6.1 esas
+    columnas repetían las fechas del plan de la hoja PV: 'actualizar' las reemplaza."""
+    for name in real_date_sheets(wb.sheetnames):
+        ws = wb[name]
+        _header(ws, HEADER_ROW, list(zip((COL_START, COL_FINISH), REAL_DATES)))
+        for r in rows:
+            if name == SHEET_EV:
+                s = summary.rows.get(r)
+                values = (_naive(s.actual_start), _naive(s.actual_finish)) if s is not None else (None, None)
+            else:
+                values = tuple(f"=IF('{SHEET_EV}'!{col(c_)}{r}=\"\",\"\",'{SHEET_EV}'!{col(c_)}{r})"
+                               for c_ in (COL_START, COL_FINISH))
+            for c_, v in zip((COL_START, COL_FINISH), values):
+                cell = ws.cell(row=r, column=c_)
+                cell.value = v                  # también None: borra la fórmula de los libros anteriores
+                styled(cell, number_format=FMT_DATE)
+
+
 def write_schedule(wb, summary, rows: list[int], total_row: int, command: str) -> None:
     """Plazo según el cronograma de MS Project (schedule.ScheduleSummary): columnas Q a U de Indicadores EDT y
-    sección del Resumen. 'generar' y 'actualizar' los escriben con los datos de su lectura de MS Project; los libros
-    de versiones anteriores los reciben con 'actualizar'."""
+    sección del Resumen, y fechas reales de las columnas E y F de las hojas EV, % EV y AC. 'generar' y 'actualizar'
+    los escriben con los datos de su lectura de MS Project; los libros de versiones anteriores los reciben con
+    'actualizar'."""
     from evm.schedule import RowSchedule
+    _write_real_dates(wb, summary, rows)
     if SHEET_IND in wb.sheetnames:
         ws = wb[SHEET_IND]
         when = f" (fecha de estado {summary.status_date:%d/%m/%Y})" if summary.status_date else ""
@@ -1081,7 +1108,8 @@ def write_schedule(wb, summary, rows: list[int], total_row: int, command: str) -
                       I_SLACK: s.slack, I_CRITICAL: s.status or None}
             model = ws.cell(row=r, column=LAST_IND_COL)
             for c_, v in values.items():
-                cell = ws.cell(row=r, column=c_, value=v)
+                cell = ws.cell(row=r, column=c_)
+                cell.value = v                  # también None: no queda el valor de la lectura anterior
                 cell._style = copy(model._style)
                 styled(cell, number_format={I_BL_FINISH: FMT_DATE, I_FINISH: FMT_DATE, I_VARIANCE: FMT_DAYS,
                                             I_SLACK: FMT_SLACK}.get(c_, "General"), alignment=ALIGN_CENTER)
@@ -1108,7 +1136,8 @@ def write_schedule(wb, summary, rows: list[int], total_row: int, command: str) -
         ]
         for r, label, value, fmt, note in rows_:
             ws.cell(row=r, column=1, value=label)
-            c = ws.cell(row=r, column=2, value=value)
+            c = ws.cell(row=r, column=2)
+            c.value = value
             c.number_format = fmt
             c.border = BORDER
             ws.cell(row=r, column=3, value=note).font = FONT_NOTE

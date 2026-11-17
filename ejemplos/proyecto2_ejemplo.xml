@@ -1198,7 +1198,7 @@
 			<Name>Hito: módulos habilitados</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS></WBS>
+			<WBS>9.2.2.2</WBS>
 			<OutlineNumber>1.2.2.2</OutlineNumber>
 			<OutlineLevel>4</OutlineLevel>
 			<Start>2026-05-27T08:00:00</Start>
@@ -1218,6 +1218,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743767</FieldID><Value>60</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>9.2.2.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-05-27T08:00:00</Start>
@@ -1231,7 +1232,7 @@
 			<Name>Servicios del campamento</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS>9.2.2.2</WBS>
+			<WBS>9.2.2.3</WBS>
 			<OutlineNumber>1.2.2.3</OutlineNumber>
 			<OutlineLevel>4</OutlineLevel>
 			<Start>2026-05-27T08:00:00</Start>
@@ -1250,7 +1251,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
-			<ExtendedAttribute><FieldID>188743734</FieldID><Value>9.2.2.2</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>9.2.2.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-05-27T08:00:00</Start>
@@ -1288,7 +1289,7 @@
 			<Name>Hito: campamento en servicio</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS></WBS>
+			<WBS>9.2.2.4</WBS>
 			<OutlineNumber>1.2.2.4</OutlineNumber>
 			<OutlineLevel>4</OutlineLevel>
 			<Start>2026-07-22T08:00:00</Start>
@@ -1308,6 +1309,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743767</FieldID><Value>40</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>9.2.2.4</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-07-22T08:00:00</Start>

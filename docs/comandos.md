@@ -137,7 +137,7 @@ Método de medición: 6 advertencias, 1 informativa
 Empresas: sin observaciones
 
 Avance a la fecha de estado: 1 advertencia, 1 informativa
-  [!] AVA-013 De 12 tareas que debían terminar a la fecha de estado según la línea base, 12 no terminaron a tiempo: 8 sin terminar y 4 terminadas después de su fin de línea base (Id 2, 1.2.1, 1.2.2, 2.1.1, 2.1.2.1, Id 17, 2.1.2.2, Id 19, 2.1.2.3, Id 21 y 2 más).
+  [!] AVA-013 De 12 tareas que debían terminar a la fecha de estado según la línea base, 12 no terminaron a tiempo: 8 sin terminar y 4 terminadas después de su fin de línea base (Id 2, 1.2.1, 1.2.2, 2.1.1, 2.1.2.1, 2.1.2.2, 2.1.2.3, 2.1.2.4, 2.1.2.5, 2.1.2.6 y 2 más).
   [i] AVA-015 Quedan 898 días laborables hasta el fin previsto (09/12/2030) y el fin de la línea base es el 18/10/2030: 36 días laborables de atraso.
 
 Lógica del cronograma: 1 advertencia

@@ -5056,7 +5056,7 @@
 			<Name>Hito: bases aprobadas</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS></WBS>
+			<WBS>2.1.2.2</WBS>
 			<OutlineNumber>1.3.1.2.2</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2026-05-11T08:00:00</Start>
@@ -5076,6 +5076,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743767</FieldID><Value>30</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-05-11T08:00:00</Start>
@@ -5089,7 +5090,7 @@
 			<Name>Alternativas y selección</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS>2.1.2.2</WBS>
+			<WBS>2.1.2.3</WBS>
 			<OutlineNumber>1.3.1.2.3</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2026-05-11T08:00:00</Start>
@@ -5108,7 +5109,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
-			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2.2</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-05-11T08:00:00</Start>
@@ -5146,7 +5147,7 @@
 			<Name>Hito: alternativa seleccionada</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS></WBS>
+			<WBS>2.1.2.4</WBS>
 			<OutlineNumber>1.3.1.2.4</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2026-07-06T08:00:00</Start>
@@ -5166,6 +5167,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743767</FieldID><Value>30</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2.4</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-07-06T08:00:00</Start>
@@ -5179,7 +5181,7 @@
 			<Name>Informe conceptual</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS>2.1.2.3</WBS>
+			<WBS>2.1.2.5</WBS>
 			<OutlineNumber>1.3.1.2.5</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2026-07-06T08:00:00</Start>
@@ -5198,7 +5200,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
-			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2.3</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2.5</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-07-06T08:00:00</Start>
@@ -5228,7 +5230,7 @@
 			<Name>Hito: informe aprobado</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS></WBS>
+			<WBS>2.1.2.6</WBS>
 			<OutlineNumber>1.3.1.2.6</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2026-08-17T08:00:00</Start>
@@ -5248,6 +5250,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743767</FieldID><Value>40</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2.6</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-08-17T08:00:00</Start>
@@ -6067,7 +6070,7 @@
 			<Name>Hito: revisión 60 % aprobada</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS></WBS>
+			<WBS>2.2.4.2</WBS>
 			<OutlineNumber>1.3.2.4.2</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2027-12-16T08:00:00</Start>
@@ -6087,6 +6090,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743767</FieldID><Value>40</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.4.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-12-16T08:00:00</Start>
@@ -6100,7 +6104,7 @@
 			<Name>Revisión 90 %</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS>2.2.4.2</WBS>
+			<WBS>2.2.4.3</WBS>
 			<OutlineNumber>1.3.2.4.3</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2027-12-16T08:00:00</Start>
@@ -6119,7 +6123,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
-			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.4.2</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.4.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-12-16T08:00:00</Start>
@@ -6149,7 +6153,7 @@
 			<Name>Hito: emitido para construcción</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS></WBS>
+			<WBS>2.2.4.4</WBS>
 			<OutlineNumber>1.3.2.4.4</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2028-01-27T08:00:00</Start>
@@ -6169,6 +6173,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743767</FieldID><Value>60</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.4.4</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2028-01-27T08:00:00</Start>
@@ -7547,7 +7552,7 @@
 			<Name>Hito: equipos en fábrica (FAT)</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS></WBS>
+			<WBS>3.2.1.2</WBS>
 			<OutlineNumber>1.4.2.1.2</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2028-06-12T08:00:00</Start>
@@ -7567,6 +7572,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743767</FieldID><Value>40</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.2.1.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2028-06-12T08:00:00</Start>
@@ -7580,7 +7586,7 @@
 			<Name>Transporte</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS>3.2.1.2</WBS>
+			<WBS>3.2.1.3</WBS>
 			<OutlineNumber>1.4.2.1.3</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2028-06-12T08:00:00</Start>
@@ -7599,7 +7605,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
-			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.2.1.2</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.2.1.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2028-06-12T08:00:00</Start>
@@ -7637,7 +7643,7 @@
 			<Name>Hito: equipos en obra</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS></WBS>
+			<WBS>3.2.1.4</WBS>
 			<OutlineNumber>1.4.2.1.4</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2028-08-07T08:00:00</Start>
@@ -7657,6 +7663,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743767</FieldID><Value>60</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.2.1.4</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2028-08-07T08:00:00</Start>
@@ -12990,7 +12997,7 @@
 			<Name>Hito: bases aprobadas</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS></WBS>
+			<WBS>2.1.2.2</WBS>
 			<OutlineNumber>2.3.1.2.2</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2026-05-11T08:00:00</Start>
@@ -13010,6 +13017,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743767</FieldID><Value>30</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-05-11T08:00:00</Start>
@@ -13023,7 +13031,7 @@
 			<Name>Alternativas y selección</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS>2.1.2.2</WBS>
+			<WBS>2.1.2.3</WBS>
 			<OutlineNumber>2.3.1.2.3</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2026-05-11T08:00:00</Start>
@@ -13042,7 +13050,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
-			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2.2</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-05-11T08:00:00</Start>
@@ -13080,7 +13088,7 @@
 			<Name>Hito: alternativa seleccionada</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS></WBS>
+			<WBS>2.1.2.4</WBS>
 			<OutlineNumber>2.3.1.2.4</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2026-07-06T08:00:00</Start>
@@ -13100,6 +13108,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743767</FieldID><Value>30</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2.4</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-07-06T08:00:00</Start>
@@ -13113,7 +13122,7 @@
 			<Name>Informe conceptual</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS>2.1.2.3</WBS>
+			<WBS>2.1.2.5</WBS>
 			<OutlineNumber>2.3.1.2.5</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2026-07-06T08:00:00</Start>
@@ -13132,7 +13141,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
-			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2.3</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2.5</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-07-06T08:00:00</Start>
@@ -13162,7 +13171,7 @@
 			<Name>Hito: informe aprobado</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS></WBS>
+			<WBS>2.1.2.6</WBS>
 			<OutlineNumber>2.3.1.2.6</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2026-08-17T08:00:00</Start>
@@ -13182,6 +13191,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743767</FieldID><Value>40</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.1.2.6</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2026-08-17T08:00:00</Start>
@@ -14001,7 +14011,7 @@
 			<Name>Hito: revisión 60 % aprobada</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS></WBS>
+			<WBS>2.2.4.2</WBS>
 			<OutlineNumber>2.3.2.4.2</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2027-12-16T08:00:00</Start>
@@ -14021,6 +14031,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743767</FieldID><Value>40</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.4.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-12-16T08:00:00</Start>
@@ -14034,7 +14045,7 @@
 			<Name>Revisión 90 %</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS>2.2.4.2</WBS>
+			<WBS>2.2.4.3</WBS>
 			<OutlineNumber>2.3.2.4.3</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2027-12-16T08:00:00</Start>
@@ -14053,7 +14064,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
-			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.4.2</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.4.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2027-12-16T08:00:00</Start>
@@ -14083,7 +14094,7 @@
 			<Name>Hito: emitido para construcción</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS></WBS>
+			<WBS>2.2.4.4</WBS>
 			<OutlineNumber>2.3.2.4.4</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2028-01-27T08:00:00</Start>
@@ -14103,6 +14114,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743767</FieldID><Value>60</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>2.2.4.4</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2028-01-27T08:00:00</Start>
@@ -15481,7 +15493,7 @@
 			<Name>Hito: equipos en fábrica (FAT)</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS></WBS>
+			<WBS>3.2.1.2</WBS>
 			<OutlineNumber>2.4.2.1.2</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2028-06-12T08:00:00</Start>
@@ -15501,6 +15513,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743767</FieldID><Value>40</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.2.1.2</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2028-06-12T08:00:00</Start>
@@ -15514,7 +15527,7 @@
 			<Name>Transporte</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS>3.2.1.2</WBS>
+			<WBS>3.2.1.3</WBS>
 			<OutlineNumber>2.4.2.1.3</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2028-06-12T08:00:00</Start>
@@ -15533,7 +15546,7 @@
 			<BCWP>0.00</BCWP>
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
-			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.2.1.2</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.2.1.3</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2028-06-12T08:00:00</Start>
@@ -15571,7 +15584,7 @@
 			<Name>Hito: equipos en obra</Name>
 			<Active>1</Active>
 			<IsNull>0</IsNull>
-			<WBS></WBS>
+			<WBS>3.2.1.4</WBS>
 			<OutlineNumber>2.4.2.1.4</OutlineNumber>
 			<OutlineLevel>5</OutlineLevel>
 			<Start>2028-08-07T08:00:00</Start>
@@ -15591,6 +15604,7 @@
 			<PhysicalPercentComplete>0</PhysicalPercentComplete>
 			<EarnedValueMethod>0</EarnedValueMethod>
 			<ExtendedAttribute><FieldID>188743767</FieldID><Value>60</Value></ExtendedAttribute>
+			<ExtendedAttribute><FieldID>188743734</FieldID><Value>3.2.1.4</Value></ExtendedAttribute>
 			<Baseline>
 				<Number>0</Number>
 				<Start>2028-08-07T08:00:00</Start>

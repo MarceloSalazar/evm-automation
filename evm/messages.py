@@ -654,6 +654,12 @@ _CODES = [
           "Las tareas sin código EDT o de nivel mayor al máximo (o fuera de la lista EDT) se suman en la fila de su "
           "elemento EDT superior.",
           "Ninguna."),
+    _code("EDT-023", W, "Tareas sin código EDT dentro de un elemento EDT",
+          "Algunas tareas (hitos, actividades o tareas resumen) dependen de un elemento EDT y no tienen código EDT: se "
+          "suman en la fila de su elemento, pero sin código no se identifican en la jerarquía ni se puede comprobar su "
+          "numeración. Un resumen con la cantidad y una línea por tarea.",
+          "Asignar a cada tarea un código de un nivel más que su tarea superior (p. ej. 1.2.1.1 bajo 1.2.1), en el "
+          "orden de las tareas."),
 
     # --- VIS: campo Visible -------------------------------------------------------------------------------------
     _code("VIS-001", W, "Valor de Visible no reconocido",

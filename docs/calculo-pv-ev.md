@@ -192,9 +192,9 @@ fila cambiaría, lo informa
 flowchart TD
     A["2.0.0 Ingeniería<br/>(subtotal: fórmula SUM)"] --> B["2.1.0 Ingeniería básica<br/>(subtotal: fórmula SUM)"]
     B --> C["2.1.2 Diseño conceptual<br/>FILA DE INGRESO<br/>% con sus tareas"]
-    C --> D["Bases de diseño<br/>(sin código EDT)"]
-    C --> E["Hito: bases aprobadas<br/>(sin código EDT)"]
-    C --> F["Alternativas y selección<br/>(sin código EDT)"]
+    C --> D["2.1.2.1 Bases de diseño<br/>(nivel 4: se suma en 2.1.2)"]
+    C --> E["2.1.2.2 Hito: bases aprobadas<br/>(nivel 4: se suma en 2.1.2)"]
+    C --> F["2.1.2.3 Alternativas y selección<br/>(nivel 4: se suma en 2.1.2)"]
     style C fill:#FFF2CC,stroke:#BF9000
 ```
 
@@ -306,6 +306,12 @@ elemento:
 
 Si no dependen de ningún elemento EDT (por ejemplo, un hito suelto bajo la planificación), se omiten y
 se informan en `Validación`. Un hito sin peso no forma una fila `-D` por sí solo.
+
+Aunque el cálculo no lo necesita, cada tarea que depende de un elemento EDT (actividad, hito o tarea
+resumen) debe tener su código, de un nivel más que su tarea superior (`2.1.2.1`, `2.1.2.2`... bajo
+`2.1.2`): así se identifica en la jerarquía y se puede comprobar su numeración. `validar` y la hoja
+`Validación` informan las que no lo tienen con la advertencia
+[EDT-023](codigos.md#edt-023).
 
 ---
 

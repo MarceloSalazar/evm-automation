@@ -187,7 +187,10 @@ def test_generate_combines_files(xml, tmp_path, capsys):
     assert meta["proyecto.P2"].startswith("Accesos y servicios") and not meta["planificacion.P2"]
     wb = load_workbook(book)
     assert wb["Resumen"]["A2"].value == "Programa de ejemplo EVM + Accesos y servicios (proyecto 2 de ejemplo)"
-    assert wb["Resumen"]["B14"].value == "P1: INTERNO  |  P2: todas"
+    assert wb["Resumen"]["B10"].value == "P1: p1_base.xml  |  P2: p2_base.xml"
+    assert wb["Cuadro de Mando"]["B3"].value == "Archivos: P1 (Línea base); P2 (Línea base)"
+    assert wb["PV"]["A2"].value.startswith(f"Informe: {wb['Resumen']['A2'].value}  |  "
+                                           "Archivos: P1 = p1_base.xml, P2 = p2_base.xml  |  Generado: ")
     assert wb["Cuadro de Mando"]["B2"].value == wb["Resumen"]["A2"].value
     details = [r["detalle"] for r in validation_rows(book) if r["detalle"]]
     assert any(d.startswith("[P1] Planificación 'INTERNO'") for d in details)

@@ -214,8 +214,9 @@ recomendado para paquetes largos porque es **objetivo**.
 
 1. **Estructura:** el paquete es una tarea de nivel 3 (con código EDT) cuyas subtareas son las
    actividades de trabajo y los **hitos** (tareas de duración 0, o marcadas con *Marcar tarea como hito*
-   en *Información de la tarea > Avanzado*). Los hitos no necesitan código EDT: el programa los incluye
-   en su paquete.
+   en *Información de la tarea > Avanzado*). Las actividades y los hitos llevan su código EDT, de un
+   nivel más que el paquete (`2.1.2.1`, `2.1.2.2`... bajo `2.1.2`): se suman en su paquete y el código
+   los identifica en la jerarquía ([EDT-023](codigos.md#edt-023)).
 2. **Vínculos:** cada hito se vincula como sucesor de las actividades que producen su entregable, para
    que su fecha se mueva con el trabajo.
 3. **Pesos:** campo `Peso hito` (*Número1*) en cada hito: es el % del BAC del paquete que se planifica

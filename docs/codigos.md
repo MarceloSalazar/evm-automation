@@ -111,7 +111,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 |---|---|---|---|---|
 | [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 56 |
 | [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 17 |
-| [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 20 |
+| [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 21 |
 | [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 9 |
 | [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 13 |
 | [HIT](#46-hit--hitos-y-pesos) | Hitos y pesos | Hitos y pesos | generar (hoja Validación) y validar | 9 |
@@ -832,6 +832,7 @@ Formato, dependencia, orden y duplicados de los códigos EDT, planificación, li
 | [EDT-020](#edt-020) | Advertencia o Info | Tareas sin código EDT omitidas |
 | [EDT-021](#edt-021) | Advertencia | Ninguna tarea tiene código EDT |
 | [EDT-022](#edt-022) | Info | Tareas agregadas en su elemento superior |
+| [EDT-023](#edt-023) | Advertencia | Tareas sin código EDT dentro de un elemento EDT |
 
 #### EDT-001
 
@@ -992,6 +993,14 @@ El libro no tiene filas.
 Las tareas sin código EDT o de nivel mayor al máximo (o fuera de la lista EDT) se suman en la fila de su elemento EDT superior.
 
 **Qué hacer:** Ninguna.
+
+#### EDT-023
+
+**Tareas sin código EDT dentro de un elemento EDT** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+Algunas tareas (hitos, actividades o tareas resumen) dependen de un elemento EDT y no tienen código EDT: se suman en la fila de su elemento, pero sin código no se identifican en la jerarquía ni se puede comprobar su numeración. Un resumen con la cantidad y una línea por tarea.
+
+**Qué hacer:** Asignar a cada tarea un código de un nivel más que su tarea superior (p. ej. 1.2.1.1 bajo 1.2.1), en el orden de las tareas.
 
 ---
 

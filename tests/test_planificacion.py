@@ -127,7 +127,7 @@ def test_generate_and_update_with_plan(tmp_path, example_files, generator):
                  "--salida", str(book)]) == 0
     generator.fill_book(book)
     wb = load_workbook(book)
-    assert wb["Resumen"]["B14"].value == "INTERNO"
+    assert read_book(book).meta["planificacion"] == "INTERNO"
     codes = [wb["PV"].cell(r, 1).value for r in range(5, wb["PV"].max_row + 1)]
     assert {"1.0.0", "1.1.0", "1.1.1", "2.1.0", "2.1.2"} <= set(codes) and "INTERNO" not in codes
     cfg = load_config(example_files["config"])
@@ -143,7 +143,7 @@ def test_cli_plan_option_overrides_config(tmp_path, example_files, generator):
     book = tmp_path / "cliente.xlsx"
     assert main(["generar", "--origen", str(example_files["base"]), "--config", str(example_files["config"]),
                  "--planificacion", "CLIENTE", "--salida", str(book)]) == 0
-    assert load_workbook(book)["Resumen"]["B14"].value == "CLIENTE"
+    assert read_book(book).meta["planificacion"] == "CLIENTE"
     generator.fill_book(book)                       # el presupuesto del ejemplo de la planificación CLIENTE
     b = read_book(book)
     assert sum(b.bac.values()) == pytest.approx(44_210_000 * 1.15)

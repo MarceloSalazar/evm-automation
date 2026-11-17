@@ -304,7 +304,41 @@ def wbs_checks(scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
             issues.append(Issue("EDT-009", code_of(same[0]), same[0].name,
                                 f"Código EDT duplicado: lo tienen {len(same)} tareas ({names}{more}).{hint}",
                                 uid=same[0].uid))
-    return _capped(bad_format + issues)
+    return _capped(bad_format + issues) + _uncoded_tasks(tasks, sig, coded_parent, code_of)
+
+
+def _uncoded_tasks(tasks: list[Task], sig: dict[int, tuple[int, ...] | None],
+                   coded_parent: Callable[[Task], Task | None], code_of: CodeOf) -> list[Issue]:
+    """Tareas sin código EDT que dependen de un elemento EDT numérico (EDT-023): hitos, actividades y tareas
+    resumen. Se suman en la fila de su elemento, pero sin código no se identifican en la jerarquía ni se comprueba su
+    numeración. Las que dependen solo de una planificación (p. ej. INTERNO) o de ningún elemento quedan fuera del
+    libro (EDT-020)."""
+    found: list[Task] = []
+    details: list[Issue] = []
+    for t in tasks:
+        if t.uid in sig:
+            continue
+        parent = coded_parent(t)
+        top = sig.get(parent.uid) if parent is not None else None
+        if not top or top == (0,):
+            continue
+        found.append(t)
+        what = "Hito" if t.milestone else "Tarea resumen" if t.children else "Tarea"
+        expected = (f"se esperaba {_pattern(top)}" if t.parent is parent else
+                    "se le debe asignar uno que dependa del de su tarea superior")
+        details.append(_issue("EDT-023", t, code_of,
+                              f"{what} sin código EDT dentro de {_label(parent, code_of)}: {expected}."))
+    if not found:
+        return []
+    milestones = sum(1 for t in found if t.milestone)
+    which = f", {plural(milestones, 'hito', 'hitos')}" if milestones else ""
+    summary = Issue("EDT-023", "", "",
+                    f"{plural(len(found), 'tarea depende', 'tareas dependen')} de un elemento EDT sin tener código "
+                    f"EDT{which} ({_codes(found, code_of)}): se suman en la fila de su elemento, pero sin código no "
+                    f"se {'identifica' if len(found) == 1 else 'identifican'} en la jerarquía ni se puede comprobar su "
+                    "numeración. Se debe asignar a cada una un código de un nivel más que su tarea superior (p. ej. "
+                    "1.2.1.1 bajo 1.2.1).")
+    return [summary] + details[:LIMIT]
 
 
 def _capped(found: list[Issue]) -> list[Issue]:

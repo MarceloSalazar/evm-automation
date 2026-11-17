@@ -35,7 +35,8 @@ MS Project **no necesita costos ni recursos**: el BAC de cada fila se ingresa en
 
 **Una vez, antes del primer `generar`:**
 
-- [ ] Todas las tareas de detalle tienen código EDT o dependen de una tarea con código EDT.
+- [ ] Todas las tareas de detalle, incluidos los hitos, tienen código EDT, de un nivel más que su tarea
+      superior.
 - [ ] Los paquetes de trabajo (nivel 3) agrupan las tareas de detalle.
 - [ ] La duración de las tareas de detalle representa su trabajo (define su peso en el paquete).
 - [ ] Cada paquete tiene su **método de medición** (`Método EVM`) y, si usa hitos, sus hitos con
@@ -77,7 +78,11 @@ Recomendaciones:
 
 - Los paquetes de trabajo (nivel 3) son la unidad de medición del EV: cada uno con un responsable, un
   presupuesto y un método.
-- Las actividades de detalle y los hitos de un paquete **no necesitan** código EDT.
+- Las actividades de detalle y los hitos de un paquete también llevan código EDT, de un nivel más que
+  el paquete (`1.2.3.1`, `1.2.3.2`... bajo `1.2.3`). No tienen fila propia (se suman en el paquete),
+  pero el código los identifica en la jerarquía y permite comprobar su numeración: `validar` y la hoja
+  `Validación` informan las tareas sin código que dependen de un elemento EDT
+  ([EDT-023](codigos.md#edt-023)).
 - Las tareas que no dependen de ningún elemento EDT (por ejemplo, una reunión de arranque bajo la
   planificación) no forman parte del cálculo: se omiten y se informan en `Validación`.
 - El código de cada tarea empieza por el de su tarea superior y tiene un nivel más: bajo `1.2.0` van

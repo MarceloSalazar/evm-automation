@@ -24,11 +24,31 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 ### Correcciones
 
-- Ninguna.
+- **Fechas reales en las hojas `EV`, `% EV` y `AC`** (y en las de cada empresa): esas hojas repetían en
+  las columnas E y F las fechas del plan de la hoja `PV`. Ahora son *Fecha inicio Real (EV)* (el
+  *Comienzo real* más temprano de las tareas de detalle de la fila) y *Fecha fin Real (EV)* (el *Fin
+  real* más tardío, solo cuando todas terminaron, como una tarea resumen de MS Project). `generar` y
+  `actualizar` las escriben con su lectura de MS Project; `actualizar` convierte los libros de versiones
+  anteriores ([Hojas PV, EV y AC](docs/libro-excel.md#2-hojas-pv-ev-y-ac)).
+- **Hitos y actividades sin código EDT:** la documentación decía que los hitos de un paquete no necesitan
+  código EDT. Ahora llevan su código, de un nivel más que el paquete, y `validar` y la hoja `Validación`
+  informan con `EDT-023` (advertencia, nuevo) las tareas sin código que dependen de un elemento EDT
+  (hitos, actividades o tareas resumen). Se siguen sumando en su elemento, pero sin código no se
+  identifican en la jerarquía ni se puede comprobar su numeración.
+- `actualizar` dejaba en la hoja `Indicadores EDT` y en la sección de plazo del `Resumen` el valor de la
+  lectura anterior cuando el nuevo quedaba vacío (por ejemplo, la holgura de un paquete que terminó).
 
 ### Otros
 
-- Ninguna.
+- Proyecto de ejemplo: los hitos de los paquetes con *Hitos ponderados* tienen código EDT (`2.1.2.2`,
+  `2.1.2.4`...), y sus actividades se renumeran. Las filas del libro no cambian.
+- Hoja `Resumen` del libro: *Origen* muestra solo el nombre del archivo de MS Project, sin la ruta (con
+  varios archivos, el nombre de cada uno); *Generado* muestra solo la fecha, sin la hora; se quitan las
+  filas *Moneda* (se asume EUR) y *Planificación*. Los parámetros pasan a las filas 9 a 12; los
+  indicadores no cambian de celda. Los libros ya generados conservan sus filas hasta que se regeneran.
+- Mismo criterio en la cabecera de las hojas `PV`, `% PV`, `EV`, `% EV` y `AC` (sin planificación ni
+  moneda, y *Generado* sin la hora) y en la línea de datos del `Cuadro de Mando` (solo la línea base y, con
+  varios archivos, la de cada uno). Los gráficos siguen indicando la moneda en el eje de importes.
 
 <a id="v2.6.0"></a>
 
