@@ -51,13 +51,19 @@ def test_pv_only_with_baselined_work():
     assert [t.name for t in r2.pv_leaves] == ["Desglosado"] and not r2.pv_out
     assert (r2.start, r2.finish) == (JAN[0], MAR[1])
     assert [tt.task.name for tt in r2.weights[""].members] == ["D", "E"]
-    # Sin ninguna línea base en la fila: fechas actuales, como antes (FEC-010)
-    assert not r3.pv_leaves and (r3.start, r3.finish) == (MAR[0], APR[1])
+    # Sin ninguna línea base en la fila: sin % planificado ni fechas del plan (su BAC debe ser 0)
+    assert r3.pv_leaves == [] and (r3.start, r3.finish) == (None, None) and not any(r3.pct_vec[""])
+    assert [tt.task.name for tt in r3.weights[""].members] == ["Sin línea base"]
     ids = {i.id for i in rep.issues}
-    assert {"FEC-019", "FEC-010"} <= ids
+    assert "FEC-019" in ids and "FEC-010" not in ids and "HIT-005" not in ids
     fec019 = [i for i in rep.issues if i.id == "FEC-019"]
-    assert fec019[0].message.startswith("1 tarea sin línea base no forma parte del % planificado de su fila (1.1)")
+    assert fec019[0].message.startswith("2 tareas sin línea base no forman parte del % planificado de su fila "
+                                        "(1.1, 1.3)")
+    assert fec019[0].message.endswith("1 fila no tiene ninguna tarea con línea base (1.3): sin % planificado; su BAC "
+                                      "debe ser 0.")
     assert fec019[1].name.startswith("Retrabajo")
+    # La fila resumen no cuenta las filas sin % planificado
+    assert (rows["1.0"].start, rows["1.0"].finish) == (JAN[0], MAR[1])
 
 
 def test_pv_fechas_actuales_keeps_the_previous_criterion():

@@ -683,8 +683,8 @@ def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares:
     pv_times = pct.leaf_times(units, calendar, cfg.distribution) if units else times
     pv_full = pct.full_weights(pv_times) if units else full
     planned: dict[str, list[float]] | None = {}
-    if any(tt.dist and not tt.from_baseline for tt in pv_times):
-        planned = None
+    if units == [] or any(tt.dist and not tt.from_baseline for tt in pv_times):
+        planned = None                  # sin % planificado, o con fechas actuales: no se compara (ACT-047)
     for role, company in book.roles():
         share = None
         if role == "A":

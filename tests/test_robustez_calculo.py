@@ -109,7 +109,10 @@ def test_top_level_uncoded_container_is_omitted_but_children_exported():
 
 
 def test_task_without_dates_and_empty_report_are_reported():
-    rep = report([T(1, 1, "1", "Hito", bs=None, bf=None, start=None, finish=None, milestone=True)])
+    tasks = [T(1, 1, "1", "Hito", bs=None, bf=None, start=None, finish=None, milestone=True)]
+    rep = report(tasks)                         # sin línea base: fila sin % planificado (FEC-019)
+    assert sum(rep.total_vector) == 0 and issues_with(rep, "ninguna tarea con línea base (1.0.0)")
+    rep = report(tasks, Config(pv_current_dates=True))
     assert sum(rep.total_vector) == 0 and issues_with(rep, "Ninguna tarea de la fila tiene fechas")
     rep = report([T(1, 1, "", "Sin código")])
     assert not rep.rows and issues_with(rep, "Ninguna tarea tiene código EDT")
