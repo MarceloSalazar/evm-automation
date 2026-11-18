@@ -114,7 +114,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 21 |
 | [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 9 |
 | [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 14 |
-| [HIT](#46-hit--hitos-y-pesos) | Hitos y pesos | Hitos y pesos | generar (hoja Validación) y validar | 9 |
+| [HIT](#46-hit--hitos-y-pesos) | Hitos y pesos | Hitos y pesos | generar (hoja Validación) y validar | 13 |
 | [MET](#47-met--método-de-medición) | Método de medición | Método de medición | generar (hoja Validación) y validar | 5 |
 | [EMP](#48-emp--empresas) | Empresas | Empresas | generar (hoja Validación) y validar | 5 |
 | [AVA](#49-ava--avance-a-la-fecha-de-estado) | Avance a la fecha de estado | Avance a la fecha de estado | validar | 13 |
@@ -1244,6 +1244,10 @@ Peso de los hitos, método «Hitos ponderados» y filas sin % planificado.
 | [HIT-007](#hit-007) | Advertencia | Los pesos de los hitos suman más de 100 % |
 | [HIT-008](#hit-008) | Advertencia | Pesos de hitos menores a 100 % sin tareas con duración |
 | [HIT-009](#hit-009) | Advertencia | Tareas sin duración ni hitos con peso |
+| [HIT-010](#hit-010) | Error | Hito sin peso en una fila «Ponderado» |
+| [HIT-011](#hit-011) | Advertencia | Tarea sin peso en una fila «Ponderado» |
+| [HIT-012](#hit-012) | Advertencia | «Ponderado» sin pesos |
+| [HIT-013](#hit-013) | Advertencia | Pesos de una fila «Ponderado» que no suman 100 |
 
 #### HIT-001
 
@@ -1316,6 +1320,38 @@ La fila solo tiene hitos y sus pesos suman menos de 100 %: se escalaron a 100 %.
 Ninguna tarea de la fila tiene duración ni es un hito con peso: todas pesan igual.
 
 **Qué hacer:** Indicar la duración de las tareas o el peso de los hitos.
+
+#### HIT-010
+
+**Hito sin peso en una fila «Ponderado»** · Error · generar (hoja Validación) y validar · se puede silenciar
+
+En una fila con el método «Ponderado», un hito (0 días) sin peso no forma parte del % planificado ni del % ganado: suele ser un olvido (en MS Project, un peso vacío vale 0).
+
+**Qué hacer:** Indicar el peso del hito, o el de su tarea resumen para repartirlo por duración.
+
+#### HIT-011
+
+**Tarea sin peso en una fila «Ponderado»** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+En una fila con el método «Ponderado», una tarea sin peso no forma parte del % planificado ni del % ganado. Es lo esperado si su trabajo no tiene valor propio (p. ej. una tarea intermedia con peso 0).
+
+**Qué hacer:** Si debe pesar, indicar su peso o el de su tarea resumen.
+
+#### HIT-012
+
+**«Ponderado» sin pesos** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+La fila usa el método «Ponderado» y ninguna de sus tareas tiene peso: el % planificado se reparte por la duración de las tareas y el % ganado se calcula con el % completado.
+
+**Qué hacer:** Indicar el peso de las tareas de la fila (campo de `[campos] peso_hito`) o cambiar el método.
+
+#### HIT-013
+
+**Pesos de una fila «Ponderado» que no suman 100** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+Los pesos del primer nivel de la fila no suman 100: se normalizan a 100 (cada parte pesa en proporción a su peso).
+
+**Qué hacer:** Revisar los pesos de las tareas de la fila.
 
 ---
 

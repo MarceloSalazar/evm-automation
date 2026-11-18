@@ -147,7 +147,12 @@ def earned_history(report, cfg) -> EarnedHistory:
                     rw_i = replace(rw, members=members)
                 else:
                     rw_i = rw                       # mes de la fecha de estado: el avance de MS Project
-                frac, _note = pct.earned_fraction(method, rw_i, sum(pv[: i + 1]))
+                if row.weighted.get(role) is not None:          # «Ponderado»
+                    when = month_ends[i] if i < idx else None
+                    frac = pct.weighted_earned(row.weighted[role], report.horizon.key(i),
+                                               (lambda t, w=when: state(t).at(w)) if when else None)
+                else:
+                    frac, _note = pct.earned_fraction(method, rw_i, sum(pv[: i + 1]))
                 values.append(round(frac - prev, 12))
                 prev = frac
             row.ev_hist[role] = values

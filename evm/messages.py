@@ -826,6 +826,22 @@ _CODES = [
     _code("HIT-009", W, "Tareas sin duración ni hitos con peso",
           "Ninguna tarea de la fila tiene duración ni es un hito con peso: todas pesan igual.",
           "Indicar la duración de las tareas o el peso de los hitos."),
+    _code("HIT-010", E, "Hito sin peso en una fila «Ponderado»",
+          "En una fila con el método «Ponderado», un hito (0 días) sin peso no forma parte del % planificado ni del % "
+          "ganado: suele ser un olvido (en MS Project, un peso vacío vale 0).",
+          "Indicar el peso del hito, o el de su tarea resumen para repartirlo por duración."),
+    _code("HIT-011", W, "Tarea sin peso en una fila «Ponderado»",
+          "En una fila con el método «Ponderado», una tarea sin peso no forma parte del % planificado ni del % ganado. "
+          "Es lo esperado si su trabajo no tiene valor propio (p. ej. una tarea intermedia con peso 0).",
+          "Si debe pesar, indicar su peso o el de su tarea resumen."),
+    _code("HIT-012", W, "«Ponderado» sin pesos",
+          "La fila usa el método «Ponderado» y ninguna de sus tareas tiene peso: el % planificado se reparte por la "
+          "duración de las tareas y el % ganado se calcula con el % completado.",
+          "Indicar el peso de las tareas de la fila (campo de [campos] peso_hito) o cambiar el método."),
+    _code("HIT-013", W, "Pesos de una fila «Ponderado» que no suman 100",
+          "Los pesos del primer nivel de la fila no suman 100: se normalizan a 100 (cada parte pesa en proporción a su "
+          "peso).",
+          "Revisar los pesos de las tareas de la fila."),
 
     # --- MET: método de medición --------------------------------------------------------------------------------
     _code("MET-001", W, "Método no reconocido",

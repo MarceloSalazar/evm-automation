@@ -12,7 +12,7 @@ from evm.fields import fmt_number
 from evm.messages import (SEV_ERROR, SEV_INFO, SEV_WARN, TARGET_DETAIL, TARGET_GENERAL,  # noqa: F401
                           TARGET_OUT, TARGET_ROW, TOPIC_BOOK, TOPIC_COMPANY, TOPIC_DATES, TOPIC_LOGIC, TOPIC_METHOD,
                           TOPIC_PROGRESS, TOPIC_READ, TOPIC_VISIBLE, TOPIC_WBS, TOPIC_WEIGHTS, TOPICS, Issue)
-from evm.methods import is_undefined
+from evm.methods import WEIGHTED, is_undefined, parse_method
 from evm.model import MonthKey, ProjectData, Task
 from evm.timeline import Horizon, first_of_month
 
@@ -50,6 +50,8 @@ class ReportRow:
     # línea base). pv_out: tareas de detalle sin línea base que quedan fuera del PV
     pv_leaves: list[Task] | None = field(default=None, repr=False)
     pv_out: list[Task] = field(default_factory=list, repr=False)
+    # Método «Ponderado»: tareas y fracción del % ganado de cada empresa (percent.weighted_row)
+    weighted: dict[str, list] = field(default_factory=dict, repr=False)
     # % ganado de cada mes hasta la fecha de estado que carga 'generar' (history.earned_history), de cada empresa
     ev_hist: dict[str, list[float]] = field(default_factory=dict, repr=False)
 
@@ -552,6 +554,43 @@ def pv_selection(leaves: list[Task], top: Task, include_top: bool, current_dates
     return units, out
 
 
+def _weighted_curves(row: ReportRow, roles, calendar, cfg: Config, cache: dict, planned: dict, issues: list,
+                     code_of) -> bool:
+    """% planificado y fracciones del % ganado de una fila «Ponderado» (False si ninguna tarea tiene peso: HIT-012, y
+    la fila se calcula como las demás)."""
+    from evm import percent as pct
+
+    def time_of(t: Task) -> "pct.TaskTime":
+        return cache.setdefault(t.uid, pct.task_time(t, calendar, cfg.distribution))
+
+    wr = pct.weighted_row(row.task, time_of)
+    if wr is None:
+        issues.append(Issue("HIT-012", row.code, row.name, "Método «Ponderado» y ninguna tarea con peso: % planificado "
+                                                           "por duración y % ganado con el % completado."))
+        return False
+    for role, _company, fn in roles:
+        row.pct[role] = pct.weighted_curve(pct.company_pairs(wr.pv, fn))
+        row.weighted[role] = pct.company_pairs(wr.ev, fn)
+    planned.update((tt.task.uid, tt) for tt, _f in wr.pv)
+    for t in wr.unweighted:
+        if pct.is_zero_duration(t):
+            issues.append(Issue("HIT-010", code_of(t), task_name(t, code_of),
+                                f"Hito sin peso en la fila «Ponderado» {row.code}: no forma parte del % planificado ni "
+                                "del % ganado.", uid=t.uid))
+        else:
+            issues.append(Issue("HIT-011", code_of(t), task_name(t, code_of),
+                                f"Sin peso en la fila «Ponderado» {row.code}: no forma parte del % planificado ni del % "
+                                "ganado.", uid=t.uid))
+    if abs(wr.top_total - 100.0) > 1e-6:
+        issues.append(Issue("HIT-013", row.code, row.name,
+                            f"Los pesos de la fila suman {fmt_number(wr.top_total, 2, trim=True)}: se normalizan a "
+                            "100."))
+    if not any(row.pct.values()):
+        issues.append(Issue("HIT-005", row.code, row.name,
+                            "Ninguna tarea con peso tiene línea base: la fila no tiene % planificado."))
+    return True
+
+
 def pv_span(pv_leaves: list[Task] | None, leaves: list[Task], start: datetime | None,
             finish: datetime | None) -> tuple[datetime | None, datetime | None]:
     """Fechas del plan de una fila (columnas E y F de la hoja PV): las de sus tareas del % planificado; sin % planificado
@@ -589,6 +628,9 @@ def _percent_curves(project: ProjectData, cfg: Config, rows: list[ReportRow], co
         def times_of(tasks: list[Task]) -> list[pct.TaskTime]:
             return [cache.setdefault(t.uid, pct.task_time(t, calendar, cfg.distribution)) for t in tasks]
 
+        if row.kind != KIND_RESIDUAL and parse_method(row.method).kind == WEIGHTED:
+            if _weighted_curves(row, roles, calendar, cfg, cache, planned, issues, code_of):
+                continue
         own = row.pv_leaves is not None                       # tareas del PV distintas de las de detalle
         times = times_of(row.leaves if not own else row.pv_leaves)      # % planificado
         planned.update((tt.task.uid, tt) for tt in times)

@@ -24,7 +24,8 @@ from datetime import date, datetime, time
 
 from evm.fields import fmt_number
 from evm.messages import Issue
-from evm.methods import FIXED, LOE, MILESTONES, PCT, PHYSICAL, UNDEFINED, UNITS, Method, is_complete, is_started
+from evm.methods import (FIXED, LOE, MILESTONES, PCT, PHYSICAL, UNDEFINED, UNITS, WEIGHTED, Method, is_complete,
+                         is_started, parse_method)
 from evm.model import MonthKey, Task
 from evm.timeline import add_into
 from evm.workcalendar import WorkCalendar, elapsed_by_month
@@ -243,7 +244,147 @@ def earned_fraction(method: Method, rw: RowWeights, pv_fraction: float) -> tuple
             return _weighted_progress(rw, True), Issue("ACT-032", message="sin hitos: se usó % físico completado")
         return _weighted_progress(rw, False), Issue("ACT-033", message="sin hitos ni % físico completado: se usó % "
                                                                        "completado")
+    if kind == WEIGHTED:            # «Ponderado» sin pesos (HIT-012): % completado
+        return _weighted_progress(rw, False), None
     if kind == UNDEFINED:
         return _weighted_progress(rw, False), Issue("ACT-034", message="método no definido: se usó % completado")
     return _weighted_progress(rw, False), Issue("ACT-035", message=f"método no reconocido '{method.text}': se usó % "
                                                                    "completado")
+
+
+# ----------------------------------------------------------------------------
+# Método «Ponderado» (desde la 2.7.0)
+# ----------------------------------------------------------------------------
+def task_weight(t: Task) -> float:
+    """Peso de una tarea en una fila «Ponderado» (campo de [campos] peso_hito; vacío y negativo = 0)."""
+    return max(0.0, float(t.milestone_weight or 0.0))
+
+
+def is_zero_duration(t: Task) -> bool:
+    """Hito: marcado como hito o de duración 0 (sin subtareas)."""
+    return not t.children and (t.milestone or (t.duration is not None and t.duration <= 1e-9))
+
+
+def _has_baseline(t: Task) -> bool:
+    return t.baseline_start is not None or t.baseline_finish is not None
+
+
+@dataclass
+class WeightedRow:
+    """Reparto de una fila «Ponderado» entre sus tareas de detalle.
+
+    pv: tareas con línea base y su fracción del % planificado (suman 1); ev: todas las tareas y su fracción del %
+    ganado (suman 1). Las tareas sin línea base cuentan en el % ganado y no en el planificado. unweighted: tareas
+    en una posición con peso que no lo tienen (sin aporte); top_total: suma de los pesos del primer nivel.
+    """
+
+    pv: list[tuple[TaskTime, float]]
+    ev: list[tuple[TaskTime, float]]
+    unweighted: list[Task]
+    top_total: float
+
+
+def weighted_row(top: Task, time_of: Callable[[Task], TaskTime],
+                 allowed: set[int] | None = None) -> WeightedRow | None:
+    """Pesos de una fila «Ponderado» (None si ninguna tarea tiene peso).
+
+    Primer nivel: cada tarea de la fila con peso es una parte (una tarea resumen sin peso se recorre: sus subtareas
+    con peso son partes). Dentro de una tarea resumen con peso, el peso se reparte entre sus subtareas según sus
+    pesos (relativos) o, si ninguna tiene peso, según su duración. allowed: UniqueID de las tareas de la fila.
+    """
+    def kids(t: Task) -> list[Task]:
+        return [c for c in t.children if allowed is None or c.uid in allowed]
+
+    def leaves_of(t: Task) -> list[Task]:
+        ks = kids(t)
+        return [t] if not ks else [x for c in ks for x in leaves_of(c)]
+
+    unweighted: list[Task] = []
+
+    def top_units(t: Task) -> list[tuple[Task, float]]:
+        out: list[tuple[Task, float]] = []
+        for c in kids(t):
+            if task_weight(c) > 0:
+                out.append((c, task_weight(c)))
+            elif kids(c):
+                out += top_units(c)
+            else:
+                unweighted.append(c)
+        return out
+
+    def alloc(t: Task, amount: float, include, note: bool) -> list[tuple[Task, float]]:
+        ks = kids(t)
+        if not ks:
+            return [(t, amount)] if include(t) else []
+        weighted = [c for c in ks if task_weight(c) > 0]
+        if weighted:                                    # pesos relativos dentro del grupo
+            if note:
+                unweighted.extend(c for c in ks if task_weight(c) <= 0)
+            parts = [(c, task_weight(c)) for c in weighted if any(include(x) for x in leaves_of(c))]
+            total = sum(w for _c, w in parts)
+            return [x for c, w in parts for x in alloc(c, amount * w / total, include, note)] if total > 0 else []
+        found = [x for x in leaves_of(t) if include(x)]  # por duración
+        minutes = {x.uid: time_of(x).minutes for x in found}
+        total = sum(minutes.values())
+        if total <= 0:
+            return [(x, amount / len(found)) for x in found]
+        return [(x, amount * minutes[x.uid] / total) for x in found]
+
+    if not kids(top):
+        return None
+    units = top_units(top)
+    if not units:
+        return None
+
+    def split(include, note: bool) -> list[tuple[TaskTime, float]]:
+        parts = [(c, w) for c, w in units if any(include(x) for x in leaves_of(c))]
+        total = sum(w for _c, w in parts)
+        pairs = [x for c, w in parts for x in alloc(c, w / total, include, note)] if total > 0 else []
+        s = sum(f for _t, f in pairs)
+        return [(time_of(t), f / s) for t, f in pairs if f > 0] if s > 0 else []
+
+    ev = split(lambda t: True, True)
+    pv = split(_has_baseline, False)
+    return WeightedRow(pv, ev, unweighted, sum(w for _c, w in units))
+
+
+def company_pairs(pairs: list[tuple[TaskTime, float]], share: Share | None) -> list[tuple[TaskTime, float]]:
+    """Fracciones de una empresa (su parte de cada tarea, normalizada); si no participa, las de la fila completa."""
+    if share is None:
+        return pairs
+    own = [(tt, f * max(0.0, min(1.0, share(tt.task)))) for tt, f in pairs]
+    total = sum(f for _tt, f in own)
+    return [(tt, f / total) for tt, f in own if f > 0] if total > TOL else pairs
+
+
+def weighted_curve(pairs: list[tuple[TaskTime, float]]) -> dict[MonthKey, float]:
+    out: dict[MonthKey, float] = {}
+    for tt, f in pairs:
+        add_into(out, tt.dist, f)
+    return out
+
+
+def subtask_progress(t: Task, elapsed: float | None = None) -> float:
+    """Avance (0 a 1) de una tarea de una fila «Ponderado» según su propio método: un hito, 0/100; una tarea, el de su
+    campo de método (fórmula fija, % físico, unidades o avance lineal) o, si no tiene, % completado."""
+    if is_zero_duration(t):
+        return 1.0 if is_complete(t) else 0.0
+    m = parse_method(t.method)
+    if m.kind == FIXED:
+        return 1.0 if is_complete(t) else (m.start_fraction if is_started(t) else 0.0)
+    if m.kind in (PHYSICAL, UNITS):
+        return max(0.0, min(1.0, t.physical_percent_complete / 100.0))
+    if m.kind == LOE and elapsed is not None:
+        return max(0.0, min(1.0, elapsed))
+    return max(0.0, min(1.0, t.percent_complete / 100.0))
+
+
+def weighted_earned(pairs: list[tuple[TaskTime, float]], cut: MonthKey | None,
+                    state: Callable[[Task], Task] | None = None) -> float:
+    """% ganado (0 a 1) de una fila «Ponderado»: suma de la fracción de cada tarea por su avance. cut: mes de corte
+    (para el avance lineal de una tarea: lo planificado hasta ese mes); state: estado de la tarea a esa fecha."""
+    total = 0.0
+    for tt, f in pairs:
+        elapsed = sum(v for k, v in tt.dist.items() if cut is None or k <= cut) if tt.dist else None
+        total += f * subtask_progress(state(tt.task) if state else tt.task, elapsed)
+    return max(0.0, min(1.0, total))

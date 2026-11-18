@@ -15,7 +15,7 @@ from datetime import date, datetime, timedelta
 
 from evm.config import Config, ConfigError
 from evm.fields import fmt_number, same_name
-from evm.methods import FIXED, LOE, MILESTONES, UNKNOWN, is_complete, is_started, parse_method
+from evm.methods import FIXED, LOE, MILESTONES, UNKNOWN, WEIGHTED, is_complete, is_started, parse_method
 from evm.model import (CONSTRAINT_FNLT, CONSTRAINT_MFO, CONSTRAINT_MSO, CONSTRAINT_SNLT, LINK_FF, LINK_FS, LINK_SF,
                        LINK_SS, Link, ProjectData, Task)
 from evm.messages import SEV_ERROR, SEV_INFO, SEV_WARN, TOPIC_BOOK, Issue
@@ -485,7 +485,10 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
 
     # --- Hitos y pesos --------------------------------------------------------
     if cfg.milestone_weight_field:
-        unused = [t for t in tasks if t.milestone_weight and (not t.milestone or t.children)]
+        # En las filas «Ponderado» el peso es de cualquier tarea (HIT-010 a HIT-013)
+        weighted = {x.uid for r in rows if r.is_input and r.kind != KIND_RESIDUAL
+                    and parse_method(r.method).kind == WEIGHTED for x in iter_subtree(r.task)}
+        unused = [t for t in tasks if t.milestone_weight and (not t.milestone or t.children) and t.uid not in weighted]
         for t in unused[:LIMIT]:
             what = "es una tarea resumen" if t.children else "no es un hito"
             issues.append(_issue("HIT-001", t, code_of,

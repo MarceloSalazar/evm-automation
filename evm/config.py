@@ -27,6 +27,7 @@ DEFAULT_METHODS = [
     "25/75",
     "20/80",
     "Hitos ponderados",
+    "Ponderado",
     "% Completado",
     "% Físico completado",
     "Unidades completadas",
