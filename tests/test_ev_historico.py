@@ -119,7 +119,7 @@ def test_without_status_date_or_progress_nothing_is_loaded(tmp_path):
 def test_generar_loads_history_but_not_with_migrar_desde(tmp_path, example_files):
     book = tmp_path / "jun.xlsx"
     assert main(["generar", "--origen", str(example_files["jun"]), "--config", str(example_files["config"]),
-                 "--salida", str(book)]) == 0
+                 "--salida", str(book), "--ev-rellenar"]) == 0
     b = read_book(book)
     assert b.status_date == date(2027, 6, 30)
     idx = b.horizon.index(date(2027, 6, 30))
@@ -142,12 +142,13 @@ def test_generar_loads_history_but_not_with_migrar_desde(tmp_path, example_files
 
 
 def test_option_ev_historico(tmp_path, example_files):
-    """[exportacion] ev_historico: activado por defecto (también en config.ejemplo.toml); con false, generar no carga
-    el % ganado."""
+    """Desactivado por defecto (también en config.ejemplo.toml): generar no carga el % ganado sin --ev-rellenar ni
+    [exportacion] ev_historico = true."""
     from pathlib import Path
 
     from evm.config import ConfigError, load_config
-    assert Config().ev_history and load_config(Path(__file__).parents[1] / "config.ejemplo.toml").ev_history
+    assert not Config().ev_history
+    assert not load_config(Path(__file__).parents[1] / "config.ejemplo.toml").ev_history
     bad = tmp_path / "mal.toml"
     bad.write_text('[exportacion]\nev_historico = "no"\n', encoding="utf-8")
     with pytest.raises(ConfigError, match="'ev_historico' debe ser true o false"):

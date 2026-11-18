@@ -120,8 +120,9 @@ class Config:
     currency: str = "EUR"                 # "" = código de moneda del proyecto en MS Project
     decimals: int = 0
     fast_save: bool = True                # guardado_rapido: las celdas se escriben como texto al guardar el libro
-    # ev_historico: 'generar' carga el % ganado de cada mes hasta la fecha de estado si el archivo ya tiene avance
-    ev_history: bool = True
+    # ev_historico (o generar --ev-rellenar): 'generar' carga el % ganado de cada mes hasta la fecha de estado si el
+    # archivo ya tiene avance. Desactivado por defecto
+    ev_history: bool = False
     # generar --pv-fechas-actuales: las tareas sin línea base forman el % planificado con sus fechas actuales (criterio
     # anterior a la 2.7.0); por defecto quedan fuera del PV (wbs.pv_selection)
     pv_current_dates: bool = False

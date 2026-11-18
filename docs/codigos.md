@@ -1827,7 +1827,7 @@ El libro (o el archivo de salida) está abierto en Excel o en otro programa, o n
 
 **% ganado cargado hasta la fecha de estado** · Info · generar (hoja Validación) · se puede silenciar
 
-El archivo de MS Project tiene avance y fecha de estado: generar carga el % ganado de cada mes hasta la fecha de estado y la usa como fecha de corte del Resumen. El acumulado a la fecha de estado es el de MS Project; el de cada mes anterior se reconstruye con las fechas reales (exacto en las fórmulas fijas, los hitos ponderados y el avance lineal; en línea recta desde el comienzo real en el % completado y el % físico completado). No se carga con `--migrar-desde`, que conserva el del libro anterior, ni con `[exportacion] ev_historico` = false.
+Con generar `--ev-rellenar` (o `[exportacion] ev_historico` = true) y un archivo de MS Project con avance y fecha de estado, generar carga el % ganado de cada mes hasta la fecha de estado y la usa como fecha de corte del Resumen. El acumulado a la fecha de estado es el de MS Project; el de cada mes anterior se reconstruye con las fechas reales (exacto en las fórmulas fijas, los hitos ponderados y el avance lineal; en línea recta desde el comienzo real en el % completado y el % físico completado). No se carga con `--migrar-desde`, que conserva el del libro anterior.
 
 **Qué hacer:** Ingresar el BAC y el AC de esos meses. Los meses siguientes se cargan con actualizar.
 
