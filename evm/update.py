@@ -659,8 +659,8 @@ def _tag(source: str, issue: Issue) -> Issue:
 
 
 def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares: dict[int, float], calendar,
-                 cfg: Config, idx: int) -> tuple[RowResult, list[tuple[str, str, float, float]],
-                                                 dict[str, list[float]] | None]:
+                 cfg: Config, idx: int, task: Task | None = None
+                 ) -> tuple[RowResult, list[tuple[str, str, float, float]], dict[str, list[float]] | None]:
     """% ganado acumulado de cada empresa en una fila a la fecha de corte.
 
     Devuelve la fila del resultado, por empresa (clave, empresa, % ganado acumulado, BAC) y el % planificado de cada
@@ -668,13 +668,22 @@ def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares:
     de línea base: su % planificado sale de las fechas actuales).
     """
     from evm import percent as pct
+    from evm.wbs import pv_selection
     method = parse_method(book.method[s.row])
-    times = pct.leaf_times([t for t in contributors if not t.children], calendar, cfg.distribution)
+    leaves = [t for t in contributors if not t.children]
+    times = pct.leaf_times(leaves, calendar, cfg.distribution)      # % ganado: todas las tareas de detalle
     full = pct.full_weights(times)
     out = []
     notes: list[Issue] = []
+    # % planificado de hoy, con el criterio con que se generó el libro (los anteriores a la 2.7.0: fechas actuales)
+    current_dates = book.meta.get("pv_fechas_actuales")
+    current_dates = True if current_dates is None else bool(current_dates)
+    units, _out = pv_selection(leaves, task, s.kind != KIND_RESIDUAL, current_dates,
+                               {t.uid for t in contributors}) if task is not None else ([], [])
+    pv_times = pct.leaf_times(units, calendar, cfg.distribution) if units else times
+    pv_full = pct.full_weights(pv_times) if units else full
     planned: dict[str, list[float]] | None = {}
-    if any(tt.dist and not tt.from_baseline for tt in times):
+    if any(tt.dist and not tt.from_baseline for tt in pv_times):
         planned = None
     for role, company in book.roles():
         share = None
@@ -684,7 +693,8 @@ def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares:
             share = lambda t: 1.0 - shares.get(t.uid, 0.5)      # noqa: E731
         rw = pct.company_weights(times, share, company, full)
         if planned is not None:
-            vec, before, _after = book.horizon.to_vector(pct.curve(times, rw))
+            rw_pv = pct.company_weights(pv_times, share, company, pv_full) if units else rw
+            vec, before, _after = book.horizon.to_vector(pct.curve(pv_times, rw_pv))
             vec[0] += before                # como en 'generar': lo anterior al horizonte, en el mes 1
             planned[role] = vec
         pv_cum = sum(book.pct_pv[role][s.row][: idx + 1])
@@ -872,7 +882,8 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
         if any(t.uid in out_roots for t in contributors):
             contributors = [t for t in contributors if t.uid not in out_ids]
         leaves_of[s.row] = [t for t in contributors if not t.children]
-        res, parts, planned = _percent_row(book, s, contributors, shares_of.get(src, {}), calendars[src], cfg, idx)
+        res, parts, planned = _percent_row(book, s, contributors, shares_of.get(src, {}), calendars[src], cfg, idx,
+                                           task)
         if planned is not None:
             moved = _baseline_drift(book, s, planned, idx)
             if moved is not None:

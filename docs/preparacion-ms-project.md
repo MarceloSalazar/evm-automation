@@ -170,6 +170,9 @@ Detalle y ejemplos en [Métodos de medición](metodos-de-medicion.md).
 2. Tareas nuevas aprobadas: **Tareas seleccionadas** y **Resumir líneas base: Para todas las tareas de
    resumen**. Sin esa opción, las tareas resumen conservan una línea base que no corresponde a su
    detalle: `validar` las informa.
+3. Retrabajo o trabajo no previsto (sin cambio de alcance): la subtarea se agrega **sin línea base**. No
+   cambia el PV de su fila, ni al regenerar el libro, pero cuenta en el % ganado y en la fecha de fin
+   ([Tareas sin línea base](calculo-pv-ev.md#tareas-sin-línea-base-retrabajo-y-trabajo-no-previsto)).
 3. Copia de cada línea base aprobada en *Línea base 1..10* (*Establecer plan provisional*, *Copiar:
    Línea base*, *En: Línea base N*).
 

@@ -122,6 +122,9 @@ class Config:
     fast_save: bool = True                # guardado_rapido: las celdas se escriben como texto al guardar el libro
     # ev_historico: 'generar' carga el % ganado de cada mes hasta la fecha de estado si el archivo ya tiene avance
     ev_history: bool = True
+    # generar --pv-fechas-actuales: las tareas sin línea base forman el % planificado con sus fechas actuales (criterio
+    # anterior a la 2.7.0); por defecto quedan fuera del PV (wbs.pv_selection)
+    pv_current_dates: bool = False
     # Depuración de costes: filas «(coste)» con la previsión de una empresa, pegada
     # en la hoja PV-depuración, para alinear las tareas e hitos de MS Project con esa previsión
     cost_review: bool = False             # depuracion_costes

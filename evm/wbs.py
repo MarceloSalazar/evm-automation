@@ -44,7 +44,11 @@ class ReportRow:
     leaves: list[Task] = field(default_factory=list, repr=False)
     pct: dict[str, dict[MonthKey, float]] = field(default_factory=dict, repr=False)
     pct_vec: dict[str, list[float]] = field(default_factory=dict, repr=False)
-    weights: dict[str, object] = field(default_factory=dict, repr=False)    # percent.RowWeights de cada empresa
+    weights: dict[str, object] = field(default_factory=dict, repr=False)    # percent.RowWeights (% ganado) por empresa
+    # Tareas que forman el % planificado (pv_selection): las de detalle con línea base o la tarea desglosada después;
+    # vacía = las de detalle (leaves). pv_out: tareas de detalle sin línea base que quedan fuera del PV
+    pv_leaves: list[Task] = field(default_factory=list, repr=False)
+    pv_out: list[Task] = field(default_factory=list, repr=False)
     # % ganado de cada mes hasta la fecha de estado que carga 'generar' (history.earned_history), de cada empresa
     ev_hist: dict[str, list[float]] = field(default_factory=dict, repr=False)
 
@@ -494,6 +498,59 @@ def leaf_span(leaves: list[Task], start: datetime | None = None,
     return min(starts), max(finishes)
 
 
+def has_baseline_dates(t: Task) -> bool:
+    """La tarea tiene fechas de línea base (sin línea base en el proyecto, use_current_schedule les da las actuales)."""
+    return t.baseline_start is not None or t.baseline_finish is not None
+
+
+def pv_selection(leaves: list[Task], top: Task, include_top: bool, current_dates: bool = False,
+                 allowed: set[int] | None = None) -> tuple[list[Task], list[Task]]:
+    """Tareas que forman el % planificado de una fila y tareas de detalle que quedan fuera (desde la 2.7.0).
+
+    El PV es el trabajo planificado: las tareas de detalle con línea base y, si una tarea con línea base se desglosó
+    después en subtareas sin línea base, esa tarea, como un bloque con las fechas de su línea base. Una tarea de
+    detalle sin línea base que no depende de ninguna de ellas (p. ej. un retrabajo o trabajo no previsto, agregado
+    después de guardar la línea base) queda fuera del PV: cuenta en el % ganado y en la fecha de fin. Si ninguna tarea
+    de la fila tiene línea base, o con current_dates (generar --pv-fechas-actuales, el criterio anterior a la 2.7.0),
+    el PV se forma con las tareas de detalle, con sus fechas actuales si no tienen línea base: ([], []).
+
+    top: tarea de la fila (en una fila -D, la tarea resumen, que no forma parte de ella: include_top = False);
+    allowed: UniqueID de las tareas que forman la fila (None = todo el árbol podado).
+    """
+    if current_dates:
+        return [], []
+    memo: dict[int, bool] = {}
+
+    def baselined_below(t: Task) -> bool:
+        if t.uid not in memo:
+            memo[t.uid] = any((allowed is None or c.uid in allowed) and (has_baseline_dates(c) or baselined_below(c))
+                              for c in t.children)
+        return memo[t.uid]
+
+    units: list[Task] = []
+    seen: set[int] = set()
+    out: list[Task] = []
+    for leaf in leaves:
+        unit = leaf if has_baseline_dates(leaf) else None
+        p = leaf.parent if unit is None and leaf is not top else None
+        while unit is None and p is not None and (include_top or p is not top) \
+                and (allowed is None or p.uid in allowed):
+            if has_baseline_dates(p):
+                unit = p if not baselined_below(p) else None
+                break
+            if p is top:
+                break
+            p = p.parent
+        if unit is None:
+            out.append(leaf)
+        elif unit.uid not in seen:
+            seen.add(unit.uid)
+            units.append(unit)
+    if not units:
+        return [], []
+    return units, out
+
+
 def _has_weight(t: Task) -> bool:
     """Tarea que puede aportar % planificado: tarea con fechas o hito con peso."""
     if t.milestone:
@@ -507,6 +564,8 @@ def _percent_curves(project: ProjectData, cfg: Config, rows: list[ReportRow], co
     issues: list[Issue] = []
     calendar = pct.calendar_for(project, cfg)
     cache: dict[int, pct.TaskTime] = {}
+    planned: dict[int, pct.TaskTime] = {}       # tareas que forman algún % planificado
+    excluded: list[tuple[Task, ReportRow]] = []  # tareas de detalle sin línea base fuera del PV
     alone: dict[str, list[str]] = {}            # empresa -> filas en las que no participa
     if cfg.multi_enabled:
         roles = [(pct.ROLE_A, cfg.company_a, share), (pct.ROLE_B, cfg.company_b, lambda t: 1.0 - share(t))]
@@ -516,23 +575,44 @@ def _percent_curves(project: ProjectData, cfg: Config, rows: list[ReportRow], co
         progress.step(i, len(rows), "filas")
         if not row.is_input:
             continue
-        times = [cache.setdefault(t.uid, pct.task_time(t, calendar, cfg.distribution)) for t in row.leaves]
+        def times_of(tasks: list[Task]) -> list[pct.TaskTime]:
+            return [cache.setdefault(t.uid, pct.task_time(t, calendar, cfg.distribution)) for t in tasks]
+
+        times = times_of(row.pv_leaves or row.leaves)          # % planificado
+        planned.update((tt.task.uid, tt) for tt in times)
+        excluded.extend((t, row) for t in row.pv_out)
         full = pct.full_weights(times)
+        ev_times = times_of(row.leaves) if row.pv_leaves else times     # % ganado: todas las tareas de detalle
+        ev_full = pct.full_weights(ev_times) if row.pv_leaves else full
         for role, company, fn in roles:
             rw = pct.company_weights(times, fn, company, full)
             if rw.fallback:
                 alone.setdefault(company, []).append(row.code)
             row.pct[role] = pct.curve(times, rw)
-            row.weights[role] = rw
+            row.weights[role] = pct.company_weights(ev_times, fn, company, ev_full) if row.pv_leaves else rw
             issues += [replace(note, code=row.code, name=row.name) for note in rw.notes]
         if not any(row.pct.values()):
             issues.append(Issue("HIT-005", row.code, row.name,
                                 "Ninguna tarea de la fila tiene fechas ni es un hito con peso: no tiene % "
                                 "planificado y su BAC no se puede repartir en el tiempo."))
 
-    leaves = list(cache.values())
+    leaves = list(planned.values())
     undated = [x for x in leaves if not x.dist]
     current = [x for x in leaves if x.dist and not x.from_baseline] if project.baseline_found else []
+    if excluded and project.baseline_found:
+        rows_out = sorted({r.code for _t, r in excluded})
+        shown = ", ".join(rows_out[:10]) + (f" y {len(rows_out) - 10} más" if len(rows_out) > 10 else "")
+        issues.append(Issue("FEC-019", "", "",
+                            f"{plural(len(excluded), 'tarea sin línea base no forma', 'tareas sin línea base no forman')} "
+                            f"parte del % planificado de su fila ({shown}): cuentan en el % ganado y en la fecha de "
+                            "fin, pero no cambian el PV aprobado. Es lo esperado en un retrabajo o en trabajo no "
+                            "previsto; si son trabajo aprobado, se debe guardar su línea base (Tareas seleccionadas y "
+                            "Resumir líneas base). Con generar --pv-fechas-actuales entran en el PV con sus fechas "
+                            "actuales."))
+        for t, r in excluded[:200]:
+            issues.append(Issue("FEC-019", code_of(t), task_name(t, code_of),
+                                f"Sin línea base: fuera del % planificado de la fila {r.code}; cuenta en el % ganado.",
+                                uid=t.uid))
     if current:
         issues.append(Issue("FEC-010", "", "",
                             f"{plural(len(current), 'tarea no tiene', 'tareas no tienen')} fechas de línea base "
@@ -724,7 +804,8 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
 
         if is_leaf_row:
             row.leaves = [n for n in iter_subtree(t) if not n.children]
-            row.start, row.finish = leaf_span(row.leaves, s, f)
+            row.pv_leaves, row.pv_out = pv_selection(row.leaves, t, True, cfg.pv_current_dates)
+            row.start, row.finish = leaf_span(row.pv_leaves or row.leaves, s, f)
             row.method = (t.method or "").strip() or cfg.default_method
             row.hidden_tasks = sum(1 for _ in iter_subtree(t)) - 1
             aggregated += row.hidden_tasks
@@ -738,11 +819,13 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
         aggregated += sum(1 for b in loose_full for _ in iter_subtree(b)) + len(loose_own)
         if any(_has_weight(n) for n in loose):
             # Fechas de sus propias tareas (no las de toda la tarea resumen)
-            start, finish = leaf_span(loose, s, f)
+            pv_leaves, pv_out = pv_selection(loose, t, False, cfg.pv_current_dates)
+            start, finish = leaf_span(pv_leaves or loose, s, f)
             res = ReportRow(code=f"{row.code}-D", name=f"Otras tareas de «{t.name}»",
                             level=row.level + 1, kind=KIND_RESIDUAL, task=t, method=cfg.default_method,
                             start=start, finish=finish, parent=row)
             res.leaves = loose
+            res.pv_leaves, res.pv_out = pv_leaves, pv_out
             rows.append(res)
             row.children.append(res)
             issues.append(Issue("EDT-018", row.code, t.name,

@@ -786,6 +786,15 @@ _CODES = [
           "la tarea (p. ej. cuando era un hito o una tarea de un día).",
           "Guardar de nuevo la línea base de la tarea (Establecer línea base > Tareas seleccionadas), como parte de un "
           "cambio de línea base aprobado."),
+    _code("FEC-019", W, "Tareas sin línea base fuera del % planificado",
+          "Algunas tareas de detalle no tienen línea base y su fila tiene otras tareas con línea base (p. ej. un "
+          "retrabajo o trabajo no previsto, agregado después de guardar la línea base): no forman parte del % "
+          "planificado, que es el de la línea base aprobada, pero cuentan en el % ganado y en la fecha de fin. Si una "
+          "tarea con línea base se desglosó después en subtareas sin línea base, el PV usa la línea base de esa "
+          "tarea. Un resumen con la cantidad y una línea por tarea.",
+          "Ninguna, si es un retrabajo o trabajo no previsto. Si es trabajo aprobado, guardar su línea base "
+          "(Establecer línea base > Tareas seleccionadas y Resumir líneas base). Para el criterio anterior a la "
+          "2.7.0 (en el PV con sus fechas actuales): generar --pv-fechas-actuales."),
 
     # --- HIT: hitos y pesos -------------------------------------------------------------------------------------
     _code("HIT-001", W, "Peso en una tarea que no es un hito de detalle",

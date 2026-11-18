@@ -337,8 +337,37 @@ Casos especiales (se informan en `Validación`):
 | Los pesos suman menos de 100 y la fila no tiene tareas con duración | Se escalan a 100 %. |
 | `Peso hito` negativo | Se toma como 0. |
 | Ninguna tarea con duración ni hito con peso | Todas las tareas pesan igual. |
-| Tarea sin fechas de línea base (agregada después de guardarla) | Se usan sus fechas actuales y se advierte. |
+| Tarea sin fechas de línea base (agregada después de guardarla) en una fila con otras tareas con línea base | No forma parte del % planificado, que es el de la línea base aprobada: cuenta en el % ganado y en la fecha de fin ([abajo](#tareas-sin-línea-base-retrabajo-y-trabajo-no-previsto)). Con `generar --pv-fechas-actuales`, se usan sus fechas actuales. |
+| Ninguna tarea de la fila tiene línea base | Se usan sus fechas actuales y se advierte. |
 | Ninguna tarea de la fila tiene fechas | La fila no tiene % planificado: su BAC no se puede repartir en el tiempo. |
+
+### Tareas sin línea base: retrabajo y trabajo no previsto
+
+El % planificado es el trabajo **planificado y aprobado**: el que tiene línea base. Desde la versión 2.7.0,
+`generar` forma el % planificado de cada fila solo con:
+
+- las tareas de detalle con línea base;
+- una tarea con línea base que después se desglosó en subtareas sin línea base: cuenta como un bloque, con
+  las fechas de su línea base.
+
+Una tarea de detalle **sin línea base**, en una fila con otras tareas que sí la tienen, queda **fuera del
+% planificado** y **dentro del % ganado** (pesa por su duración actual) y de la fecha de fin de la hoja
+`EV`. Es lo que se espera cuando se agrega trabajo sin cambiar el plan aprobado:
+
+- **Retrabajo:** el cliente rechaza una tarea dada por terminada y se agrega una subtarea para completarla.
+- **Trabajo no previsto:** al ejecutar se ve que el desglose no era suficiente y se agregan subtareas.
+
+En los dos casos el PV de la fila no cambia, tampoco al regenerar el libro con `--migrar-desde`; el % ganado
+baja (queda más trabajo por hacer) y vuelve al 100 % al terminar, y la fecha de fin de la hoja `EV` pasa a
+ser la de la subtarea. `generar` y `validar` lo informan con [FEC-019](codigos.md#fec-019). Si el trabajo
+nuevo es un cambio aprobado, se guarda su línea base (*Tareas seleccionadas* y *Resumir líneas base*) y
+entra en el PV.
+
+Si ninguna tarea de la fila tiene línea base, se usan las fechas actuales, como en un proyecto sin línea base
+([FEC-010](codigos.md#fec-010)). Con `generar --pv-fechas-actuales` se usa el criterio anterior a la 2.7.0:
+las tareas sin línea base forman el % planificado con sus fechas actuales. El libro guarda el criterio con
+que se generó y `actualizar` lo usa para comparar el % planificado con la línea base de MS Project
+([ACT-047](codigos.md#act-047)); los libros anteriores a la 2.7.0 se comparan con el criterio anterior.
 
 El % planificado sale siempre de MS Project. Para comprobar que el PV de una empresa sigue el reparto
 mensual de su plan de costes, se compara con él en un libro con
@@ -690,7 +719,8 @@ comportamiento esperado de ese método.
 | Mensaje | Significado |
 |---|---|
 | El PV y el EV de cada fila son el BAC × ... | Recordatorio de dónde se ingresa el BAC. |
-| N tareas no tienen fechas de línea base | Se agregaron después de guardar la línea base: se usaron sus fechas actuales. |
+| N tareas sin línea base no forman parte del % planificado | Se agregaron después de guardar la línea base (retrabajo o trabajo no previsto): cuentan en el % ganado, no en el PV. Si son trabajo aprobado, guardar su línea base. |
+| N tareas no tienen fechas de línea base | Ninguna tarea de su fila tiene línea base (o `--pv-fechas-actuales`): se usaron sus fechas actuales. |
 | Los pesos de los hitos suman X % | Pesos mayores que 100, o menores sin tareas con duración: se escalaron a 100 %. |
 | Las tareas no tienen duración ni hitos con peso | Todas las tareas de la fila pesan igual. |
 | Ninguna tarea de la fila tiene fechas | La fila no tiene % planificado: su BAC no se puede repartir. |

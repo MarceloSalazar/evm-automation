@@ -75,7 +75,8 @@ cronograma de las secciones [1.2](#12-avance-a-la-fecha-de-estado-validar) y
 | Campo de método o de empresa que existe, pero está vacío en todas las tareas | Revisar el nombre o el alias del campo en la configuración. |
 | Multi-empresa: `% Reparto` en una tarea que no es `Ambas` (`Info`) | El reparto solo se usa en las tareas `Ambas`; en las demás se ignora. |
 | Recordatorio de dónde se ingresa el BAC | Ingresar el BAC de cada fila en la columna D de la hoja `PV` (o de cada empresa) ([Cálculo del PV y el EV](calculo-pv-ev.md#14-controles-y-validaciones)). |
-| Tareas sin fechas de línea base | Tareas agregadas después de guardar la línea base: su % planificado usa sus fechas actuales. Si están aprobadas, guardar la línea base de esas tareas. |
+| Tareas sin línea base fuera del % planificado (`Advertencia`) | Tareas agregadas después de guardar la línea base en una fila con otras tareas con línea base: cuentan en el % ganado, no en el PV. Es lo esperado en un retrabajo o en trabajo no previsto; si son trabajo aprobado, guardar su línea base (*Tareas seleccionadas* y *Resumir líneas base*). |
+| Tareas sin fechas de línea base | Ninguna tarea de su fila tiene línea base (o se generó con `--pv-fechas-actuales`): su % planificado usa sus fechas actuales. Si están aprobadas, guardar la línea base de esas tareas. |
 | Pesos de hitos que suman más de 100 (o menos, sin tareas con duración), pesos negativos, filas sin pesos o sin fechas | Revisar el `Peso hito` de los hitos de la fila y las fechas de sus tareas ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)). |
 | Multi-empresa: empresa que no participa en las tareas de una fila | Si se le asigna BAC en esa fila, su PV y su avance son los de la fila completa. |
 | Planificación exportada y cantidad de tareas que dependen de ella | Que sea la planificación correcta. |

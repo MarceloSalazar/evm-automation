@@ -113,7 +113,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 17 |
 | [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 21 |
 | [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 9 |
-| [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 13 |
+| [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 14 |
 | [HIT](#46-hit--hitos-y-pesos) | Hitos y pesos | Hitos y pesos | generar (hoja Validación) y validar | 9 |
 | [MET](#47-met--método-de-medición) | Método de medición | Método de medición | generar (hoja Validación) y validar | 5 |
 | [EMP](#48-emp--empresas) | Empresas | Empresas | generar (hoja Validación) y validar | 5 |
@@ -1113,6 +1113,7 @@ Fechas de la línea base y del programa actual, hitos y duración de las tareas.
 | [FEC-015](#fec-015) | Advertencia | Línea base incompleta |
 | [FEC-017](#fec-017) | Advertencia | Tareas con calendario propio |
 | [FEC-018](#fec-018) | Advertencia | Tarea con la línea base de un día |
+| [FEC-019](#fec-019) | Advertencia | Tareas sin línea base fuera del % planificado |
 
 #### FEC-001
 
@@ -1217,6 +1218,14 @@ Algunas tareas tienen un calendario de tarea distinto del calendario del proyect
 La tarea dura al menos 5 días laborables en el programa actual, y en la línea base que usa el % planificado, un día o menos (comienzo y fin el mismo día): en el % planificado de su fila pesa como una tarea de un día o menos, entera en ese mes. Suele pasar cuando la línea base se guardó antes de planificar la tarea (p. ej. cuando era un hito o una tarea de un día).
 
 **Qué hacer:** Guardar de nuevo la línea base de la tarea (Establecer línea base > Tareas seleccionadas), como parte de un cambio de línea base aprobado.
+
+#### FEC-019
+
+**Tareas sin línea base fuera del % planificado** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+Algunas tareas de detalle no tienen línea base y su fila tiene otras tareas con línea base (p. ej. un retrabajo o trabajo no previsto, agregado después de guardar la línea base): no forman parte del % planificado, que es el de la línea base aprobada, pero cuentan en el % ganado y en la fecha de fin. Si una tarea con línea base se desglosó después en subtareas sin línea base, el PV usa la línea base de esa tarea. Un resumen con la cantidad y una línea por tarea.
+
+**Qué hacer:** Ninguna, si es un retrabajo o trabajo no previsto. Si es trabajo aprobado, guardar su línea base (Establecer línea base > Tareas seleccionadas y Resumir líneas base). Para el criterio anterior a la 2.7.0 (en el PV con sus fechas actuales): generar `--pv-fechas-actuales`.
 
 ---
 

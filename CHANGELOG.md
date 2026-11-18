@@ -36,6 +36,15 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   de MS Project: previsto hasta que terminan todas), en todas las filas. `generar` y cada `actualizar` las
   escriben con su lectura de MS Project; `actualizar` convierte los libros de versiones anteriores
   ([Hojas PV, EV y AC](docs/libro-excel.md#2-hojas-pv-ev-y-ac)).
+- **PV solo con el trabajo con línea base:** `generar` forma el % planificado de cada fila con las tareas
+  de detalle con línea base y, si una tarea con línea base se desglosó después en subtareas sin línea base,
+  con esa tarea como un bloque. Una subtarea sin línea base (un retrabajo o trabajo no previsto, agregado
+  después de guardarla) ya no cambia el PV ni las fechas del Plan de su fila, tampoco al regenerar con
+  `--migrar-desde`: cuenta en el % ganado y en la fecha de fin de la hoja `EV` (`FEC-019`, advertencia,
+  nuevo). Si ninguna tarea de la fila tiene línea base se siguen usando las fechas actuales. El criterio
+  anterior se mantiene con la opción nueva `generar --pv-fechas-actuales`; el libro guarda el criterio y
+  `actualizar` lo usa al comparar con la línea base de MS Project (`ACT-047`)
+  ([Tareas sin línea base](docs/calculo-pv-ev.md#tareas-sin-línea-base-retrabajo-y-trabajo-no-previsto)).
 - **Tareas sin código EDT dentro de un elemento EDT** (`EDT-023`, advertencia, nuevo): `validar` y la hoja
   `Validación` informan los hitos, actividades y tareas resumen sin código que dependen de un elemento
   EDT. Se siguen sumando en su elemento, pero sin código no se identifican en la jerarquía ni se puede

@@ -1571,6 +1571,8 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
         "generado": generated.replace(microsecond=0),
         "modo": MODE_PERCENT,
         "campo_visible": cfg.visible_field,
+        # Criterio del % planificado (wbs.pv_selection); los libros anteriores a la 2.7.0 no lo tienen: True
+        "pv_fechas_actuales": cfg.pv_current_dates,
         "multiempresa": bool(report.multi),
         "depuracion_costes": review is not None,
         "disposicion_cuadro_mando": dashboard.LAYOUT,

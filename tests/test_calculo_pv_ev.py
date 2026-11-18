@@ -166,14 +166,23 @@ def test_planned_curve_per_company_and_horizon():
 
 
 def test_tasks_without_baseline_dates_are_warned():
+    """Tarea sin línea base en una fila con otras tareas con línea base: por defecto queda fuera del PV (FEC-019) y
+    cuenta en el % ganado; con --pv-fechas-actuales forma el PV con sus fechas actuales (FEC-010)."""
     tasks = excavation_tasks()
     tasks[4].baseline_start = tasks[4].baseline_finish = None
     tasks[4].has_baseline = False
     rep = build_report(P(tasks), config())
-    assert issues_with(rep, "1 tarea no tiene fechas de línea base", "Advertencia")
+    assert issues_with(rep, "1 tarea sin línea base no forma parte del % planificado de su fila (3.1.1)", "Advertencia")
     # Tarea sin código EDT: con su Id, para encontrarla en MS Project
-    assert any(i.name == f"Estructura (Id {tasks[4].id})" and "fechas actuales" in i.message for i in rep.issues)
-    assert sum(rows_by_code(rep)["3.1.1"].pct_vec[""]) == pytest.approx(1.0)
+    assert any(i.id == "FEC-019" and i.name == f"Estructura (Id {tasks[4].id})" for i in rep.issues)
+    row = rows_by_code(rep)["3.1.1"]
+    assert sum(row.pct_vec[""]) == pytest.approx(1.0)
+    assert (row.start, row.finish) == (FEB[0], FEB[1])                  # PV: solo la excavación (febrero)
+    assert [tt.task.name for tt in row.weights[""].members] == ["Excavación", "Estructura"]    # % ganado: las dos
+    old = build_report(P(tasks), config(pv_current_dates=True))
+    assert issues_with(old, "1 tarea no tiene fechas de línea base", "Advertencia")
+    assert any(i.name == f"Estructura (Id {tasks[4].id})" and "fechas actuales" in i.message for i in old.issues)
+    assert rows_by_code(old)["3.1.1"].start == tasks[4].start                    # con sus fechas actuales
 
 
 def test_loose_tasks_form_an_other_tasks_row():

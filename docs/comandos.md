@@ -250,6 +250,7 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 | `--motor auto\|com\|xml` | Forma de lectura. `auto` decide por la extensión. |
 | `--migrar-desde libro.xlsx` | Copia al libro nuevo el BAC ingresado, el % ganado y el AC ya cargados, los métodos editados en la columna C, el análisis de desviaciones y la fecha de corte de un libro anterior ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). Con depuración de costes, también la previsión pegada en `PV-depuración` ([Depuración de costes](depuracion-costes.md#9-ciclo-de-ajuste)). El % planificado es siempre el de MS Project. |
 | `--sobrescribir` | Reemplaza el libro de salida si ya existe. |
+| `--pv-fechas-actuales` | Las tareas sin línea base forman el % planificado con sus fechas actuales, como antes de la versión 2.7.0. Por defecto, en una fila con otras tareas con línea base, quedan fuera del PV y solo cuentan en el % ganado (retrabajo o trabajo no previsto; [Tareas sin línea base](calculo-pv-ev.md#tareas-sin-línea-base-retrabajo-y-trabajo-no-previsto)). |
 | `--visible` | Muestra la ventana de MS Project mientras se lee (solo COM). No tiene relación con el campo `Visible`. |
 | `--silenciar CODIGOS` | Códigos de las observaciones que no se muestran, separados por comas (`LOG-003,FEC-006`, o `MET-004:1.2.1` para una sola fila); se puede repetir y se suma a `[validacion] silenciar` ([Silenciar observaciones](codigos.md#2-silenciar-observaciones)). |
 

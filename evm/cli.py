@@ -121,6 +121,8 @@ def _apply_overrides(cfg: Config, args) -> Config:
         cfg.max_level = args.nivel_max
     if getattr(args, "planificacion", None) is not None:
         cfg.plan = args.planificacion.strip()
+    if getattr(args, "pv_fechas_actuales", False):
+        cfg.pv_current_dates = True
     _add_silence(cfg, args)
     cfg.validate()
     return cfg
@@ -965,6 +967,9 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--meses", type=int, help="cantidad de meses (por defecto, meses de la configuración: 120)")
     g.add_argument("--migrar-desde", help="libro anterior del que se copian el BAC, el %% ganado y el AC ya cargados")
     g.add_argument("--sobrescribir", action="store_true", help="reemplaza el libro de salida si existe")
+    g.add_argument("--pv-fechas-actuales", action="store_true",
+                   help="las tareas sin línea base forman el %% planificado con sus fechas actuales (criterio anterior "
+                        "a la 2.7.0). Por defecto quedan fuera del PV y solo cuentan en el %% ganado")
     g.set_defaults(func=cmd_generar)
 
     a = sub.add_parser("actualizar", help="calcula el %% ganado a la fecha de corte y lo carga en el mes correspondiente (el AC se carga a mano)")
