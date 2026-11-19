@@ -112,7 +112,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 56 |
 | [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 17 |
 | [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 21 |
-| [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 9 |
+| [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 5 |
 | [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 14 |
 | [HIT](#46-hit--hitos-y-pesos) | Hitos y pesos | Hitos y pesos | generar (hoja Validación) y validar | 13 |
 | [MET](#47-met--método-de-medición) | Método de medición | Método de medición | generar (hoja Validación) y validar | 5 |
@@ -1011,38 +1011,18 @@ Valores del campo Visible y ramas que quedan fuera del cálculo.
 | Código | Severidad | Descripción |
 |---|---|---|
 | [VIS-001](#vis-001) | Advertencia | Valor de Visible no reconocido |
-| [VIS-002](#vis-002) | Advertencia | Visible = Sí dentro de una rama excluida |
-| [VIS-003](#vis-003) | Advertencia | Visible = Sí bajo una tarea que representa a sus subtareas |
 | [VIS-004](#vis-004) | Advertencia | Visible = Sí en una tarea sin código EDT |
-| [VIS-005](#vis-005) | Advertencia | Todos los elementos de nivel superior con Visible = No |
 | [VIS-006](#vis-006) | Info | Campo Visible sin usar con lista EDT |
-| [VIS-007](#vis-007) | Info | Tareas con Visible = No |
-| [VIS-009](#vis-009) | Info | Todas las subtareas con Visible = No |
-| [VIS-010](#vis-010) | Info | Visible = Sí por debajo del nivel máximo |
+| [VIS-011](#vis-011) | Info | Filas según el campo Visible |
+| [VIS-012](#vis-012) | Info | Tareas con Visible = No |
 
 #### VIS-001
 
 **Valor de Visible no reconocido** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-El campo Visible tiene un valor distinto de Sí o No: se usa el nivel máximo.
+El campo Visible tiene un valor distinto de Sí o No: se trata como vacío (sin fila propia si alguna tarea tiene Sí; si no, según el nivel máximo).
 
 **Qué hacer:** Escribir Sí, No o dejarlo vacío.
-
-#### VIS-002
-
-**Visible = Sí dentro de una rama excluida** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
-
-La tarea tiene Visible = Sí, pero depende de una tarea con Visible = No: queda fuera del cálculo con esa rama.
-
-**Qué hacer:** Quitar el No de la tarea superior o el Sí de la tarea.
-
-#### VIS-003
-
-**Visible = Sí bajo una tarea que representa a sus subtareas** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
-
-La tarea tiene Visible = Sí, pero depende de una tarea con Visible = No cuyas hermanas también lo tienen: se suma con su rama.
-
-**Qué hacer:** Revisar los valores de Visible de esa rama.
 
 #### VIS-004
 
@@ -1052,14 +1032,6 @@ Una tarea sin código EDT no puede tener fila propia: se suma en su fila superio
 
 **Qué hacer:** Asignarle código EDT o quitar el Sí.
 
-#### VIS-005
-
-**Todos los elementos de nivel superior con Visible = No** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
-
-Si se aplicara, el libro no tendría filas: se ignora en esos elementos.
-
-**Qué hacer:** Revisar el campo Visible de los elementos de nivel superior.
-
 #### VIS-006
 
 **Campo Visible sin usar con lista EDT** · Info · generar (hoja Validación) y validar · se puede silenciar
@@ -1068,29 +1040,21 @@ Con lista_edt, las filas del libro las decide la lista y el campo Visible no se 
 
 **Qué hacer:** Ninguna.
 
-#### VIS-007
+#### VIS-011
+
+**Filas según el campo Visible** · Info · generar (hoja Validación) y validar · se puede silenciar
+
+Alguna tarea tiene Visible = Sí: tiene fila propia cada tarea con Sí y código EDT, y las demás (vacío o No) se suman en su fila superior con Sí, como con una lista EDT. El nivel máximo solo completa los códigos con ceros.
+
+**Qué hacer:** Ninguna, si es lo esperado. Las tareas que no dependen de ninguna con Sí quedan fuera del libro ([EDT-019](#edt-019)).
+
+#### VIS-012
 
 **Tareas con Visible = No** · Info · generar (hoja Validación) y validar · se puede silenciar
 
-Esas tareas (con su rama) no forman parte del % planificado ni del % ganado. Un resumen con la cantidad y una línea por tarea.
+Desde la versión 2.7.0, una tarea con Visible = No no tiene fila propia y cuenta en su fila superior (antes quedaba fuera del cálculo, con su rama).
 
-**Qué hacer:** El BAC y el AC que se ingresan en el libro no las deben incluir.
-
-#### VIS-009
-
-**Todas las subtareas con Visible = No** · Info · generar (hoja Validación) y validar · se puede silenciar
-
-La tarea representa a sus subtareas: su fila es el paquete de trabajo, con toda su rama (o se suman en su fila superior).
-
-**Qué hacer:** Ninguna, si es lo esperado.
-
-#### VIS-010
-
-**Visible = Sí por debajo del nivel máximo** · Info · generar (hoja Validación) y validar · se puede silenciar
-
-Esas tareas tienen fila propia aunque su código sea más detallado que el nivel máximo.
-
-**Qué hacer:** Ninguna.
+**Qué hacer:** Para excluir una tarea del cálculo, inactivarla en MS Project. Los libros generados antes con tareas con No se deben regenerar con `--migrar-desde`.
 
 ---
 
@@ -3165,7 +3129,13 @@ reemplazar por el código que lo informa ahora.
 | <a id="lec-023"></a>LEC-023 | Campo de reparto vacío | 2.6.0 | - | Hasta la versión 2.5, en multi-empresa, se avisaba cuando el campo de reparto existía, pero estaba vacío en todas las tareas. Desde la versión 2.6.0 no se avisa: una tarea compartida (ambas) sin reparto se reparte con reparto_por_defecto, como está previsto. |
 | <a id="edt-004"></a>EDT-004 | Mismo código EDT que la tarea superior | 2.6.0 | [EDT-005](#edt-005) | Desde la versión 2.6.0, un código EDT igual al de la tarea superior se informa con [EDT-005](#edt-005): tampoco depende del de la tarea superior. |
 | <a id="edt-014"></a>EDT-014 | Código de la lista EDT sin tarea | 2.6.0 | [EDT-013](#edt-013) | Desde la versión 2.6.0, el resumen y cada código de la lista se informan con [EDT-013](#edt-013). |
-| <a id="vis-008"></a>VIS-008 | Tarea con Visible = No | 2.6.0 | [VIS-007](#vis-007) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [VIS-007](#vis-007). |
+| <a id="vis-002"></a>VIS-002 | Visible = Sí dentro de una rama excluida | 2.7.0 | [VIS-011](#vis-011) | Desde la versión 2.7.0, Visible = No no excluye tareas del cálculo: cada tarea con Sí tiene fila propia. |
+| <a id="vis-003"></a>VIS-003 | Visible = Sí bajo una tarea que representa a sus subtareas | 2.7.0 | [VIS-011](#vis-011) | Desde la versión 2.7.0, cada tarea con Visible = Sí tiene fila propia, aunque dependa de una tarea con No. |
+| <a id="vis-005"></a>VIS-005 | Todos los elementos de nivel superior con Visible = No | 2.7.0 | [VIS-012](#vis-012) | Desde la versión 2.7.0, Visible = No no excluye tareas del cálculo. |
+| <a id="vis-007"></a>VIS-007 | Tareas con Visible = No | 2.7.0 | [VIS-012](#vis-012) | Desde la versión 2.7.0, las tareas con Visible = No no tienen fila propia y cuentan en su fila superior: se informan con [VIS-012](#vis-012). |
+| <a id="vis-008"></a>VIS-008 | Tarea con Visible = No | 2.6.0 | [VIS-012](#vis-012) | Desde la versión 2.6.0, el resumen y cada tarea se informaban con [VIS-007](#vis-007); desde la 2.7.0, con [VIS-012](#vis-012). |
+| <a id="vis-009"></a>VIS-009 | Todas las subtareas con Visible = No | 2.7.0 | [VIS-012](#vis-012) | Desde la versión 2.7.0, las tareas con Visible = No siempre se suman en su fila superior. |
+| <a id="vis-010"></a>VIS-010 | Visible = Sí por debajo del nivel máximo | 2.7.0 | [VIS-011](#vis-011) | Desde la versión 2.7.0, si alguna tarea tiene Visible = Sí, las filas las decide el campo Visible. |
 | <a id="fec-002"></a>FEC-002 | Fin anterior al comienzo | 2.6.0 | [FEC-001](#fec-001) | Desde la versión 2.6.0, el fin anterior al comienzo, en la línea base o en el programa actual, se informa con [FEC-001](#fec-001). |
 | <a id="fec-007"></a>FEC-007 | Duración estimada | 2.6.0 | [FEC-006](#fec-006) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [FEC-006](#fec-006). |
 | <a id="fec-011"></a>FEC-011 | Tarea sin fechas de línea base | 2.6.0 | [FEC-010](#fec-010) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [FEC-010](#fec-010). |

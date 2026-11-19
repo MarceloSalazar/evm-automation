@@ -32,7 +32,7 @@ PRIORITY_TEXT = {
 }
 # Informativas que describen la estructura del libro: no son mejoras y sus datos están en el resumen (tareas
 # inactivas, planificación, filas «Otras tareas», tareas sumadas en su fila superior, Visible = No y líneas base)
-FACT_CODES = ("EDT-016", "EDT-017", "EDT-018", "EDT-022", "VIS-007", "LEC-024")
+FACT_CODES = ("EDT-016", "EDT-017", "EDT-018", "EDT-022", "VIS-012", "LEC-024")
 
 
 @dataclass

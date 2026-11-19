@@ -575,13 +575,13 @@ def test_new_task_inside_an_input_row_is_summed_in_that_row(tmp_path):
 
 def test_row_dates_come_from_the_tasks_of_its_planned_value():
     """Las fechas de plan de cada fila (hoja PV) son las de las tareas que forman su % planificado: no las de la línea
-    base de la tarea resumen (sin resumir), sin las ramas con Visible = No, sin las tareas sin línea base (con
+    base de la tarea resumen (sin resumir), sin las tareas inactivas, sin las tareas sin línea base (con
     --pv-fechas-actuales, con sus fechas actuales) y con las fechas invertidas en el orden del reparto."""
     stale = datetime(2026, 2, 1, 17)
     tasks = [T(1, 1, "1", "Fase", bf=stale), T(2, 2, "1.1", "Paquete", bf=stale),
              T(3, 3, "", "A"), T(4, 3, "", "Sin línea base", bs=None, bf=None),
              T(5, 2, "1.2", "Invertida", bs=datetime(2026, 4, 30, 17), bf=datetime(2026, 4, 1, 8)),
-             T(6, 2, "1.3", "Oculta", bs=datetime(2026, 6, 1, 8), bf=datetime(2026, 6, 30, 17), visible="No")]
+             T(6, 2, "1.3", "Oculta", bs=datetime(2026, 6, 1, 8), bf=datetime(2026, 6, 30, 17), active=False)]
     tasks[3].start, tasks[3].finish = datetime(2026, 4, 1, 8), datetime(2026, 5, 29, 17)
     tasks[3].has_baseline = False
     rows = {r.code: r for r in build_report(P(tasks), Config(months=24)).rows}

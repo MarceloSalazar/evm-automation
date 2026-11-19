@@ -81,7 +81,7 @@ def test_links_with_tasks_without_card_are_not_shown():
     ''')
     t = by_name(tasks)
     t["Inactiva"].active = False
-    t["Oculta"].visible = "No"
+    t["Oculta"].active = False                                 # excluida del cálculo
     link(t["Inicio"], t["Tarea del cliente"])
     link(t["Final"], t["Inactiva"], t["Inicio"])
     link(t["Oculta"], t["Inicio"])
@@ -159,7 +159,8 @@ def test_markdown_document():
             1.1.2 Cálculo
     ''')
     t = by_name(tasks)
-    t["Detalle visible"].visible = "Sí"
+    for name in ("Fase *crítica* #1", "Diseño [v2] | revisión", "Planos_finales", "Detalle visible", "Cálculo"):
+        t[name].visible = "Sí"                                 # las filas las decide el campo Visible
     t["Planos_finales"].description = "Primera línea\r\n- viñeta\r\n\r\n1. paso\r<b>html</b>"
     link(t["Cálculo"], t["Detalle visible"])
     text = render(cards_for(tasks), Config(), TODAY)

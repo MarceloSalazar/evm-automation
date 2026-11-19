@@ -663,39 +663,47 @@ _CODES = [
 
     # --- VIS: campo Visible -------------------------------------------------------------------------------------
     _code("VIS-001", W, "Valor de Visible no reconocido",
-          "El campo Visible tiene un valor distinto de Sí o No: se usa el nivel máximo.",
+          "El campo Visible tiene un valor distinto de Sí o No: se trata como vacío (sin fila propia si alguna tarea "
+          "tiene Sí; si no, según el nivel máximo).",
           "Escribir Sí, No o dejarlo vacío."),
     _code("VIS-002", W, "Visible = Sí dentro de una rama excluida",
-          "La tarea tiene Visible = Sí, pero depende de una tarea con Visible = No: queda fuera del cálculo con esa "
-          "rama.",
-          "Quitar el No de la tarea superior o el Sí de la tarea."),
+          "Desde la versión 2.7.0, Visible = No no excluye tareas del cálculo: cada tarea con Sí tiene fila propia.",
+          "Ninguna.", retired="2.7.0", by="VIS-011"),
     _code("VIS-003", W, "Visible = Sí bajo una tarea que representa a sus subtareas",
-          "La tarea tiene Visible = Sí, pero depende de una tarea con Visible = No cuyas hermanas también lo tienen: "
-          "se suma con su rama.",
-          "Revisar los valores de Visible de esa rama."),
+          "Desde la versión 2.7.0, cada tarea con Visible = Sí tiene fila propia, aunque dependa de una tarea con No.",
+          "Ninguna.", retired="2.7.0", by="VIS-011"),
     _code("VIS-004", W, "Visible = Sí en una tarea sin código EDT",
           "Una tarea sin código EDT no puede tener fila propia: se suma en su fila superior.",
           "Asignarle código EDT o quitar el Sí."),
     _code("VIS-005", W, "Todos los elementos de nivel superior con Visible = No",
-          "Si se aplicara, el libro no tendría filas: se ignora en esos elementos.",
-          "Revisar el campo Visible de los elementos de nivel superior."),
+          "Desde la versión 2.7.0, Visible = No no excluye tareas del cálculo.",
+          "Ninguna.", retired="2.7.0", by="VIS-012"),
     _code("VIS-006", I, "Campo Visible sin usar con lista EDT",
           "Con lista_edt, las filas del libro las decide la lista y el campo Visible no se usa.",
           "Ninguna."),
     _code("VIS-007", I, "Tareas con Visible = No",
-          "Esas tareas (con su rama) no forman parte del % planificado ni del % ganado. Un resumen con la cantidad "
-          "y una línea por tarea.",
-          "El BAC y el AC que se ingresan en el libro no las deben incluir."),
+          "Desde la versión 2.7.0, las tareas con Visible = No no tienen fila propia y cuentan en su fila superior: se "
+          "informan con VIS-012.",
+          "Ninguna.", retired="2.7.0", by="VIS-012"),
     _code("VIS-008", I, "Tarea con Visible = No",
-          "Desde la versión 2.6.0, el resumen y cada tarea se informan con VIS-007.",
-          "Ninguna.", retired="2.6.0", by="VIS-007"),
+          "Desde la versión 2.6.0, el resumen y cada tarea se informaban con VIS-007; desde la 2.7.0, con VIS-012.",
+          "Ninguna.", retired="2.6.0", by="VIS-012"),
     _code("VIS-009", I, "Todas las subtareas con Visible = No",
-          "La tarea representa a sus subtareas: su fila es el paquete de trabajo, con toda su rama (o se suman en su "
-          "fila superior).",
-          "Ninguna, si es lo esperado."),
+          "Desde la versión 2.7.0, las tareas con Visible = No siempre se suman en su fila superior.",
+          "Ninguna.", retired="2.7.0", by="VIS-012"),
     _code("VIS-010", I, "Visible = Sí por debajo del nivel máximo",
-          "Esas tareas tienen fila propia aunque su código sea más detallado que el nivel máximo.",
-          "Ninguna."),
+          "Desde la versión 2.7.0, si alguna tarea tiene Visible = Sí, las filas las decide el campo Visible.",
+          "Ninguna.", retired="2.7.0", by="VIS-011"),
+    _code("VIS-011", I, "Filas según el campo Visible",
+          "Alguna tarea tiene Visible = Sí: tiene fila propia cada tarea con Sí y código EDT, y las demás (vacío o No) "
+          "se suman en su fila superior con Sí, como con una lista EDT. El nivel máximo solo completa los códigos con "
+          "ceros.",
+          "Ninguna, si es lo esperado. Las tareas que no dependen de ninguna con Sí quedan fuera del libro (EDT-019)."),
+    _code("VIS-012", I, "Tareas con Visible = No",
+          "Desde la versión 2.7.0, una tarea con Visible = No no tiene fila propia y cuenta en su fila superior "
+          "(antes quedaba fuera del cálculo, con su rama).",
+          "Para excluir una tarea del cálculo, inactivarla en MS Project. Los libros generados antes con tareas con No "
+          "se deben regenerar con --migrar-desde."),
 
     # --- FEC: fechas y duración ---------------------------------------------------------------------------------
     _code("FEC-001", E, "Fin anterior al comienzo",

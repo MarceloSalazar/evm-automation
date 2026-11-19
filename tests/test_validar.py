@@ -897,7 +897,7 @@ def two_plans():
     ''')
     t = by_name(tasks)
     t["Inactiva I"].active = False
-    t["Oculta I"].visible = "No"
+    t["Oculta I"].active = False
     for name in ("A C", "B C", "A I", "Inactiva I", "Oculta I", "B I"):
         t[name].baselines = (0,)
     t["B C"].predecessors = [Link(t["A C"].uid, LINK_FS)]           # vínculo de CLIENTE
@@ -916,7 +916,7 @@ def test_only_the_configured_plan_is_read():
     assert {r.code: r.task.name for r in rep.rows} == {"1.0.0": "Fase I", "1.1.0": "A I", "1.4.0": "B I"}
     assert {x.name for r in rep.rows for x in r.leaves} == {"A I", "B I"}
     [inactive] = [i for i in rep.issues if i.id == "EDT-016"]
-    assert inactive.message == ("Se excluyó 1 tarea inactiva de la planificación INTERNO: no forma parte del % "
+    assert inactive.message == ("Se excluyeron 2 tareas inactivas de la planificación INTERNO: no forman parte del % "
                                 "planificado.")
     issues = part.issues + part.checks
     [line] = [i for i in issues if i.id == "LEC-024"]
@@ -924,7 +924,7 @@ def test_only_the_configured_plan_is_read():
     assert [i.id for i in issues if i.id == "LOG-001"] == ["LOG-001"]    # INTERNO no tiene vínculos
     assert not [i for i in issues if i.id == "LOG-018"]
     [inactive] = [i for i in build_report(P(tasks), Config()).issues if i.id == "EDT-016"]
-    assert inactive.message.startswith("Se excluyó 1 tarea inactiva: ")          # sin planificación: todas
+    assert inactive.message.startswith("Se excluyeron 2 tareas inactivas: ")          # sin planificación: todas
 
 
 def test_links_with_another_plan_are_reported():

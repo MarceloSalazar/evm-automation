@@ -318,7 +318,8 @@ class Visibility:
     excluded: list[Task] = field(default_factory=list)
     # Tareas cuyas subtareas tienen todas Visible = No: la tarea las representa (con toda su rama)
     represented: list[Task] = field(default_factory=list)
-    listed: bool = False                # las filas las decide la lista EDT (lista_edt)
+    listed: bool = False                # las filas las decide la lista EDT (lista_edt) o el campo Visible
+    by_visible: bool = False            # las filas las decide el campo Visible (alguna tarea con Sí)
     matched: set[str] = field(default_factory=set)     # códigos de la lista EDT que tienen tarea
 
     def has_row(self, task: Task) -> bool:
@@ -330,79 +331,65 @@ class Visibility:
 
 
 def row_visibility(scope: Scope, cfg: Config, code_of=None) -> Visibility:
-    """Decide qué tareas tienen fila propia en el libro y cuáles quedan fuera del cálculo.
+    """Decide qué tareas tienen fila propia en el libro (desde la 2.7.0).
 
-    - Visible vacío: fila propia si la tarea tiene código EDT de nivel no mayor que el nivel máximo.
-    - Visible = Sí: fila propia aunque su código sea más detallado que el nivel máximo (necesita código EDT).
-    - Visible = No: la tarea y su rama no forman parte del PV, el EV ni el AC. Si todas las subtareas de una tarea
-      tienen Visible = No, esa tarea las representa: no tienen fila propia, pero su rama se suma en la fila de la
-      tarea (que, si tiene fila, pasa a ser el paquete de trabajo). Prevalece sobre un Sí en la rama.
+    - Si alguna tarea tiene Visible = Sí, las filas las decide el campo, como una lista EDT en el propio archivo:
+      tiene fila cada tarea con Sí y código EDT; las demás (vacío o No) no tienen fila y se suman en su fila superior
+      con Sí (VIS-011). El nivel máximo solo completa los códigos con ceros.
+    - Si ninguna tiene Sí: fila propia si la tarea tiene código EDT de nivel no mayor que el nivel máximo; una tarea
+      con Visible = No (y su rama) no tiene fila y se suma en su fila superior.
+
+    Visible = No ya no excluye tareas del cálculo (VIS-012): para eso se inactivan en MS Project.
     """
     if cfg.wbs_list is not None:
         return list_visibility(scope, cfg)
     from evm.fields import parse_visible
     code_of = code_of or scope.raw_code
-    out = Visibility({}, [])
     values: dict[int, bool | None] = {}
+    issues: list[Issue] = []
     if cfg.visible_field:               # visible = "" en la configuración: el campo no se usa
         for t in scope.tasks():
             value, valid = parse_visible(t.visible)
             values[t.uid] = value
             if not valid:
-                out.issues.append(Issue("VIS-001", code_of(t), t.name,
-                                        f"Visible = '{t.visible}' no se reconoce (se admite Sí o No): se usa el "
-                                        "nivel máximo.", uid=t.uid))
-
-    def hidden(t: Task) -> bool:
-        return values.get(t.uid) is False
-
-    def label(t: Task) -> str:
-        return f"{code_of(t) or '(sin código)'} «{t.name}»"
-
-    def drop(t: Task) -> None:
-        """Rama excluida: ninguna tarea tiene fila; se avisa de los Sí que quedan fuera."""
-        out.excluded.append(t)
-        for n in iter_subtree(t):
-            out.rows[n.uid] = False
-            if n is not t and values.get(n.uid) is True:
-                out.issues.append(Issue("VIS-002", code_of(n), n.name,
-                                        f"Visible = Sí, pero depende de {label(t)}, con Visible = No: queda fuera "
-                                        "del cálculo con esa rama.", uid=n.uid))
-
-    def walk(group: list[Task], parent: Task | None, hidden_by: Task | None) -> None:
-        every = bool(group) and all(hidden(t) for t in group)
-        if every and parent is not None:
-            out.represented.append(parent)
-        for t in group:
+                issues.append(Issue("VIS-001", code_of(t), t.name,
+                                    f"Visible = '{t.visible}' no se reconoce (se admite Sí o No): se trata como vacío.",
+                                    uid=t.uid))
+    tasks = list(scope.tasks())
+    no = [t for t in tasks if values.get(t.uid) is False]
+    if no:
+        names = ", ".join(code_of(t) or t.name for t in no[:10]) + (f" y {len(no) - 10} más" if len(no) > 10 else "")
+        issues.append(Issue("VIS-012", "", "",
+                            f"{plural(len(no), 'tarea tiene', 'tareas tienen')} Visible = No ({names}): no "
+                            f"{'tiene' if len(no) == 1 else 'tienen'} fila propia y "
+                            f"{'cuenta' if len(no) == 1 else 'cuentan'} en su fila superior (antes de la versión 2.7.0 "
+                            "quedaban fuera del cálculo). Para excluir una tarea del cálculo, se debe inactivar en MS "
+                            "Project."))
+    if any(values.get(t.uid) is True for t in tasks):
+        out = Visibility({}, issues, listed=True, by_visible=True)
+        for t in tasks:
             raw = scope.raw_code(t)
-            value = values.get(t.uid)
-            if value is False and not every:
-                drop(t)
-                continue
-            inner = hidden_by or (t if value is False else None)
-            if value is True and hidden_by is not None:
-                out.issues.append(Issue("VIS-003", code_of(t), t.name,
-                                        f"Visible = Sí, pero depende de {label(hidden_by)}, con Visible = No: se "
-                                        "suma con su rama.", uid=t.uid))
-            elif value is True and not raw:
+            out.rows[t.uid] = bool(raw) and values.get(t.uid) is True
+            if values.get(t.uid) is True and not raw:
                 out.issues.append(Issue("VIS-004", code_of(t), t.name,
                                         "Visible = Sí en una tarea sin código EDT: no puede tener fila propia; se "
                                         "suma en su fila superior.", uid=t.uid))
-            level = code_level(raw, cfg.ignore_interior_zeros)
-            has_row = bool(raw) and inner is None and (value is True or level <= cfg.max_level)
-            if has_row and level > cfg.max_level:
-                out.shown += 1
-            out.rows[t.uid] = has_row
-            walk(t.children, t, inner)
+        shown = sum(out.rows.values())
+        out.issues.append(Issue("VIS-011", "", "",
+                                f"Filas del libro según el campo Visible: {plural(shown, 'tarea', 'tareas')} con Sí "
+                                f"{'tiene' if shown == 1 else 'tienen'} fila propia; las demás (vacío o No) se suman "
+                                "en su fila superior."))
+        return out
+    out = Visibility({}, issues)
 
-    roots = scope.roots
-    if roots and all(hidden(t) for t in roots):
-        out.issues.append(Issue("VIS-005", "", "",
-                                "Todos los elementos de nivel superior tienen Visible = No: se ignora en ellos (el "
-                                "libro no tendría filas)."))
-        for t in roots:
-            values[t.uid] = None
-    walk(roots, None, None)
+    def walk(group: list[Task], under_no: bool) -> None:
+        for t in group:
+            raw = scope.raw_code(t)
+            inner = under_no or values.get(t.uid) is False
+            out.rows[t.uid] = bool(raw) and not inner and code_level(raw, cfg.ignore_interior_zeros) <= cfg.max_level
+            walk(t.children, inner)
+
+    walk(scope.roots, False)
     return out
 
 
@@ -840,7 +827,8 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
         return with_row, loose_full, loose_own
 
     aggregated = 0      # tareas sin fila propia sumadas en una fila
-    beyond = "que no están en la lista EDT" if visibility.listed else f"de nivel mayor a {cfg.max_level}"
+    beyond = ("sin Visible = Sí" if visibility.by_visible else "que no están en la lista EDT" if visibility.listed
+              else f"de nivel mayor a {cfg.max_level}")
 
     def visit(t: Task, parent: ReportRow | None) -> None:
         nonlocal aggregated
@@ -954,11 +942,15 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
         out_ids = {n.uid for n in omitted}
         coded = [n for n in omitted if scope.raw_code(n) and (n.parent is None or n.parent.uid not in out_ids)]
         shown = ", ".join(code_of(n) for n in coded[:10]) + (f" y {len(coded) - 10} más" if len(coded) > 10 else "")
+        where = ("no tienen Visible = Sí ni dependen de una tarea con Sí" if visibility.by_visible else
+                 f"no {'está' if one else 'están'} en la lista EDT ni {'depende' if one else 'dependen'} de un elemento "
+                 "de la lista")
+        if visibility.by_visible and one:
+            where = "no tiene Visible = Sí ni depende de una tarea con Sí"
         checks.append(Issue("EDT-019", "", "",
-                            f"Se {'omitió' if one else 'omitieron'} {plural(len(omitted), 'tarea', 'tareas')} que no "
-                            f"{'está' if one else 'están'} en la lista EDT ni {'depende' if one else 'dependen'} de "
-                            f"un elemento de la lista: no {'forma' if one else 'forman'} parte de ninguna fila del "
-                            f"libro ni del PV y el EV" + (f" ({shown})." if shown else "."), omitted_sev))
+                            f"Se {'omitió' if one else 'omitieron'} {plural(len(omitted), 'tarea', 'tareas')} que "
+                            f"{where}: no {'forma' if one else 'forman'} parte de ninguna fila del libro ni del PV y el "
+                            "EV" + (f" ({shown})." if shown else "."), omitted_sev))
     elif omitted:
         one = len(omitted) == 1
         checks.append(Issue("EDT-020", "", "",
@@ -973,31 +965,11 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
     checks += data_checks(project, scope, rows, cfg, code_of)
 
     if aggregated:
-        beyond_edt = "que no están en la lista EDT" if visibility.listed else f"de nivel EDT mayor a {cfg.max_level}"
+        beyond_edt = ("sin Visible = Sí" if visibility.by_visible else "que no están en la lista EDT"
+                      if visibility.listed else f"de nivel EDT mayor a {cfg.max_level}")
         checks.append(Issue("EDT-022", "", "",
                             f"{plural(aggregated, 'tarea', 'tareas')} sin código EDT o {beyond_edt} se "
                             f"{'agregó' if aggregated == 1 else 'agregaron'} en su elemento EDT superior."))
-    if visibility.excluded:
-        n = len(visibility.excluded)
-        names = ", ".join(code_of(t) or t.name for t in visibility.excluded[:10])
-        more = f" y {n - 10} más" if n > 10 else ""
-        detail = (f"no {'forma' if n == 1 else 'forman'} parte del % planificado ni del % ganado; el BAC y el AC "
-                  f"que se ingresan en el libro no {'la' if n == 1 else 'las'} deben incluir")
-        checks.append(Issue("VIS-007", "", "",
-                            f"{plural(n, 'tarea', 'tareas')} con Visible = No (con sus subtareas) "
-                            f"{'queda' if n == 1 else 'quedan'} fuera del PV, el EV y el AC ({names}{more}): "
-                            f"{detail}."))
-        for t in visibility.excluded[:200]:
-            checks.append(Issue("VIS-007", code_of(t), t.name, "Visible = No: fuera del PV, el EV y el AC.", uid=t.uid))
-    for t in visibility.represented:
-        checks.append(Issue("VIS-009", code_of(t), t.name,
-                            "Todas sus subtareas tienen Visible = No: "
-                            + ("la fila es el paquete de trabajo, con toda su rama." if included(t)
-                               else "se suman con la tarea en su fila superior."), uid=t.uid))
-    if visibility.shown:
-        checks.append(Issue("VIS-010", "", "",
-                            f"{plural(visibility.shown, 'tarea tiene', 'tareas tienen')} Visible = Sí y fila propia "
-                            f"por debajo del nivel máximo ({cfg.max_level})."))
     for row in rows:
         row.source = name
     dates = [t.baseline_start or t.start for t in scope.tasks() if (t.baseline_start or t.start)]
