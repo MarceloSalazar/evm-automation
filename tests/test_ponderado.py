@@ -98,3 +98,20 @@ def test_without_weights_falls_back():
     rep = build_report(P(tasks), cfg())
     assert any(i.id == "HIT-012" for i in rep.issues)
     assert sum(rows_by_code(rep)["1.1"].pct_vec[""]) == pytest.approx(1.0)
+
+
+def test_ev_fill_includes_weighted_rows():
+    """generar --ev-rellenar: las filas «Ponderado» también tienen el % ganado de cada mes (de cada empresa)."""
+    from evm.history import earned_history
+    c = Config(max_level=2, months=12, milestone_weight_field="Peso", multi_enabled=True)
+    c.validate()
+    tasks = ejemplo(60.0)
+    for t in tasks:
+        t.company = "EmpresaA"
+    rep = build_report(P(tasks, status_date=datetime(2026, 3, 31)), c)
+    history = earned_history(rep, c)
+    assert history.loaded
+    row = rows_by_code(rep)["1.1"]
+    values = row.ev_hist["A"]
+    assert len(values) == 3 and values[0] > 0 and values[1] > 0               # enero y febrero, en línea recta
+    assert sum(values) == pytest.approx(0.42)                                # 70 × 60 %: el acumulado a la fecha de estado

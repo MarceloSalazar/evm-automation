@@ -94,7 +94,7 @@ class _TaskProgress:
 def earned_history(report, cfg) -> EarnedHistory:
     """Calcula el % ganado de cada mes hasta la fecha de estado (ReportRow.ev_hist) si el archivo tiene avance."""
     out = EarnedHistory()
-    inputs = [r for r in report.rows if r.is_input and r.weights]
+    inputs = [r for r in report.rows if r.is_input and (r.weights or r.weighted)]      # «Ponderado»: weighted
     if not any(is_started(t) or is_complete(t) for r in inputs for t in r.leaves):
         return out
     statuses = {s.name: s.project.status_date for s in report.sources}
@@ -137,12 +137,13 @@ def earned_history(report, cfg) -> EarnedHistory:
                 states[key] = _TaskProgress(t, status_end, cal, cfg.distribution)
             return states[key]
 
-        for role, rw in row.weights.items():
+        for role in (row.weighted or row.weights):
+            rw = row.weights.get(role)
             pv = row.pct_vec.get(role, [])
             values: list[float] = []
             prev = 0.0
             for i in range(idx + 1):
-                if i < idx:
+                if rw is not None and i < idx:
                     members = [replace(tt, task=state(tt.task).at(month_ends[i])) for tt in rw.members]
                     rw_i = replace(rw, members=members)
                 else:
