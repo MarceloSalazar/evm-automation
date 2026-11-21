@@ -559,19 +559,44 @@ def _weighted_curves(row: ReportRow, roles, calendar, cfg: Config, cache: dict, 
         row.pct[role] = pct.weighted_curve(pct.company_pairs(wr.pv, fn))
         row.weighted[role] = pct.company_pairs(wr.ev, fn)
     planned.update((tt.task.uid, tt) for tt, _f in wr.pv)
-    for t in wr.unweighted:
+    for t, why in wr.unweighted:
+        reason = ("sus tareas hermanas con peso suman 100 o más" if why == pct.NO_SHARE_FULL else
+                  "el resto de su tarea superior se reparte por duración y la suya es 0")
         if pct.is_zero_duration(t):
             issues.append(Issue("HIT-010", code_of(t), task_name(t, code_of),
                                 f"Hito sin peso en la fila «Ponderado» {row.code}: no forma parte del % planificado ni "
                                 "del % ganado.", uid=t.uid))
+            continue
+        subtasks = sum(1 for x in iter_subtree(t) if not x.children) if t.children else 0
+        lost = [x for x in iter_subtree(t) if x is not t and pct.task_weight(x) > 0]
+        if lost:
+            names = ", ".join(code_of(x) or task_name(x, code_of) for x in lost[:5]) + (
+                f" y {len(lost) - 5} más" if len(lost) > 5 else "")
+            issues.append(Issue("HIT-014", code_of(t), task_name(t, code_of),
+                                f"Tarea resumen sin peso en la fila «Ponderado» {row.code}: {reason}, y no forma parte "
+                                f"del % planificado ni del % ganado. "
+                                + ("El peso de su subtarea" if len(lost) == 1 else f"Los pesos de sus {len(lost)} subtareas")
+                                + f" ({names}) no se usan: se debe indicar el peso de la tarea resumen.",
+                                uid=t.uid))
+            continue
+        issues.append(Issue("HIT-011", code_of(t), task_name(t, code_of),
+                            f"Sin peso en la fila «Ponderado» {row.code}"
+                            + (f" (con sus {subtasks} subtareas)" if subtasks > 1 else "")
+                            + f": {reason}, y no forma parte del % planificado ni del % ganado.", uid=t.uid))
+    for g in wr.groups:
+        own = g.task is row.task
+        code, name = (row.code, row.name) if own else (code_of(g.task), task_name(g.task, code_of))
+        where = "la fila" if own else f"«{g.task.name}»"
+        total = fmt_number(g.total, 2, trim=True)
+        if g.total > pct.WEIGHT_TOTAL:
+            issues.append(Issue("HIT-013", code, name,
+                                f"Los pesos de las subtareas de {where} suman {total}, más de 100: se escalan a 100 y "
+                                "sus subtareas sin peso no cuentan. Se deben corregir los pesos para que sumen como "
+                                "máximo 100.", SEV_ERROR, uid=None if own else g.task.uid))
         else:
-            issues.append(Issue("HIT-011", code_of(t), task_name(t, code_of),
-                                f"Sin peso en la fila «Ponderado» {row.code}: no forma parte del % planificado ni del % "
-                                "ganado.", uid=t.uid))
-    if abs(wr.top_total - 100.0) > 1e-6:
-        issues.append(Issue("HIT-013", row.code, row.name,
-                            f"Los pesos de la fila suman {fmt_number(wr.top_total, 2, trim=True)}: se normalizan a "
-                            "100."))
+            issues.append(Issue("HIT-013", code, name,
+                                f"Los pesos de las subtareas de {where} suman {total} y no hay subtareas sin peso que "
+                                "reciban el resto: se escalan a 100.", SEV_WARN, uid=None if own else g.task.uid))
     if not any(row.pct.values()):
         issues.append(Issue("HIT-005", row.code, row.name,
                             "Ninguna tarea con peso tiene línea base: la fila no tiene % planificado."))

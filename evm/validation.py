@@ -468,7 +468,7 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
         baseline = _one_day_baseline(t, project, code_of) if project.baseline_found else None
         if baseline is not None:
             dates.append(baseline)
-    issues += dates[:LIMIT]
+    issues += _capped(dates)
 
     estimated = [t for t in leaves if t.estimated]
     if estimated:

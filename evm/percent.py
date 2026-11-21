@@ -270,27 +270,52 @@ def _has_baseline(t: Task) -> bool:
 
 
 @dataclass
+class WeightGroup:
+    """Tarea resumen de una fila «Ponderado» cuyas subtareas directas tienen pesos que no suman 100.
+
+    Más de 100: error (se escalan a 100 y las subtareas sin peso no cuentan). Menos de 100 y sin subtareas sin peso
+    que reciban el resto: se escalan a 100 (aviso)."""
+
+    task: Task
+    total: float
+
+
+@dataclass
 class WeightedRow:
     """Reparto de una fila «Ponderado» entre sus tareas de detalle.
 
     pv: tareas con línea base y su fracción del % planificado (suman 1); ev: todas las tareas y su fracción del %
-    ganado (suman 1). Las tareas sin línea base cuentan en el % ganado y no en el planificado. unweighted: tareas
-    en una posición con peso que no lo tienen (sin aporte); top_total: suma de los pesos del primer nivel.
+    ganado (suman 1). Las tareas sin línea base cuentan en el % ganado y no en el planificado. unweighted: tareas (o
+    tareas resumen, con sus subtareas) que quedan sin aporte y la causa: NO_SHARE_FULL (sin peso y sus tareas hermanas
+    suman 100 o más) o NO_SHARE_DURATION (el resto se reparte por duración y la suya es 0, como un hito). groups:
+    tareas resumen con pesos que no suman 100 (WeightGroup).
     """
 
     pv: list[tuple[TaskTime, float]]
     ev: list[tuple[TaskTime, float]]
-    unweighted: list[Task]
-    top_total: float
+    unweighted: list[tuple[Task, str]]
+    groups: list[WeightGroup] = field(default_factory=list)
+
+
+WEIGHT_TOTAL = 100.0
+NO_SHARE_FULL = "completo"          # las tareas hermanas con peso suman 100 o más
+NO_SHARE_DURATION = "duracion"      # el resto se reparte por duración y la de la tarea es 0
+_EPS = 1e-6
 
 
 def weighted_row(top: Task, time_of: Callable[[Task], TaskTime],
                  allowed: set[int] | None = None) -> WeightedRow | None:
     """Pesos de una fila «Ponderado» (None si ninguna tarea tiene peso).
 
-    Primer nivel: cada tarea de la fila con peso es una parte (una tarea resumen sin peso se recorre: sus subtareas
-    con peso son partes). Dentro de una tarea resumen con peso, el peso se reparte entre sus subtareas según sus
-    pesos (relativos) o, si ninguna tiene peso, según su duración. allowed: UniqueID de las tareas de la fila.
+    En cada tarea resumen (la de la fila y las de nivel inferior que reciben una parte), los pesos de sus subtareas
+    directas son % de la parte de la tarea resumen:
+    - suman 100: cada subtarea con peso recibe su %; las subtareas sin peso, nada;
+    - suman menos de 100: el resto se reparte entre las subtareas sin peso según su duración (un hito sin peso, de
+      duración 0, no recibe nada); si no hay subtareas sin peso, los pesos se escalan a 100;
+    - suman más de 100: se escalan a 100 (error de los datos: WeightGroup) y las subtareas sin peso no reciben nada;
+    - ninguna tiene peso: la parte se reparte según su duración (en partes iguales si todas duran 0).
+    Una tarea resumen que recibe una parte la reparte igual entre sus subtareas. allowed: UniqueID de las tareas de
+    la fila.
     """
     def kids(t: Task) -> list[Task]:
         return [c for c in t.children if allowed is None or c.uid in allowed]
@@ -299,53 +324,59 @@ def weighted_row(top: Task, time_of: Callable[[Task], TaskTime],
         ks = kids(t)
         return [t] if not ks else [x for c in ks for x in leaves_of(c)]
 
-    unweighted: list[Task] = []
+    unweighted: list[tuple[Task, str]] = []
+    groups: list[WeightGroup] = []
 
-    def top_units(t: Task) -> list[tuple[Task, float]]:
-        out: list[tuple[Task, float]] = []
-        for c in kids(t):
-            if task_weight(c) > 0:
-                out.append((c, task_weight(c)))
-            elif kids(c):
-                out += top_units(c)
-            else:
-                unweighted.append(c)
-        return out
+    def shares(t: Task, ks: list[Task], include, note: bool) -> tuple[dict[int, float], str]:
+        """Fracción de la parte de t que recibe cada subtarea (antes de quitar las que no tienen tareas incluidas) y la
+        causa por la que las demás no reciben nada."""
+        weight = {c.uid: task_weight(c) for c in ks}
+        total = sum(weight.values())
+        rest = [c for c in ks if weight[c.uid] <= 0]
+        over = total > WEIGHT_TOTAL + _EPS
+        scaled = over or (total > 0 and not rest)
+        if note and scaled and abs(total - WEIGHT_TOTAL) > _EPS:
+            groups.append(WeightGroup(t, total))
+        base = total if scaled else WEIGHT_TOTAL
+        out = {c.uid: weight[c.uid] / base for c in ks if weight[c.uid] > 0}
+        remainder = 0.0 if scaled else (WEIGHT_TOTAL - total) / WEIGHT_TOTAL
+        if remainder > _EPS:
+            minutes = {c.uid: sum(time_of(x).minutes for x in leaves_of(c) if include(x)) for c in rest}
+            span = sum(minutes.values())
+            if span > 0:
+                out.update((c.uid, remainder * minutes[c.uid] / span) for c in rest)
+            elif total <= 0:                                    # sin pesos y todas de duración 0: partes iguales
+                found = [c for c in rest if any(include(x) for x in leaves_of(c))]
+                out.update((c.uid, remainder / len(found)) for c in found)
+        return out, (NO_SHARE_DURATION if remainder > _EPS else NO_SHARE_FULL)
 
     def alloc(t: Task, amount: float, include, note: bool) -> list[tuple[Task, float]]:
         ks = kids(t)
         if not ks:
             return [(t, amount)] if include(t) else []
-        weighted = [c for c in ks if task_weight(c) > 0]
-        if weighted:                                    # pesos relativos dentro del grupo
-            if note:
-                unweighted.extend(c for c in ks if task_weight(c) <= 0)
-            parts = [(c, task_weight(c)) for c in weighted if any(include(x) for x in leaves_of(c))]
-            total = sum(w for _c, w in parts)
-            return [x for c, w in parts for x in alloc(c, amount * w / total, include, note)] if total > 0 else []
-        found = [x for x in leaves_of(t) if include(x)]  # por duración
-        minutes = {x.uid: time_of(x).minutes for x in found}
-        total = sum(minutes.values())
-        if total <= 0:
-            return [(x, amount / len(found)) for x in found]
-        return [(x, amount * minutes[x.uid] / total) for x in found]
+        frac, why = shares(t, ks, include, note)
+        if note:
+            unweighted.extend((c, why) for c in ks if frac.get(c.uid, 0.0) <= 0)
+        parts = [(c, frac[c.uid]) for c in ks
+                 if frac.get(c.uid, 0.0) > 0 and any(include(x) for x in leaves_of(c))]
+        total = sum(f for _c, f in parts)
+        return [x for c, f in parts for x in alloc(c, amount * f / total, include, note)] if total > 0 else []
 
-    if not kids(top):
-        return None
-    units = top_units(top)
-    if not units:
+    if not kids(top) or not any(task_weight(t) > 0 for c in kids(top) for t in _subtree(c, kids)):
         return None
 
     def split(include, note: bool) -> list[tuple[TaskTime, float]]:
-        parts = [(c, w) for c, w in units if any(include(x) for x in leaves_of(c))]
-        total = sum(w for _c, w in parts)
-        pairs = [x for c, w in parts for x in alloc(c, w / total, include, note)] if total > 0 else []
+        pairs = alloc(top, 1.0, include, note)
         s = sum(f for _t, f in pairs)
         return [(time_of(t), f / s) for t, f in pairs if f > 0] if s > 0 else []
 
     ev = split(lambda t: True, True)
     pv = split(_has_baseline, False)
-    return WeightedRow(pv, ev, unweighted, sum(w for _c, w in units))
+    return WeightedRow(pv, ev, unweighted, groups)
+
+
+def _subtree(t: Task, kids: Callable[[Task], list[Task]]) -> list[Task]:
+    return [t] + [x for c in kids(t) for x in _subtree(c, kids)]
 
 
 def company_pairs(pairs: list[tuple[TaskTime, float]], share: Share | None) -> list[tuple[TaskTime, float]]:

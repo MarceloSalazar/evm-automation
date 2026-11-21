@@ -4,6 +4,7 @@ from datetime import datetime
 import pytest
 
 from evm.config import Config
+from evm.messages import SEV_ERROR, SEV_WARN
 from evm.methods import WEIGHTED, parse_method
 from evm.update import run_update
 from evm.wbs import build_report
@@ -115,3 +116,103 @@ def test_ev_fill_includes_weighted_rows():
     values = row.ev_hist["A"]
     assert len(values) == 3 and values[0] > 0 and values[1] > 0               # enero y febrero, en línea recta
     assert sum(values) == pytest.approx(0.42)                                # 70 × 60 %: el acumulado a la fecha de estado
+
+
+# ----------------------------------------------------------------------------
+# Pesos en cada tarea resumen (desde la 2.7.0): % de la tarea resumen; el resto, por duración
+# ----------------------------------------------------------------------------
+def paquete(*children):
+    return [T(1, 1, "1", "Fase", bs=JAN[0], bf=APR), T(2, 2, "1.1", "Paquete", bs=JAN[0], bf=APR, method="Ponderado"),
+            *children]
+
+
+def hito(uid, name, level=3, weight=0.0, **kw):
+    return T(uid, level, "", name, bs=APR, bf=APR, start=APR, finish=APR, milestone=True, duration=0.0,
+             milestone_weight=weight, **kw)
+
+
+def pv_of(tasks):
+    rep = build_report(P(tasks), cfg())
+    return rep, rows_by_code(rep)["1.1"].pct_vec[""]
+
+
+def found(rep, code):
+    return [i for i in rep.issues if i.id == code]
+
+
+def test_the_rest_goes_to_the_tasks_without_weight_by_duration():
+    """Hito de 10 y dos tareas sin peso (8 y 4 semanas): el 90 restante se reparte 60 y 30."""
+    rep, pv = pv_of(paquete(T(3, 3, "", "A", bs=JAN[0], bf=FEB[1]), T(4, 3, "", "B", bs=MAR[0], bf=MAR[1]),
+                            hito(5, "Hito", weight=10)))
+    assert pv[0] + pv[1] == pytest.approx(0.60) and pv[2] == pytest.approx(0.30) and pv[3] == pytest.approx(0.10)
+    assert not found(rep, "HIT-011") and not found(rep, "HIT-013") and not found(rep, "HIT-010")
+
+
+def test_more_than_100_is_an_error_and_tasks_without_weight_do_not_count():
+    rep, pv = pv_of(paquete(T(3, 3, "", "A", bs=JAN[0], bf=FEB[1], milestone_weight=80),
+                            T(4, 3, "", "B", bs=MAR[0], bf=MAR[1], milestone_weight=40),
+                            T(5, 3, "", "C", bs=MAR[0], bf=MAR[1])))
+    assert pv[0] + pv[1] == pytest.approx(2 / 3) and pv[2] == pytest.approx(1 / 3)
+    [issue] = found(rep, "HIT-013")
+    assert (issue.code, issue.severity) == ("1.1", SEV_ERROR)
+    assert issue.message.startswith("Los pesos de las subtareas de la fila suman 120, más de 100")
+    assert [i.name for i in found(rep, "HIT-011")] == ["C (Id 5)"]
+
+
+def test_less_than_100_without_tasks_for_the_rest_is_scaled_with_a_warning():
+    rep, pv = pv_of(paquete(T(3, 3, "", "A", bs=JAN[0], bf=FEB[1], milestone_weight=30),
+                            T(4, 3, "", "B", bs=MAR[0], bf=MAR[1], milestone_weight=10)))
+    assert pv[0] + pv[1] == pytest.approx(0.75) and pv[2] == pytest.approx(0.25)
+    [issue] = found(rep, "HIT-013")
+    assert issue.severity == SEV_WARN and "suman 40 y no hay subtareas sin peso" in issue.message
+
+
+def test_weights_inside_a_summary_without_weight_are_of_its_part():
+    """Hito de 20; el resumen S (sin peso) recibe el 80 restante y lo reparte con sus propios pesos: X 50 % y el resto
+    para Y."""
+    rep, pv = pv_of(paquete(hito(3, "Hito", weight=20), T(4, 3, "", "S", bs=JAN[0], bf=MAR[1]),
+                            T(5, 4, "", "X", bs=JAN[0], bf=FEB[1], milestone_weight=50),
+                            T(6, 4, "", "Y", bs=MAR[0], bf=MAR[1])))
+    assert pv[0] + pv[1] == pytest.approx(0.40) and pv[2] == pytest.approx(0.40) and pv[3] == pytest.approx(0.20)
+    assert not found(rep, "HIT-013")
+
+
+def test_summary_without_weight_next_to_weights_that_sum_100_does_not_count():
+    """Como un bloque subcontratado sin peso junto a tareas que suman 100: no cuenta (ni sus pesos internos)."""
+    from evm import percent as pct
+    tasks = paquete(T(3, 3, "", "A", bs=JAN[0], bf=FEB[1], milestone_weight=70, percent_complete=100.0),
+                    T(4, 3, "", "B", bs=MAR[0], bf=MAR[1], milestone_weight=30),
+                    T(5, 3, "", "Bloque", bs=None, bf=None),
+                    T(6, 4, "", "Tarea del bloque", bs=None, bf=None, start=MAR[0], finish=MAR[1],
+                      percent_complete=100.0),
+                    hito(7, "Hito del bloque", level=4, weight=10, percent_complete=100.0))
+    rep = build_report(P(tasks), cfg())
+    row = rows_by_code(rep)["1.1"]
+    assert pct.weighted_earned(row.weighted[""], None) == pytest.approx(0.70)
+    [issue] = found(rep, "HIT-014")                              # sus pesos internos no se usan: error
+    assert (issue.name, issue.severity) == ("Bloque (Id 5)", SEV_ERROR)
+    assert "sus tareas hermanas con peso suman 100 o más" in issue.message and "El peso de su subtarea" in issue.message
+    assert not found(rep, "HIT-013") and not found(rep, "HIT-011")
+
+
+def test_summary_without_weight_with_only_weighted_milestones_gets_nothing_by_duration():
+    """Fila sin pesos en su primer nivel: el resumen que solo tiene hitos (duración 0) no recibe nada y sus pesos no
+    se usan (HIT-014); una tarea sin peso junto a pesos que suman 100 se informa con HIT-011."""
+    rep, pv = pv_of(paquete(T(3, 3, "", "Trabajo", bs=JAN[0], bf=MAR[1]),
+                            T(4, 3, "", "Compras", bs=APR, bf=APR),
+                            hito(5, "Compra 1", level=4, weight=50), hito(6, "Compra 2", level=4, weight=50),
+                            T(7, 3, "", "Grupo", bs=JAN[0], bf=FEB[1]),
+                            T(8, 4, "", "Con peso", bs=JAN[0], bf=JAN[1], milestone_weight=100),
+                            T(9, 4, "", "Sin peso", bs=FEB[0], bf=FEB[1])))
+    assert pv[3] == pytest.approx(0.0) and sum(pv) == pytest.approx(1.0)
+    [lost] = found(rep, "HIT-014")
+    assert lost.name == "Compras (Id 4)" and "la suya es 0" in lost.message and "sus 2 subtareas" in lost.message
+    [unused] = found(rep, "HIT-011")
+    assert unused.name == "Sin peso (Id 9)" and "suman 100 o más" in unused.message
+
+
+def test_milestone_without_weight_gets_nothing_of_the_rest():
+    rep, pv = pv_of(paquete(T(3, 3, "", "A", bs=JAN[0], bf=MAR[1]), hito(4, "Con peso", weight=10),
+                            hito(5, "Sin peso")))
+    assert sum(pv) == pytest.approx(1.0) and pv[3] == pytest.approx(0.10)
+    assert [(i.name, i.severity) for i in found(rep, "HIT-010")] == [("Sin peso (Id 5)", SEV_ERROR)]

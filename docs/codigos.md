@@ -114,7 +114,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 21 |
 | [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 5 |
 | [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 14 |
-| [HIT](#46-hit--hitos-y-pesos) | Hitos y pesos | Hitos y pesos | generar (hoja Validación) y validar | 13 |
+| [HIT](#46-hit--hitos-y-pesos) | Hitos y pesos | Hitos y pesos | generar (hoja Validación) y validar | 14 |
 | [MET](#47-met--método-de-medición) | Método de medición | Método de medición | generar (hoja Validación) y validar | 5 |
 | [EMP](#48-emp--empresas) | Empresas | Empresas | generar (hoja Validación) y validar | 5 |
 | [AVA](#49-ava--avance-a-la-fecha-de-estado) | Avance a la fecha de estado | Avance a la fecha de estado | validar | 13 |
@@ -1067,10 +1067,10 @@ Fechas de la línea base y del programa actual, hitos y duración de las tareas.
 | [FEC-001](#fec-001) | Error | Fin anterior al comienzo |
 | [FEC-003](#fec-003) | Advertencia | Tarea sin Comienzo o sin Fin |
 | [FEC-004](#fec-004) | Advertencia | Hito con duración |
-| [FEC-005](#fec-005) | Advertencia | Duración 0 sin marca de hito |
+| [FEC-005](#fec-005) | Error | Duración 0 sin marca de hito |
 | [FEC-006](#fec-006) | Advertencia | Duración estimada |
 | [FEC-008](#fec-008) | Advertencia | Tareas programadas manualmente |
-| [FEC-009](#fec-009) | Advertencia | El proyecto no tiene la línea base seleccionada |
+| [FEC-009](#fec-009) | Error | El proyecto no tiene la línea base seleccionada |
 | [FEC-010](#fec-010) | Advertencia | Tareas sin fechas de línea base |
 | [FEC-012](#fec-012) | Advertencia | Tarea sin fechas |
 | [FEC-013](#fec-013) | Advertencia | Línea base de tareas resumen distinta de la de su detalle |
@@ -1105,9 +1105,9 @@ La tarea está marcada como hito y tiene duración en el programa actual o en la
 
 #### FEC-005
 
-**Duración 0 sin marca de hito** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+**Duración 0 sin marca de hito** · Error · generar (hoja Validación) y validar · se puede silenciar
 
-La tarea dura 0 y no es un hito: no pesa en el % planificado de su fila.
+La tarea dura 0 y no es un hito: no pesa en el % planificado de su fila (error desde la versión 2.7.0).
 
 **Qué hacer:** Si es un hito, marcarla como hito (y, si corresponde, indicar su peso).
 
@@ -1129,9 +1129,9 @@ MS Project no recalcula las fechas de esas tareas cuando cambian sus predecesora
 
 #### FEC-009
 
-**El proyecto no tiene la línea base seleccionada** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+**El proyecto no tiene la línea base seleccionada** · Error · generar (hoja Validación) y validar · se puede silenciar
 
-El % planificado se calculó con las fechas actuales de las tareas: el PV sigue al programa actual y no muestra el atraso respecto del plan aprobado. Si el proyecto tiene otras líneas base guardadas (con un XML; con un .mpp, solo en validar), el mensaje las indica, con la cantidad de tareas de cada una. La consola de generar muestra siempre este aviso, antes que los demás.
+Ninguna tarea tiene guardada la línea base que usa el % planificado (error desde la versión 2.7.0). El % planificado se calculó con las fechas actuales de las tareas: el PV sigue al programa actual y no muestra el atraso respecto del plan aprobado. Si el proyecto tiene otras líneas base guardadas (con un XML; con un .mpp, solo en validar), el mensaje las indica, con la cantidad de tareas de cada una. La consola de generar muestra siempre este aviso, antes que los demás.
 
 **Qué hacer:** Guardar la línea base en MS Project (Proyecto > Establecer línea base) y volver a exportar; o, si otra línea base guardada es la aprobada y está completa, indicarla con linea_base (en `[[proyectos]]`, la del archivo) o `--linea-base`.
 
@@ -1211,7 +1211,8 @@ Peso de los hitos, método «Hitos ponderados» y filas sin % planificado.
 | [HIT-010](#hit-010) | Error | Hito sin peso en una fila «Ponderado» |
 | [HIT-011](#hit-011) | Advertencia | Tarea sin peso en una fila «Ponderado» |
 | [HIT-012](#hit-012) | Advertencia | «Ponderado» sin pesos |
-| [HIT-013](#hit-013) | Advertencia | Pesos de una fila «Ponderado» que no suman 100 |
+| [HIT-013](#hit-013) | Error o Advertencia | Pesos de una fila «Ponderado» que no suman 100 |
+| [HIT-014](#hit-014) | Error | Pesos que no se usan en una fila «Ponderado» |
 
 #### HIT-001
 
@@ -1291,15 +1292,15 @@ Ninguna tarea de la fila tiene duración ni es un hito con peso: todas pesan igu
 
 En una fila con el método «Ponderado», un hito (0 días) sin peso no forma parte del % planificado ni del % ganado: suele ser un olvido (en MS Project, un peso vacío vale 0).
 
-**Qué hacer:** Indicar el peso del hito, o el de su tarea resumen para repartirlo por duración.
+**Qué hacer:** Indicar el peso del hito. Si sus tareas hermanas suman menos de 100, un hito sin peso no recibe nada del resto, que se reparte por duración.
 
 #### HIT-011
 
 **Tarea sin peso en una fila «Ponderado»** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-En una fila con el método «Ponderado», una tarea sin peso no forma parte del % planificado ni del % ganado. Es lo esperado si su trabajo no tiene valor propio (p. ej. una tarea intermedia con peso 0).
+En una fila con el método «Ponderado», la tarea sin peso (con sus subtareas, si es una tarea resumen) no forma parte del % planificado ni del % ganado: las tareas con peso de la misma tarea resumen suman 100 o más, o el resto se reparte por duración y la suya es 0 (p. ej. sin fechas). Es lo esperado si su trabajo no tiene valor propio. Si los pesos suman menos de 100, el resto se reparte entre las tareas sin peso según su duración y no se informa. Si la tarea resumen contiene tareas con peso, se informa con [HIT-014](#hit-014).
 
-**Qué hacer:** Si debe pesar, indicar su peso o el de su tarea resumen.
+**Qué hacer:** Si debe pesar, indicar su peso y ajustar los de sus tareas hermanas.
 
 #### HIT-012
 
@@ -1311,11 +1312,19 @@ La fila usa el método «Ponderado» y ninguna de sus tareas tiene peso: el % pl
 
 #### HIT-013
 
-**Pesos de una fila «Ponderado» que no suman 100** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+**Pesos de una fila «Ponderado» que no suman 100** · Error o Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-Los pesos del primer nivel de la fila no suman 100: se normalizan a 100 (cada parte pesa en proporción a su peso).
+En la fila o en una de sus tareas resumen, los pesos de las subtareas directas son % de la tarea resumen. Error si suman más de 100: se escalan a 100 y las subtareas sin peso no cuentan. Advertencia si suman menos de 100 y no hay subtareas sin peso que reciban el resto: se escalan a 100.
 
-**Qué hacer:** Revisar los pesos de las tareas de la fila.
+**Qué hacer:** Corregir los pesos de las subtareas para que sumen 100 (o menos, si el resto es para las subtareas sin peso).
+
+#### HIT-014
+
+**Pesos que no se usan en una fila «Ponderado»** · Error · generar (hoja Validación) y validar · se puede silenciar
+
+Una tarea resumen sin peso no recibe parte de la fila: sus tareas hermanas con peso suman 100 o más, o el resto se reparte por duración y la suya es 0 (p. ej. solo tiene hitos). Las subtareas con peso que contiene no forman parte del % planificado ni del % ganado.
+
+**Qué hacer:** Indicar el peso de la tarea resumen (y ajustar los de sus tareas hermanas para que sumen como máximo 100).
 
 ---
 
@@ -1382,7 +1391,7 @@ Multi-empresa: empresa y % de reparto de cada tarea.
 | [EMP-001](#emp-001) | Info | % de reparto en una tarea que no es compartida |
 | [EMP-002](#emp-002) | Info | Empresa sin tareas en la fila |
 | [EMP-003](#emp-003) | Advertencia | Tareas sin empresa |
-| [EMP-005](#emp-005) | Advertencia | Empresa no reconocida |
+| [EMP-005](#emp-005) | Error | Empresa no reconocida |
 | [EMP-006](#emp-006) | Advertencia | % de reparto fuera de rango |
 
 #### EMP-001
@@ -1411,9 +1420,9 @@ Algunas tareas no tienen empresa (ni la heredan de sus tareas superiores): se tr
 
 #### EMP-005
 
-**Empresa no reconocida** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+**Empresa no reconocida** · Error · generar (hoja Validación) y validar · se puede silenciar
 
-El valor del campo de empresa no es empresa_a, empresa_b ni ambas: la tarea se trata como compartida.
+El valor del campo de empresa no es empresa_a, empresa_b ni ambas (error desde la versión 2.7.0): la tarea se trata como compartida.
 
 **Qué hacer:** Corregir el valor en MS Project.
 

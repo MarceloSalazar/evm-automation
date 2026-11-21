@@ -726,8 +726,8 @@ _CODES = [
           "Si no es un hito, quitar la marca de hito (Información de la tarea > Avanzado). Si lo es y la duración "
           "está en la línea base, guardar de nuevo su línea base (Establecer línea base > Tareas seleccionadas), "
           "como parte de un cambio de línea base aprobado."),
-    _code("FEC-005", W, "Duración 0 sin marca de hito",
-          "La tarea dura 0 y no es un hito: no pesa en el % planificado de su fila.",
+    _code("FEC-005", E, "Duración 0 sin marca de hito",
+          "La tarea dura 0 y no es un hito: no pesa en el % planificado de su fila (error desde la versión 2.7.0).",
           "Si es un hito, marcarla como hito (y, si corresponde, indicar su peso)."),
     _code("FEC-006", W, "Duración estimada",
           "Algunas tareas tienen duración estimada (con «?», p. ej. «5 días?»): la duración define el % planificado. "
@@ -741,8 +741,9 @@ _CODES = [
           "del cronograma deja de funcionar en ese punto. En un cronograma integrado no debería haber ninguna.",
           "Programarlas automáticamente. Si es intencional (p. ej. fechas impuestas por terceros), silenciar "
           "FEC-008."),
-    _code("FEC-009", W, "El proyecto no tiene la línea base seleccionada",
-          "El % planificado se calculó con las fechas actuales de las tareas: el PV sigue al programa actual y no "
+    _code("FEC-009", E, "El proyecto no tiene la línea base seleccionada",
+          "Ninguna tarea tiene guardada la línea base que usa el % planificado (error desde la versión 2.7.0). El % "
+          "planificado se calculó con las fechas actuales de las tareas: el PV sigue al programa actual y no "
           "muestra el atraso respecto del plan aprobado. Si el proyecto tiene otras líneas base guardadas (con un XML; "
           "con un .mpp, solo en validar), el mensaje las indica, con la cantidad de tareas de cada una. La consola de "
           "generar muestra siempre este aviso, antes que los demás.",
@@ -837,19 +838,30 @@ _CODES = [
     _code("HIT-010", E, "Hito sin peso en una fila «Ponderado»",
           "En una fila con el método «Ponderado», un hito (0 días) sin peso no forma parte del % planificado ni del % "
           "ganado: suele ser un olvido (en MS Project, un peso vacío vale 0).",
-          "Indicar el peso del hito, o el de su tarea resumen para repartirlo por duración."),
+          "Indicar el peso del hito. Si sus tareas hermanas suman menos de 100, un hito sin peso no recibe nada del "
+          "resto, que se reparte por duración."),
     _code("HIT-011", W, "Tarea sin peso en una fila «Ponderado»",
-          "En una fila con el método «Ponderado», una tarea sin peso no forma parte del % planificado ni del % ganado. "
-          "Es lo esperado si su trabajo no tiene valor propio (p. ej. una tarea intermedia con peso 0).",
-          "Si debe pesar, indicar su peso o el de su tarea resumen."),
+          "En una fila con el método «Ponderado», la tarea sin peso (con sus subtareas, si es una tarea resumen) no "
+          "forma parte del % planificado ni del % ganado: las tareas con peso de la misma tarea resumen suman 100 o "
+          "más, o el resto se reparte por duración y la suya es 0 (p. ej. sin fechas). Es lo esperado si su trabajo "
+          "no tiene valor propio. Si los pesos suman menos de 100, el resto se reparte entre las tareas sin peso "
+          "según su duración y no se informa. Si la tarea resumen contiene tareas con peso, se informa con HIT-014.",
+          "Si debe pesar, indicar su peso y ajustar los de sus tareas hermanas."),
     _code("HIT-012", W, "«Ponderado» sin pesos",
           "La fila usa el método «Ponderado» y ninguna de sus tareas tiene peso: el % planificado se reparte por la "
           "duración de las tareas y el % ganado se calcula con el % completado.",
           "Indicar el peso de las tareas de la fila (campo de [campos] peso_hito) o cambiar el método."),
-    _code("HIT-013", W, "Pesos de una fila «Ponderado» que no suman 100",
-          "Los pesos del primer nivel de la fila no suman 100: se normalizan a 100 (cada parte pesa en proporción a su "
-          "peso).",
-          "Revisar los pesos de las tareas de la fila."),
+    _code("HIT-013", (E, W), "Pesos de una fila «Ponderado» que no suman 100",
+          "En la fila o en una de sus tareas resumen, los pesos de las subtareas directas son % de la tarea resumen. "
+          "Error si suman más de 100: se escalan a 100 y las subtareas sin peso no cuentan. Advertencia si suman "
+          "menos de 100 y no hay subtareas sin peso que reciban el resto: se escalan a 100.",
+          "Corregir los pesos de las subtareas para que sumen 100 (o menos, si el resto es para las subtareas sin "
+          "peso)."),
+    _code("HIT-014", E, "Pesos que no se usan en una fila «Ponderado»",
+          "Una tarea resumen sin peso no recibe parte de la fila: sus tareas hermanas con peso suman 100 o más, o el "
+          "resto se reparte por duración y la suya es 0 (p. ej. solo tiene hitos). Las subtareas con peso que contiene "
+          "no forman parte del % planificado ni del % ganado.",
+          "Indicar el peso de la tarea resumen (y ajustar los de sus tareas hermanas para que sumen como máximo 100)."),
 
     # --- MET: método de medición --------------------------------------------------------------------------------
     _code("MET-001", W, "Método no reconocido",
@@ -890,8 +902,9 @@ _CODES = [
     _code("EMP-004", W, "Tarea sin empresa",
           "Desde la versión 2.6.0, el resumen y cada tarea se informan con EMP-003.",
           "Ninguna.", retired="2.6.0", by="EMP-003"),
-    _code("EMP-005", W, "Empresa no reconocida",
-          "El valor del campo de empresa no es empresa_a, empresa_b ni ambas: la tarea se trata como compartida.",
+    _code("EMP-005", E, "Empresa no reconocida",
+          "El valor del campo de empresa no es empresa_a, empresa_b ni ambas (error desde la versión 2.7.0): la tarea "
+          "se trata como compartida.",
           "Corregir el valor en MS Project."),
     _code("EMP-006", W, "% de reparto fuera de rango",
           "El % de reparto de la tarea no es mayor que 0 y como máximo 100: se usa el reparto por defecto.",
