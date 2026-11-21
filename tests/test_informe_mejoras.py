@@ -101,6 +101,98 @@ def test_com_reads_task_calendars_and_incomplete_baseline_for_validar():
 
 
 # ----------------------------------------------------------------------------
+# Análisis de las líneas base (informe de mejoras)
+# ----------------------------------------------------------------------------
+L = datetime(2026, 4, 30, 17)
+
+
+def baselines_xml(tmp_path):
+    """Fase > Grupo > 11 tareas. Línea base en todas; Línea base 1 solo en 1.1.1 (copia de la Línea base); Línea
+    base 2 en la fase y en 1.1.3 a 1.1.11, con otro fin."""
+    tasks = [task_xml(1, 1, "Fase", wbs="1", start=S, finish=L, baselines=[(0, S, L, 0), (2, S, L, 0)],
+                      extra="<Summary>1</Summary>"),
+             task_xml(2, 2, "Grupo", wbs="1.1", start=S, finish=F, baselines=[(0, S, F, 0)], extra="<Summary>1</Summary>")]
+    tasks += [task_xml(10 + k, 3, f"T{k}", wbs=f"1.1.{k}", start=S, finish=F,
+                       baselines=[(0, S, F, 0)] + ([(1, S, F, 0)] if k == 1 else []) + ([(2, S, L, 0)] if k > 2 else []))
+              for k in range(1, 12)]
+    return write_xml(tmp_path / "p.xml", project_xml(tasks))
+
+
+def test_xml_reads_the_dates_of_every_baseline(tmp_path):
+    p = read_xml(baselines_xml(tmp_path), Config())
+    t = {x.wbs: x for x in p.tasks}
+    assert t["1"].baseline_dates == {0: (S, L), 2: (S, L)}
+    assert t["1.1.1"].baseline_dates == {0: (S, F), 1: (S, F)}
+    assert p.baseline_saved == {}                   # el XML no incluye la fecha de guardado
+
+
+def test_baseline_uses_and_their_signals(tmp_path):
+    from evm.review import baseline_uses
+    uses = {u.number: u for u in baseline_uses(validate_part(read_xml(baselines_xml(tmp_path), Config()), Config()))}
+    assert sorted(uses) == [0, 1, 2]
+    assert (len(uses[0].tasks), uses[0].summaries, uses[0].used, uses[0].missing, uses[0].signals) == (13, 2, True, 0, [])
+    assert (len(uses[1].tasks), uses[1].same, uses[1].start, uses[1].finish) == (1, 1, S, F)
+    assert uses[1].signals == ["solo en 1 tarea (7,7 % de las que tienen la Línea base): parece guardada por error "
+                               "para unas tareas seleccionadas",
+                               "mismas fechas que la Línea base en todas sus tareas: es una copia"]
+    assert (len(uses[2].tasks), uses[2].same, uses[2].finish, uses[2].signals) == (10, 1, L, [])
+
+
+def test_branch_list_shows_complete_branches_once():
+    from evm.review import branch_list
+    tasks = tree('''
+        1 Fase
+          1.1 Grupo
+            1.1.1 A
+            1.1.2 B
+          1.2 C
+        2 Otra
+    ''')
+    from evm.wbs import build_tree
+    build_tree(tasks)
+    t = by_name(tasks)
+    code = lambda x: x.wbs                                      # noqa: E731
+    every = sorted(tasks, key=lambda x: x.id)
+    picked = {t[n].uid for n in ("Grupo", "A", "B", "C")}
+    assert branch_list(picked, every, code) == ["`1.1` (rama, 3 tareas)", "`1.2`"]
+    assert branch_list(picked | {t["Fase"].uid}, every, code) == ["`1` (rama, 5 tareas)"]
+    assert branch_list({t["Grupo"].uid, t["A"].uid}, every, code) == ["`1.1`", "`1.1.1`"]
+    t["C"].wbs = ""
+    assert branch_list({t["C"].uid}, every, code) == [f"`UID {t['C'].uid}`"]
+
+
+def test_validar_report_analyses_every_baseline(tmp_path):
+    path = baselines_xml(tmp_path)
+    assert main(["validar", "--origen", str(path), "--informe"]) in (0, 1)
+    text = (tmp_path / "p_mejoras.md").read_text(encoding="utf-8")
+    assert "## 4. Líneas base\n" in text
+    assert ("| Línea base | % planificado | no consta en el XML | 13 (2) | 05/01/2026 | 30/04/2026 | - | - |"
+            in text)
+    assert ("| Línea base 1 | - | no consta en el XML | 1 (0) | 05/01/2026 | 27/03/2026 | 1 | solo en 1 tarea (7,7 % "
+            "de las que tienen la Línea base): parece guardada por error para unas tareas seleccionadas; mismas "
+            "fechas que la Línea base en todas sus tareas: es una copia |") in text
+    assert "### Línea base\n\n13 tareas de 13 (la usa el % planificado).\n" in text     # solo cuántas
+    assert "### Línea base 1\n\n1 tarea: `1.1.1`.\n" in text
+    assert ("### Línea base 2\n\n10 tareas: `1.0.0`, `1.1.3`, `1.1.4`, `1.1.5`, `1.1.6`, `1.1.7`, `1.1.8`, `1.1.9`, "
+            "`1.1.10`, `1.1.11`.\n") in text
+
+
+def test_com_reads_every_baseline_and_its_saved_date_for_validar():
+    """Con COM (solo en validar): las fechas de cada línea base con comienzo y la fecha de guardado de cada una."""
+    from test_reader_com_fake import FakeTask, d, make_session
+    a, b = FakeTask(1, 1, "A", "1"), FakeTask(2, 1, "B", "2")
+    a.Baseline1Start, a.Baseline1Finish, b.Baseline1Start = d(2026, 2, 2), d(2026, 2, 27, 17), "NA"
+    session = make_session([a, b])
+    session.project.BaselineSavedDate = lambda n: {0: d(2025, 12, 15), 1: d(2026, 2, 1)}.get(n, "NA")
+    p = session.read_project(Config(), review=True)
+    assert p.tasks[0].baseline_dates[1] == (d(2026, 2, 2).replace(tzinfo=None), d(2026, 2, 27, 17).replace(tzinfo=None))
+    assert [sorted(t.baseline_dates) for t in p.tasks] == [[0, 1], [0]]
+    assert sorted(p.baseline_saved) == [0, 1]
+    plain = make_session([a, b]).read_project(Config())
+    assert ([t.baseline_dates for t in plain.tasks], plain.baseline_saved) == ([{}, {}], {})
+
+
+# ----------------------------------------------------------------------------
 # Evaluación DCMA
 # ----------------------------------------------------------------------------
 def dcma_tasks():
@@ -218,7 +310,7 @@ def test_validar_reviews_several_plans_and_compares_them(tmp_path, capsys):
     assert "Filas solo en CLIENTE: 1 (1.2.0)" in out
     assert "Filas comunes a INTERNO y CLIENTE: 2; con otras fechas de plan (línea base): 2 (1.0.0, 1.1.0)" in out
     text = report.read_text(encoding="utf-8")
-    assert "## 4. Comparación de planificaciones" in text and "### INTERNO" in text and "### CLIENTE" in text
+    assert "## 4. Líneas base" in text and "## 5. Comparación de planificaciones" in text and "### INTERNO" in text and "### CLIENTE" in text
     assert "#### Prioridad alta" in text
     assert "| Dato | INTERNO | CLIENTE |" in text
     for name in SECRET:

@@ -222,7 +222,17 @@ publicada, con la última versión publicada y el commit, como lo muestra GitHub
    **baja**: observaciones informativas. Las informativas que solo describen la estructura (`EDT-016`,
    `EDT-017`, `EDT-018`, `EDT-022`, `VIS-007` y `LEC-024`) no se repiten: sus datos están en el resumen.
 3. **Evaluación DCMA de 14 puntos**, con una columna por planificación.
-4. **Comparación de planificaciones**, si se revisaron varias.
+4. **Líneas base:** las líneas base guardadas en las tareas de la planificación (también las inactivas
+   y las de `Visible` = No), para detectar las que se guardaron por error. Una tabla con cada línea base:
+   si la usa el % planificado, la fecha en que se guardó (solo con un .mpp: el XML no la incluye), sus
+   tareas (y cuántas son resumen), su comienzo más temprano y su fin más tardío, cuántas tareas tienen
+   las mismas fechas que la línea base usada e **indicios** de un guardado por error: en pocas tareas
+   (menos del 10 % de las que tienen la usada; p. ej. al guardar con *Tareas seleccionadas* en otra
+   línea base), solo en tareas resumen, o copia de la usada. Después, una sección por línea base: de
+   la que usa el % planificado, cuántas tareas la tienen; de cada una de las demás, sus tareas por
+   código EDT (sin código, por su UniqueID), con una tarea resumen que la tiene con todas sus
+   subtareas indicada una vez, como rama: `` `1.3` (rama, 25 tareas) ``.
+5. **Comparación de planificaciones**, si se revisaron varias.
 
 El informe **no incluye nombres** de tareas, de empresas ni de calendarios, ni el título del proyecto: las
 tareas se identifican por su código EDT o, sin código, por su UniqueID, y en los textos de las

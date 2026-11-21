@@ -55,6 +55,13 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   (depende de sus tareas hermanas). Una tarea resumen cuyas subtareas tienen todas 0 tampoco cuenta. Una fila
   del libro con 0 se conserva con PV y EV 0 (`HIT-016`, nuevo), y los pesos de las subtareas de una tarea con
   0 se informan como advertencia (`HIT-014`). En un campo numérico el 0 se lee como vacío.
+- **Líneas base en el informe de mejoras** (`validar --informe`, sección 4 nueva; la comparación de
+  planificaciones pasa a ser la 5): cada línea base guardada en las tareas de la planificación, con sus
+  tareas, fechas, fecha de guardado (con un .mpp) e indicios de un guardado por error (en pocas tareas,
+  solo en tareas resumen o copia de la que usa el % planificado). De la que usa el % planificado se indica
+  cuántas tareas la tienen; de las demás, sus tareas por código EDT, con las ramas completas agrupadas.
+  Sirve para detectar líneas base adicionales guardadas por error
+  ([Informe de mejoras](docs/comandos.md#informe-de-mejoras)).
 - **Guía de convenios en MS Project** para jefes de proyecto y planners: las reglas para trabajar el
   cronograma (código EDT, `Visible`, `Peso`, método, empresas, línea base y avance) y sus motivos, sin
   necesidad de conocer el programa ([Guía de convenios](docs/guia-convenios-ms-project.md)).

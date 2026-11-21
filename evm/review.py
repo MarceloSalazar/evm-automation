@@ -110,11 +110,9 @@ class Facts:
 
 
 def facts(part: ReportPart, issues: list[Issue], label: str = "", status: date | None = None) -> Facts:
-    from evm.validation import plan_members
     project: ProjectData = part.source.project
     scope = part.scope
-    members = plan_members(project, scope) if scope is not None else None
-    every = [t for t in project.tasks if t.outline_level >= 1 and (members is None or t.uid in members)]
+    every, _members = _plan_tasks(part)
     out = Facts(label or part.source.plan or part.source.name or "Proyecto")
     out.tasks = len(every)
     out.active = sum(1 for t in every if _active_chain(t))
@@ -222,6 +220,170 @@ def compare(units: list[Unit]) -> list[str]:
         out.append(f"Filas comunes a {pair} con otro fin previsto: {len(forecast)}"
                    + (f" ({_short(forecast)})" if forecast else ""))
     return out
+
+
+# ----------------------------------------------------------------------------
+# Líneas base
+# ----------------------------------------------------------------------------
+# Una línea base que no usa el % planificado y está en menos de esta fracción de las tareas que tienen la usada
+# parece guardada por error para unas pocas tareas seleccionadas
+FEW_TASKS = 0.10
+
+
+def _baseline_name(n: int) -> str:
+    return "Línea base" if n == 0 else f"Línea base {n}"
+
+
+@dataclass
+class BaselineUse:
+    """Una línea base guardada, en las tareas de una planificación (o del proyecto, sin planificación)."""
+
+    number: int
+    tasks: list[Task]                   # tareas de la planificación con fechas en esta línea base
+    used: bool                          # la usa el % planificado
+    saved: datetime | None = None       # fecha de guardado (solo con .mpp)
+    start: datetime | None = None       # comienzo más temprano
+    finish: datetime | None = None      # fin más tardío
+    same: int | None = None             # tareas con las mismas fechas que la línea base usada (None = la usada)
+    missing: int = 0                    # la usada: tareas de detalle de la planificación sin ella
+    outside: int = 0                    # tareas del archivo, fuera de la planificación, con esta línea base
+    signals: list[str] = field(default_factory=list)
+
+    @property
+    def summaries(self) -> int:
+        return sum(1 for t in self.tasks if t.summary or t.children)
+
+
+def _plan_tasks(part: ReportPart) -> tuple[list[Task], set[int] | None]:
+    """Tareas de la planificación revisada en el árbol completo de MS Project (también las inactivas y las de
+    Visible = No) y sus UniqueID (None sin planificación: todas las tareas del proyecto)."""
+    from evm.validation import plan_members
+    project: ProjectData = part.source.project
+    members = plan_members(project, part.scope) if part.scope is not None else None
+    return [t for t in project.tasks if t.outline_level >= 1 and (members is None or t.uid in members)], members
+
+
+def baseline_uses(part: ReportPart) -> list[BaselineUse]:
+    """Líneas base guardadas en las tareas de la planificación (y, con .mpp, las que tienen fecha de guardado), con
+    sus fechas e indicios de una línea base guardada por error: en pocas tareas, solo en tareas resumen o copia de
+    la que usa el % planificado."""
+    project: ProjectData = part.source.project
+    every, members = _plan_tasks(part)
+    n_used = project.baseline_number
+    used = _baseline_name(n_used)
+    numbers = {k for t in every for k in t.baseline_dates} | set(project.baseline_saved)
+    used_dates = {t.uid: t.baseline_dates.get(n_used) for t in every}
+    with_used = sum(1 for v in used_dates.values() if v is not None)
+    out: list[BaselineUse] = []
+    for k in sorted(numbers):
+        tasks = [t for t in every if k in t.baseline_dates]
+        use = BaselineUse(k, tasks, k == n_used, project.baseline_saved.get(k))
+        starts = [t.baseline_dates[k][0] for t in tasks if t.baseline_dates[k][0]]
+        finishes = [t.baseline_dates[k][1] for t in tasks if t.baseline_dates[k][1]]
+        use.start = min(starts) if starts else None
+        use.finish = max(finishes) if finishes else None
+        if members is not None:
+            use.outside = sum(1 for t in project.tasks if t.uid not in members and t.outline_level >= 1
+                              and k in t.baseline_dates)
+        if use.used:
+            use.missing = sum(1 for t in every if not t.children and k not in t.baseline_dates)
+        else:
+            use.same = sum(1 for t in tasks if used_dates.get(t.uid) == t.baseline_dates[k])
+            if not tasks:
+                use.signals.append("guardada, pero ninguna tarea de la planificación tiene sus fechas")
+            else:
+                base = with_used or len(every)
+                if len(tasks) < FEW_TASKS * base:
+                    use.signals.append(f"solo en {_tasks(len(tasks))} "
+                                       f"({_num(100.0 * len(tasks) / base)} % de las que tienen la {used}): "
+                                       "parece guardada por error para unas tareas seleccionadas")
+                if use.summaries == len(tasks):
+                    use.signals.append("solo en tareas resumen")
+                if use.same == len(tasks):
+                    use.signals.append(f"mismas fechas que la {used} en todas sus tareas: es una copia")
+        out.append(use)
+    return out
+
+
+def _tasks(n: int) -> str:
+    """'1 tarea', '1.351 tareas'."""
+    return f"{fmt_number(n, 0)} {'tarea' if n == 1 else 'tareas'}"
+
+
+def _task_label(t: Task, code_of) -> str:
+    return code_of(t) or f"UID {t.uid}"
+
+
+def branch_list(selected: set[int], every: list[Task], code_of) -> list[str]:
+    """Tareas seleccionadas, en el orden del esquema, por su código EDT (sin código, por su UniqueID). Una tarea
+    resumen seleccionada con todas sus subtareas se indica una vez, como rama: `1.3` (rama, 25 tareas)."""
+    inside = {t.uid for t in every}
+    children: dict[int, list[Task]] = {}
+    for t in every:
+        if t.parent is not None and t.parent.uid in inside:
+            children.setdefault(t.parent.uid, []).append(t)
+    full: dict[int, int] = {}           # UniqueID -> tareas de la rama si toda la rama está seleccionada; si no, 0
+    for t in reversed(every):           # las subtareas van después de su tarea resumen
+        sub = [full[c.uid] for c in children.get(t.uid, [])]
+        full[t.uid] = (1 + sum(sub)) if t.uid in selected and all(sub) else 0
+
+    out: list[str] = []
+    skip: set[int] = set()
+    for t in every:
+        if t.uid in skip or t.uid not in selected:
+            continue
+        if t.uid in children and full[t.uid] > 1:
+            out.append(f"`{_task_label(t, code_of)}` (rama, {full[t.uid]} tareas)")
+            stack = list(children[t.uid])
+            while stack:
+                c = stack.pop()
+                skip.add(c.uid)
+                stack += children.get(c.uid, [])
+        else:
+            out.append(f"`{_task_label(t, code_of)}`")
+    return out
+
+
+def _baseline_section(part: ReportPart, level: str) -> list[str]:
+    """Análisis de las líneas base de una revisión: tabla con sus datos e indicios, y las tareas de cada una."""
+    project: ProjectData = part.source.project
+    uses = baseline_uses(part)
+    if not uses:
+        return ["Ninguna tarea tiene línea base guardada: el % planificado usa las fechas actuales.", ""]
+    every, members = _plan_tasks(part)
+    code_of = part.code_of or (lambda t: t.wbs or "")
+    lines = ["| Línea base | Uso | Guardada | Tareas (resumen) | Comienzo más temprano | Fin más tardío | "
+             "Mismas fechas que la usada | Indicios |", "|---|---|---|---:|---|---|---:|---|"]
+    for u in uses:
+        saved = _day(u.saved) if u.saved else ("-" if project.backend == "com" else "no consta en el XML")
+        tasks = f"{fmt_number(len(u.tasks), 0)} ({fmt_number(u.summaries, 0)})"
+        same = "-" if u.same is None else fmt_number(u.same, 0)
+        if u.used:
+            use = "% planificado"
+            signals = f"{fmt_number(u.missing, 0)} {'tarea' if u.missing == 1 else 'tareas'} de detalle sin ella" if u.missing else "-"
+        else:
+            use = "-"
+            signals = "; ".join(u.signals) if u.signals else "-"
+        lines.append(f"| {_baseline_name(u.number)} | {use} | {saved} | {tasks} | {_day(u.start)} | "
+                     f"{_day(u.finish)} | {same} | {_md(signals)} |")
+    lines.append("")
+    outside = [u for u in uses if u.outside]
+    if members is not None and outside:
+        lines += ["Fuera de la planificación, en otras tareas del archivo: "
+                  + ", ".join(f"{_baseline_name(u.number)}: {_tasks(u.outside)}" for u in outside)
+                  + ".", ""]
+    for u in uses:
+        lines += [f"{level} {_baseline_name(u.number)}", ""]
+        have = {t.uid for t in u.tasks}
+        if u.used:                      # la que usa el % planificado: solo cuántas tareas la tienen
+            lines += [f"{_tasks(len(have))} de {fmt_number(len(every), 0)} (la usa el % "
+                      "planificado).", ""]
+        elif not have:
+            lines += ["Ninguna tarea de la planificación tiene sus fechas.", ""]
+        else:
+            lines += [f"{_tasks(len(have))}: " + ", ".join(branch_list(have, every, code_of))
+                      + ".", ""]
+    return lines
 
 
 # ----------------------------------------------------------------------------
@@ -389,8 +551,23 @@ def write_report(path: str | Path, units: list[Unit], cfg: Config, version: str,
         lines.append(f"| {k}. {name} | " + " | ".join(_dcma_cell(v) for v in values) + f" | {threshold} |")
     lines.append("")
 
+    lines += ["---", "", "## 4. Líneas base", "",
+              "Líneas base guardadas en las tareas de la planificación (también las inactivas y las de Visible = No) "
+              "y, de cada una salvo la que usa el % planificado, las tareas que la tienen, por su código EDT. Sirve "
+              "para detectar las guardadas por error: en pocas tareas (p. ej. con *Tareas seleccionadas* y otra "
+              "línea base), solo en tareas resumen o copia de la que usa el % planificado. Una tarea resumen con "
+              "todas sus subtareas se indica una vez, como rama. Una línea base que sobra "
+              "se borra en MS Project con *Proyecto > Establecer línea base > Borrar línea base* (*Clear Baseline*), "
+              "para todo el proyecto o para las tareas seleccionadas.", ""]
+    for (_u, p), label in zip(columns, labels):
+        level = "###"
+        if len(columns) > 1:
+            lines += [f"### {label}", ""]
+            level = "####"
+        lines += _baseline_section(p, level)
+
     if len(units) > 1:
-        lines += ["---", "", "## 4. Comparación de planificaciones", ""]
+        lines += ["---", "", "## 5. Comparación de planificaciones", ""]
         lines += [f"- {_md(clean(text))}" for text in compare(units)]
         lines.append("")
     Path(path).write_text("\n".join(lines), encoding="utf-8")
