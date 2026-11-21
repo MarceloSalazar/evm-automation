@@ -251,7 +251,7 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 
 | Opción | Descripción |
 |---|---|
-| `--origen` | Archivo `.mpp` (requiere MS Project), `.xml` de MS Project, o `activo` para usar el proyecto abierto en MS Project. **Obligatoria**, salvo con varios archivos (`[[proyectos]]` en la configuración): en ese caso se omite, o se indica `NOMBRE=RUTA` para reemplazar la ruta de un archivo ([Varios archivos](varios-archivos.md)). `NOMBRE=RUTA` se puede repetir; una ruta relativa se toma desde la carpeta actual (no desde la del archivo de configuración). |
+| `--origen` | Archivo `.mpp` (requiere MS Project), `.xml` de MS Project, o `activo` para usar el proyecto abierto en MS Project. **Obligatoria**, salvo con varios archivos (`[[proyectos]]` en la configuración): en ese caso se omite, o se indica `NOMBRE=RUTA` para reemplazar la ruta de un archivo ([Varios archivos](varios-archivos.md)). `NOMBRE=RUTA` se puede repetir. Una sola ruta, sin `NOMBRE=`, tiene prioridad: se lee solo ese archivo, con la planificación y la línea base de su sección si es uno de `[[proyectos]]` ([CFG-057](codigos.md#cfg-057)), en todos los comandos que leen MS Project; una ruta relativa se toma desde la carpeta actual (no desde la del archivo de configuración). |
 | `--salida` | Libro `.xlsx` a crear. Por defecto `<origen>_EVM.xlsx` (con `--origen activo`, `EVM.xlsx` en la carpeta actual); obligatoria con varios archivos. |
 | `--config` | Archivo de configuración TOML ([Configuración](configuracion.md)). |
 | `--mes-inicio AAAA-MM` | Primer mes del horizonte (mes 1). Por defecto, `mes_inicio` de la configuración o, si no se indica, el primer mes con % planificado (en general, el de inicio de la línea base). |
@@ -308,7 +308,7 @@ python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config con
 
 | Opción | Descripción |
 |---|---|
-| `--origen` | Proyecto con el avance a la fecha de corte (`.mpp`, `.xml` o `activo`). **Obligatoria**, salvo con varios archivos: se leen todos los de `[[proyectos]]`, y `NOMBRE=RUTA` reemplaza la ruta de un archivo (relativa a la carpeta actual; se puede repetir). |
+| `--origen` | Proyecto con el avance a la fecha de corte (`.mpp`, `.xml` o `activo`). **Obligatoria**, salvo con varios archivos: se leen todos los de `[[proyectos]]`, y `NOMBRE=RUTA` reemplaza la ruta de un archivo (relativa a la carpeta actual; se puede repetir). Una sola ruta sin `NOMBRE=` lee solo ese archivo ([CFG-057](codigos.md#cfg-057)): un libro generado con varios archivos no se actualiza con uno solo (`ACT-002`, sin modificarlo). |
 | `--libro` | Libro creado con `generar`. **Obligatoria.** |
 | `--fecha-corte AAAA-MM-DD` | Fecha de corte. Por defecto, la fecha de estado del proyecto; si el proyecto no tiene fecha de estado, es obligatoria. Con varios archivos, sin esta opción todos deben tener la misma fecha de estado. Con `.mpp`, el programa fija esa fecha de estado en la copia abierta (no guarda el archivo). |
 | `--simular` | Muestra el EV calculado para cada fila y los indicadores resultantes, sin modificar el libro. |

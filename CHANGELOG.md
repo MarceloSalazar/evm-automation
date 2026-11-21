@@ -62,6 +62,10 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   cuántas tareas la tienen; de las demás, sus tareas por código EDT, con las ramas completas agrupadas.
   Sirve para detectar líneas base adicionales guardadas por error
   ([Informe de mejoras](docs/comandos.md#informe-de-mejoras)).
+- **`--origen` con prioridad sobre `[[proyectos]]`:** si la configuración tiene varios archivos y se indica
+  una sola ruta en `--origen` (sin `NOMBRE=`), se lee solo ese archivo, con la planificación y la línea base
+  de su sección si es uno de ellos, en lugar de detenerse con `CFG-039` (`CFG-057`, informativa, nuevo)
+  ([Varios archivos](docs/varios-archivos.md)).
 - **Guía de convenios en MS Project** para jefes de proyecto y planners: las reglas para trabajar el
   cronograma (código EDT, `Visible`, `Peso`, método, empresas, línea base y avance) y sus motivos, sin
   necesidad de conocer el programa ([Guía de convenios](docs/guia-convenios-ms-project.md)).

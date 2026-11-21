@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import copy
 import logging
+import os
 import platform
 import sys
 import time
@@ -110,7 +111,30 @@ def _computing(name: str, text: str) -> None:
     progress.stage(f"calcular:{name}", f"{text} ({name})" if name else text)
 
 
+def _single_origin(cfg: Config, args) -> Config:
+    """Con [[proyectos]] y un solo --origen con una ruta (no NOMBRE=RUTA), manda la línea de comandos: se lee solo ese
+    archivo, como sin [[proyectos]], con la planificación y la línea base de su sección si la ruta es la de una
+    sección, o las generales si no (CFG-057). actualizar-edt con --proyecto elige la sección (la ruta la reemplaza)."""
+    given = getattr(args, "origen", None) or []
+    if not cfg.projects or len(given) != 1 or getattr(args, "proyecto", None):
+        return cfg
+    item = given[0].strip()
+    name, sep, _path = (x.strip() for x in item.partition("="))
+    if sep and name and not any(c in name for c in "\\/:."):
+        return cfg                      # NOMBRE=RUTA: reemplaza la ruta de una sección
+    def key(path: str) -> str:
+        return os.path.normcase(os.path.abspath(path))
+    spec = next((p for p in cfg.projects if item.lower() != "activo" and key(p.origin) == key(item)), None)
+    single = cfg.project_config(spec.name) if spec is not None else cfg
+    which = (f"es el de la sección '{spec.name}', con su planificación y su línea base" if spec is not None else
+             "no es el de ninguna sección: con la planificación y la línea base generales")
+    print(_issue_line(Issue("CFG-057", message=f"Se lee solo el archivo de --origen ({which}), no los "
+                                               f"{len(cfg.projects)} archivos de [[proyectos]].")))
+    return replace(single, projects=[])
+
+
 def _apply_overrides(cfg: Config, args) -> Config:
+    cfg = _single_origin(cfg, args)
     # Opciones indicadas explícitamente (aunque valgan 0 o ""): se validan, no se ignoran
     if getattr(args, "mes_inicio", None) is not None:
         cfg.start_month = parse_month(args.mes_inicio)
@@ -1093,8 +1117,8 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--origen", action="append",
                         help="archivo .mpp (requiere MS Project instalado), .xml exportado de MS Project, "
                              "o 'activo' para usar el proyecto abierto en MS Project. Con varios archivos "
-                             "([[proyectos]] en la configuración) se omite, o se indica NOMBRE=RUTA para reemplazar "
-                             "la ruta de un archivo (se puede repetir)")
+                             "([[proyectos]] en la configuración) se omite, se indica NOMBRE=RUTA para reemplazar "
+                             "la ruta de un archivo (se puede repetir), o una ruta para leer solo ese archivo")
         sp.add_argument("--config", help="archivo de configuración TOML (ver config.ejemplo.toml)")
         sp.add_argument("--motor", choices=["auto", "com", "xml"], default="auto",
                         help="forma de lectura (por defecto según la extensión)")

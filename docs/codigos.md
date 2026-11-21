@@ -110,7 +110,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 
 | Área | Nombre | Tema en la hoja Validación | Dónde aparecen | Códigos |
 |---|---|---|---|---|
-| [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 56 |
+| [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 57 |
 | [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 17 |
 | [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 21 |
 | [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 5 |
@@ -195,6 +195,7 @@ Archivo de configuración, opciones de la línea de comandos, horizonte y códig
 | [CFG-054](#cfg-054) | Error (detiene el programa) | Falta el campo del cliente |
 | [CFG-055](#cfg-055) | Error (detiene el programa) | Cálculo del precio mal configurado |
 | [CFG-056](#cfg-056) | Advertencia | Fechas de estado distintas en los archivos |
+| [CFG-057](#cfg-057) | Info | Solo el archivo de `--origen` |
 
 #### CFG-001
 
@@ -504,7 +505,7 @@ Con varios archivos, la planificación y la línea base son de cada archivo.
 
 **`--origen` no válido con varios archivos** · Error (detiene el programa) · generar, actualizar, validar y generar-fichas · no se puede silenciar
 
-Con `[[proyectos]]`, `--origen` debe ser NOMBRE=RUTA, con el nombre de uno de los archivos.
+Con `[[proyectos]]`, `--origen` NOMBRE=RUTA debe usar el nombre de uno de los archivos, y si se indica varias veces, todas deben ser NOMBRE=RUTA (una sola ruta, sin NOMBRE=, lee solo ese archivo: [CFG-057](#cfg-057)).
 
 **Qué hacer:** Indicar `--origen` P1=C:\ruta\archivo.mpp, con un nombre de `[[proyectos]]`.
 
@@ -643,6 +644,14 @@ La sección [depuracion_precio] (precio de las EDT interna en la depuración de 
 Con varios archivos (`[[proyectos]]`), los proyectos tienen fechas de estado distintas, o alguno no tiene: el avance de cada archivo corresponde a otro día y actualizar se detiene ([ACT-005](#act-005) o [ACT-004](#act-004)) si no se indica `--fecha-corte`. La consola de generar muestra siempre este aviso, antes que los demás.
 
 **Qué hacer:** Registrar el avance de todos los archivos a la misma fecha (el último día del mes informado o su último día laborable) y fijar esa fecha de estado en cada uno (Proyecto > Fecha de estado).
+
+#### CFG-057
+
+**Solo el archivo de `--origen`** · Info · generar, actualizar, validar y generar-fichas · se puede silenciar
+
+La configuración tiene varios archivos (`[[proyectos]]`) y `--origen` indica una ruta (sin NOMBRE=): se lee solo ese archivo, como si la configuración no tuviera `[[proyectos]]`. Si la ruta es la de una sección, se usan su planificación y su línea base; si no, las generales (o las de `--planificacion` y `--linea-base`).
+
+**Qué hacer:** Ninguna. Para leer todos los archivos se omite `--origen`; para reemplazar la ruta de uno solo, se indica `--origen` NOMBRE=RUTA.
 
 ---
 

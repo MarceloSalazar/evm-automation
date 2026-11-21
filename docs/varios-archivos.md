@@ -213,6 +213,10 @@ python evm_export.py actualizar --config config.toml --libro EVM_Programa.xlsx
 - **Todos los archivos del libro.** La configuración debe tener los mismos archivos (con los mismos
   nombres) con que se generó el libro; si falta uno o sobra otro, `actualizar` se detiene sin modificar
   el libro.
+- **Un solo archivo.** Con `--origen RUTA` (sin `NOMBRE=`) se lee solo ese archivo, aunque la
+  configuración tenga `[[proyectos]]`: la línea de comandos tiene prioridad. Si la ruta es la de una
+  sección, se usan su planificación y su línea base (`CFG-057`). Sirve, por ejemplo, para `validar` un
+  archivo sin tocar la configuración.
 - **Otro archivo para un proyecto.** Con `--origen NOMBRE=RUTA` se reemplaza la ruta de un archivo
   solo para ese comando, por ejemplo para usar el XML exportado al cierre del mes. Se puede repetir:
 

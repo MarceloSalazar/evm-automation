@@ -381,7 +381,8 @@ _CODES = [
           "Con varios archivos, la planificación y la línea base son de cada archivo.",
           "Indicarlas en la sección [[proyectos]] de cada archivo.", W_SOURCE),
     _code("CFG-039", F, "--origen no válido con varios archivos",
-          "Con [[proyectos]], --origen debe ser NOMBRE=RUTA, con el nombre de uno de los archivos.",
+          "Con [[proyectos]], --origen NOMBRE=RUTA debe usar el nombre de uno de los archivos, y si se indica "
+          "varias veces, todas deben ser NOMBRE=RUTA (una sola ruta, sin NOMBRE=, lee solo ese archivo: CFG-057).",
           "Indicar --origen P1=C:\\ruta\\archivo.mpp, con un nombre de [[proyectos]].", W_SOURCE),
     _code("CFG-040", F, "Falta --salida con varios archivos",
           "Con varios archivos no hay un nombre de salida por defecto.",
@@ -456,6 +457,12 @@ _CODES = [
           "indica --fecha-corte. La consola de generar muestra siempre este aviso, antes que los demás.",
           "Registrar el avance de todos los archivos a la misma fecha (el último día del mes informado o su último "
           "día laborable) y fijar esa fecha de estado en cada uno (Proyecto > Fecha de estado).", W_GV),
+    _code("CFG-057", I, "Solo el archivo de --origen",
+          "La configuración tiene varios archivos ([[proyectos]]) y --origen indica una ruta (sin NOMBRE=): se lee solo "
+          "ese archivo, como si la configuración no tuviera [[proyectos]]. Si la ruta es la de una sección, se usan "
+          "su planificación y su línea base; si no, las generales (o las de --planificacion y --linea-base).",
+          "Ninguna. Para leer todos los archivos se omite --origen; para reemplazar la ruta de uno solo, se indica "
+          "--origen NOMBRE=RUTA.", W_SOURCE),
 
     # --- LEC: lectura de MS Project -----------------------------------------------------------------------------
     _code("LEC-001", F, "No existe el archivo de origen",
