@@ -49,6 +49,23 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   `Validación` informan los hitos, actividades y tareas resumen sin código que dependen de un elemento
   EDT. Se siguen sumando en su elemento, pero sin código no se identifican en la jerarquía ni se puede
   comprobar su numeración. La documentación ya no dice que los hitos no necesitan código EDT.
+- **Peso = 0: tareas que se hacen pero no cuentan en el libro:** con el campo de peso de texto, un 0 escrito
+  saca la tarea del libro con toda su rama: no entra en el PV, el EV ni el AC, no recibe parte del peso de
+  su tarea superior y no forma filas -D (`HIT-015`, nuevo). Un peso vacío sigue significando sin definir
+  (depende de sus tareas hermanas). Una tarea resumen cuyas subtareas tienen todas 0 tampoco cuenta. Una fila
+  del libro con 0 se conserva con PV y EV 0 (`HIT-016`, nuevo), y los pesos de las subtareas de una tarea con
+  0 se informan como advertencia (`HIT-014`). En un campo numérico el 0 se lee como vacío.
+- **Guía de convenios en MS Project** para jefes de proyecto y planners: las reglas para trabajar el
+  cronograma (código EDT, `Visible`, `Peso`, método, empresas, línea base y avance) y sus motivos, sin
+  necesidad de conocer el programa ([Guía de convenios](docs/guia-convenios-ms-project.md)).
+- **Comando `actualizar-edt`:** numera los códigos EDT de las subtareas de una tarea (`--desde 2.7.1`)
+  según la jerarquía de MS Project, para no hacerlo a mano durante la planificación. No cambia los
+  códigos de nivel 1 a `nivel_maximo`, los de `Visible = Sí` ni los de la lista EDT, que deben ir
+  primero y sin saltos; las demás tareas, también las nuevas sin código, se numeran a continuación.
+  Escribe en el proyecto abierto sin guardarlo, en una sola acción de deshacer, o en el `.mpp` con una
+  copia de respaldo; con `--simular` solo muestra los cambios (admite el XML). Cada ejecución deja un
+  informe con los cambios. Códigos nuevos `NUM-001` a `NUM-017`
+  ([actualizar-edt](docs/comandos.md#actualizar-edt-numera-los-códigos-edt-de-una-rama)).
 
 ### Correcciones
 

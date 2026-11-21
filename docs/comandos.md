@@ -2,13 +2,14 @@
 
 [Inicio](../README.md) › [Documentación](README.md) › Comandos y opciones
 
-El programa tiene siete comandos: `validar` (revisa el archivo de MS Project sin crear ningún
+El programa tiene ocho comandos: `validar` (revisa el archivo de MS Project sin crear ningún
 archivo), `generar` (crea el libro con el % planificado de cada mes), `actualizar` (carga el % ganado
 de un mes), `analizar` (actualiza la hoja `Análisis de desviaciones` sin leer MS Project),
 `generar-fichas` (crea un documento con la ficha de cada tarea para el cliente), `procesar-costes`
 (revisa el plan de costes de una empresa y escribe sus cálculos, en un libro con
-[depuración de costes](depuracion-costes.md)) y `generar-cliente` (genera el `.mpp` del cliente a partir
-de la planificación interna; ver [Planificación para el cliente](generar-cliente.md)). El BAC y el AC se ingresan a mano en el libro
+[depuración de costes](depuracion-costes.md)), `generar-cliente` (genera el `.mpp` del cliente a partir
+de la planificación interna; ver [Planificación para el cliente](generar-cliente.md)) y `actualizar-edt`
+(numera los códigos EDT de una rama según la jerarquía de MS Project). El BAC y el AC se ingresan a mano en el libro
 ([Cálculo del PV y el EV](calculo-pv-ev.md)). La ayuda se obtiene con:
 
 ```powershell
@@ -20,6 +21,7 @@ python evm_export.py analizar --help
 python evm_export.py generar-fichas --help
 python evm_export.py procesar-costes --help
 python evm_export.py generar-cliente --help
+python evm_export.py actualizar-edt --help
 ```
 
 Con el [instalador de Windows](../README.md#opción-1-instalador-para-windows-sin-python), el programa se
@@ -577,6 +579,97 @@ escribe el informe; admite el XML. Ver [Planificación para el cliente](generar-
 
 ---
 
+## `actualizar-edt`: numera los códigos EDT de una rama
+
+```powershell
+python evm_export.py actualizar-edt --origen activo --config config.toml --desde 2.7.1
+```
+
+Durante la planificación, al agregar, quitar o mover tareas, los códigos EDT de las tareas de detalle
+dejan de seguir la jerarquía. `actualizar-edt` los vuelve a numerar a partir de una tarea: la tarea de
+`--desde` conserva su código y sus subtareas se numeran en el orden del esquema de MS Project (los
+hijos `2.7.1.1`, `2.7.1.2`...; los nietos `2.7.1.1.1`...). Las tareas sin código dentro de la rama
+reciben uno. Solo se numeran ramas cuya tarea superior tiene un código numérico: los hitos del contrato,
+sin código y fuera de las ramas con código, no cambian. Solo escribe en un campo personalizado de texto
+(`[campos] edt`, por ejemplo `"Item EDT"`); para el campo EDT de MS Project se usa su función
+*Renumerar*.
+
+**Tareas protegidas.** El código de estas tareas nunca cambia, porque son filas del libro y el cliente
+debe recibir siempre el mismo código:
+
+- las de código de nivel 1 a `nivel_maximo`;
+- las de `Visible = Sí`;
+- las de la lista EDT (`lista_edt`), si se usa;
+- las que contienen alguna de las anteriores.
+
+`[cliente] campo` no protege: una tarea que ve el cliente pero que no es fila del libro se puede
+renumerar.
+
+**Orden.** Dentro de cada tarea, las subtareas protegidas van primero, con códigos correlativos desde 1
+(`2.7.1.1`, `2.7.1.2`...), y las demás se numeran a continuación (`2.7.1.3`...): el cliente nunca debe
+ver saltos. Por ejemplo, con `2.7.1.1` y `2.7.1.2` con `Visible = Sí`:
+
+| Antes | Después | |
+|---|---|---|
+| `2.7.1.1` (Visible = Sí) | `2.7.1.1` | no cambia |
+| `2.7.1.1.7` | `2.7.1.1.1` | subtarea de una protegida: se numera |
+| `2.7.1.2` (Visible = Sí) | `2.7.1.2` | no cambia |
+| `2.7.1.9` | `2.7.1.3` | |
+| (sin código) | `2.7.1.4` | tarea nueva |
+
+**Errores.** Si hay algún error, no se escribe ningún código:
+
+- una tarea que se numera delante de una protegida ([NUM-008](codigos.md#num-008));
+- códigos protegidos con saltos o desordenados ([NUM-009](codigos.md#num-009)): es una errata y se
+  corrige a mano;
+- un código protegido que no cuelga directamente de su tarea superior ([NUM-010](codigos.md#num-010)),
+  por ejemplo una tarea copiada de otra rama con un código de nivel 3;
+- una tarea sin código que contiene tareas protegidas ([NUM-011](codigos.md#num-011)), o una tarea sin
+  código con `Visible = Sí` ([NUM-012](codigos.md#num-012)): su código lo decide el jefe de proyecto.
+
+Un código nuevo que ya tiene una tarea de fuera de la rama se informa ([NUM-014](codigos.md#num-014)) y
+la rama se actualiza igualmente.
+
+**Desde un nivel superior.** Con `--desde 2.7` (nivel 2), los paquetes de nivel 3 (`2.7.1`, `2.7.2`...)
+no cambian y se numeran sus subtareas. Nunca se crea un código de nivel 1 a `nivel_maximo` (sería una
+fila nueva del libro): una tarea sin paquete que cuelga directamente de `2.7` recibe `2.7.0.1`, una
+actividad de `2.7.0`. Con `ignorar_ceros_intermedios = true`, `2.7.0.1` sería de nivel 3: esas tareas
+no se numeran y se informan ([NUM-013](codigos.md#num-013)).
+
+**El archivo abierto en MS Project.** Se puede tener el archivo abierto: el programa usa la instancia
+de MS Project en marcha.
+
+- Con `--origen activo`, o con la ruta de un `.mpp` que ya está abierto, los códigos se escriben en
+  el proyecto abierto y **no se guarda**: se revisan en MS Project y se guarda el archivo, o se cierra
+  sin guardar para descartarlos. Todos los cambios forman una sola acción de deshacer: un Ctrl+Z los
+  quita ([NUM-017](codigos.md#num-017) si MS Project no lo permite).
+- Con la ruta de un `.mpp` cerrado, el programa lo abre, crea la copia
+  `<archivo>.respaldo-AAAAMMDD-HHMMSS.mpp`, escribe los códigos, guarda el archivo y lo cierra.
+
+Mientras trabaja el comando no se debe usar MS Project: editar una celda o dejar un diálogo abierto
+bloquea al programa. Después de escribir, el programa vuelve a leer los códigos y los compara con los
+previstos ([NUM-016](codigos.md#num-016)).
+
+**Salida.** La consola muestra los cambios (Id, código actual, código nuevo y nombre) y las
+observaciones. El informe `<origen>_edt-AAAAMMDD-HHMMSS.md` (cada ejecución tiene el suyo) tiene todos
+los cambios y las tareas protegidas con su motivo. Incluye nombres de tareas: es para uso interno.
+
+**Antes de usarlo.** Cambiar códigos por debajo de `nivel_maximo` afecta a lo que use esos códigos fuera
+de MS Project: el plan de costes de la [depuración de costes](depuracion-costes.md), si sus EDT interna
+son de ese nivel, y las fichas ya generadas. Los vínculos no cambian: van por Id.
+
+| Opción | Descripción |
+|---|---|
+| `--desde CODIGO` | Código EDT de la tarea cuyas subtareas se numeran (su código no cambia). **Obligatoria.** Se puede repetir para numerar varias ramas, que no deben estar una dentro de otra. |
+| `--origen` | `.mpp`, `activo` o, solo con `--simular`, `.xml`. Un solo archivo: no admite `[[proyectos]]`. |
+| `--simular` | Muestra los cambios y escribe el informe, sin escribir los códigos. Admite el XML. |
+| `--sin-respaldo` | No crea la copia de respaldo del `.mpp` antes de guardarlo. |
+| `--informe RUTA` | Informe en Markdown. Por defecto `<origen>_edt-AAAAMMDD-HHMMSS.md` junto al archivo (con `activo`, `EDT-AAAAMMDD-HHMMSS.md` en la carpeta actual). |
+| `--sobrescribir` | Reemplaza el informe de `--informe` si ya existe. |
+| `--config`, `--planificacion`, `--nivel-max`, `--motor`, `--visible`, `--silenciar` | Igual que en `generar`. Si el archivo tiene varias planificaciones con los mismos códigos (`INTERNO` y `CLIENTE`), se elige una con `--planificacion`. |
+
+---
+
 ## Ejemplos frecuentes
 
 ```powershell
@@ -605,6 +698,9 @@ python evm_export.py generar --origen Programa.mpp --config config.toml --salida
 # Revisión del plan de costes de una empresa (hoja PV-depuración), con los cálculos del plan
 python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx --calculos
 
+# Planificación: numerar las subtareas de 2.7.1 en el proyecto abierto (revisar en MS Project y guardar)
+python evm_export.py actualizar-edt --origen activo --config config.toml --desde 2.7.1
+
 # Varios archivos de MS Project ([[proyectos]] en la configuración): sin --origen
 python evm_export.py generar --config config.toml --salida EVM_Programa.xlsx
 python evm_export.py actualizar --config config.toml --libro EVM_Programa.xlsx
@@ -621,7 +717,7 @@ Todos los comandos terminan con un código que permite usarlos en procesos autom
 | Código | Significado |
 |---|---|
 | 0 | El comando terminó correctamente. En `validar`: no hay errores, aunque puede haber advertencias. |
-| 1 | `validar` encontró errores (`[X]`) en el archivo de MS Project: se deben corregir antes de generar o actualizar el libro. Ningún otro comando termina con 1. |
+| 1 | `validar` encontró errores (`[X]`) en el archivo de MS Project: se deben corregir antes de generar o actualizar el libro. En `actualizar-edt`: hay errores y no se escribió ningún código. Ningún otro comando termina con 1. |
 | 2 | El comando no se pudo ejecutar por un problema previsto, explicado en el mensaje `ERROR CFG-001: ...` (con su [código](codigos.md)): configuración no válida, archivo inexistente o sin permiso, libro abierto en Excel o con un formato que no se reconoce, MS Project que no responde, error de lectura o escritura (disco lleno, unidad de red no disponible) u opción mal escrita. |
 | 3 | Error inesperado del programa (`ERROR SIS-001: error inesperado: ...`). Se debe ejecutar de nuevo con `-v` y, si se repite, informarlo en un [ticket](https://github.com/MarceloSalazar/evm-automation/issues/new/choose) con ese detalle. |
 | 130 | Ejecución cancelada con Ctrl+C. |

@@ -34,7 +34,8 @@ cómo **silenciar** las observaciones que ya se revisaron y no se quieren volver
    14. [Actualizar y analizar](#414-act--actualizar-y-analizar)
    15. [Fichas de tareas](#415-fic--fichas-de-tareas)
    16. [Planificación para el cliente](#416-cli--planificación-para-el-cliente)
-   17. [Errores del sistema](#417-sis--errores-del-sistema)
+   17. [Numeración EDT (actualizar-edt)](#417-num--numeración-edt-actualizar-edt)
+   18. [Errores del sistema](#418-sis--errores-del-sistema)
 5. [Códigos retirados](#5-códigos-retirados)
 
 ---
@@ -114,7 +115,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 21 |
 | [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 5 |
 | [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 14 |
-| [HIT](#46-hit--hitos-y-pesos) | Hitos y pesos | Hitos y pesos | generar (hoja Validación) y validar | 14 |
+| [HIT](#46-hit--hitos-y-pesos) | Hitos y pesos | Hitos y pesos | generar (hoja Validación) y validar | 16 |
 | [MET](#47-met--método-de-medición) | Método de medición | Método de medición | generar (hoja Validación) y validar | 5 |
 | [EMP](#48-emp--empresas) | Empresas | Empresas | generar (hoja Validación) y validar | 5 |
 | [AVA](#49-ava--avance-a-la-fecha-de-estado) | Avance a la fecha de estado | Avance a la fecha de estado | validar | 13 |
@@ -125,7 +126,8 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 51 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
 | [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 33 |
-| [SIS](#417-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
+| [NUM](#417-num--numeración-edt-actualizar-edt) | Numeración EDT (actualizar-edt) | Estructura y códigos EDT | actualizar-edt | 17 |
+| [SIS](#418-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
 
 ---
 
@@ -1212,7 +1214,9 @@ Peso de los hitos, método «Hitos ponderados» y filas sin % planificado.
 | [HIT-011](#hit-011) | Advertencia | Tarea sin peso en una fila «Ponderado» |
 | [HIT-012](#hit-012) | Advertencia | «Ponderado» sin pesos |
 | [HIT-013](#hit-013) | Error o Advertencia | Pesos de una fila «Ponderado» que no suman 100 |
-| [HIT-014](#hit-014) | Error | Pesos que no se usan en una fila «Ponderado» |
+| [HIT-014](#hit-014) | Error o Advertencia | Pesos que no se usan |
+| [HIT-015](#hit-015) | Info | Tareas con Peso = 0 que no cuentan en el libro |
+| [HIT-016](#hit-016) | Advertencia | Fila del libro con Peso = 0 |
 
 #### HIT-001
 
@@ -1290,7 +1294,7 @@ Ninguna tarea de la fila tiene duración ni es un hito con peso: todas pesan igu
 
 **Hito sin peso en una fila «Ponderado»** · Error · generar (hoja Validación) y validar · se puede silenciar
 
-En una fila con el método «Ponderado», un hito (0 días) sin peso no forma parte del % planificado ni del % ganado: suele ser un olvido (en MS Project, un peso vacío vale 0).
+En una fila con el método «Ponderado», un hito (0 días) sin peso no forma parte del % planificado ni del % ganado: suele ser un olvido (un peso vacío significa sin definir; para que no cuente se escribe 0).
 
 **Qué hacer:** Indicar el peso del hito. Si sus tareas hermanas suman menos de 100, un hito sin peso no recibe nada del resto, que se reparte por duración.
 
@@ -1300,7 +1304,7 @@ En una fila con el método «Ponderado», un hito (0 días) sin peso no forma pa
 
 En una fila con el método «Ponderado», la tarea sin peso (con sus subtareas, si es una tarea resumen) no forma parte del % planificado ni del % ganado: las tareas con peso de la misma tarea resumen suman 100 o más, o el resto se reparte por duración y la suya es 0 (p. ej. sin fechas). Es lo esperado si su trabajo no tiene valor propio. Si los pesos suman menos de 100, el resto se reparte entre las tareas sin peso según su duración y no se informa. Si la tarea resumen contiene tareas con peso, se informa con [HIT-014](#hit-014).
 
-**Qué hacer:** Si debe pesar, indicar su peso y ajustar los de sus tareas hermanas.
+**Qué hacer:** Si debe pesar, indicar su peso y ajustar los de sus tareas hermanas; si es intencionado, escribir 0 (no cuenta en el libro y no se informa).
 
 #### HIT-012
 
@@ -1320,11 +1324,27 @@ En la fila o en una de sus tareas resumen, los pesos de las subtareas directas s
 
 #### HIT-014
 
-**Pesos que no se usan en una fila «Ponderado»** · Error · generar (hoja Validación) y validar · se puede silenciar
+**Pesos que no se usan** · Error o Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-Una tarea resumen sin peso no recibe parte de la fila: sus tareas hermanas con peso suman 100 o más, o el resto se reparte por duración y la suya es 0 (p. ej. solo tiene hitos). Las subtareas con peso que contiene no forman parte del % planificado ni del % ganado.
+Error: en una fila «Ponderado», una tarea resumen sin peso no recibe parte de la fila (sus tareas hermanas con peso suman 100 o más, o el resto se reparte por duración y la suya es 0, p. ej. solo tiene hitos). Advertencia: la tarea tiene Peso = 0 (o está dentro de una que lo tiene) y no cuenta en el libro. En los dos casos, las subtareas con peso que contiene no forman parte del % planificado ni del % ganado.
 
-**Qué hacer:** Indicar el peso de la tarea resumen (y ajustar los de sus tareas hermanas para que sumen como máximo 100).
+**Qué hacer:** Indicar el peso de la tarea resumen (y ajustar los de sus tareas hermanas para que sumen como máximo 100), o, si el Peso = 0 es intencionado, quitar los pesos de sus subtareas.
+
+#### HIT-015
+
+**Tareas con Peso = 0 que no cuentan en el libro** · Info · generar (hoja Validación) y validar · se puede silenciar
+
+Un 0 escrito en el campo de peso (de texto) indica que la tarea se hace pero no cuenta en el reporte EVM: la tarea y su rama quedan fuera del PV, el EV y el AC, no reciben parte del peso de su tarea superior y no forman filas -D. Un campo de peso vacío, en cambio, significa sin definir (depende de sus tareas hermanas). En un campo numérico el 0 no se distingue del vacío y se lee como vacío.
+
+**Qué hacer:** Ninguna, si es intencionado. Para que la tarea cuente, se debe borrar el 0 (o escribir su peso).
+
+#### HIT-016
+
+**Fila del libro con Peso = 0** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+Una tarea con fila propia (código de nivel no mayor al máximo, Visible = Sí o de la lista EDT) tiene Peso = 0: la fila se conserva, porque su código es una fila del libro, pero sus tareas sin fila propia no cuentan y su PV y su EV son 0. Sus filas inferiores conservan su valor.
+
+**Qué hacer:** Revisar el peso de la tarea: si debe contar, borrar el 0; si no, se puede dejar (la fila queda en 0).
 
 ---
 
@@ -1398,7 +1418,7 @@ Multi-empresa: empresa y % de reparto de cada tarea.
 
 **% de reparto en una tarea que no es compartida** · Info · generar (hoja Validación) y validar · se puede silenciar
 
-La tarea tiene % de reparto, pero su empresa no es la de las tareas compartidas (ambas): el reparto no se usa.
+La tarea tiene % de reparto, pero su empresa no es la de las tareas compartidas (ambas): el reparto no se usa. El % de reparto solo se usa cuando la empresa de la propia tarea es ambas; una tarea con la empresa vacía hereda la parte de su tarea superior (con el % de reparto de esa tarea).
 
 **Qué hacer:** Quitar el reparto o cambiar la empresa de la tarea.
 
@@ -3083,7 +3103,169 @@ MS Project no dejó quitar un calendario sin uso, o el archivo del cliente guard
 
 ---
 
-### 4.17 SIS · Errores del sistema
+### 4.17 NUM · Numeración EDT (actualizar-edt)
+
+Comando actualizar-edt: tarea de `--desde`, tareas protegidas, orden y saltos de sus códigos, y escritura en MS Project.
+
+| Código | Severidad | Descripción |
+|---|---|---|
+| [NUM-001](#num-001) | Error (detiene el programa) | No se encontró la tarea de `--desde` |
+| [NUM-002](#num-002) | Error (detiene el programa) | Código de `--desde` repetido |
+| [NUM-003](#num-003) | Error (detiene el programa) | `--desde` no es un código EDT numérico |
+| [NUM-004](#num-004) | Error (detiene el programa) | Ramas de `--desde` superpuestas |
+| [NUM-005](#num-005) | Error (detiene el programa) | El campo EDT no se puede escribir |
+| [NUM-006](#num-006) | Error (detiene el programa) | Varios archivos en actualizar-edt |
+| [NUM-007](#num-007) | Error (detiene el programa) | La escritura necesita MS Project |
+| [NUM-008](#num-008) | Error | Tarea protegida después de una tarea que se renumera |
+| [NUM-009](#num-009) | Error | Códigos protegidos con saltos o desordenados |
+| [NUM-010](#num-010) | Error | Código protegido que no cuelga de su tarea superior |
+| [NUM-011](#num-011) | Error | Tarea sin código EDT con tareas protegidas |
+| [NUM-012](#num-012) | Error | Visible = Sí en una tarea sin código EDT |
+| [NUM-013](#num-013) | Advertencia | Tarea que no se puede numerar |
+| [NUM-014](#num-014) | Advertencia | Código nuevo repetido fuera de las ramas |
+| [NUM-015](#num-015) | Error (detiene el programa) | Error de MS Project al escribir los códigos |
+| [NUM-016](#num-016) | Error (detiene el programa) | Códigos distintos después de escribir |
+| [NUM-017](#num-017) | Advertencia | Los cambios no se pueden deshacer de una vez |
+
+#### NUM-001
+
+**No se encontró la tarea de `--desde`** · Error (detiene el programa) · actualizar-edt · no se puede silenciar
+
+Ninguna tarea de la planificación tiene el código EDT indicado en `--desde`. Los ceros finales no cuentan: 2.7.1 es también la tarea 2.7.1.0.
+
+**Qué hacer:** Revisar el código y la planificación elegida (`[exportacion] planificacion` o `--planificacion`).
+
+#### NUM-002
+
+**Código de `--desde` repetido** · Error (detiene el programa) · actualizar-edt · no se puede silenciar
+
+Varias tareas de la planificación tienen el código EDT de `--desde`: no se sabe qué rama actualizar.
+
+**Qué hacer:** Si el archivo tiene varias planificaciones (p. ej. INTERNO y CLIENTE), elegir una con `--planificacion`; si no, corregir el código duplicado (validar lo informa con [EDT-009](#edt-009)).
+
+#### NUM-003
+
+**`--desde` no es un código EDT numérico** · Error (detiene el programa) · actualizar-edt · no se puede silenciar
+
+Solo se actualizan ramas cuya tarea superior tiene un código numérico (p. ej. 2.7.1): una planificación (INTERNO) o un código con letras no sirven de punto de partida.
+
+**Qué hacer:** Indicar en `--desde` el código numérico de la tarea desde la que se numeran sus subtareas.
+
+#### NUM-004
+
+**Ramas de `--desde` superpuestas** · Error (detiene el programa) · actualizar-edt · no se puede silenciar
+
+Un código de `--desde` está dentro de la rama de otro (o se repite): su rama ya se numera con la del otro.
+
+**Qué hacer:** Indicar solo el código de la tarea superior, o ramas separadas.
+
+#### NUM-005
+
+**El campo EDT no se puede escribir** · Error (detiene el programa) · actualizar-edt · no se puede silenciar
+
+El código EDT se lee del campo EDT o del número de esquema de MS Project (o el campo configurado no existe), o el campo personalizado tiene una fórmula: actualizar-edt solo escribe en un campo personalizado de texto sin fórmula, como «Item EDT».
+
+**Qué hacer:** Indicar en `[campos] edt` el campo personalizado de texto con los códigos EDT. Para el campo EDT de MS Project se usa su función Renumerar (Proyecto > EDT > Renumerar).
+
+#### NUM-006
+
+**Varios archivos en actualizar-edt** · Error (detiene el programa) · actualizar-edt · no se puede silenciar
+
+actualizar-edt trabaja con un solo archivo de MS Project y la configuración tiene secciones `[[proyectos]]`.
+
+**Qué hacer:** Usar una configuración sin `[[proyectos]]` e indicar el archivo con `--origen`.
+
+#### NUM-007
+
+**La escritura necesita MS Project** · Error (detiene el programa) · actualizar-edt · no se puede silenciar
+
+Los códigos solo se escriben en un archivo .mpp o en el proyecto abierto en MS Project (activo). Con un XML solo se puede simular.
+
+**Qué hacer:** Indicar el archivo .mpp o activo, o usar `--simular` para ver los cambios.
+
+#### NUM-008
+
+**Tarea protegida después de una tarea que se renumera** · Error · actualizar-edt · se puede silenciar
+
+Dentro de cada tarea, las subtareas protegidas (de nivel 1 a nivel_maximo, con Visible = Sí o de la lista EDT) deben ir primero: sus códigos no cambian y el cliente no debe ver saltos. Hay una tarea que se renumera delante de una protegida. No se escribe ningún código.
+
+**Qué hacer:** Mover en MS Project las tareas protegidas al principio de su tarea superior, o la otra tarea después de ellas.
+
+#### NUM-009
+
+**Códigos protegidos con saltos o desordenados** · Error · actualizar-edt · se puede silenciar
+
+Los códigos de las subtareas protegidas de una tarea deben ser correlativos desde 1 (2.7.1.1, 2.7.1.2...) y en el orden del esquema: un salto o un desorden es una errata en códigos que ve el cliente. No se escribe ningún código.
+
+**Qué hacer:** Corregir a mano los códigos protegidos (o el orden de sus tareas) en MS Project.
+
+#### NUM-010
+
+**Código protegido que no cuelga de su tarea superior** · Error · actualizar-edt · se puede silenciar
+
+El código de una tarea protegida no empieza por el de su tarea superior, o salta un nivel: no se puede numerar a sus hermanas sin repetir códigos. No se escribe ningún código.
+
+**Qué hacer:** Corregir el código de la tarea o su posición en el esquema de MS Project.
+
+#### NUM-011
+
+**Tarea sin código EDT con tareas protegidas** · Error · actualizar-edt · se puede silenciar
+
+Una tarea sin código EDT contiene tareas protegidas: su código debe ser el prefijo de los de ellas y no se puede calcular. No se escribe ningún código.
+
+**Qué hacer:** Poner a mano el código de la tarea en MS Project.
+
+#### NUM-012
+
+**Visible = Sí en una tarea sin código EDT** · Error · actualizar-edt · se puede silenciar
+
+La tarea tendría fila propia en el libro (Visible = Sí): su código lo decide el jefe de proyecto, no se asigna automáticamente. No se escribe ningún código.
+
+**Qué hacer:** Poner a mano el código de la tarea en MS Project, o quitar el Sí del campo Visible.
+
+#### NUM-013
+
+**Tarea que no se puede numerar** · Advertencia · actualizar-edt · se puede silenciar
+
+Con ignorar_ceros_intermedios = true, el código que le correspondería (p. ej. 2.7.0.1 bajo 2.7.0) es de nivel no mayor que nivel_maximo: sería una fila nueva del libro. La tarea y su rama no se numeran.
+
+**Qué hacer:** Poner a mano el código de la tarea en MS Project y volver a ejecutar actualizar-edt.
+
+#### NUM-014
+
+**Código nuevo repetido fuera de las ramas** · Advertencia · actualizar-edt · se puede silenciar
+
+Un código nuevo ya lo tiene una tarea de la planificación que no está en las ramas que se actualizan. Los códigos de la rama se actualizan igualmente.
+
+**Qué hacer:** Revisar el código de la otra tarea (validar informa los duplicados con [EDT-009](#edt-009)).
+
+#### NUM-015
+
+**Error de MS Project al escribir los códigos** · Error (detiene el programa) · actualizar-edt · no se puede silenciar
+
+MS Project devolvió un error al escribir un código EDT. Si el programa abrió el archivo, lo cierra sin guardar; si estaba abierto, los códigos ya escritos quedan en MS Project sin guardar.
+
+**Qué hacer:** Si el archivo estaba abierto, deshacer los cambios (Ctrl+Z) o cerrarlo sin guardar. Volver a ejecutar con -v para ver el detalle.
+
+#### NUM-016
+
+**Códigos distintos después de escribir** · Error (detiene el programa) · actualizar-edt · no se puede silenciar
+
+Al volver a leer los códigos escritos, alguno no coincide con el previsto. Si el programa abrió el archivo, lo cierra sin guardar; si estaba abierto, los cambios quedan en MS Project sin guardar.
+
+**Qué hacer:** Si el archivo estaba abierto, deshacer los cambios (Ctrl+Z) o cerrarlo sin guardar, e informar el problema.
+
+#### NUM-017
+
+**Los cambios no se pueden deshacer de una vez** · Advertencia · actualizar-edt · se puede silenciar
+
+MS Project no permitió agrupar los cambios en una sola acción de deshacer (OpenUndoTransaction): cada código escrito es una acción.
+
+**Qué hacer:** Revisar los cambios y guardar el archivo, o cerrarlo sin guardar para descartarlos.
+
+---
+
+### 4.18 SIS · Errores del sistema
 
 Errores de archivos del sistema y errores inesperados del programa.
 

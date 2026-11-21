@@ -588,8 +588,8 @@ def test_com_empty_number_field():
     s = make_session(program())
     p = s.read_project(Config(milestone_weight_field="Peso hito"))
     t3 = next(t for t in p.tasks if t.uid == 3)
-    # En MS Project un campo numérico vacío vale 0: se lee 0 (los métodos lo tratan como vacío)
-    assert t3.milestone_weight == 0.0
+    # En MS Project un campo numérico vacío vale 0: no se distingue de un 0 escrito y se lee como vacío (sin definir)
+    assert t3.milestone_weight is None
 
 
 def test_com_value_conversions():

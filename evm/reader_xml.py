@@ -14,7 +14,7 @@ from pathlib import Path
 
 from evm import progress
 from evm.config import Config
-from evm.fields import (builtin_kind, field_id, is_notes_name, is_spanish_wbs_name, missing_field,
+from evm.fields import (TASK_NUMBER_IDS, builtin_kind, field_id, is_notes_name, is_spanish_wbs_name, missing_field,
                         parse_custom_name, parse_number, same_name)
 from evm.messages import EvmError, Issue
 from evm.model import CONSTRAINT_ASAP, Link, ProjectData, Task, use_current_schedule
@@ -159,12 +159,15 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True, client: bool = F
     if cfg.wbs_field and _resolve(cfg.wbs_field, defs) is None:
         warnings.append(missing_field("edt", cfg.wbs_field, "el XML", cfg))
     found: dict[str, str] = {}
+    if not cfg.wbs_field or _resolve(cfg.wbs_field, defs) is not None:
+        found["edt"] = str(wbs_ref[1])             # campo del código EDT: 'WBS' o el FieldID (actualizar-edt)
     method_ref = _resolve(cfg.method_field, defs) if cfg.method_field else None
     if cfg.method_field and method_ref is None:
         warnings.append(missing_field("metodo", cfg.method_field, "el XML", cfg))
     elif method_ref is not None:
         found["metodo"] = cfg.method_field
     weight_ref = _resolve(cfg.milestone_weight_field, defs) if cfg.milestone_weight_field else None
+    weight_numeric = weight_ref is not None and weight_ref[0] == "ext" and weight_ref[1] in TASK_NUMBER_IDS.values()
     if cfg.milestone_weight_field and weight_ref is None:
         warnings.append(missing_field("peso_hito", cfg.milestone_weight_field, "el XML", cfg))
     elif weight_ref is not None:
@@ -276,6 +279,8 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True, client: bool = F
         weight = None
         if weight_ref is not None:
             weight = parse_number(value_of(weight_ref))
+            if weight == 0 and weight_numeric:
+                weight = None           # campo numérico: el 0 no se distingue del vacío (sin definir)
         company = value_of(company_ref).strip() if company_ref is not None else ""
         split_a = parse_number(value_of(split_ref)) if split_ref is not None else None
         # <LinkLag> está en décimas de minuto

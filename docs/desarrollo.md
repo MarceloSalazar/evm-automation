@@ -160,6 +160,7 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/schedule.py` | Plazo según el cronograma de MS Project: fin previsto, desvío de fin, holgura y camino crítico de cada fila y del proyecto. |
 | `evm/progress.py` | Barra de progreso de la consola (etapas de cada comando, %, tiempo transcurrido y ETA, refresco cada medio segundo). |
 | `evm/review.py` | Informe de mejoras de `validar` (`--informe`): observaciones por prioridad con la causa y qué hacer del catálogo, sin nombres; datos de cada revisión, evaluación DCMA y comparación de planificaciones (también en la consola). |
+| `evm/edt_renumber.py` | Comando `actualizar-edt`: códigos nuevos de las subtareas de una rama (tareas protegidas, orden y saltos), escritura en MS Project en una sola acción de deshacer, comprobación e informe. |
 | `evm/task_cards.py` | Comando `generar-fichas`: ficha de cada elemento EDT del libro (fechas y duración de la línea base, predecesoras y sucesoras) y documento Markdown. |
 | `instalador/` | Instalador de Windows: `construir.py`, especificación de PyInstaller, script de Inno Setup y consola ([3.2](#32-instalador-de-windows)). |
 

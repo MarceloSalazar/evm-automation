@@ -82,6 +82,15 @@ def _get(obj, name: str, default=None):
         return default
 
 
+def _weight(value, numeric: bool) -> float | None:
+    """Peso de la tarea: None si está vacío o, en un campo numérico, si es 0 (no se distingue del vacío); en un campo
+    de texto, un 0 escrito es Peso = 0 (la tarea no cuenta en el libro)."""
+    if value in (None, ""):
+        return None
+    weight = parse_number(value)
+    return None if numeric and weight == 0 else weight
+
+
 def _number(v) -> float | None:
     """Número de COM; None si no es numérico (p. ej. la duración en texto de una tarea manual)."""
     if isinstance(v, bool) or not isinstance(v, (int, float)):
@@ -489,16 +498,21 @@ class ComSession:
         sfx = "" if n == 0 else str(n)
 
         wbs_ref = self._resolve_field(cfg.wbs_field)
+        found: dict[str, str] = {}
         if wbs_ref is None:
             warnings.append(missing_field("edt", cfg.wbs_field, "MS Project", cfg))
             wbs_ref = ("attr", "WBS")
-        found: dict[str, str] = {}
+        else:
+            found["edt"] = str(wbs_ref[1])         # campo del código EDT: 'WBS', 'Text5'... (actualizar-edt)
         method_ref = self._resolve_field(cfg.method_field) if cfg.method_field else None
         if cfg.method_field and method_ref is None:
             warnings.append(missing_field("metodo", cfg.method_field, "MS Project", cfg))
         elif method_ref is not None:
             found["metodo"] = cfg.method_field
         weight_ref = self._resolve_field(cfg.milestone_weight_field) if cfg.milestone_weight_field else None
+        weight_numeric = weight_ref is not None and (
+            (weight_ref[0] == "attr" and str(weight_ref[1]).startswith("Number"))
+            or (weight_ref[0] == "fid" and weight_ref[1] in TASK_NUMBER_IDS.values()))
         if cfg.milestone_weight_field and weight_ref is None:
             warnings.append(missing_field("peso_hito", cfg.milestone_weight_field, "MS Project", cfg))
         elif weight_ref is not None:
@@ -580,7 +594,7 @@ class ComSession:
                 incomplete_baselines=(n,) if (bl_start is None) != (bl_finish is None) else (),
                 calendar=own_calendar,
                 method=str(self._field_value(t, method_ref) or "").strip(),
-                milestone_weight=None if weight in (None, "") else parse_number(weight),
+                milestone_weight=_weight(weight, weight_numeric),
                 company=str(company or "").strip(),
                 split_a=None if split in (None, "") else parse_number(split),
                 visible="" if visible is None else str(visible).strip(),

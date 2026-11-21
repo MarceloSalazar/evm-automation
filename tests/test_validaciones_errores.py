@@ -53,3 +53,15 @@ def test_wbs_codes_not_under_the_parent_and_duplicates_are_errors():
     assert {i.severity for i in found(found_issues, "EDT-005")} == {SEV_ERROR}
     assert {i.severity for i in found(found_issues, "EDT-009")} == {SEV_ERROR}
     assert found(found_issues, "EDT-005") and found(found_issues, "EDT-009")
+
+
+def test_split_is_the_share_of_company_a_and_zero_means_the_default():
+    """% Reparto = 30: 30 % para la empresa A y 70 % para la B. Vacío o 0: reparto_por_defecto, nunca 0 %. En una
+    tarea que no es «ambas» se ignora."""
+    from evm.companies import explicit_share
+    cfg = Config(multi_enabled=True, company_a="EmpresaA", company_b="EmpresaB", company_both="Ambas",
+                 split_default=50.0)
+    assert explicit_share(T(1, 1, "1", "A", company="Ambas", split_a=30.0), cfg) == (0.30, "")
+    assert explicit_share(T(2, 1, "2", "B", company="Ambas", split_a=0.0), cfg) == (0.50, "")
+    assert explicit_share(T(3, 1, "3", "C", company="Ambas", split_a=None), cfg) == (0.50, "")
+    assert explicit_share(T(4, 1, "4", "D", company="EmpresaB", split_a=30.0), cfg) == (0.0, "")

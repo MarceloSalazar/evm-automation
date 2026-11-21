@@ -341,6 +341,17 @@ Casos especiales (se informan en `Validación`):
 | Ninguna tarea de la fila tiene línea base | Se usan sus fechas actuales y se advierte. |
 | Ninguna tarea de la fila tiene fechas | La fila no tiene % planificado: su BAC no se puede repartir en el tiempo. |
 
+En las filas con el método `Ponderado` el peso de cada tarea sale del campo de peso, por tarea resumen
+([Método «Ponderado»](#método-ponderado)).
+
+**Tareas con Peso = 0.** Con el campo de peso de **texto** (por ejemplo, alias `Peso`), un 0 escrito
+significa que la tarea se hace pero **no cuenta en el libro**, con cualquier método: la tarea y su rama
+quedan fuera del % planificado, del % ganado y del AC, y no forman la fila -D
+([HIT-015](codigos.md#hit-015)). Una tarea resumen cuyas subtareas tienen todas 0 tampoco cuenta. Una
+tarea con fila propia y 0 conserva su fila, con PV y EV 0 ([HIT-016](codigos.md#hit-016)). Un peso
+**vacío** significa sin definir. En un campo numérico, MS Project no distingue el 0 del vacío: el 0 se lee
+como vacío.
+
 ### Tareas sin línea base: retrabajo y trabajo no previsto
 
 El % planificado es el trabajo **planificado y aprobado**: el que tiene línea base. Desde la versión 2.7.0,
@@ -438,6 +449,7 @@ planificado:
 | `% Físico completado` | Igual, con el *% físico completado*. |
 | `Unidades completadas` | Igual que `% Físico completado` (en ese campo se registra el cociente unidades hechas / unidades totales). |
 | `Avance lineal` | El % planificado acumulado a la fecha de corte (EV = PV). |
+| `Ponderado` | Σ parte de cada tarea (según su peso) × su avance con su propio método ([abajo](#método-ponderado)). |
 | `Por definir` u otro texto | Se usa `% Completado` y se informa. |
 
 Las fórmulas fijas se reconocen también escritas con `%` o con espacios (`50%/50%`, `0 / 100`).
@@ -464,6 +476,70 @@ Particularidades:
   fórmulas fijas, la fila comienza cuando comienza alguna de esas tareas y termina cuando terminan todas.
 - El método `CPTR de MS Project` de la versión 1.x ya no existe: se informa como método no reconocido y
   se usa `% Completado`.
+
+### Método «Ponderado»
+
+Desde la versión 2.7.0. Sirve para paquetes cuyas tareas son de distinta naturaleza (por ejemplo,
+ingeniería, compras y un entregable): cada tarea de la fila tiene su **peso** y su **propio método de
+medición**.
+
+**Pesos.** Se escriben en el campo de `[campos] peso_hito` (de texto, por ejemplo con alias `Peso`). En
+cada tarea resumen de la fila (la de la fila y las de nivel inferior), los pesos de sus subtareas directas
+son **% de la parte de esa tarea resumen**:
+
+| Pesos de las subtareas de una tarea resumen | Reparto |
+|---|---|
+| Suman 100 | Cada subtarea con peso recibe su %; las de peso vacío no reciben nada ([HIT-011](codigos.md#hit-011)). |
+| Suman menos de 100 | El resto se reparte entre las subtareas de peso vacío, según su duración. Un hito de peso vacío (duración 0) no recibe nada ([HIT-010](codigos.md#hit-010), error). Si no hay subtareas de peso vacío, los pesos se escalan a 100 ([HIT-013](codigos.md#hit-013), advertencia). |
+| Suman más de 100 | Se escalan a 100 y las de peso vacío no reciben nada ([HIT-013](codigos.md#hit-013), error). |
+| Ninguna tiene peso | La parte se reparte según su duración (en partes iguales si todas duran 0). |
+| Peso 0 escrito | La subtarea no cuenta, con su rama ([arriba](#4--planificado-peso-de-cada-tarea)). |
+
+Una tarea resumen que recibe una parte la reparte del mismo modo entre sus subtareas. Una tarea resumen
+de peso vacío que no recibe nada, pero contiene subtareas con peso, es un error: esos pesos no se usan
+([HIT-014](codigos.md#hit-014)). Si ninguna tarea de la fila tiene peso, el % planificado se reparte por
+duración y el % ganado se calcula con el % completado ([HIT-012](codigos.md#hit-012)).
+
+**% planificado.** La parte de cada tarea de detalle se reparte en el tiempo según **sus** fechas de
+línea base: una tarea, en proporción a su duración en cada mes; un hito, entera en su mes. Las tareas sin
+línea base no forman parte del % planificado: su parte se reparte entre sus hermanas con línea base.
+
+**% ganado.** Σ parte de cada tarea × su avance según su propio método, indicado en el campo de método de
+la tarea:
+
+| Tarea | Avance |
+|---|---|
+| Hito | 0 hasta cumplirse; 100 % al cumplirse. |
+| `0/100`, `50/50`, `25/75`, `20/80` | Como la fórmula fija, con el comienzo y el fin de la tarea. |
+| `% Físico completado`, `Unidades completadas` | Su *% físico completado*. |
+| `Avance lineal` | Su % planificado hasta la fecha de corte. |
+| `% Completado` o sin método | Su *% completado*. |
+
+Las tareas sin línea base sí cuentan en el % ganado, con su parte: un retrabajo baja el avance de la fila
+hasta que termina ([Tareas sin línea base](#tareas-sin-línea-base-retrabajo-y-trabajo-no-previsto)).
+
+**Ejemplo.** Paquete `3.2.1` con método `Ponderado` y BAC 1.000.000:
+
+| Tarea | Peso | Método de la tarea | Parte |
+|---|---:|---|---:|
+| Ingeniería (tarea resumen) | 30 | — | 30 % |
+| ├ Diseño (40 días) | vacío | `% Completado` | 30 % × 40 / 60 = 20 % |
+| └ Planos (20 días) | vacío | `% Completado` | 30 % × 20 / 60 = 10 % |
+| Compras | 50 | `0/100` | 50 % |
+| Hito de entrega | 20 | — | 20 %, en el mes del hito |
+| Coordinación interna | 0 | — | no cuenta |
+
+A la fecha de corte, con el diseño terminado, los planos al 50 %, las compras en curso y el hito sin
+cumplir:
+
+```text
+% ganado = 20 % × 100 % + 10 % × 50 % + 50 % × 0 + 20 % × 0 = 25 %
+EV       = 1.000.000 × 25 % = 250.000
+```
+
+Si el hito no tuviera peso, los pesos sumarían 80 y el 20 restante se repartiría por duración entre las
+subtareas de peso vacío: el hito, de duración 0, no recibiría nada y se informaría como error
+([HIT-010](codigos.md#hit-010)).
 
 ---
 
@@ -573,8 +649,11 @@ Con `[multiempresa] activar = true` ([Multi-empresa](multiempresa.md)):
   |---|---|
   | Empresa A | Toda su duración. |
   | Empresa B | Nada. |
-  | `Ambas` | Su duración × `% Reparto`; si está vacío, `reparto_por_defecto` (50 %). |
+  | `Ambas` | Su duración × `% Reparto`; si está vacío o es 0 (nunca significa 0 %), `reparto_por_defecto` (50 %). |
   | Vacía | La de su tarea superior; si ninguna tiene empresa, se trata como `Ambas`. |
+
+  `% Reparto` solo se usa en las tareas cuya columna `Empresa` es `Ambas`; en las demás se ignora
+  ([Multi-empresa](multiempresa.md#5-parte-de-cada-empresa-en-cada-tarea)).
 
 - Un **hito** vale su `Peso hito` para cada empresa que participa en él: el `% Reparto` reparte la
   duración de las tareas, no el peso de los hitos.

@@ -53,6 +53,8 @@ simulado.*
   `procesar-costes` revisa el plan y escribe sus cálculos.
 - Opcional: **fichas de tareas** para el cliente (comando `generar-fichas`), en un documento Markdown sin
   importes: fechas y duración de la línea base, predecesoras y sucesoras de cada elemento de la EDT.
+- Opcional: **numeración de los códigos EDT** de una rama según la jerarquía de MS Project (comando
+  `actualizar-edt`), durante la planificación, sin cambiar los códigos que son filas del libro.
 - Montos en **euros (EUR)** por defecto.
 
 ```mermaid
@@ -172,6 +174,7 @@ El [tutorial](docs/ejemplo-paso-a-paso.md) recorre el ciclo completo con 24 mese
 | Sesión de 30 minutos para el equipo de proyecto, con notas para el presentador | [Presentación](docs/presentacion-jefes-de-proyecto.pptx) ([PDF](docs/presentacion-jefes-de-proyecto.pdf)) |
 | Puesta en marcha, cierre mensual, cambios de línea base y buenas prácticas | [Proceso de reporte EVM](docs/proceso-reporte-evm.md) |
 | BAC en el libro, % planificado y % ganado de MS Project, filas del libro, AC, valor del mes y controles | [Cálculo del PV y el EV](docs/calculo-pv-ev.md) |
+| Reglas para jefes de proyecto y planners: código EDT, `Visible`, `Peso`, método, empresas, línea base y avance, con sus motivos | [Guía de convenios en MS Project](docs/guia-convenios-ms-project.md) |
 | Código EDT, campos personalizados, línea base, fecha de estado y avance | [Preparación en MS Project](docs/preparacion-ms-project.md) |
 | 0/100, fórmulas fijas, hitos ponderados, % completado, % físico, unidades y avance lineal (LOE); cómo elegir y aprobar el método de cada paquete | [Métodos de medición](docs/metodos-de-medicion.md) |
 | PV, EV y AC de dos empresas | [Multi-empresa (opcional)](docs/multiempresa.md) |
@@ -180,7 +183,7 @@ El [tutorial](docs/ejemplo-paso-a-paso.md) recorre el ciclo completo con 24 mese
 | Hojas del libro, reglas de uso y `--migrar-desde` | [El libro Excel](docs/libro-excel.md) |
 | Tablero, gráficos, fórmulas e interpretación | [Cuadro de Mando e indicadores](docs/cuadro-de-mando.md) |
 | Paquetes fuera de umbral: causa, impacto y acción correctiva | [Análisis de desviaciones](docs/analisis-desviaciones.md) |
-| `validar`, `generar`, `actualizar`, `analizar`, `generar-fichas` (fichas de tareas para el cliente), `procesar-costes` (revisión del plan de costes) y sus opciones | [Comandos y opciones](docs/comandos.md) |
+| `validar`, `generar`, `actualizar`, `analizar`, `generar-fichas` (fichas de tareas para el cliente), `procesar-costes` (revisión del plan de costes), `actualizar-edt` (numeración de los códigos EDT) y sus opciones | [Comandos y opciones](docs/comandos.md) |
 | `config.toml` | [Configuración](docs/configuracion.md) |
 | Comando `validar`, hoja `Validación`, limitaciones y mensajes de error | [Validaciones y solución de problemas](docs/validaciones-y-problemas.md) |
 | Código de cada error y advertencia (`FEC-003`...), qué hacer y cómo silenciarlo | [Códigos de errores y advertencias](docs/codigos.md) |

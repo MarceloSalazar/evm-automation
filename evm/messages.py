@@ -158,6 +158,7 @@ W_MIG = "generar --migrar-desde (hoja Validación)"
 W_REVIEW = "generar con depuracion_costes (hoja Validación)"
 W_PROC = "procesar-costes"
 W_ACT = "actualizar"
+W_NUM = "actualizar-edt"
 W_AN = "actualizar y analizar"
 W_ROW = "actualizar (observaciones por fila)"
 W_FIC = "generar-fichas"
@@ -210,6 +211,9 @@ AREAS = {a.prefix: a for a in [
     Area("CLI", "Planificación para el cliente", TOPIC_BOOK, W_CLI,
          "Comando generar-cliente: tareas que se muestran al cliente, «Otras tareas», resúmenes convertidos, "
          "vínculos nuevos y comparación con la planificación interna."),
+    Area("NUM", "Numeración EDT (actualizar-edt)", TOPIC_WBS, W_NUM,
+         "Comando actualizar-edt: tarea de --desde, tareas protegidas, orden y saltos de sus códigos, y escritura "
+         "en MS Project."),
     Area("SIS", "Errores del sistema", TOPIC_BOOK, W_ALL,
          "Errores de archivos del sistema y errores inesperados del programa."),
 ]}
@@ -837,7 +841,7 @@ _CODES = [
           "Indicar la duración de las tareas o el peso de los hitos."),
     _code("HIT-010", E, "Hito sin peso en una fila «Ponderado»",
           "En una fila con el método «Ponderado», un hito (0 días) sin peso no forma parte del % planificado ni del % "
-          "ganado: suele ser un olvido (en MS Project, un peso vacío vale 0).",
+          "ganado: suele ser un olvido (un peso vacío significa sin definir; para que no cuente se escribe 0).",
           "Indicar el peso del hito. Si sus tareas hermanas suman menos de 100, un hito sin peso no recibe nada del "
           "resto, que se reparte por duración."),
     _code("HIT-011", W, "Tarea sin peso en una fila «Ponderado»",
@@ -846,7 +850,8 @@ _CODES = [
           "más, o el resto se reparte por duración y la suya es 0 (p. ej. sin fechas). Es lo esperado si su trabajo "
           "no tiene valor propio. Si los pesos suman menos de 100, el resto se reparte entre las tareas sin peso "
           "según su duración y no se informa. Si la tarea resumen contiene tareas con peso, se informa con HIT-014.",
-          "Si debe pesar, indicar su peso y ajustar los de sus tareas hermanas."),
+          "Si debe pesar, indicar su peso y ajustar los de sus tareas hermanas; si es intencionado, escribir 0 (no "
+          "cuenta en el libro y no se informa)."),
     _code("HIT-012", W, "«Ponderado» sin pesos",
           "La fila usa el método «Ponderado» y ninguna de sus tareas tiene peso: el % planificado se reparte por la "
           "duración de las tareas y el % ganado se calcula con el % completado.",
@@ -857,11 +862,24 @@ _CODES = [
           "menos de 100 y no hay subtareas sin peso que reciban el resto: se escalan a 100.",
           "Corregir los pesos de las subtareas para que sumen 100 (o menos, si el resto es para las subtareas sin "
           "peso)."),
-    _code("HIT-014", E, "Pesos que no se usan en una fila «Ponderado»",
-          "Una tarea resumen sin peso no recibe parte de la fila: sus tareas hermanas con peso suman 100 o más, o el "
-          "resto se reparte por duración y la suya es 0 (p. ej. solo tiene hitos). Las subtareas con peso que contiene "
-          "no forman parte del % planificado ni del % ganado.",
-          "Indicar el peso de la tarea resumen (y ajustar los de sus tareas hermanas para que sumen como máximo 100)."),
+    _code("HIT-014", (E, W), "Pesos que no se usan",
+          "Error: en una fila «Ponderado», una tarea resumen sin peso no recibe parte de la fila (sus tareas hermanas "
+          "con peso suman 100 o más, o el resto se reparte por duración y la suya es 0, p. ej. solo tiene hitos). "
+          "Advertencia: la tarea tiene Peso = 0 (o está dentro de una que lo tiene) y no cuenta en el libro. En los "
+          "dos casos, las subtareas con peso que contiene no forman parte del % planificado ni del % ganado.",
+          "Indicar el peso de la tarea resumen (y ajustar los de sus tareas hermanas para que sumen como máximo 100), "
+          "o, si el Peso = 0 es intencionado, quitar los pesos de sus subtareas."),
+    _code("HIT-015", I, "Tareas con Peso = 0 que no cuentan en el libro",
+          "Un 0 escrito en el campo de peso (de texto) indica que la tarea se hace pero no cuenta en el reporte EVM: "
+          "la tarea y su rama quedan fuera del PV, el EV y el AC, no reciben parte del peso de su tarea superior y no "
+          "forman filas -D. Un campo de peso vacío, en cambio, significa sin definir (depende de sus tareas hermanas). "
+          "En un campo numérico el 0 no se distingue del vacío y se lee como vacío.",
+          "Ninguna, si es intencionado. Para que la tarea cuente, se debe borrar el 0 (o escribir su peso)."),
+    _code("HIT-016", W, "Fila del libro con Peso = 0",
+          "Una tarea con fila propia (código de nivel no mayor al máximo, Visible = Sí o de la lista EDT) tiene Peso = "
+          "0: la fila se conserva, porque su código es una fila del libro, pero sus tareas sin fila propia no cuentan "
+          "y su PV y su EV son 0. Sus filas inferiores conservan su valor.",
+          "Revisar el peso de la tarea: si debe contar, borrar el 0; si no, se puede dejar (la fila queda en 0)."),
 
     # --- MET: método de medición --------------------------------------------------------------------------------
     _code("MET-001", W, "Método no reconocido",
@@ -887,7 +905,8 @@ _CODES = [
     # --- EMP: empresas ------------------------------------------------------------------------------------------
     _code("EMP-001", I, "% de reparto en una tarea que no es compartida",
           "La tarea tiene % de reparto, pero su empresa no es la de las tareas compartidas (ambas): el reparto no se "
-          "usa.",
+          "usa. El % de reparto solo se usa cuando la empresa de la propia tarea es ambas; una tarea con la empresa "
+          "vacía hereda la parte de su tarea superior (con el % de reparto de esa tarea).",
           "Quitar el reparto o cambiar la empresa de la tarea."),
     _code("EMP-002", I, "Empresa sin tareas en la fila",
           "La empresa no participa en las tareas de algunas filas: si se le asigna BAC, su PV se reparte con el % "
@@ -1697,6 +1716,82 @@ _CODES = [
           "Quitarlos en el archivo del cliente con el Organizador de MS Project (Archivo > Información > "
           "Organizador), o permitir en el Centro de confianza de MS Project el acceso al modelo de objetos de "
           "proyectos de VBA y volver a generar el archivo."),
+
+    # --- NUM: numeración EDT (actualizar-edt) -------------------------------------------------------------------
+    _code("NUM-001", F, "No se encontró la tarea de --desde",
+          "Ninguna tarea de la planificación tiene el código EDT indicado en --desde. Los ceros finales no cuentan: "
+          "2.7.1 es también la tarea 2.7.1.0.",
+          "Revisar el código y la planificación elegida ([exportacion] planificacion o --planificacion)."),
+    _code("NUM-002", F, "Código de --desde repetido",
+          "Varias tareas de la planificación tienen el código EDT de --desde: no se sabe qué rama actualizar.",
+          "Si el archivo tiene varias planificaciones (p. ej. INTERNO y CLIENTE), elegir una con --planificacion; si "
+          "no, corregir el código duplicado (validar lo informa con EDT-009)."),
+    _code("NUM-003", F, "--desde no es un código EDT numérico",
+          "Solo se actualizan ramas cuya tarea superior tiene un código numérico (p. ej. 2.7.1): una planificación "
+          "(INTERNO) o un código con letras no sirven de punto de partida.",
+          "Indicar en --desde el código numérico de la tarea desde la que se numeran sus subtareas."),
+    _code("NUM-004", F, "Ramas de --desde superpuestas",
+          "Un código de --desde está dentro de la rama de otro (o se repite): su rama ya se numera con la del otro.",
+          "Indicar solo el código de la tarea superior, o ramas separadas."),
+    _code("NUM-005", F, "El campo EDT no se puede escribir",
+          "El código EDT se lee del campo EDT o del número de esquema de MS Project (o el campo configurado no "
+          "existe), o el campo personalizado tiene una fórmula: actualizar-edt solo escribe en un campo "
+          "personalizado de texto sin fórmula, como «Item EDT».",
+          "Indicar en [campos] edt el campo personalizado de texto con los códigos EDT. Para el campo EDT de MS "
+          "Project se usa su función Renumerar (Proyecto > EDT > Renumerar)."),
+    _code("NUM-006", F, "Varios archivos en actualizar-edt",
+          "actualizar-edt trabaja con un solo archivo de MS Project y la configuración tiene secciones "
+          "[[proyectos]].",
+          "Usar una configuración sin [[proyectos]] e indicar el archivo con --origen."),
+    _code("NUM-007", F, "La escritura necesita MS Project",
+          "Los códigos solo se escriben en un archivo .mpp o en el proyecto abierto en MS Project (activo). Con un "
+          "XML solo se puede simular.",
+          "Indicar el archivo .mpp o activo, o usar --simular para ver los cambios."),
+    _code("NUM-008", E, "Tarea protegida después de una tarea que se renumera",
+          "Dentro de cada tarea, las subtareas protegidas (de nivel 1 a nivel_maximo, con Visible = Sí o de la "
+          "lista EDT) deben ir primero: sus códigos no cambian y el cliente no debe ver saltos. Hay una tarea que "
+          "se renumera delante de una protegida. No se escribe ningún código.",
+          "Mover en MS Project las tareas protegidas al principio de su tarea superior, o la otra tarea después de "
+          "ellas."),
+    _code("NUM-009", E, "Códigos protegidos con saltos o desordenados",
+          "Los códigos de las subtareas protegidas de una tarea deben ser correlativos desde 1 (2.7.1.1, 2.7.1.2...) "
+          "y en el orden del esquema: un salto o un desorden es una errata en códigos que ve el cliente. No se "
+          "escribe ningún código.",
+          "Corregir a mano los códigos protegidos (o el orden de sus tareas) en MS Project."),
+    _code("NUM-010", E, "Código protegido que no cuelga de su tarea superior",
+          "El código de una tarea protegida no empieza por el de su tarea superior, o salta un nivel: no se puede "
+          "numerar a sus hermanas sin repetir códigos. No se escribe ningún código.",
+          "Corregir el código de la tarea o su posición en el esquema de MS Project."),
+    _code("NUM-011", E, "Tarea sin código EDT con tareas protegidas",
+          "Una tarea sin código EDT contiene tareas protegidas: su código debe ser el prefijo de los de ellas y no "
+          "se puede calcular. No se escribe ningún código.",
+          "Poner a mano el código de la tarea en MS Project."),
+    _code("NUM-012", E, "Visible = Sí en una tarea sin código EDT",
+          "La tarea tendría fila propia en el libro (Visible = Sí): su código lo decide el jefe de proyecto, no se "
+          "asigna automáticamente. No se escribe ningún código.",
+          "Poner a mano el código de la tarea en MS Project, o quitar el Sí del campo Visible."),
+    _code("NUM-013", W, "Tarea que no se puede numerar",
+          "Con ignorar_ceros_intermedios = true, el código que le correspondería (p. ej. 2.7.0.1 bajo 2.7.0) es de "
+          "nivel no mayor que nivel_maximo: sería una fila nueva del libro. La tarea y su rama no se numeran.",
+          "Poner a mano el código de la tarea en MS Project y volver a ejecutar actualizar-edt."),
+    _code("NUM-014", W, "Código nuevo repetido fuera de las ramas",
+          "Un código nuevo ya lo tiene una tarea de la planificación que no está en las ramas que se actualizan. "
+          "Los códigos de la rama se actualizan igualmente.",
+          "Revisar el código de la otra tarea (validar informa los duplicados con EDT-009)."),
+    _code("NUM-015", F, "Error de MS Project al escribir los códigos",
+          "MS Project devolvió un error al escribir un código EDT. Si el programa abrió el archivo, lo cierra sin "
+          "guardar; si estaba abierto, los códigos ya escritos quedan en MS Project sin guardar.",
+          "Si el archivo estaba abierto, deshacer los cambios (Ctrl+Z) o cerrarlo sin guardar. Volver a ejecutar con "
+          "-v para ver el detalle."),
+    _code("NUM-016", F, "Códigos distintos después de escribir",
+          "Al volver a leer los códigos escritos, alguno no coincide con el previsto. Si el programa abrió el "
+          "archivo, lo cierra sin guardar; si estaba abierto, los cambios quedan en MS Project sin guardar.",
+          "Si el archivo estaba abierto, deshacer los cambios (Ctrl+Z) o cerrarlo sin guardar, e informar el "
+          "problema."),
+    _code("NUM-017", W, "Los cambios no se pueden deshacer de una vez",
+          "MS Project no permitió agrupar los cambios en una sola acción de deshacer (OpenUndoTransaction): cada "
+          "código escrito es una acción.",
+          "Revisar los cambios y guardar el archivo, o cerrarlo sin guardar para descartarlos."),
 
     # --- SIS: errores del sistema -------------------------------------------------------------------------------
     _code("SIS-001", F, "Error inesperado",

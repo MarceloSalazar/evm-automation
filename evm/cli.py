@@ -7,6 +7,7 @@
     python evm_export.py generar-fichas --origen proyecto.mpp --salida Fichas.md
     python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx
     python evm_export.py generar-cliente --origen interno.mpp --simular
+    python evm_export.py actualizar-edt --origen activo --desde 2.7.1
 """
 from __future__ import annotations
 
@@ -830,6 +831,123 @@ def _pct(value: float | None) -> str:
     return "—" if value is None else f"{fmt_number(round(value, 1), trim=True)} %"
 
 
+def _edt_report_path(args, origen: str) -> Path:
+    """Informe de actualizar-edt (--informe; por defecto <origen>_edt-AAAAMMDD-HHMMSS.md, que no reemplaza otro)."""
+    if args.informe:
+        path = Path(args.informe)
+        if path.suffix.lower() != ".md":
+            raise ConfigError("CFG-041", "El informe de actualizar-edt se guarda en un archivo .md (Markdown).")
+        if path.exists() and not args.sobrescribir:
+            raise ConfigError("CFG-042", f"'{path}' ya existe. Para reemplazarlo se debe usar --sobrescribir.")
+        return path
+    from datetime import datetime
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    if origen.lower() == "activo":
+        return Path(f"EDT-{stamp}.md")
+    return Path(origen).with_name(f"{Path(origen).stem}_edt-{stamp}.md")
+
+
+def cmd_actualizar_edt(args) -> int:
+    cfg = _apply_overrides(load_config(args.config), args)
+    _one_plan(cfg)
+    if cfg.projects:
+        raise ConfigError("NUM-006", "actualizar-edt trabaja con un solo archivo de MS Project: se debe usar una "
+                                     "configuración sin secciones [[proyectos]] e indicar el archivo con --origen.")
+    from evm.edt_renumber import (WriteOutcome, backup_path, check_field, plan_renumber, ref, write_codes,
+                                  write_report)
+    files = _sources(cfg, args)
+    origen = files[0][1]
+    engine = _engine_for(origen, args.motor)
+    simulate = args.simular
+    if not simulate and engine != "com":
+        raise ConfigError("NUM-007", "Los códigos solo se escriben en un archivo .mpp o en el proyecto abierto en MS "
+                                     "Project (--origen activo). Con un XML solo se puede simular (--simular).")
+    if origen.lower() != "activo" and not Path(origen).is_file():
+        raise MissingFileError("LEC-001", f"No existe el archivo de origen: {origen}")
+    informe = _edt_report_path(args, origen)
+    _check_folder(informe)
+    outcome: WriteOutcome | None = None
+    stages = _stages(files, args.motor, compute=0.5, after={"escribir": 2.0, "comprobar": 1.0, "guardar": 1.0,
+                                                            "informe": 0.1})
+    with progress.tracking(stages):
+        progress.say(_reading("", origen))
+        if simulate:
+            with open_project(origen, cfg, args.motor, args.visible, links=False) as project:
+                check_field(project, cfg)
+                _computing("", "Cálculo de los códigos EDT")
+                plan = plan_renumber(project, cfg, args.desde)
+        else:
+            from evm.reader_com import ComSession
+            backup, backup_error = None, None
+            if origen.lower() != "activo" and not args.sin_respaldo:
+                # Antes de abrirlo: si ya estaba abierto en MS Project, no se guarda y la copia se borra al final
+                import shutil
+                backup = backup_path(Path(origen))
+                try:
+                    shutil.copyfile(origen, backup)
+                except OSError as exc:
+                    backup, backup_error = None, exc
+            outcome = WriteOutcome(backup=backup)
+            try:
+                progress.stage("abrir:", "Apertura en MS Project")
+                with ComSession(origen, visible=args.visible, read_only=False) as session:
+                    outcome.was_open = not session.opened_by_us
+                    progress.stage("leer:", "Lectura de MS Project")
+                    project = session.read_project(cfg, links=False)
+                    check_field(project, cfg)
+                    _computing("", "Cálculo de los códigos EDT")
+                    plan = plan_renumber(project, cfg, args.desde)
+                    if plan.changes and not plan.errors:
+                        if not outcome.was_open and backup_error is not None:
+                            raise backup_error
+                        written = write_codes(session, plan, cfg)
+                        outcome.written, outcome.undo_grouped = written.written, written.undo_grouped
+                        outcome.issues = written.issues
+                        if not outcome.was_open:
+                            progress.stage("guardar", "Guardado del archivo")
+                            session.save()
+                            outcome.saved = True
+            finally:
+                if outcome.backup is not None and not outcome.saved:
+                    outcome.backup.unlink(missing_ok=True)
+                    outcome.backup = None
+        progress.stage("informe", "Escritura del informe")
+        silence = _silence(cfg)
+        notices = silence.apply(project.warnings + plan.issues + (outcome.issues if outcome else []))
+        errors = [i for i in notices if i.severity == SEV_ERROR]
+        if errors:
+            result = f"No se escribió ningún código: hay {plural(len(errors), 'error', 'errores')}."
+        elif not plan.changes:
+            result = "Los códigos ya están actualizados: no hay cambios."
+        elif simulate:
+            result = "Simulación: no se escribió ningún código."
+        elif outcome.saved:
+            result = f"Códigos escritos y archivo guardado ({outcome.written} tareas)."
+        else:
+            undo = " Se deshacen todos con un Ctrl+Z." if outcome.undo_grouped else ""
+            result = (f"Códigos escritos en MS Project ({outcome.written} tareas), sin guardar: se deben revisar y "
+                      f"guardar el archivo, o cerrarlo sin guardar para descartarlos.{undo}")
+        write_report(informe, plan, cfg, origen=origen, version=version_label(), result=result, notices=notices,
+                     outcome=outcome)
+
+    print(f"Proyecto: {project.name}")
+    if plan.scope.prefix:
+        print(f"  Planificación: {plan.scope.prefix}")
+    print(f"  Desde: {', '.join(ref(s) for s in plan.starts)}  |  Subtareas: {plan.tasks}  |  Protegidas: "
+          f"{len(plan.kept)}  |  Códigos que cambian: {len(plan.changes)} (sin código antes: {plan.added})")
+    limit = 40
+    for c in plan.changes[:limit]:
+        print(f"    Id {c.task.id:>5}  {c.old or '(sin código)':>14} -> {c.new:<14} {c.task.name}")
+    if len(plan.changes) > limit:
+        print(f"    ... y {len(plan.changes) - limit} cambios más (en el informe).")
+    _print_notices(notices, limit=50)
+    if outcome is not None and outcome.backup is not None:
+        print(f"Copia de respaldo: {outcome.backup.resolve()}")
+    print(result)
+    print(f"Informe: {informe.resolve()}")
+    return 1 if errors else 0
+
+
 def cmd_generar_cliente(args) -> int:
     cfg = _apply_overrides(load_config(args.config), args)
     _one_plan(cfg)
@@ -1052,6 +1170,22 @@ def build_parser() -> argparse.ArgumentParser:
                                                                "control si existen")
     k.set_defaults(func=cmd_generar_cliente)
 
+    e = sub.add_parser("actualizar-edt", help="numera los códigos EDT de las subtareas de una tarea según la "
+                                              "jerarquía de MS Project, sin cambiar los de nivel 1 a nivel_maximo, "
+                                              "los de Visible = Sí ni los de la lista EDT")
+    common_source(e)
+    e.add_argument("--desde", action="append", required=True, metavar="CODIGO",
+                   help="código EDT de la tarea cuyas subtareas se numeran (p. ej. 2.7.1); su código no cambia. Se "
+                        "puede repetir")
+    e.add_argument("--simular", action="store_true", help="muestra los cambios y escribe el informe sin escribir los "
+                                                          "códigos (admite el XML)")
+    e.add_argument("--sin-respaldo", action="store_true", help="no crea la copia de respaldo del .mpp antes de "
+                                                               "guardarlo")
+    e.add_argument("--informe", metavar="RUTA", help="informe en Markdown con los cambios (por defecto "
+                                                     "<origen>_edt-AAAAMMDD-HHMMSS.md)")
+    e.add_argument("--sobrescribir", action="store_true", help="reemplaza el informe de --informe si existe")
+    e.set_defaults(func=cmd_actualizar_edt)
+
     return p
 
 
@@ -1091,8 +1225,8 @@ def _log_detail(args, text: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Códigos de salida: 0 correcto; 1 'validar' encontró errores; 2 error previsto (configuración, archivos,
-    opciones); 3 error inesperado del programa; 130 cancelado."""
+    """Códigos de salida: 0 correcto; 1 'validar' encontró errores (o 'actualizar-edt' no escribió por errores); 2
+    error previsto (configuración, archivos, opciones); 3 error inesperado del programa; 130 cancelado."""
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(errors="replace")

@@ -260,6 +260,17 @@ def task_weight(t: Task) -> float:
     return max(0.0, float(t.milestone_weight or 0.0))
 
 
+def zero_weight(t: Task) -> bool:
+    """Peso = 0 escrito en el campo (desde la 2.7.0): la tarea se hace, pero no cuenta en el libro EVM. Solo en un campo
+    de texto se distingue del vacío (sin definir); en un campo numérico, el lector lee el 0 como vacío."""
+    return t.milestone_weight is not None and t.milestone_weight == 0
+
+
+def no_count(t: Task) -> bool:
+    """La tarea no cuenta en el libro: tiene Peso = 0, o todas sus subtareas no cuentan."""
+    return zero_weight(t) or (bool(t.children) and all(no_count(c) for c in t.children))
+
+
 def is_zero_duration(t: Task) -> bool:
     """Hito: marcado como hito o de duración 0 (sin subtareas)."""
     return not t.children and (t.milestone or (t.duration is not None and t.duration <= 1e-9))
@@ -308,7 +319,7 @@ def weighted_row(top: Task, time_of: Callable[[Task], TaskTime],
     """Pesos de una fila «Ponderado» (None si ninguna tarea tiene peso).
 
     En cada tarea resumen (la de la fila y las de nivel inferior que reciben una parte), los pesos de sus subtareas
-    directas son % de la parte de la tarea resumen:
+    directas son % de la parte de la tarea resumen (las de Peso = 0 escrito no cuentan, con sus subtareas):
     - suman 100: cada subtarea con peso recibe su %; las subtareas sin peso, nada;
     - suman menos de 100: el resto se reparte entre las subtareas sin peso según su duración (un hito sin peso, de
       duración 0, no recibe nada); si no hay subtareas sin peso, los pesos se escalan a 100;
@@ -318,7 +329,8 @@ def weighted_row(top: Task, time_of: Callable[[Task], TaskTime],
     la fila.
     """
     def kids(t: Task) -> list[Task]:
-        return [c for c in t.children if allowed is None or c.uid in allowed]
+        # Las tareas con Peso = 0 (con sus subtareas) no cuentan: actualizar no las quita del árbol
+        return [c for c in t.children if (allowed is None or c.uid in allowed) and not no_count(c)]
 
     def leaves_of(t: Task) -> list[Task]:
         ks = kids(t)

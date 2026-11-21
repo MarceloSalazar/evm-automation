@@ -12,6 +12,7 @@ rápido están en el [README principal](../README.md).
 | Si se necesita... | Leer |
 |---|---|
 | Ver el programa funcionando sin MS Project | [Tutorial con el proyecto de ejemplo](ejemplo-paso-a-paso.md) |
+| Explicar a jefes de proyecto y planners las reglas para trabajar el cronograma y sus motivos | [Guía de convenios en MS Project](guia-convenios-ms-project.md) |
 | Preparar un proyecto real por primera vez | [Cálculo del PV y el EV](calculo-pv-ev.md) → [Preparación en MS Project](preparacion-ms-project.md) → [Métodos de medición](metodos-de-medicion.md) |
 | Organizar el cierre mensual | [Proceso de reporte EVM](proceso-reporte-evm.md) |
 | Revisar el archivo de MS Project antes de generar o actualizar el libro | [Comando `validar`](comandos.md#validar-revisa-el-archivo-de-ms-project) |

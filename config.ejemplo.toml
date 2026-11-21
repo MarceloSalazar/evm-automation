@@ -26,6 +26,11 @@ metodo = ""
 # método "Hitos ponderados", pesan igual.
 # El peso es el % del BAC de la fila que se imputa en el mes del hito; el resto
 # se reparte entre las tareas según su duración.
+# Con un campo de TEXTO (por ejemplo "Text7" con alias "Peso") se distinguen:
+#   vacío  sin definir: la tarea depende de sus tareas hermanas
+#   0      peso cero: la tarea se hace, pero no cuenta en el libro EVM (con
+#          toda su rama; no forma filas -D; HIT-015)
+# En un campo numérico el 0 no se distingue del vacío y se lee como vacío.
 peso_hito = ""
 
 # Campo de texto que decide, tarea por tarea, si tiene fila propia en el libro
@@ -268,12 +273,16 @@ empresa_a = "EmpresaA"
 empresa_b = "EmpresaB"
 ambas = "Ambas"
 
-# Campo numérico con el % de la empresa A en las tareas "Ambas" (80 = 80 % para
-# la empresa A y 20 % para la empresa B). En las demás tareas se ignora.
+# Campo numérico con el % de la empresa A en las tareas "Ambas" (30 = 30 % para
+# la empresa A y 70 % para la empresa B). Vacío o 0 significan el reparto por
+# defecto, nunca 0 % (para 0 % o 100 %, indicar la empresa en lugar de "Ambas").
+# Solo se usa cuando la empresa de la propia tarea es la de 'ambas'; en las
+# demás tareas se ignora (EMP-001). Una empresa que no es empresa_a, empresa_b
+# ni ambas es un error (EMP-005).
 campo_reparto = "% Reparto"
 
-# % de la empresa A cuando el campo de reparto está vacío, es 0 o está fuera de
-# rango, y en las tareas sin empresa.
+# % de la empresa A en las tareas "Ambas" con el campo de reparto vacío, en 0 o
+# fuera de rango, y en las tareas sin empresa (ni propia ni heredada).
 reparto_por_defecto = 50
 
 [cliente]

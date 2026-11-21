@@ -31,7 +31,7 @@ def ejemplo(progress: float = 60.0):
             T(3, 3, "", "Especificación", bs=JAN[0], bf=FEB[1], start=JAN[0], finish=FEB[1], method="% Completado",
               milestone_weight=70, percent_complete=progress, actual_start=JAN[0]),
             T(4, 3, "", "Preparación", bs=MAR[0], bf=MAR[1], start=MAR[0], finish=MAR[1], method="0/100",
-              milestone_weight=0),
+              milestone_weight=None),
             T(5, 3, "", "V2", bs=MAR[1], bf=MAR[1], start=MAR[1], finish=MAR[1], milestone=True, duration=0.0),
             T(6, 3, "", "Aprobación", bs=APR, bf=APR, start=APR, finish=APR, milestone=True, duration=0.0,
               milestone_weight=30)]
@@ -68,7 +68,7 @@ def test_ev_is_the_sum_of_each_part(tmp_path):
 
 
 def test_groups_split_by_duration_or_relative_weights():
-    def tasks(wx=0.0, wy=0.0):
+    def tasks(wx=None, wy=None):
         return [T(1, 1, "1", "Fase", bs=JAN[0], bf=APR),
                 T(2, 2, "1.1", "Paquete", bs=JAN[0], bf=APR, method="Ponderado"),
                 T(3, 3, "", "Ingeniería", bs=JAN[0], bf=MAR[1], milestone_weight=70),
@@ -126,7 +126,7 @@ def paquete(*children):
             *children]
 
 
-def hito(uid, name, level=3, weight=0.0, **kw):
+def hito(uid, name, level=3, weight=None, **kw):
     return T(uid, level, "", name, bs=APR, bf=APR, start=APR, finish=APR, milestone=True, duration=0.0,
              milestone_weight=weight, **kw)
 

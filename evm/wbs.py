@@ -321,6 +321,8 @@ class Visibility:
     listed: bool = False                # las filas las decide la lista EDT (lista_edt) o el campo Visible
     by_visible: bool = False            # las filas las decide el campo Visible (alguna tarea con Sí)
     matched: set[str] = field(default_factory=set)     # códigos de la lista EDT que tienen tarea
+    # Tareas con fila propia y Peso = 0: la fila se conserva con PV y EV 0 (sus tareas sin fila no cuentan)
+    zero_rows: list[Task] = field(default_factory=list)
 
     def has_row(self, task: Task) -> bool:
         return self.rows.get(task.uid, False)
@@ -331,6 +333,91 @@ class Visibility:
 
 
 def row_visibility(scope: Scope, cfg: Config, code_of=None) -> Visibility:
+    """Filas del libro (_rows_of) y ramas con Peso = 0, que no cuentan en el libro (_zero_weight_branches)."""
+    out = _rows_of(scope, cfg, code_of)
+    _zero_weight_branches(scope, out, code_of or scope.raw_code)
+    return out
+
+
+def _zero_weight_branches(scope: Scope, out: Visibility, code_of) -> None:
+    """Peso = 0 escrito en el campo de peso (desde la 2.7.0): la tarea se hace, pero no cuenta en el libro EVM.
+
+    - Una tarea sin fila propia con Peso = 0 queda fuera del PV, el EV y el AC con toda su rama (como una tarea
+      inactiva): no recibe parte del peso de su tarea superior ni forma la fila -D (HIT-015). Si su rama tiene filas
+      propias (Visible = Sí), esas filas se conservan y solo se quitan sus demás tareas.
+    - Una tarea con fila propia y Peso = 0 conserva su fila (su código es una fila del libro), con PV y EV 0: sus
+      tareas sin fila no cuentan; sus filas inferiores conservan su valor (HIT-016).
+    - Si la rama quitada tiene subtareas con peso, esos pesos no se usan (HIT-014, advertencia).
+    """
+    from evm.percent import task_weight, zero_weight
+    below: dict[int, bool] = {}
+
+    def rows_below(t: Task) -> bool:
+        found = False
+        for c in t.children:
+            found = rows_below(c) or out.has_row(c) or found
+        below[t.uid] = found
+        return found
+
+    for r in scope.roots:
+        rows_below(r)
+    cut: dict[int, Task] = {}          # ramas que no cuentan: tarea superior de cada una
+    emptied: list[Task] = []            # filas cuyas tareas tienen todas Peso = 0
+
+    def walk(t: Task, under: bool) -> bool:
+        """True si la tarea queda fuera con toda su rama."""
+        if out.has_row(t):
+            results = [walk(c, zero_weight(t)) for c in t.children]
+            if zero_weight(t):
+                out.zero_rows.append(t)
+            elif results and all(results):
+                out.zero_rows.append(t)
+                emptied.append(t)
+            return False
+        zero = under or zero_weight(t)
+        if zero and not below[t.uid]:
+            cut[t.uid] = t
+            return True
+        results = [walk(c, zero) for c in t.children]
+        if results and all(results) and not below[t.uid]:
+            # Todas sus subtareas tienen Peso = 0: tampoco cuenta (sin subtareas, contaría con sus propias fechas)
+            for c in t.children:
+                cut.pop(c.uid, None)
+            cut[t.uid] = t
+            return True
+        return False
+
+    for r in scope.roots:
+        walk(r, False)
+    cut = list(cut.values())
+    if cut:
+        out.excluded.extend(cut)
+        n = sum(1 for t in cut for _ in iter_subtree(t))
+        names = ", ".join(code_of(t) or f"Id {t.id}" for t in cut[:10]) + (f" y {len(cut) - 10} más" if len(cut) > 10
+                                                                          else "")
+        out.issues.append(Issue("HIT-015", "", "",
+                                f"{plural(n, 'tarea no cuenta', 'tareas no cuentan')} en el libro por tener Peso = 0 "
+                                f"(ella o su tarea superior): {names}. Se hacen igualmente, pero quedan fuera del PV, "
+                                "el EV y el AC, y no forman filas -D."))
+        for t in cut:
+            lost = [x for x in iter_subtree(t) if x is not t and task_weight(x) > 0]
+            if lost:
+                listed = ", ".join(code_of(x) or f"Id {x.id}" for x in lost[:5]) + (
+                    f" y {len(lost) - 5} más" if len(lost) > 5 else "")
+                out.issues.append(Issue("HIT-014", code_of(t), task_name(t, code_of),
+                                        f"Tarea con Peso = 0 o dentro de una con Peso = 0: no cuenta en el libro, así "
+                                        f"que no se usan los pesos de sus subtareas ({listed}).", severity=SEV_WARN,
+                                        uid=t.uid))
+    for t in out.zero_rows:
+        rows = below.get(t.uid, False)
+        why = ("Todas las tareas de la fila tienen Peso = 0" if t.uid in {x.uid for x in emptied} else "Fila con Peso = 0")
+        out.issues.append(Issue("HIT-016", code_of(t), t.name,
+                                f"{why}: se conserva (su código es una fila del libro), pero sus tareas sin fila propia "
+                                "no cuentan, así que su PV y su EV son 0"
+                                + ("; sus filas inferiores conservan su valor." if rows else "."), uid=t.uid))
+
+
+def _rows_of(scope: Scope, cfg: Config, code_of=None) -> Visibility:
     """Decide qué tareas tienen fila propia en el libro (desde la 2.7.0).
 
     - Si alguna tarea tiene Visible = Sí, las filas las decide el campo, como una lista EDT en el propio archivo:
@@ -793,6 +880,7 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
     visibility = row_visibility(scope, cfg, code_of)
     issues += visibility.issues
     included = visibility.has_row
+    zero_rows = {t.uid for t in visibility.zero_rows}
     prune_hidden(scope, visibility)
 
     # Multi-empresa: proporción de la empresa A en cada tarea
@@ -875,7 +963,8 @@ def build_part(project: ProjectData, cfg: Config, name: str = "") -> ReportPart:
             report_roots.append(row)
 
         if is_leaf_row:
-            row.leaves = [n for n in iter_subtree(t) if not n.children]
+            # Fila con Peso = 0 (HIT-016): sus subtareas se quitaron del árbol y la fila no tiene tareas que cuenten
+            row.leaves = [] if t.uid in zero_rows else [n for n in iter_subtree(t) if not n.children]
             row.pv_leaves, row.pv_out = pv_selection(row.leaves, t, True, cfg.pv_current_dates)
             row.start, row.finish = pv_span(row.pv_leaves, row.leaves, s, f)
             row.method = (t.method or "").strip() or cfg.default_method

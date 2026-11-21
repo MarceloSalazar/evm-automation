@@ -650,7 +650,7 @@ def test_xml_reads_schedule_fields(tmp_path):
     assert (a.duration, a.estimated, a.manual, a.constraint_type) == (28800, True, True, CONSTRAINT_MSO)
     assert a.constraint_date == datetime(2026, 1, 5, 8) and a.predecessors == []
     assert b.duration == 0 and b.predecessors == [Link(1, LINK_SS, -480)]      # <LinkLag> en décimas de minuto
-    assert p.fields_found == {"metodo": "Método EVM", "peso_hito": "Peso hito"}
+    assert p.fields_found == {"edt": "WBS", "metodo": "Método EVM", "peso_hito": "Peso hito"}
 
 
 def test_com_reads_schedule_fields():
@@ -673,7 +673,7 @@ def test_com_reads_schedule_fields():
     assert (ta.duration, ta.estimated, ta.constraint_type, ta.predecessors) == (4800, True, 2, [])
     assert ta.constraint_date == datetime(2026, 1, 5, 8)
     assert tb.duration is None and tb.predecessors == [Link(1, LINK_SF, -60)]
-    assert p.fields_found == {"metodo": "Método EVM"}
+    assert p.fields_found == {"edt": "WBS", "metodo": "Método EVM"}
 
 
 # ----------------------------------------------------------------------------
