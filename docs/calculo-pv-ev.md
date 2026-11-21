@@ -444,7 +444,7 @@ planificado:
 |---|---|
 | `0/100` | 0 hasta terminar; 100 % cuando terminan todas las tareas. |
 | `50/50`, `25/75`, `20/80` (cualquier `X/Y` con X + Y = 100) | X % cuando comienza alguna tarea; 100 % cuando terminan todas. |
-| `Hitos ponderados` | Σ `Peso hito` de los hitos cumplidos / Σ pesos de todos los hitos de la fila. |
+| `Hitos ponderados` | Σ `Peso hito` de los hitos cumplidos / Σ pesos de todos los hitos de la fila. Si los pesos suman menos de 100 y la fila tiene tareas con duración, el mismo reparto que el % planificado: cada hito cumplido suma su peso y las tareas se reparten el resto según su duración, con su *% completado* ([abajo](#hitos-ponderados-con-pesos-que-suman-menos-de-100)). |
 | `% Completado` | Σ peso de cada tarea × su *% completado*. Un hito cuenta su peso cuando está cumplido. |
 | `% Físico completado` | Igual, con el *% físico completado*. |
 | `Unidades completadas` | Igual que `% Físico completado` (en ese campo se registra el cociente unidades hechas / unidades totales). |
@@ -465,7 +465,7 @@ EV       = 1.000.000 × 74,2 % = 741.667
 Particularidades:
 
 - **Hitos ponderados:** se consideran todos los hitos de la fila, en cualquier nivel. Un peso negativo se
-  toma como 0; si ningún hito tiene peso positivo, todos pesan igual. Si la fila no tiene hitos, se usa
+  toma como 0; si ningún hito tiene peso positivo, todos pesan igual y las tareas no cuentan. Si la fila no tiene hitos, se usa
   *% físico completado* cuando alguna tarea lo tiene registrado y, si no, *% completado*. Cada caso se
   informa en pantalla.
 - **Avance lineal:** el EV es igual al PV acumulado de la fila, por lo que la fila nunca tiene
@@ -476,6 +476,27 @@ Particularidades:
   fórmulas fijas, la fila comienza cuando comienza alguna de esas tareas y termina cuando terminan todas.
 - El método `CPTR de MS Project` de la versión 1.x ya no existe: se informa como método no reconocido y
   se usa `% Completado`.
+
+### Hitos ponderados con pesos que suman menos de 100
+
+Desde la versión 2.7.0, el % ganado sigue el mismo reparto que el % planificado
+([sección 4](#4--planificado-peso-de-cada-tarea)): cada hito vale su `Peso hito` y las tareas con duración
+se reparten el resto según su duración. Al cumplirse, un hito suma su peso; cada tarea suma su parte por
+su *% completado*. Antes, el % ganado solo contaba los hitos (Σ pesos cumplidos / Σ pesos), mientras que
+el PV también se repartía entre las tareas.
+
+Ejemplo: paquete con BAC 1.000.000, hitos de 30 y 20 y dos tareas de 10 y 20 días, que se reparten el
+50 % restante (1/3 y 2/3). Con el primer hito cumplido, la primera tarea al 50 % y la segunda terminada:
+
+```text
+% ganado = 30 % + 50 % × (1/3 × 50 % + 2/3 × 100 %) = 71,7 %
+EV       = 1.000.000 × 71,7 % = 716.667
+```
+
+Como en el % planificado, el reparto se hace con las fechas de la línea base de las tareas y los hitos;
+una tarea agregada después de guardar la línea base solo cuenta en el % ganado
+([Tareas sin línea base](#tareas-sin-línea-base-retrabajo-y-trabajo-no-previsto)). Si los pesos suman
+100 o la fila no tiene tareas con duración, el % ganado solo cuenta los hitos.
 
 ### Método «Ponderado»
 
@@ -866,8 +887,8 @@ cada mes, y su última columna el total o el acumulado.
 % ganado y advierte; al ingresar el BAC, los importes se calculan solos.
 
 **¿Sirven los pesos relativos de hitos (1, 2, 3)?** El `Peso hito` es un % del BAC: pesos 1, 2 y 3 suman
-6 % y el 94 % restante se reparte entre las tareas por duración. Para un paquete medido con
-`Hitos ponderados`, los pesos deben sumar 100.
+6 % y el 94 % restante se reparte entre las tareas por duración, también en el % ganado de un paquete
+medido con `Hitos ponderados`. Para que el paquete avance solo con sus hitos, los pesos deben sumar 100.
 
 **¿Se pueden usar los costos de MS Project?** No en la versión 2.x. Para calcular el PV y el EV con los
 costos de línea base de MS Project se debe usar la versión 1.5.1.

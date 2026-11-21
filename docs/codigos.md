@@ -3114,7 +3114,7 @@ Comando actualizar-edt: tarea de `--desde`, tareas protegidas, orden y saltos de
 | [NUM-003](#num-003) | Error (detiene el programa) | `--desde` no es un código EDT numérico |
 | [NUM-004](#num-004) | Error (detiene el programa) | Ramas de `--desde` superpuestas |
 | [NUM-005](#num-005) | Error (detiene el programa) | El campo EDT no se puede escribir |
-| [NUM-006](#num-006) | Error (detiene el programa) | Varios archivos en actualizar-edt |
+| [NUM-006](#num-006) | Error (detiene el programa) | Archivo de actualizar-edt sin indicar |
 | [NUM-007](#num-007) | Error (detiene el programa) | La escritura necesita MS Project |
 | [NUM-008](#num-008) | Error | Tarea protegida después de una tarea que se renumera |
 | [NUM-009](#num-009) | Error | Códigos protegidos con saltos o desordenados |
@@ -3169,11 +3169,11 @@ El código EDT se lee del campo EDT o del número de esquema de MS Project (o el
 
 #### NUM-006
 
-**Varios archivos en actualizar-edt** · Error (detiene el programa) · actualizar-edt · no se puede silenciar
+**Archivo de actualizar-edt sin indicar** · Error (detiene el programa) · actualizar-edt · no se puede silenciar
 
-actualizar-edt trabaja con un solo archivo de MS Project y la configuración tiene secciones `[[proyectos]]`.
+actualizar-edt trabaja con un archivo de MS Project. La configuración tiene varias secciones `[[proyectos]]` y no se indicó cuál (o el nombre no existe), o se usó `--proyecto` sin `[[proyectos]]`.
 
-**Qué hacer:** Usar una configuración sin `[[proyectos]]` e indicar el archivo con `--origen`.
+**Qué hacer:** Indicar el archivo con `--proyecto` NOMBRE, con uno de los nombres de `[[proyectos]]`. Sin `[[proyectos]]`, indicarlo con `--origen`.
 
 #### NUM-007
 

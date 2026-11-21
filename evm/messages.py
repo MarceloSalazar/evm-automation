@@ -1739,10 +1739,11 @@ _CODES = [
           "personalizado de texto sin fórmula, como «Item EDT».",
           "Indicar en [campos] edt el campo personalizado de texto con los códigos EDT. Para el campo EDT de MS "
           "Project se usa su función Renumerar (Proyecto > EDT > Renumerar)."),
-    _code("NUM-006", F, "Varios archivos en actualizar-edt",
-          "actualizar-edt trabaja con un solo archivo de MS Project y la configuración tiene secciones "
-          "[[proyectos]].",
-          "Usar una configuración sin [[proyectos]] e indicar el archivo con --origen."),
+    _code("NUM-006", F, "Archivo de actualizar-edt sin indicar",
+          "actualizar-edt trabaja con un archivo de MS Project. La configuración tiene varias secciones "
+          "[[proyectos]] y no se indicó cuál (o el nombre no existe), o se usó --proyecto sin [[proyectos]].",
+          "Indicar el archivo con --proyecto NOMBRE, con uno de los nombres de [[proyectos]]. Sin [[proyectos]], "
+          "indicarlo con --origen."),
     _code("NUM-007", F, "La escritura necesita MS Project",
           "Los códigos solo se escriben en un archivo .mpp o en el proyecto abierto en MS Project (activo). Con un "
           "XML solo se puede simular.",

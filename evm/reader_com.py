@@ -557,10 +557,18 @@ class ComSession:
             has_bl = bl_start is not None or bl_finish is not None
             any_baseline = any_baseline or has_bl
             saved: tuple[int, ...] = ()
+            dates: dict[int, tuple] = {}
             own_calendar = ""
             if review:                  # el comienzo de cada línea base ('NA' si la tarea no la tiene), como en el XML
-                saved = tuple(k for k in range(11) if (bl_start if k == n else
-                                                       _dt(_get(t, f"Baseline{'' if k == 0 else k}Start"))) is not None)
+                for k in range(11):
+                    if k == n:
+                        if has_bl:
+                            dates[k] = (bl_start, bl_finish)
+                        continue
+                    k_start = _dt(_get(t, f"Baseline{'' if k == 0 else k}Start"))
+                    if k_start is not None:     # el fin, solo de las líneas base con comienzo (pocas)
+                        dates[k] = (k_start, _dt(_get(t, f"Baseline{'' if k == 0 else k}Finish")))
+                saved = tuple(k for k in sorted(dates) if dates[k][0] is not None)
                 # Calendario de la tarea (Nothing si no tiene): solo cuenta si es distinto del del proyecto
                 own_calendar = str(_get(_get(t, "CalendarObject"), "Name", "") or "")
                 own_calendar = "" if own_calendar == project_calendar else own_calendar
@@ -592,6 +600,7 @@ class ComSession:
                 constraint_date=_dt(_get(t, "ConstraintDate")) if links else None,
                 predecessors=_predecessors(t, uid, lag_format=client or review) if links else [], baselines=saved,
                 incomplete_baselines=(n,) if (bl_start is None) != (bl_finish is None) else (),
+                baseline_dates=dict(sorted(dates.items())),
                 calendar=own_calendar,
                 method=str(self._field_value(t, method_ref) or "").strip(),
                 milestone_weight=_weight(weight, weight_numeric),
@@ -614,6 +623,15 @@ class ComSession:
             except Exception:
                 continue
         any_baseline = any_baseline or saved_date is not None
+        saved_dates: dict[int, datetime] = {}
+        if review:                      # fecha de guardado de cada línea base ('NA' si no se guardó)
+            for k in range(11):
+                try:
+                    when = saved_date if k == n else _dt(p.BaselineSavedDate(k))
+                except Exception:
+                    continue
+                if when is not None:
+                    saved_dates[k] = when
 
         # Calendario del proyecto, en el período de las tareas (como el del XML), con los feriados de la configuración
         dates = [d for t in tasks for d in (t.baseline_start, t.baseline_finish, t.start, t.finish) if d is not None]
@@ -645,7 +663,7 @@ class ComSession:
             warnings=warnings, fields_found=found, calendar=calendar,
             minutes_per_day=hours * 60 if hours and hours > 0 else 480.0,
             multiple_critical_paths=bool(critical_paths) if isinstance(critical_paths, (bool, int)) else None,
-            baseline_number=n,
+            baseline_number=n, baseline_saved=saved_dates,
         )
         if not any_baseline:
             use_current_schedule(project)

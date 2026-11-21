@@ -389,3 +389,52 @@ def test_command_with_errors_ends_with_code_1(tmp_path):
     rc, out = _run("actualizar-edt", "--origen", xml, "--config", cfg, "--desde", "2.7.1", "--simular",
                    "--informe", tmp_path / "r.md")
     assert rc == 1 and "NUM-010" in out and "No se escribió ningún código" in out
+
+
+def _two_files(tmp_path):
+    """Configuración con dos secciones [[proyectos]]: P1 (p.xml, con 2.7.1) y P2 (q.xml, con 3.1)."""
+    xml, _ = _xml(tmp_path)
+    tasks = [task_xml(0, 0, "Proyecto"),
+             task_xml(1, 1, "Paquete", ext={TEXT5: "3.1"}),
+             task_xml(2, 2, "Sin código")]
+    write_xml(tmp_path / "q.xml", project_xml(tasks, definitions=[(TEXT5, "Text5", "Item EDT")]))
+    cfg = tmp_path / "multi.toml"
+    cfg.write_text('[campos]\nedt = "Item EDT"\n\n[[proyectos]]\nnombre = "P1"\norigen = "p.xml"\n\n'
+                   '[[proyectos]]\nnombre = "P2"\norigen = "q.xml"\n', encoding="utf-8")
+    return cfg
+
+
+def test_several_files_need_the_project_name(tmp_path):
+    cfg = _two_files(tmp_path)
+    rc, text = _run("actualizar-edt", "--config", cfg, "--desde", "2.7.1", "--simular")
+    assert rc == 2 and "NUM-006" in text and "P1, P2" in text
+    rc, text = _run("actualizar-edt", "--config", cfg, "--proyecto", "P9", "--desde", "2.7.1", "--simular")
+    assert rc == 2 and "NUM-006" in text and "'P9'" in text
+
+
+def test_project_name_selects_the_file_of_its_section(tmp_path):
+    cfg = _two_files(tmp_path)
+    rc, text = _run("actualizar-edt", "--config", cfg, "--proyecto", "p2", "--desde", "3.1", "--simular",
+                    "--informe", tmp_path / "r.md")
+    assert rc == 0, text
+    assert "(sin código) -> 3.1.0.1" in " ".join(text.split())
+    rc, text = _run("actualizar-edt", "--config", cfg, "--origen", f"P1={tmp_path / 'p.xml'}", "--desde", "2.7.1",
+                    "--simular", "--informe", tmp_path / "r1.md")
+    assert rc == 0 and "2.7.1.3 -> 2.7.1.1" in " ".join(text.split()), text
+
+
+def test_one_section_needs_no_project_name_and_origin_replaces_its_path(tmp_path):
+    xml, _ = _xml(tmp_path)
+    cfg = tmp_path / "one.toml"
+    cfg.write_text('[campos]\nedt = "Item EDT"\n\n[[proyectos]]\nnombre = "P1"\norigen = "otro.xml"\n',
+                   encoding="utf-8")
+    rc, text = _run("actualizar-edt", "--config", cfg, "--origen", xml, "--desde", "2.7.1", "--simular",
+                    "--informe", tmp_path / "r.md")
+    assert rc == 0 and "2.7.1.3 -> 2.7.1.1" in " ".join(text.split()), text
+
+
+def test_project_name_without_sections_is_an_error(tmp_path):
+    xml, cfg = _xml(tmp_path)
+    rc, text = _run("actualizar-edt", "--origen", xml, "--config", cfg, "--proyecto", "P1", "--desde", "2.7.1",
+                    "--simular")
+    assert rc == 2 and "NUM-006" in text

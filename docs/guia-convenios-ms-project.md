@@ -104,7 +104,7 @@ Por ahora se usan estos métodos de medición:
 | Método de medición | Cómo avanza | Cuándo usarlo |
 |---|---|---|
 | `0/100` | 0 hasta terminar; todo al terminar | Paquetes que empiezan y terminan en el mismo mes |
-| `Hitos` | Cada hito vale su `Peso` al cumplirse | Tres meses o más, con entregables intermedios (al menos un hito por mes) |
+| `Hitos` | Cada hito vale su `Peso` al cumplirse; si los pesos suman menos de 100, las tareas se reparten el resto por duración | Tres meses o más, con entregables intermedios (al menos un hito por mes) |
 | `% Completado` | El *% completado* de sus tareas, ponderado por su duración | Trabajo continuo sin entregables intermedios |
 | `Ponderado` | Cada subtarea con su `Peso` y su propio método de medición | Paquetes con subtareas de distinta naturaleza (por ejemplo, ingeniería, compras y entregables) |
 | `Avance lineal` | Avanza con el tiempo, igual que lo planificado | Solo soporte sin entregables (gestión, apoyo) |

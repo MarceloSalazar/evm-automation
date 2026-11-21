@@ -184,8 +184,9 @@ METHOD_HELP = {
     "50/50": "50 % al comenzar y 50 % al terminar. Para tareas de hasta 2 meses.",
     "25/75": "25 % al comenzar y 75 % al terminar. Tareas de hasta 2 meses con el trabajo concentrado al final.",
     "20/80": "20 % al comenzar y 80 % al terminar. Tareas de hasta 2 meses con el trabajo concentrado al final.",
-    "Hitos ponderados": "% ganado = suma de los 'Peso hito' de los hitos cumplidos / suma de todos los pesos. Para "
-                        "paquetes de 3 o más meses, con al menos un hito por mes; los pesos deben sumar 100.",
+    "Hitos ponderados": "% ganado = suma de los 'Peso hito' de los hitos cumplidos (si suman menos de 100, las "
+                        "tareas se reparten el resto por duración, con su % completado). Para paquetes de 3 o más "
+                        "meses, con al menos un hito por mes.",
     "% Completado": "% ganado = % completado de MS Project de las subtareas (mide % de duración), ponderado por su "
                     "duración de línea base; un hito cuenta su 'Peso hito' al cumplirse.",
     "% Físico completado": "% ganado = '% físico completado' de MS Project de las subtareas (avance medido "

@@ -159,6 +159,40 @@ def test_weighted_milestones_all_negative_weights_count_equally():
     assert "sin hitos" not in note.message and "por igual" in note.message and "negativo" in note.message
 
 
+def _milestones_and_tasks(weights, done=(), progress=(50, 100)):
+    """Hitos con `weights` (los de `done` cumplidos) y dos tareas con duración 480 y 960 y su % completado."""
+    hitos = [Task(uid=2 + i, id=2 + i, name=f"H{i}", outline_level=4, milestone=True, milestone_weight=w,
+                  percent_complete=100 if i in done else 0) for i, w in enumerate(weights)]
+    a = Task(uid=20, id=20, name="A", outline_level=4, percent_complete=progress[0])
+    b = Task(uid=21, id=21, name="B", outline_level=4, percent_complete=progress[1])
+    times = times_of(hitos) + [TaskTime(a, 480.0, {(2026, 1): 1.0}, True), TaskTime(b, 960.0, {(2026, 1): 1.0}, True)]
+    return full_weights(times)
+
+
+def test_milestones_under_100_share_the_rest_with_tasks_as_in_the_planned_percent():
+    """«Hitos» con pesos que suman menos de 100 y tareas con duración: el % ganado usa el mismo reparto que el %
+    planificado (hitos 30 + 20; tareas 50 % por duración, 1/3 y 2/3)."""
+    method = parse_method("Hitos")
+    frac, note = earned_fraction(method, _milestones_and_tasks((30, 20), done=(0,)), 0)
+    assert frac == pytest.approx(0.30 + 0.50 * (1 / 3 * 0.5 + 2 / 3 * 1.0)) and note is None
+    frac, _ = earned_fraction(method, _milestones_and_tasks((30, 20), done=(0, 1), progress=(100, 100)), 0)
+    assert frac == pytest.approx(1.0)
+    frac, _ = earned_fraction(method, _milestones_and_tasks((30, 20), progress=(0, 0)), 0)
+    assert frac == 0.0
+
+
+def test_milestones_summing_100_ignore_the_tasks():
+    """Con pesos que suman 100, las tareas no tienen % planificado ni cuentan en el % ganado."""
+    frac, _ = earned_fraction(parse_method("Hitos"), _milestones_and_tasks((60, 40), done=(0,)), 0)
+    assert frac == pytest.approx(0.6)
+
+
+def test_milestones_without_weights_still_count_equally_with_tasks():
+    """Sin ningún peso, los hitos pesan igual entre ellos (como antes) y las tareas no cuentan."""
+    frac, note = earned_fraction(parse_method("Hitos"), _milestones_and_tasks((None, None), done=(0,)), 0)
+    assert frac == pytest.approx(0.5) and "por igual" in note.message
+
+
 def test_progress_without_weights_is_simple_average():
     """Tareas sin fechas (sin pesos): el avance de la fila es el promedio simple de sus tareas."""
     a = Task(uid=2, id=2, name="A", outline_level=4, percent_complete=100, physical_percent_complete=80)

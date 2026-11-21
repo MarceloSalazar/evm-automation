@@ -847,16 +847,51 @@ def _edt_report_path(args, origen: str) -> Path:
     return Path(origen).with_name(f"{Path(origen).stem}_edt-{stamp}.md")
 
 
+def _edt_source(cfg: Config, args) -> tuple[str, str, Config]:
+    """El archivo de actualizar-edt: (nombre, ruta, configuración). Sin [[proyectos]], el de --origen. Con
+    [[proyectos]], el de --proyecto NOMBRE (no hace falta si hay una sola sección, o si --origen NOMBRE=RUTA lo
+    indica), con su planificación y su línea base; --origen RUTA (o activo) reemplaza la ruta de la sección."""
+    if not cfg.projects:
+        if args.proyecto:
+            raise ConfigError("NUM-006", "--proyecto solo se usa con varios archivos ([[proyectos]] en la "
+                                         "configuración). Con un solo archivo se indica con --origen.")
+        return _sources(cfg, args)[0]
+    if args.planificacion is not None or args.linea_base is not None:
+        raise ConfigError("CFG-038",
+                          "Con varios archivos ([[proyectos]]), la planificación y la línea base se indican en la "
+                          "sección [[proyectos]] de cada archivo, no con --planificacion ni --linea-base.")
+    from evm.fields import same_name
+    names = [p.name for p in cfg.projects]
+    given = args.origen or []
+    if len(given) > 1:
+        raise ConfigError("CFG-037", "actualizar-edt trabaja con un archivo: --origen se indica una vez.")
+    path = given[0].strip() if given else None
+    wanted = args.proyecto
+    if path is not None:
+        name, sep, rest = (x.strip() for x in path.partition("="))
+        if sep and any(same_name(name, n) for n in names):
+            if wanted and not same_name(wanted, name):
+                raise ConfigError("NUM-006", f"--proyecto {wanted} y --origen {path} indican archivos distintos.")
+            wanted, path = name, rest
+    if wanted is None and len(names) == 1:
+        wanted = names[0]
+    spec = next((p for p in cfg.projects if wanted is not None and same_name(p.name, wanted)), None)
+    if spec is None:
+        cause = f"'{wanted}' no es ninguno de" if wanted else "Se debe indicar con --proyecto NOMBRE cuál de"
+        raise ConfigError("NUM-006", f"actualizar-edt trabaja con un archivo de MS Project. {cause} los archivos de "
+                                     f"[[proyectos]]: {', '.join(names)}.")
+    if not path:
+        path = spec.origin
+    return spec.name, path, cfg.project_config(spec.name)
+
+
 def cmd_actualizar_edt(args) -> int:
     cfg = _apply_overrides(load_config(args.config), args)
     _one_plan(cfg)
-    if cfg.projects:
-        raise ConfigError("NUM-006", "actualizar-edt trabaja con un solo archivo de MS Project: se debe usar una "
-                                     "configuración sin secciones [[proyectos]] e indicar el archivo con --origen.")
     from evm.edt_renumber import (WriteOutcome, backup_path, check_field, plan_renumber, ref, write_codes,
                                   write_report)
-    files = _sources(cfg, args)
-    origen = files[0][1]
+    name, origen, cfg = _edt_source(cfg, args)
+    files = [(name, origen, cfg)]
     engine = _engine_for(origen, args.motor)
     simulate = args.simular
     if not simulate and engine != "com":
@@ -870,7 +905,7 @@ def cmd_actualizar_edt(args) -> int:
     stages = _stages(files, args.motor, compute=0.5, after={"escribir": 2.0, "comprobar": 1.0, "guardar": 1.0,
                                                             "informe": 0.1})
     with progress.tracking(stages):
-        progress.say(_reading("", origen))
+        progress.say(_reading(name, origen))
         if simulate:
             with open_project(origen, cfg, args.motor, args.visible, links=False) as project:
                 check_field(project, cfg)
@@ -1174,6 +1209,10 @@ def build_parser() -> argparse.ArgumentParser:
                                               "jerarquía de MS Project, sin cambiar los de nivel 1 a nivel_maximo, "
                                               "los de Visible = Sí ni los de la lista EDT")
     common_source(e)
+    e.add_argument("--proyecto", metavar="NOMBRE",
+                   help="con varios archivos ([[proyectos]] en la configuración): el archivo que se numera, por su "
+                        "nombre en [[proyectos]] (no hace falta si hay uno solo). --origen RUTA o activo reemplaza "
+                        "su ruta")
     e.add_argument("--desde", action="append", required=True, metavar="CODIGO",
                    help="código EDT de la tarea cuyas subtareas se numeran (p. ej. 2.7.1); su código no cambia. Se "
                         "puede repetir")

@@ -661,12 +661,13 @@ son de ese nivel, y las fichas ya generadas. Los vínculos no cambian: van por I
 | Opción | Descripción |
 |---|---|
 | `--desde CODIGO` | Código EDT de la tarea cuyas subtareas se numeran (su código no cambia). **Obligatoria.** Se puede repetir para numerar varias ramas, que no deben estar una dentro de otra. |
-| `--origen` | `.mpp`, `activo` o, solo con `--simular`, `.xml`. Un solo archivo: no admite `[[proyectos]]`. |
+| `--origen` | `.mpp`, `activo` o, solo con `--simular`, `.xml`. Con varios archivos (`[[proyectos]]`) se omite: se usa la ruta de la sección de `--proyecto`; si se indica, reemplaza esa ruta (también `activo`). |
+| `--proyecto NOMBRE` | Con varios archivos (`[[proyectos]]`): el archivo que se numera, por su `nombre`, con su planificación y su línea base. No hace falta si hay una sola sección. |
 | `--simular` | Muestra los cambios y escribe el informe, sin escribir los códigos. Admite el XML. |
 | `--sin-respaldo` | No crea la copia de respaldo del `.mpp` antes de guardarlo. |
 | `--informe RUTA` | Informe en Markdown. Por defecto `<origen>_edt-AAAAMMDD-HHMMSS.md` junto al archivo (con `activo`, `EDT-AAAAMMDD-HHMMSS.md` en la carpeta actual). |
 | `--sobrescribir` | Reemplaza el informe de `--informe` si ya existe. |
-| `--config`, `--planificacion`, `--nivel-max`, `--motor`, `--visible`, `--silenciar` | Igual que en `generar`. Si el archivo tiene varias planificaciones con los mismos códigos (`INTERNO` y `CLIENTE`), se elige una con `--planificacion`. |
+| `--config`, `--planificacion`, `--nivel-max`, `--motor`, `--visible`, `--silenciar` | Igual que en `generar`. Si el archivo tiene varias planificaciones con los mismos códigos (`INTERNO` y `CLIENTE`), se elige una con `--planificacion` (con `[[proyectos]]`, la de la sección). |
 
 ---
 
@@ -704,6 +705,7 @@ python evm_export.py actualizar-edt --origen activo --config config.toml --desde
 # Varios archivos de MS Project ([[proyectos]] en la configuración): sin --origen
 python evm_export.py generar --config config.toml --salida EVM_Programa.xlsx
 python evm_export.py actualizar --config config.toml --libro EVM_Programa.xlsx
+python evm_export.py actualizar-edt --config config.toml --proyecto P1 --desde 2.7.1 --simular
 ```
 
 Si no se activó el entorno virtual, se usa `.venv\Scripts\python.exe` en lugar de `python`.

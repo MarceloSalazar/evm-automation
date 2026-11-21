@@ -206,6 +206,18 @@ def _weighted_progress(rw: RowWeights, physical: bool) -> float:
     return 0.0
 
 
+def _milestones_and_tasks(rw: RowWeights) -> bool:
+    """Los pesos de la fila reparten el BAC entre hitos con peso (que suman menos de 100) y tareas con duración."""
+    milestone = task = False
+    for tt in rw.members:
+        if rw.weights.get(tt.task.uid, 0.0) > TOL:
+            if tt.task.milestone and (tt.task.milestone_weight or 0.0) > 0:
+                milestone = True
+            elif not tt.task.milestone and tt.minutes > 0:
+                task = True
+    return milestone and task
+
+
 def earned_fraction(method: Method, rw: RowWeights, pv_fraction: float) -> tuple[float, Issue | None]:
     """% ganado (0 a 1) de una empresa en una fila a la fecha de corte y una nota explicativa (sin la fila).
 
@@ -238,6 +250,11 @@ def earned_fraction(method: Method, rw: RowWeights, pv_fraction: float) -> tuple
                         if negative else Issue("ACT-030", message="hitos sin peso definido: se ponderaron por igual"))
             elif negative:
                 note = Issue("ACT-031", message="hitos con peso negativo: se tomaron con peso 0")
+            if _milestones_and_tasks(rw):
+                # Pesos de los hitos < 100 y tareas con duración (desde la 2.7.0): el mismo reparto que el % planificado.
+                # Cada hito suma su peso al cumplirse y las tareas se reparten el resto según su duración, con su %
+                # completado
+                return _weighted_progress(rw, False), note
             total = sum(w for _, w in weights)
             return sum(w for t, w in weights if is_complete(t)) / total, note
         if any(t.physical_percent_complete > 0 for t in members):

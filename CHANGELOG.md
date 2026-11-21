@@ -64,10 +64,16 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   primero y sin saltos; las demás tareas, también las nuevas sin código, se numeran a continuación.
   Escribe en el proyecto abierto sin guardarlo, en una sola acción de deshacer, o en el `.mpp` con una
   copia de respaldo; con `--simular` solo muestra los cambios (admite el XML). Cada ejecución deja un
-  informe con los cambios. Códigos nuevos `NUM-001` a `NUM-017`
+  informe con los cambios. Con varios archivos (`[[proyectos]]`), `--proyecto NOMBRE` indica cuál se
+  numera, con la ruta, la planificación y la línea base de su sección. Códigos nuevos `NUM-001` a `NUM-017`
   ([actualizar-edt](docs/comandos.md#actualizar-edt-numera-los-códigos-edt-de-una-rama)).
 
 ### Correcciones
+
+- Método `Hitos ponderados` con pesos que suman menos de 100 y tareas con duración: el % planificado
+  repartía el resto entre las tareas, pero el % ganado solo contaba los hitos. Ahora el % ganado usa el
+  mismo reparto: cada hito cumplido suma su peso y las tareas suman su parte por su % completado
+  ([Cálculo del PV y el EV](docs/calculo-pv-ev.md#hitos-ponderados-con-pesos-que-suman-menos-de-100)).
 
 - `actualizar` dejaba en la hoja `Indicadores EDT` y en la sección de plazo del `Resumen` el valor de la
   lectura anterior cuando el nuevo quedaba vacío (por ejemplo, la holgura de un paquete que terminó).

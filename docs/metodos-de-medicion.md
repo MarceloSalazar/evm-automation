@@ -51,7 +51,7 @@ MS Project.
 |---|---|---|
 | `0/100` | 0 hasta terminar; BAC al terminar. | Paquete al 100 % (o *Fin real*) al terminar. |
 | `50/50`, `25/75`, `20/80` (`X/Y`) | X % del BAC al comenzar; 100 % al terminar. | *Comienzo real* (o cualquier avance) al comenzar; 100 % al terminar. |
-| `Hitos ponderados` | BAC × Σ pesos de los hitos cumplidos / Σ pesos. | Cada hito al 100 % cuando se cumple. |
+| `Hitos ponderados` | BAC × Σ pesos de los hitos cumplidos / Σ pesos. Si suman menos de 100, las actividades se reparten el resto por duración. | Cada hito al 100 % cuando se cumple (y el *% completado* de las actividades, si los pesos suman menos de 100). |
 | `% Completado` | BAC × *% completado* de las subtareas, ponderado por su duración de línea base (un hito cumplido cuenta su `Peso hito`). | *% completado* (o duración real) de las tareas. |
 | `% Físico completado` | BAC × *% físico completado* de las subtareas, con la misma ponderación. | *% físico completado* estimado o medido. |
 | `Unidades completadas` | BAC × unidades hechas / unidades totales. | El cociente, en *% físico completado*. |
@@ -222,10 +222,10 @@ recomendado para paquetes largos porque es **objetivo**.
 3. **Pesos:** campo `Peso hito` (*Número1*) en cada hito: es el % del BAC del paquete que se planifica
    en el mes del hito ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)).
    Los pesos deben sumar 100 y ser proporcionales al presupuesto del trabajo que lleva a cada hito: así
-   el PV del paquete se concentra en los meses de sus hitos. Si suman menos de 100, el resto del %
-   planificado se reparte entre las actividades según su duración, pero el % ganado solo cuenta los
-   hitos. Un peso negativo se toma como 0; si ningún hito tiene peso positivo, en el % ganado todos
-   pesan igual.
+   el PV del paquete se concentra en los meses de sus hitos. Si suman menos de 100, el resto se reparte
+   entre las actividades según su duración, en el % planificado y en el % ganado (con su *% completado*):
+   los dos con el mismo criterio. Un peso negativo se toma como 0; si ningún hito tiene peso positivo, en
+   el % ganado todos pesan igual.
 4. **Método:** `Hitos ponderados` en el campo `Método EVM` del paquete.
 5. **Criterio de cumplimiento:** en las *Notas* de cada hito se escribe la evidencia que lo da por
    cumplido (por ejemplo, "plano aprobado por el cliente", "acta de prueba FAT firmada").

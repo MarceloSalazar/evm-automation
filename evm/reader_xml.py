@@ -259,10 +259,13 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True, client: bool = F
         bl = None
         saved: list[int] = []           # líneas base con comienzo en la tarea (como con COM)
         incomplete: list[int] = []      # líneas base con solo el comienzo o solo el fin
+        dates: dict[int, tuple] = {}    # fechas de cada línea base
         for b in el.findall(r.q("Baseline")):
             number = r.text(b, "Number")
             if number == str(n):
                 bl = b
+            if number.isdigit() and (r.text(b, "Start") or r.text(b, "Finish")):
+                dates[int(number)] = (r.date(b, "Start"), r.date(b, "Finish"))
             if number.isdigit() and r.text(b, "Start"):
                 saved.append(int(number))
             if number.isdigit() and bool(r.text(b, "Start")) != bool(r.text(b, "Finish")):
@@ -305,7 +308,7 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True, client: bool = F
             manual=r.flag(el, "Manual"), constraint_type=r.integer(el, "ConstraintType") if links else CONSTRAINT_ASAP,
             constraint_date=r.date(el, "ConstraintDate") if links else None, predecessors=predecessors,
             baselines=tuple(sorted(set(saved))), incomplete_baselines=tuple(sorted(set(incomplete))),
-            calendar=own_calendar,
+            baseline_dates=dict(sorted(dates.items())), calendar=own_calendar,
             method=value_of(method_ref).strip(), milestone_weight=weight,
             company=company, split_a=split_a, visible=value_of(visible_ref).strip(),
             description=value_of(description_ref).strip(), client_mark=value_of(client_ref).strip(),
