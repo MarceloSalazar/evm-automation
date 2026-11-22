@@ -314,34 +314,135 @@ def _task_label(t: Task, code_of) -> str:
     return code_of(t) or f"UID {t.uid}"
 
 
-def branch_list(selected: set[int], every: list[Task], code_of) -> list[str]:
-    """Tareas seleccionadas, en el orden del esquema, por su código EDT (sin código, por su UniqueID). Una tarea
-    resumen seleccionada con todas sus subtareas se indica una vez, como rama: `1.3` (rama, 25 tareas)."""
-    inside = {t.uid for t in every}
-    children: dict[int, list[Task]] = {}
-    for t in every:
-        if t.parent is not None and t.parent.uid in inside:
-            children.setdefault(t.parent.uid, []).append(t)
-    full: dict[int, int] = {}           # UniqueID -> tareas de la rama si toda la rama está seleccionada; si no, 0
-    for t in reversed(every):           # las subtareas van después de su tarea resumen
-        sub = [full[c.uid] for c in children.get(t.uid, [])]
-        full[t.uid] = (1 + sum(sub)) if t.uid in selected and all(sub) else 0
+RANGE = 3          # tareas de detalle hermanas seguidas, en la misma situación, que se indican como un rango
 
-    out: list[str] = []
-    skip: set[int] = set()
-    for t in every:
-        if t.uid in skip or t.uid not in selected:
-            continue
-        if t.uid in children and full[t.uid] > 1:
-            out.append(f"`{_task_label(t, code_of)}` (rama, {full[t.uid]} tareas)")
-            stack = list(children[t.uid])
-            while stack:
-                c = stack.pop()
-                skip.add(c.uid)
-                stack += children.get(c.uid, [])
-        else:
-            out.append(f"`{_task_label(t, code_of)}`")
-    return out
+
+class TaskTree:
+    """Tareas de una lista (las que tienen una línea base, o las que no tienen la usada) en el esquema de la
+    planificación, por su código EDT (sin código, por su UniqueID), para ubicarlas en MS Project:
+
+    - starts(): el comienzo de cada rama, la tarea más alta de cada grupo (su tarea superior no está en la lista),
+      con dónde está y qué abarca;
+    - detail(): el árbol con sangría, con las tareas de la lista en negrita y, en texto normal, las tareas resumen
+      de encima que no están (para ver la jerarquía).
+
+    Una tarea resumen que está con toda su rama en la misma situación va en una línea (rama completa); tres o más
+    tareas de detalle hermanas seguidas en la misma situación, como un rango. selected: UniqueID -> situación (texto
+    que se agrega a la tarea; vacío si no hace falta). verb: lo que hacen las subtareas de la lista («la tienen»).
+    context: texto de una tarea resumen de encima que no está en la lista."""
+
+    def __init__(self, every: list[Task], code_of, selected: dict[int, str], verb: str,
+                 context: Callable[[Task], str]):
+        self.code_of, self.selected, self.verb, self.context = code_of, selected, verb, context
+        inside = {t.uid for t in every}
+        self.children: dict[int, list[Task]] = {}
+        for t in every:
+            if t.parent is not None and t.parent.uid in inside:
+                self.children.setdefault(t.parent.uid, []).append(t)
+        self.roots = [t for t in every if t.parent is None or t.parent.uid not in inside]
+        self.size: dict[int, int] = {}      # tareas de la rama (con la propia)
+        self.count: dict[int, int] = {}     # tareas de la rama que están en la lista
+        self.full: dict[int, bool] = {}     # toda la rama está en la lista, en la misma situación
+        for t in reversed(every):           # las subtareas van después de su tarea resumen
+            kids = self.children.get(t.uid, [])
+            self.size[t.uid] = 1 + sum(self.size[c.uid] for c in kids)
+            self.count[t.uid] = (t.uid in selected) + sum(self.count[c.uid] for c in kids)
+            self.full[t.uid] = t.uid in selected and all(
+                self.full[c.uid] and selected[c.uid] == selected[t.uid] for c in kids)
+
+    def code(self, t: Task) -> str:
+        return f"`{_task_label(t, self.code_of)}`"
+
+    def _share(self, t: Task, k: int) -> str:
+        """«de sus 12 subtareas, 9 la tienen» (verb en plural; en singular, sin la n final)."""
+        n = self.size[t.uid] - 1
+        one = self.verb[:-1] if self.verb.endswith("n") else self.verb
+        if k == 0:              # solo en la lista de una línea base: una tarea resumen que la tiene sin subtareas
+            return f"su única subtarea no {one}" if n == 1 else f"ninguna de sus {fmt_number(n, 0)} subtareas {one}"
+        of = "de su única subtarea" if n == 1 else f"de sus {fmt_number(n, 0)} subtareas"
+        return f"{of}, {fmt_number(k, 0)} {one if k == 1 else self.verb}"
+
+    def _what(self, t: Task) -> str:
+        """Qué abarca una tarea de la lista."""
+        if t.uid not in self.children:
+            return ""
+        if self.full[t.uid]:
+            return f"rama completa ({_tasks(self.size[t.uid])})"
+        return f"tarea resumen; {self._share(t, self.count[t.uid] - 1)}"
+
+    def _tail(self, *parts: str) -> str:
+        parts = tuple(p for p in parts if p)
+        return f" — {'; '.join(parts)}" if parts else ""
+
+    def _segments(self, kids: list[Task], pick: Callable[[Task], bool]) -> list[list[Task]]:
+        """Tareas hermanas en grupos: RANGE o más tareas de detalle seguidas que cumplen pick, en la misma situación,
+        forman un rango; las demás van solas (también las que no cumplen pick, que cortan el rango)."""
+        out: list[list[Task]] = []
+        run: list[Task] = []
+
+        def flush() -> None:
+            out.extend([list(run)] if len(run) >= RANGE else [[t] for t in run])
+            run.clear()
+
+        for t in kids:
+            leaf = pick(t) and t.uid not in self.children
+            if leaf and run and self.selected[run[0].uid] != self.selected[t.uid]:
+                flush()
+            if leaf:
+                run.append(t)
+                continue
+            flush()
+            out.append([t])
+        flush()
+        return out
+
+    def starts(self) -> list[str]:
+        lines: list[str] = []
+
+        def walk(kids: list[Task], parent: Task | None) -> None:
+            inside = parent is not None and parent.uid in self.selected
+            for seg in self._segments(kids, lambda t: not inside and t.uid in self.selected):
+                t = seg[0]
+                if not inside and t.uid in self.selected:
+                    # Una tarea superior sin código EDT (p. ej. la tarea resumen del programa) no ayuda a ubicarla
+                    where = (f"dentro de {self.code(parent)}" if parent is not None and self.code_of(parent) else
+                             f"nivel {t.outline_level}")
+                    note = self.selected[t.uid]
+                    if len(seg) > 1:
+                        lines.append(f"- {self.code(t)} a {self.code(seg[-1])}"
+                                     f"{self._tail(where, _tasks(len(seg)) + ' de detalle', note)}")
+                    else:
+                        lines.append(f"- {self.code(t)}"
+                                     f"{self._tail(where, self._what(t) or 'tarea de detalle', note)}")
+                if len(seg) == 1 and self.count[t.uid] and t.uid in self.children and not self.full[t.uid]:
+                    walk(self.children[t.uid], t)
+
+        walk(self.roots, None)
+        return lines
+
+    def detail(self) -> list[str]:
+        lines: list[str] = []
+
+        def walk(kids: list[Task], depth: int) -> None:
+            pad = "  " * depth
+            for seg in self._segments(kids, lambda t: t.uid in self.selected):
+                t = seg[0]
+                if not self.count[t.uid]:
+                    continue
+                if len(seg) > 1:
+                    lines.append(f"{pad}- **{self.code(t)}** a **{self.code(seg[-1])}** ({_tasks(len(seg))})"
+                                 f"{self._tail(self.selected[t.uid])}")
+                    continue
+                if t.uid in self.selected:
+                    lines.append(f"{pad}- **{self.code(t)}**{self._tail(self._what(t), self.selected[t.uid])}")
+                    if self.full[t.uid]:
+                        continue
+                else:
+                    lines.append(f"{pad}- {self.code(t)} — {self.context(t)}; {self._share(t, self.count[t.uid])}")
+                walk(self.children.get(t.uid, []), depth + 1)
+
+        walk(self.roots, 0)
+        return lines
 
 
 def _baseline_section(part: ReportPart, level: str) -> list[str]:
@@ -373,17 +474,73 @@ def _baseline_section(part: ReportPart, level: str) -> list[str]:
                   + ", ".join(f"{_baseline_name(u.number)}: {_tasks(u.outside)}" for u in outside)
                   + ".", ""]
     for u in uses:
-        lines += [f"{level} {_baseline_name(u.number)}", ""]
+        name = _baseline_name(u.number)
+        lines += [f"{level} {name}", ""]
         have = {t.uid for t in u.tasks}
         if u.used:                      # la que usa el % planificado: solo cuántas tareas la tienen
             lines += [f"{_tasks(len(have))} de {fmt_number(len(every), 0)} (la usa el % "
-                      "planificado).", ""]
+                      f"planificado). Las que no la tienen están al final, en «Tareas sin la {name}».", ""]
         elif not have:
             lines += ["Ninguna tarea de la planificación tiene sus fechas.", ""]
         else:
-            lines += [f"{_tasks(len(have))}: " + ", ".join(branch_list(have, every, code_of))
-                      + ".", ""]
-    return lines
+            tree = TaskTree(every, code_of, {uid: "" for uid in have}, "la tienen", lambda t: "no la tiene")
+            summaries = "ninguna resumen" if not u.summaries else f"{fmt_number(u.summaries, 0)} resumen"
+            lines += [f"{_tasks(len(have))} {'tiene' if len(have) == 1 else 'tienen'} la {name} ({summaries}).", "",
+                      "**Comienzo de cada rama** (la tarea más alta de cada grupo: su tarea superior no la tiene):",
+                      ""] + tree.starts() + [
+                      "", "**Detalle** (en negrita, las tareas que la tienen; en texto normal, las tareas resumen de "
+                      "encima que no la tienen):", ""] + tree.detail() + [""]
+    return lines + _without_baseline(project, every, code_of, level)
+
+
+def _without_baseline(project: ProjectData, every: list[Task], code_of, level: str) -> list[str]:
+    """Tareas de la planificación sin la línea base que usa el % planificado, con las otras líneas base que tienen
+    (ninguna, o solo otras): el comienzo de cada rama y el detalle (TaskTree). Están las de detalle y las tareas
+    resumen sin ella en toda su rama; una tarea resumen sin ella con alguna subtarea que la tiene no está (sus
+    fechas no se usan): se ve en el detalle como tarea de encima."""
+    n = project.baseline_number
+    used = _baseline_name(n)
+    inside = {t.uid for t in every}
+    children: dict[int, list[Task]] = {}
+    for t in every:
+        if t.parent is not None and t.parent.uid in inside:
+            children.setdefault(t.parent.uid, []).append(t)
+    lacking: dict[int, bool] = {}       # UniqueID -> ni la tarea ni ninguna de sus subtareas tiene la línea base
+    for t in reversed(every):           # las subtareas van después de su tarea resumen
+        lacking[t.uid] = n not in t.baseline_dates and all(lacking[c.uid] for c in children.get(t.uid, []))
+    leaves = [t for t in every if t.uid not in children and lacking[t.uid]]
+    lines = [f"{level} Tareas sin la {used}", ""]
+    if not any(lacking.values()):
+        return lines + [f"Todas las tareas de detalle de la planificación tienen la {used}.", ""]
+
+    def situation(t: Task) -> str:
+        others = sorted(t.baseline_dates)
+        if not others:
+            return "sin ninguna línea base"
+        if len(others) == 1:
+            return f"solo con la {_baseline_name(others[0])}"
+        return f"solo con las líneas base {', '.join(str(k) for k in others[:-1])} y {others[-1]}"
+
+    # La situación más frecuente se indica una vez, antes de las listas; en cada tarea, solo las demás
+    selected = {t.uid: situation(t) for t in every if lacking[t.uid]}
+    common = max(sorted(set(selected.values())), key=lambda s: sum(1 for t in leaves if selected[t.uid] == s))
+    selected = {uid: ("" if s == common else s) for uid, s in selected.items()}
+    none = sum(1 for t in leaves if not t.baseline_dates)
+    tree = TaskTree(every, code_of, selected, "no la tienen",
+                    lambda t: "la tiene" if n in t.baseline_dates else
+                    "no la tiene, pero alguna subtarea sí (sus fechas no se usan)")
+    lines += [f"{_tasks(len(leaves))} de detalle sin la {used}, que usa el % planificado: {fmt_number(none, 0)} sin "
+              f"ninguna línea base y {fmt_number(len(leaves) - none, 0)} solo con otras. No forman parte del PV "
+              "(cuentan en el EV como trabajo no previsto). Si su trabajo está aprobado y falta solo guardarlo, la "
+              f"línea base se establece con `corregir-linea-base --tarea CODIGO --establecer {n}` (con `--rama` "
+              "para una rama completa) o en MS Project (*Establecer línea base*, *Tareas seleccionadas*).", "",
+              f"Salvo que se indique otra cosa, las tareas de las listas están {common}.", "",
+              f"**Comienzo de cada rama** (la tarea más alta de cada grupo: su tarea superior tiene la {used}, o "
+              "alguna subtarea con ella):", ""]
+    lines += tree.starts()
+    lines += ["", f"**Detalle** (en negrita, las tareas sin la {used}; en texto normal, las tareas resumen de encima "
+              "que la tienen o que tienen alguna subtarea con ella):", ""]
+    return lines + tree.detail() + [""]
 
 
 # ----------------------------------------------------------------------------
@@ -555,8 +712,14 @@ def write_report(path: str | Path, units: list[Unit], cfg: Config, version: str,
               "Líneas base guardadas en las tareas de la planificación (también las inactivas y las de Visible = No) "
               "y, de cada una salvo la que usa el % planificado, las tareas que la tienen, por su código EDT. Sirve "
               "para detectar las guardadas por error: en pocas tareas (p. ej. con *Tareas seleccionadas* y otra "
-              "línea base), solo en tareas resumen o copia de la que usa el % planificado. Una tarea resumen con "
-              "todas sus subtareas se indica una vez, como rama. Una línea base que sobra "
+              "línea base), solo en tareas resumen o copia de la que usa el % planificado. Al final, las tareas sin "
+              "la línea base que usa el % planificado, con las otras líneas base que tienen.\n\n"
+              "Las tareas de cada lista se indican en dos partes. **Comienzo de cada rama:** la tarea más alta de "
+              "cada grupo (la que se busca en MS Project), con dónde está y qué abarca. **Detalle:** el esquema con "
+              "sangría, con las tareas de la lista en negrita y, en texto normal, las tareas resumen de encima que no "
+              "están en ella, para ver la jerarquía. Una tarea resumen con toda su rama en la lista va en una línea "
+              "(*rama completa*); tres o más tareas de detalle hermanas seguidas, como un rango (*`1.1.3` a "
+              "`1.1.11`*). Una línea base que sobra "
               "se borra en MS Project con *Proyecto > Establecer línea base > Borrar línea base* (*Clear Baseline*), "
               "para todo el proyecto o para las tareas seleccionadas.", ""]
     for (_u, p), label in zip(columns, labels):

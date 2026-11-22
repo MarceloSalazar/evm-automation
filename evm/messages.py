@@ -216,8 +216,8 @@ AREAS = {a.prefix: a for a in [
          "Comando actualizar-edt: tarea de --desde, tareas protegidas, orden y saltos de sus códigos, y escritura "
          "en MS Project."),
     Area("LBA", "Corrección de línea base (corregir-linea-base)", TOPIC_DATES, W_LBA,
-         "Comando corregir-linea-base: tareas indicadas, avisos que piden confirmación antes de mover o borrar la "
-         "línea base, y escritura en MS Project."),
+         "Comando corregir-linea-base: tareas indicadas, avisos que piden confirmación antes de mover, borrar o "
+         "establecer la línea base, y escritura en MS Project."),
     Area("SIS", "Errores del sistema", TOPIC_BOOK, W_ALL,
          "Errores de archivos del sistema y errores inesperados del programa."),
 ]}
@@ -1823,9 +1823,9 @@ _CODES = [
           "subtareas.",
           "Agregar --rama para corregir la tarea con todas sus subtareas, o indicar las subtareas una a una."),
     _code("LBA-005", F, "Acción no indicada o no válida",
-          "Falta la acción (--de N --a M para mover, o --borrar N), se indicaron las dos, o --de y --a son la misma "
-          "línea base.",
-          "Indicar --de y --a con dos líneas base distintas (0 a 10), o solo --borrar."),
+          "Falta la acción (--de N --a M para mover, --borrar N o --establecer N), se indicó más de una, o --de y --a "
+          "son la misma línea base.",
+          "Indicar --de y --a con dos líneas base distintas (0 a 10), o solo --borrar, o solo --establecer."),
     _code("LBA-006", F, "Archivo de corregir-linea-base sin indicar",
           "corregir-linea-base trabaja con un archivo de MS Project. La configuración tiene varias secciones "
           "[[proyectos]] y no se indicó cuál (o el nombre no existe), o se usó --proyecto sin [[proyectos]].",
@@ -1878,9 +1878,11 @@ _CODES = [
           "Si su línea base está aprobada, --continuar la conserva. Si también es nueva, incluirla con --tarea "
           "CODIGO --rama, o decidir con --interactivo (moverla a la línea base aprobada, borrarla, moverla a otra "
           "u omitirla)."),
-    _code("LBA-016", I, "Tareas sin la línea base de origen",
-          "Algunas tareas de la rama no tienen la línea base de origen: no cambian (ni en la de destino).",
-          "Ninguna: es informativo."),
+    _code("LBA-016", I, "Tareas de la rama que no cambian",
+          "Al mover o borrar, algunas tareas de la rama no tienen la línea base de origen: no cambian (ni en la de "
+          "destino). Con --establecer, algunas ya tienen la línea base: conservan sus valores.",
+          "Ninguna: es informativo. Para reemplazar la línea base de una tarea que ya la tiene, se establece en MS "
+          "Project (Establecer línea base, Tareas seleccionadas)."),
     _code("LBA-017", I, "Tarea resumen de encima que no coincide con sus subtareas",
           "Las fechas de la línea base de una tarea resumen por encima de las corregidas ya no coinciden con las de "
           "sus subtareas (por ejemplo, abarca tareas que se sacaron). El programa no la modifica. No cambia el PV: "
@@ -1900,6 +1902,11 @@ _CODES = [
           "fechas sí son las copiadas.",
           "Revisar esas tareas en MS Project. Las fechas son las que usa el PV; el trabajo y el costo previstos no "
           "se usan en el libro."),
+    _code("LBA-021", W, "Tarea resumen de encima que deja de ser un bloque",
+          "Con --establecer, una tarea resumen por encima tenía la línea base y ninguna de sus subtareas la tenía (el "
+          "PV la contaba como un bloque con sus fechas). Al establecerla en alguna subtarea, el PV cuenta solo las "
+          "subtareas con línea base: las que siguen sin ella quedan fuera.",
+          "Si esas subtareas también forman parte de la errata, incluirlas: --tarea con la tarea resumen y --rama."),
 
     # --- SIS: errores del sistema -------------------------------------------------------------------------------
     _code("SIS-001", F, "Error inesperado",

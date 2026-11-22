@@ -1,5 +1,5 @@
-"""corregir-linea-base: mover o borrar la línea base de tareas (con su rama), avisos que piden confirmación,
-escritura con un MS Project simulado (en inglés, NA, y en español, ND), --interactivo caso a caso con deshacer, y el
+"""corregir-linea-base: mover, borrar o establecer la línea base de tareas (con su rama), avisos que piden
+confirmación, escritura con un MS Project simulado (en inglés, NA, y en español, ND), --interactivo caso a caso con deshacer, y el
 comando con un XML (--simular). Las pruebas con MS Project real están en test_msproject_linea_base.py."""
 from __future__ import annotations
 
@@ -66,12 +66,17 @@ class DictStore:
         got = t.baseline_dates.get(k)
         return bf.Values(got[0], got[1], 9600.0, 9600.0, 1000.0 + uid) if got else bf.EMPTY
 
+    def current(self, uid):
+        t = next(t for t in self.project.tasks if t.uid == uid)
+        return bf.Values(t.start, t.finish, 4800.0, 4800.0, 500.0 + uid)
+
     def notes(self, uid):
         return self._notes.get(uid, "")
 
 
-def _setup(pv=1, approved=0):
+def _setup(pv=1, approved=0, extra=()):
     project = _project(pv)
+    project.tasks += list(extra)
     cfg = Config(max_level=2)
     cfg.validate()
     scope = select_scope(build_tree(project.tasks), cfg.plan)
@@ -86,10 +91,12 @@ def _ids(case):
 # ----------------------------------------------------------------------------
 # Acción y tareas
 # ----------------------------------------------------------------------------
-@pytest.mark.parametrize("de, a, borrar", [(None, None, None), (1, None, None), (1, 1, None), (1, 2, 3)])
-def test_action_must_be_move_or_delete(de, a, borrar):
+@pytest.mark.parametrize("de, a, borrar, establecer", [(None, None, None, None), (1, None, None, None),
+                                                       (1, 1, None, None), (1, 2, 3, None), (None, None, 3, 0),
+                                                       (None, 2, None, 0)])
+def test_action_must_be_move_delete_or_establish(de, a, borrar, establecer):
     with pytest.raises(ConfigError) as exc:
-        bf.parse_action(de, a, borrar)
+        bf.parse_action(de, a, borrar, establecer)
     assert exc.value.id == "LBA-005"
 
 
@@ -99,6 +106,10 @@ def test_action_texts_and_note():
     when = datetime(2026, 11, 21)
     assert move.note(" No comunicada ", when) == "21/11/2026 · Línea base 2 movida a línea base 10: No comunicada"
     assert delete.note("Error", when) == "21/11/2026 · Línea base 2 borrada: Error"
+    establish = bf.parse_action(None, None, None, 0)
+    assert establish == bf.Action(None, 0) and establish.establish
+    assert establish.text() == "establecer la línea base 0 con los valores actuales"
+    assert establish.note("Errata", when) == "21/11/2026 · Línea base 0 establecida con los valores actuales: Errata"
 
 
 def test_targets_need_branch_for_a_summary_and_must_not_overlap():
@@ -184,6 +195,48 @@ def test_summaries_above_that_no_longer_match_are_reported_not_changed():
     assert "LBA-017" not in _ids(case) and "LBA-015" in _ids(case)
 
 
+def test_establish_copies_the_current_values_to_tasks_without_the_baseline():
+    # 1.3 se aprobó como una tarea (línea base 0) y se desglosó en 1.3.1, sin línea base 0: errata
+    _p, scope, state, ctx = _setup()
+    case = bf.plan_branch(state, bf.find_task(scope, "1.3.1"), False, bf.Action(None, 0))
+    assert [(c.task.wbs, c.slot, c.before.empty) for c in case.changes] == [("1.3.1", 0, True)]
+    assert (case.changes[0].after.start, case.changes[0].after.finish, case.changes[0].after.cost) == \
+        (Q1[0], Q1[1], 510.0)
+    bf.check_case(case, state, ctx)
+    # 1.3 era un bloque en la línea base 0: deja de serlo; sus fechas ya no coinciden con las de 1.3.1
+    assert _ids(case) == ["LBA-021", "LBA-017"] and not case.confirm
+    assert case.issues[0].code == "1.3" and "Siguen sin ella" not in case.issues[0].message
+    # La línea base 0 no es la del PV (1): el PV no cambia
+    assert not case.pv_changed
+
+
+def test_establish_warns_about_subtasks_left_out_of_a_former_block():
+    _p, scope, state, ctx = _setup(extra=[_task(11, 3, "1.3.2", "Detalle 2", {}, 1)])
+    case = bf.plan_branch(state, bf.find_task(scope, "1.3.1"), False, bf.Action(None, 0))
+    bf.check_case(case, state, ctx)
+    block = next(i for i in case.issues if i.id == "LBA-021")
+    assert "Siguen sin ella: 1.3.2" in block.message and "--tarea 1.3 --rama" in block.message
+    # Con la rama: 1.3 ya la tiene (conserva sus valores) y las dos subtareas la reciben
+    case = bf.plan_branch(state, bf.find_task(scope, "1.3"), True, bf.Action(None, 0))
+    assert [t.wbs for t in case.skipped] == ["1.3"] and [c.task.wbs for c in case.changes] == ["1.3.1", "1.3.2"]
+    bf.check_case(case, state, ctx)
+    assert "LBA-016" in _ids(case) and "ya tiene la línea base 0: conserva sus valores" in case.issues[0].message
+    # Al establecer en la propia tarea resumen de la rama no queda ningún bloque por encima
+    assert "LBA-021" not in _ids(case)
+
+
+def test_establishing_the_pv_baseline_asks_for_confirmation_and_changes_the_pv():
+    _p, scope, state, ctx = _setup(pv=0, approved=0)
+    case = bf.plan_branch(state, bf.find_task(scope, "1.2"), True, bf.Action(None, 0))
+    assert [c.task.wbs for c in case.changes] == ["1.2", "1.2.1"] and not case.skipped
+    bf.check_case(case, state, ctx)
+    assert {"LBA-013", "LBA-018"} <= set(_ids(case)) and [i.id for i in case.confirm] == ["LBA-013"]
+    assert case.pv_changed == ["1.2"]
+    # Todas ya la tienen: no hay cambios
+    case = bf.plan_branch(state, bf.find_task(scope, "1.1.1"), False, bf.Action(None, 0))
+    assert not case.changes and [t.wbs for t in case.skipped] == ["1.1.1"]
+
+
 def test_approved_baseline_that_is_not_the_pv_one():
     _p, _scope, _state, ctx = _setup(pv=1, approved=0)
     issue = bf.approved_issue(ctx)
@@ -209,9 +262,10 @@ def _naive(value):
 class FakeCom:
     """Tarea de MS Project: las fechas vacías valen «NA» (inglés) o «ND» (español); el otro texto da error."""
 
-    def __init__(self, uid, slots, notes="", na="NA"):
+    def __init__(self, uid, slots, notes="", na="NA", now=(None, None)):
         d = self.__dict__
-        d.update(UniqueID=uid, ExternalTask=False, Notes=notes, _na=na, writes=[])
+        d.update(UniqueID=uid, ExternalTask=False, Notes=notes, _na=na, writes=[], Start=now[0], Finish=now[1],
+                 Duration=4800.0, Work=4800.0, Cost=500.0 + uid)
         for k in range(11):
             sfx = "" if k == 0 else str(k)
             got = slots.get(k)
@@ -259,7 +313,8 @@ class FakeSession:
 
 def _com_setup(na="NA", notes=None, pv=1, approved=0, **app):
     project, scope, _state, ctx = _setup(pv, approved)
-    com_tasks = [FakeCom(t.uid, t.baseline_dates, (notes or {}).get(t.uid, ""), na) for t in project.tasks]
+    com_tasks = [FakeCom(t.uid, t.baseline_dates, (notes or {}).get(t.uid, ""), na, (t.start, t.finish))
+                 for t in project.tasks]
     session = FakeSession(com_tasks, **app)
     store = bf.ComStore(session)
     state = bf.State(project, store)
@@ -363,6 +418,23 @@ def test_interactive_other_baseline_keep_and_exit():
     assert "Salida a petición del usuario" in out[-1]
 
 
+def test_interactive_establishes_a_baseline_and_can_undo_it():
+    project, scope, run, com, out = _interactive(["s", "s"])
+    bf.run_interactive(run, [bf.find_task(scope, "1.3.1")], False, bf.Action(None, 0))
+    # 1.3.1 recibe sus valores actuales en la línea base 0; la 1 no cambia; no se pregunta por la tarea resumen
+    assert com[10].BaselineStart == Q1[0] and com[10].BaselineFinish == Q1[1] and com[10].BaselineCost == 510.0
+    assert com[10].Baseline1Start == MAR[0] and [c.kind for c in run.cases] == ["rama"]
+    assert com[10].Notes.endswith("Línea base 0 establecida con los valores actuales: Errata")
+    text = "\n".join(out)
+    assert "establecer la línea base 0 con los valores actuales" in text and "LBA-021" in text
+    assert "¿Qué hacer con la tarea resumen?" not in text
+    # d: deshacer deja la línea base 0 vacía otra vez; o: omitir
+    project, scope, run, com, out = _interactive(["s", "d", "o"])
+    bf.run_interactive(run, [bf.find_task(scope, "1.3.1")], False, bf.Action(None, 0))
+    assert com[10].BaselineStart == "NA" and com[10].Notes == "" and not run.state.has(10, 0)
+    assert [c.result for c in run.cases] == ["escrito y deshecho", "no se aplicó"]
+
+
 # ----------------------------------------------------------------------------
 # Comando
 # ----------------------------------------------------------------------------
@@ -399,6 +471,18 @@ def test_xml_store_reads_every_baseline_and_the_notes(tmp_path):
     v = store.values(3, 1)
     assert (v.start, v.finish, v.duration, v.cost) == (FEB[0], FEB[1], 9600.0, 100.0)
     assert store.values(3, 0).empty and store.notes(3) == "Nota"
+    assert (store.current(3).start, store.current(3).finish) == FEB
+
+
+def test_command_simulates_establishing_with_xml(tmp_path):
+    xml, cfg = _xml(tmp_path)
+    report = tmp_path / "r.md"
+    rc, text = _run("corregir-linea-base", "--origen", xml, "--config", cfg, "--tarea", "1.2", "--establecer", "0",
+                    "--simular", "--informe", report)
+    assert rc == 0, text
+    assert "establecer la línea base 0 con los valores actuales" in text and "Simulación" in text
+    body = report.read_text(encoding="utf-8")
+    assert "| 3 | 1.2 | Nuevo | 0 | NA | 02/02/2026 – 27/02/2026" in body
 
 
 def test_command_simulates_with_xml(tmp_path):
@@ -511,6 +595,28 @@ def test_command_interactive_keeps_the_file_open(mpp, tmp_path, monkeypatch):
     assert s.com[5].Baseline1Start == "NA" and not s.saved and not s.closed and s.app.Visible
     assert "Interactivo: 1 tarea cambiada en MS Project, sin guardar" in text
     assert "Decisión: aplicar" in (tmp_path / "r.md").read_text(encoding="utf-8")
+
+
+def test_command_establishes_and_saves(mpp, tmp_path):
+    path, cfg = mpp
+    rc, text = _run("corregir-linea-base", "--origen", path, "--config", cfg, "--tarea", "1.3.1", "--establecer", "0",
+                    "--motivo", "Errata", "--informe", tmp_path / "r.md")
+    s = FakeComSession.last
+    assert rc == 0 and "archivo guardado (1 tarea)" in text, text
+    assert s.com[10].BaselineStart == Q1[0] and s.saved and "LBA-021" in text
+
+
+def test_command_interactive_establishes(mpp, tmp_path, monkeypatch):
+    path, cfg = mpp
+    answers = iter(["0", "c", "Errata", "s", "s"])  # aprobada 0 (LBA-011: c para seguir); motivo; aplicar; correcto
+    monkeypatch.setattr(bf, "console_available", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda q="": next(answers))
+    rc, text = _run("corregir-linea-base", "--origen", path, "--config", cfg, "--tarea", "1.3.1", "--establecer", "0",
+                    "--interactivo", "--informe", tmp_path / "r.md")
+    s = FakeComSession.last
+    assert rc == 0, text
+    assert s.com[10].BaselineStart == Q1[0] and not s.saved and not s.closed
+    assert "Interactivo: 1 tarea cambiada en MS Project, sin guardar" in text
 
 
 @pytest.mark.parametrize("started", [True, False])

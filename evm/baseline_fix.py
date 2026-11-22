@@ -1,11 +1,15 @@
-"""corregir-linea-base: mueve o borra la línea base de las tareas indicadas por su código EDT (con su rama), para
-corregir erratas: tareas guardadas en una línea base sin estar aprobadas, o que faltan en la aprobada.
+"""corregir-linea-base: mueve, borra o establece la línea base de las tareas indicadas por su código EDT (con su
+rama), para corregir erratas: tareas guardadas en una línea base sin estar aprobadas, o que faltan en la aprobada.
 
 Guía: docs/lineas-base.md. Reglas:
 
 - Mover (--de N --a M): copia los cinco campos de la línea base N de cada tarea (comienzo, fin, duración, trabajo y
   costo previstos) a la línea base M y deja la N vacía (NA; ND en MS Project en español). Borrar (--borrar N): la
   deja vacía. Una tarea sin línea base N no cambia (LBA-016).
+- Establecer (--establecer N): copia a la línea base N los valores actuales de cada tarea (comienzo, fin, duración,
+  trabajo y costo), como «Establecer línea base» de MS Project, solo en las tareas que no la tienen: las que ya la
+  tienen conservan sus valores (LBA-016). Si una tarea resumen de encima era un bloque en la línea base N, deja de
+  serlo (LBA-021).
 - --tarea sin --rama: solo esa tarea; una tarea resumen sin --rama es un error (se movería sin sus subtareas).
 - Las tareas resumen de encima de la rama no se modifican: si una conserva la línea base de origen y ninguna de sus
   subtareas la tiene, el PV la contaría como un bloque (LBA-015); se decide con --interactivo, o se incluye con
@@ -122,28 +126,38 @@ def same(a: Values, b: Values, numbers: bool = True) -> bool:
 
 @dataclass(frozen=True)
 class Action:
-    src: int
+    src: int | None             # None = establecer con los valores actuales
     dst: int | None             # None = borrar
 
+    @property
+    def establish(self) -> bool:
+        return self.src is None
+
     def text(self) -> str:
+        if self.src is None:
+            return f"establecer la {label(self.dst)} con los valores actuales"
         if self.dst is None:
             return f"borrar la {label(self.src)}"
         return f"mover de la {label(self.src)} a la {label(self.dst)}"
 
     def note(self, motivo: str, when: datetime) -> str:
-        what = (f"Línea base {self.src} borrada" if self.dst is None else
+        what = (f"Línea base {self.dst} establecida con los valores actuales" if self.src is None else
+                f"Línea base {self.src} borrada" if self.dst is None else
                 f"Línea base {self.src} movida a línea base {self.dst}")
         return f"{when:%d/%m/%Y} · {what}: {motivo.strip()}"
 
 
-def parse_action(de: int | None, a: int | None, borrar: int | None) -> Action:
+def parse_action(de: int | None, a: int | None, borrar: int | None, establecer: int | None = None) -> Action:
+    if sum(x is not None for x in (borrar, establecer)) + (de is not None or a is not None) > 1:
+        raise ConfigError("LBA-005", "Se indica una sola acción: --de N --a M, --borrar N o --establecer N.")
+    if establecer is not None:
+        return Action(None, establecer)
     if borrar is not None:
-        if de is not None or a is not None:
-            raise ConfigError("LBA-005", "Se indica --borrar N o bien --de N --a M, no los dos.")
         return Action(borrar, None)
     if de is None or a is None:
-        raise ConfigError("LBA-005", "Se debe indicar la acción: --de N --a M para mover la línea base N a la M, o "
-                                     "--borrar N para borrarla (N y M de 0 a 10).")
+        raise ConfigError("LBA-005", "Se debe indicar la acción: --de N --a M para mover la línea base N a la M, "
+                                     "--borrar N para borrarla o --establecer N para establecerla con los valores "
+                                     "actuales en las tareas que no la tienen (N y M de 0 a 10).")
     if de == a:
         raise ConfigError("LBA-005", f"--de y --a indican la misma línea base ({de}).")
     return Action(de, a)
@@ -177,7 +191,13 @@ class XmlStore:
             except ValueError:
                 return 0.0
 
+        def values(el) -> Values:
+            return Values(date(el, "Start"), date(el, "Finish"), duration_minutes(text(el, "Duration")) or 0.0,
+                          duration_minutes(text(el, "Work")) or 0.0,
+                          number(text(el, "Cost")) / 100)       # el costo del MSPDI va en centésimas
+
         self.data: dict[int, dict[int, Values]] = {}
+        self._current: dict[int, Values] = {}
         self._notes: dict[int, str] = {}
         tasks = root.find(ns + "Tasks")
         for el in tasks.findall(ns + "Task") if tasks is not None else []:
@@ -186,19 +206,21 @@ class XmlStore:
             except ValueError:
                 continue
             self._notes[uid] = text(el, "Notes")
+            self._current[uid] = values(el)
             slots: dict[int, Values] = {}
             for b in el.findall(ns + "Baseline"):
                 k = text(b, "Number")
                 if not k.isdigit():
                     continue
-                slots[int(k)] = Values(date(b, "Start"), date(b, "Finish"),
-                                       duration_minutes(text(b, "Duration")) or 0.0,
-                                       duration_minutes(text(b, "Work")) or 0.0,
-                                       number(text(b, "Cost")) / 100)       # el costo del MSPDI va en centésimas
+                slots[int(k)] = values(b)
             self.data[uid] = slots
 
     def values(self, uid: int, k: int) -> Values:
         return self.data.get(uid, {}).get(k, EMPTY)
+
+    def current(self, uid: int) -> Values:
+        """Valores actuales de la tarea (comienzo, fin, duración, trabajo y costo): los que copia --establecer."""
+        return self._current.get(uid, EMPTY)
 
     def notes(self, uid: int) -> str:
         return self._notes.get(uid, "")
@@ -208,12 +230,13 @@ def _prop(k: int, name: str) -> str:
     return f"Baseline{'' if k == 0 else k}{name}"
 
 
-def read_values(com, k: int) -> Values:
+def read_values(com, k: int | None) -> Values:
+    """Línea base k de una tarea de MS Project; k None: los valores actuales (Start, Finish, Duration...)."""
     from evm.reader_com import _dt, _number
 
     def get(name: str):
         try:
-            return getattr(com, _prop(k, name))
+            return getattr(com, _prop(k, name) if k is not None else name)
         except Exception:
             return None
 
@@ -247,6 +270,10 @@ class ComStore:
         com = self.tasks.get(uid)
         return read_values(com, k) if com is not None else EMPTY
 
+    def current(self, uid: int) -> Values:
+        com = self.tasks.get(uid)
+        return read_values(com, None) if com is not None else EMPTY
+
     def notes(self, uid: int) -> str:
         com = self.tasks.get(uid)
         return _notes_of(com) if com is not None else ""
@@ -279,6 +306,9 @@ class State:
 
     def has(self, uid: int, k: int) -> bool:
         return self.dates(uid, k) is not None
+
+    def current(self, uid: int) -> Values:
+        return self.store.current(uid)
 
     def apply(self, changes: list["Change"]) -> None:
         for c in changes:
@@ -395,11 +425,19 @@ def find_targets(scope: Scope, codes: list[str], branch: bool) -> list[Task]:
 
 def plan_branch(state: State, top: Task, branch: bool, action: Action, kind: str = "rama") -> Case:
     """Cambios de la tarea (y de su rama con --rama): la línea base de origen queda vacía y, al mover, el destino
-    recibe una copia exacta. Las tareas sin la línea base de origen no cambian."""
+    recibe una copia exacta. Las tareas sin la línea base de origen no cambian. Al establecer, las tareas sin la línea
+    base de destino reciben sus valores actuales; las que ya la tienen no cambian."""
     case = Case(kind, top, action)
     members = list(iter_subtree(top)) if branch else [top]
     case.members = len(members)
     for t in members:
+        if action.establish:
+            now = state.current(t.uid)
+            if state.has(t.uid, action.dst) or now.empty:
+                case.skipped.append(t)
+            else:
+                case.changes.append(Change(t, action.dst, state.values(t.uid, action.dst), now))
+            continue
         if not state.has(t.uid, action.src):
             case.skipped.append(t)
             continue
@@ -457,6 +495,24 @@ def summary_above(state: State, top: Task, src: int) -> Task | None:
     return a
 
 
+def _left_out(state: State, block: Task, k: int) -> list[Task]:
+    """Tareas de detalle de block sin la línea base k ni ninguna tarea resumen entre ellas y block que la tenga: el PV
+    no las cuenta cuando block tiene alguna subtarea con esa línea base."""
+    out = []
+
+    def walk(t: Task) -> None:
+        for c in t.children:
+            if state.has(c.uid, k):
+                continue
+            if c.children:
+                walk(c)
+            else:
+                out.append(c)
+
+    walk(block)
+    return out
+
+
 def _span(state: State, task: Task, k: int) -> tuple[datetime | None, datetime | None] | None:
     """Comienzo y fin de la línea base k según las subtareas de task (None si ninguna la tiene): las de detalle, o la
     tarea resumen con línea base cuyas subtareas no la tienen (como el PV). Las tareas resumen intermedias no cuentan:
@@ -489,12 +545,18 @@ def check_case(case: Case, state: State, ctx: Context, *, blocks: bool = True) -
         t = task or case.top
         case.issues.append(Issue(id, (t.wbs or "").strip(), t.name, message, uid=t.uid))
 
-    if case.skipped and case.kind == "rama":
+    one = len(case.skipped) == 1
+    if case.skipped and case.kind == "rama" and a.establish:
+        issue("LBA-016", f"{plural(len(case.skipped), 'tarea de la rama ya tiene', 'tareas de la rama ya tienen')} la "
+                         f"{label(a.dst)}: {'conserva sus valores' if one else 'conservan sus valores'} "
+                         f"({_codes_text([_code(t) for t in case.skipped])}).")
+    elif case.skipped and case.kind == "rama":
         issue("LBA-016", f"{plural(len(case.skipped), 'tarea de la rama no tiene', 'tareas de la rama no tienen')} la "
-                         f"{label(a.src)}: no {'cambia' if len(case.skipped) == 1 else 'cambian'} "
+                         f"{label(a.src)}: no {'cambia' if one else 'cambian'} "
                          f"({_codes_text([_code(t) for t in case.skipped])}).")
     if not case.changes:
         return
+    old_block = summary_above(state, case.top, a.dst) if a.establish else None
     if a.dst is not None:
         full = [c.task for c in case.changes if c.slot == a.dst and not c.before.empty]
         if full:
@@ -525,7 +587,14 @@ def check_case(case: Case, state: State, ctx: Context, *, blocks: bool = True) -
                                  f"{_codes_text(case.pv_changed)}.")
     state.apply(case.changes)
     try:
-        block = summary_above(state, case.top, a.src) if blocks else None
+        if old_block is not None:
+            out = _left_out(state, old_block, a.dst)
+            rest = (f" Siguen sin ella: {_codes_text([_code(t) for t in out])}; si también forman parte de la "
+                    f"errata, se incluyen con --tarea {_code(old_block)} --rama." if out else "")
+            issue("LBA-021", f"La tarea resumen {ref(old_block)} tenía la {label(a.dst)} y ninguna de sus subtareas la "
+                             f"tenía (el PV la contaba como un bloque con sus fechas): pasa a contar solo las subtareas "
+                             f"con línea base.{rest}", old_block)
+        block = summary_above(state, case.top, a.src) if blocks and not a.establish else None
         if block is not None:
             effect = (" El PV la contaría como un bloque con sus fechas." if a.src == ctx.pv else
                       " Si esa línea base pasa a usarse para el PV, la contaría como un bloque con sus fechas.")
@@ -847,7 +916,9 @@ def show_case(console: Console, case: Case, number: str, minutes_per_day: float,
         parts = [f"LB {c.slot}: {c.before.short(minutes_per_day)} -> {c.after.short(minutes_per_day)}"
                  for c in changes]
         out(f"    {_code(t):<14} {t.name[:40]:<40}  {' | '.join(parts)}")
-    if not case.changes:
+    if not case.changes and a.establish:
+        out(f"    Todas las tareas ya tienen la {label(a.dst)}: no hay nada que cambiar.")
+    elif not case.changes:
         out(f"    Ninguna tarea tiene la {label(a.src)}: no hay nada que cambiar.")
     for i in case.issues:
         out(f"  {'[!]' if i.id in CONFIRM or i.id in ('LBA-019', 'LBA-020') else '[i]'} {i.id}: {i.message}")
@@ -916,8 +987,9 @@ def write_report(path: Path, project: ProjectData, ctx: Context, cases: list[Cas
         if case.pv_changed:
             lines.append(f"- Filas cuyo PV cambia: {', '.join(case.pv_changed)}")
         if case.skipped:
-            lines.append(f"- Sin la {label(case.action.src)} (no cambian): "
-                         f"{_cell(', '.join(_code(t) for t in case.skipped))}")
+            what = (f"Ya tenían la {label(case.action.dst)} (conservan sus valores)" if case.action.establish else
+                    f"Sin la {label(case.action.src)} (no cambian)")
+            lines.append(f"- {what}: {_cell(', '.join(_code(t) for t in case.skipped))}")
         lines.append("")
         if case.changes:
             lines += ["| Id | Código | Tarea | Línea base | Antes | Después |", "|---:|---|---|---:|---|---|"]
@@ -1062,11 +1134,12 @@ def summary_cases(s: Session, top: Task, src: int) -> None:
 
 def run_interactive(s: Session, targets: list[Task], branch: bool, action: Action) -> None:
     """Recorre los casos: cada tarea de --tarea con su rama y, si queda escrita, las tareas resumen de encima que
-    quedarían como un bloque. Termina al acabar los casos o al elegir salir."""
+    quedarían como un bloque (al mover o borrar; al establecer no queda ninguna: LBA-021 lo informa en el caso).
+    Termina al acabar los casos o al elegir salir."""
     total = len(targets)
     try:
         for n, top in enumerate(targets, start=1):
-            if branch_case(s, top, branch, action, f"{n} de {total}"):
+            if branch_case(s, top, branch, action, f"{n} de {total}") and not action.establish:
                 summary_cases(s, top, action.src)
     except Stop:
         s.console.out("")

@@ -128,7 +128,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
 | [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 33 |
 | [NUM](#417-num--numeración-edt-actualizar-edt) | Numeración EDT (actualizar-edt) | Estructura y códigos EDT | actualizar-edt | 17 |
-| [LBA](#418-lba--corrección-de-línea-base-corregir-linea-base) | Corrección de línea base (corregir-linea-base) | Fechas y duración | corregir-linea-base | 20 |
+| [LBA](#418-lba--corrección-de-línea-base-corregir-linea-base) | Corrección de línea base (corregir-linea-base) | Fechas y duración | corregir-linea-base | 21 |
 | [SIS](#419-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
 
 ---
@@ -3278,7 +3278,7 @@ MS Project no permitió agrupar los cambios en una sola acción de deshacer (Ope
 
 ### 4.18 LBA · Corrección de línea base (corregir-linea-base)
 
-Comando corregir-linea-base: tareas indicadas, avisos que piden confirmación antes de mover o borrar la línea base, y escritura en MS Project.
+Comando corregir-linea-base: tareas indicadas, avisos que piden confirmación antes de mover, borrar o establecer la línea base, y escritura en MS Project.
 
 | Código | Severidad | Descripción |
 |---|---|---|
@@ -3297,11 +3297,12 @@ Comando corregir-linea-base: tareas indicadas, avisos que piden confirmación an
 | [LBA-013](#lba-013) | Advertencia | La línea base de destino es la del PV |
 | [LBA-014](#lba-014) | Advertencia | Fila del libro que se queda sin PV |
 | [LBA-015](#lba-015) | Advertencia | Tarea resumen de encima que quedaría como un bloque |
-| [LBA-016](#lba-016) | Info | Tareas sin la línea base de origen |
+| [LBA-016](#lba-016) | Info | Tareas de la rama que no cambian |
 | [LBA-017](#lba-017) | Info | Tarea resumen de encima que no coincide con sus subtareas |
 | [LBA-018](#lba-018) | Info | Filas del libro cuyo PV cambia |
 | [LBA-019](#lba-019) | Advertencia | Los cambios no se pueden deshacer de una vez |
 | [LBA-020](#lba-020) | Advertencia | Duración, trabajo o costo previstos recalculados |
+| [LBA-021](#lba-021) | Advertencia | Tarea resumen de encima que deja de ser un bloque |
 
 #### LBA-001
 
@@ -3339,9 +3340,9 @@ La tarea indicada es una tarea resumen: sin `--rama` se movería o borraría su 
 
 **Acción no indicada o no válida** · Error (detiene el programa) · corregir-linea-base · no se puede silenciar
 
-Falta la acción (`--de` N `--a` M para mover, o `--borrar` N), se indicaron las dos, o `--de` y `--a` son la misma línea base.
+Falta la acción (`--de` N `--a` M para mover, `--borrar` N o `--establecer` N), se indicó más de una, o `--de` y `--a` son la misma línea base.
 
-**Qué hacer:** Indicar `--de` y `--a` con dos líneas base distintas (0 a 10), o solo `--borrar`.
+**Qué hacer:** Indicar `--de` y `--a` con dos líneas base distintas (0 a 10), o solo `--borrar`, o solo `--establecer`.
 
 #### LBA-006
 
@@ -3425,11 +3426,11 @@ Una tarea resumen por encima de las tareas corregidas conserva la línea base de
 
 #### LBA-016
 
-**Tareas sin la línea base de origen** · Info · corregir-linea-base · se puede silenciar
+**Tareas de la rama que no cambian** · Info · corregir-linea-base · se puede silenciar
 
-Algunas tareas de la rama no tienen la línea base de origen: no cambian (ni en la de destino).
+Al mover o borrar, algunas tareas de la rama no tienen la línea base de origen: no cambian (ni en la de destino). Con `--establecer`, algunas ya tienen la línea base: conservan sus valores.
 
-**Qué hacer:** Ninguna: es informativo.
+**Qué hacer:** Ninguna: es informativo. Para reemplazar la línea base de una tarea que ya la tiene, se establece en MS Project (Establecer línea base, Tareas seleccionadas).
 
 #### LBA-017
 
@@ -3462,6 +3463,14 @@ MS Project no permitió agrupar los cambios en una sola acción de deshacer (Ope
 Al escribir la línea base, MS Project recalculó la duración, el trabajo o el costo previstos de alguna tarea (por ejemplo, el trabajo de una tarea con recursos asignados): no coinciden con los copiados. Las fechas sí son las copiadas.
 
 **Qué hacer:** Revisar esas tareas en MS Project. Las fechas son las que usa el PV; el trabajo y el costo previstos no se usan en el libro.
+
+#### LBA-021
+
+**Tarea resumen de encima que deja de ser un bloque** · Advertencia · corregir-linea-base · se puede silenciar
+
+Con `--establecer`, una tarea resumen por encima tenía la línea base y ninguna de sus subtareas la tenía (el PV la contaba como un bloque con sus fechas). Al establecerla en alguna subtarea, el PV cuenta solo las subtareas con línea base: las que siguen sin ella quedan fuera.
+
+**Qué hacer:** Si esas subtareas también forman parte de la errata, incluirlas: `--tarea` con la tarea resumen y `--rama`.
 
 ---
 

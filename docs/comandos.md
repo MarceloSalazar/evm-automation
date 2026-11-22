@@ -231,9 +231,30 @@ publicada, con la última versión publicada y el commit, como lo muestra GitHub
    las mismas fechas que la línea base usada e **indicios** de un guardado por error: en pocas tareas
    (menos del 10 % de las que tienen la usada; p. ej. al guardar con *Tareas seleccionadas* en otra
    línea base), solo en tareas resumen, o copia de la usada. Después, una sección por línea base: de
-   la que usa el % planificado, cuántas tareas la tienen; de cada una de las demás, sus tareas por
-   código EDT (sin código, por su UniqueID), con una tarea resumen que la tiene con todas sus
-   subtareas indicada una vez, como rama: `` `1.3` (rama, 25 tareas) ``.
+   la que usa el % planificado, cuántas tareas la tienen; de cada una de las demás, sus tareas. Al
+   final, las **tareas sin la línea base que usa el % planificado** (no forman parte del PV), con las
+   otras líneas base que tienen (sin ninguna, o solo con otras). Si su trabajo está aprobado y falta
+   guardarlo, se corrige con `corregir-linea-base --establecer N`
+   ([Líneas base](lineas-base.md#32-las-tres-acciones)).
+
+   Las tareas de cada lista, por código EDT (sin código, por su UniqueID), se indican en dos partes:
+
+   - **Comienzo de cada rama:** la tarea más alta de cada grupo (su tarea superior no está en la
+     lista), que es la que se busca en MS Project, con dónde está (`dentro de 2.3.0.1`, o el nivel) y
+     qué abarca (tarea de detalle, *rama completa (25 tareas)* o tarea resumen con cuántas de sus
+     subtareas están en la lista).
+   - **Detalle:** el esquema con sangría, con las tareas de la lista en negrita y, en texto normal,
+     las tareas resumen de encima que no están en ella, para ver la jerarquía.
+
+   Una tarea resumen con toda su rama en la lista va en una línea, sin desplegar; tres o más tareas de
+   detalle hermanas seguidas, como un rango (`` `1.1.3` a `1.1.11` ``). Por ejemplo, para una línea
+   base adicional:
+
+   ```markdown
+   - **`1.0.0`** — tarea resumen; de sus 12 subtareas, 9 la tienen
+     - `1.1.0` — no la tiene; de sus 11 subtareas, 9 la tienen
+       - **`1.1.3`** a **`1.1.11`** (9 tareas)
+   ```
 5. **Comparación de planificaciones**, si se revisaron varias.
 
 El informe **no incluye nombres** de tareas, de empresas ni de calendarios, ni el título del proyecto: las
@@ -683,7 +704,7 @@ son de ese nivel, y las fichas ya generadas. Los vínculos no cambian: van por I
 
 ---
 
-## `corregir-linea-base`: mueve o borra la línea base de unas tareas
+## `corregir-linea-base`: mueve, borra o establece la línea base de unas tareas
 
 ```powershell
 python evm_export.py corregir-linea-base --origen activo --config config.toml --tarea 3.4.5 --rama --de 2 --a 10 --motivo "Tareas no comunicadas al cliente"
@@ -692,8 +713,10 @@ python evm_export.py corregir-linea-base --origen activo --config config.toml --
 Corrige erratas en la línea base antes de generar el libro: por ejemplo, tareas nuevas que se guardaron en
 la línea base del PV sin la aprobación del cliente. **Mover** (`--de N --a M`) copia los cinco campos de
 la línea base N de cada tarea (comienzo, fin, duración, trabajo y costo previstos) a la M y deja la N
-vacía (NA, o ND en MS Project en español); **borrar** (`--borrar N`) la deja vacía. El motivo se agrega a
-las Notas de cada tarea que cambia.
+vacía (NA, o ND en MS Project en español); **borrar** (`--borrar N`) la deja vacía; **establecer**
+(`--establecer N`) copia a la línea base N los valores actuales de las tareas que no la tienen, como
+*Establecer línea base* de MS Project (por ejemplo, para el desglose de una tarea aprobada que no se
+guardó en la línea base aprobada). El motivo se agrega a las Notas de cada tarea que cambia.
 
 Antes de escribir, avisa de lo que conviene decidir: una fila que se queda sin PV, una tarea resumen de
 encima que quedaría en el PV como un bloque, un destino con valores o un destino que es la línea base
@@ -708,7 +731,7 @@ Los conceptos, las buenas prácticas, las opciones y los avisos están en
 |---|---|
 | `--tarea CODIGO` | Código EDT de la tarea. **Obligatoria.** Se puede repetir; las tareas no deben estar una dentro de otra. |
 | `--rama` | Incluye todas las subtareas de cada `--tarea`. Una tarea resumen sin `--rama` es un error ([LBA-004](codigos.md#lba-004)). |
-| `--de N --a M` / `--borrar N` | Mover de la línea base N a la M, o borrar la N (0 a 10). |
+| `--de N --a M` / `--borrar N` / `--establecer N` | Mover de la línea base N a la M, borrar la N, o establecer la N con los valores actuales en las tareas que no la tienen (0 a 10). Se indica una sola acción. |
 | `--motivo "texto"` | Se agrega al final de las Notas de cada tarea que cambia. **Obligatoria** al escribir (con `--interactivo`, si falta, se pregunta). |
 | `--aprobada N` | Línea base aprobada: si no es la del PV, avisa ([LBA-011](codigos.md#lba-011)). Con `--interactivo`, si falta, se pregunta. |
 | `--interactivo` | Decide caso a caso y escribe un cambio cada vez, con la opción de deshacerlo. |

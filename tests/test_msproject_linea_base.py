@@ -1,7 +1,8 @@
 """Pruebas opcionales con MS Project real de corregir-linea-base: mover la línea base de una tarea a una línea base
 libre en una copia del .mpp cerrada (con respaldo y guardado) y volver a moverla; borrar en una copia abierta (sin
-guardar, con una sola acción de deshacer); el texto de NA que acepta MS Project («NA» en inglés, «ND» en español); y
-la escritura de la línea base de una tarea resumen (trabajo y costo previstos).
+guardar, con una sola acción de deshacer); establecer una línea base libre con los valores actuales; el texto de NA
+que acepta MS Project («NA» en inglés, «ND» en español); y la escritura de la línea base de una tarea resumen
+(trabajo y costo previstos).
 
 Se ejecutan en un PC con MS Project:
 
@@ -169,6 +170,31 @@ def test_open_file_delete_is_not_saved_and_one_undo_restores_it(setup):
         wait_until_closed()
     assert bf.same(got[setup["pv"]], setup["original"]), \
         f"El archivo se guardó con la línea base {setup['pv']} cambiada: {got[setup['pv']].dates()}"
+
+
+def test_establish_copies_the_current_values_to_a_free_baseline(setup):
+    """--establecer en una copia cerrada: la línea base libre recibe los valores actuales (comienzo, fin, duración,
+    trabajo y costo) y la línea base del PV no cambia."""
+    mpp = setup["folder"] / "establecer.mpp"
+    shutil.copyfile(MPP, mpp)
+    with ComSession(str(mpp)) as s:
+        current = bf.read_values(bf.ComStore(s).tasks[setup["uid"]], None)
+    if not setup["was_running"]:
+        wait_until_closed()
+    rc, text = _run("corregir-linea-base", "--origen", mpp, "--config", config_path(), "--tarea", setup["code"],
+                    "--establecer", setup["free"], "--motivo", "Prueba de establecer", "--continuar",
+                    "--sin-respaldo", "--informe", setup["folder"] / "establecer.md")
+    assert rc == 0, f"corregir-linea-base terminó con código {rc} (mensajes: {_codes_of(text)})"
+    got = _values(mpp, setup["uid"], [setup["pv"], setup["free"]])
+    if not setup["was_running"]:
+        wait_until_closed()
+    assert bf.same(got[setup["free"]], current, numbers=False), \
+        f"Fechas establecidas: {got[setup['free']].dates()}; se esperaban las actuales {current.dates()}"
+    print(f"\nEstablecer: duración, trabajo y costo "
+          f"{'iguales a los actuales' if bf.same(got[setup['free']], current) else 'recalculados (LBA-020)'}")
+    assert bf.same(got[setup["pv"]], setup["original"]), "Cambió la línea base del PV"
+    assert got["notes"].replace("\r", "\n").rstrip().endswith(
+        f"Línea base {setup['free']} establecida con los valores actuales: Prueba de establecer")
 
 
 def test_na_text_and_summary_baseline_can_be_written(setup):

@@ -6,8 +6,8 @@ Guía para jefes de proyecto y responsables del informe EVM. Tiene tres partes:
    programa EVM.
 2. [Buenas prácticas](#parte-2-buenas-prácticas): cómo trabajar con las líneas base y qué erratas son
    habituales.
-3. [Comando `corregir-linea-base`](#parte-3-comando-corregir-linea-base): cómo mover o borrar la línea base
-   de unas tareas para corregir erratas, por ejemplo tareas nuevas que se guardaron en una línea base sin
+3. [Comando `corregir-linea-base`](#parte-3-comando-corregir-linea-base): cómo mover, borrar o establecer la
+   línea base de unas tareas para corregir erratas, por ejemplo tareas nuevas que se guardaron en una línea base sin
    la aprobación del cliente.
 
 Los nombres de MS Project se indican en español y, entre paréntesis, en inglés: el programa funciona con
@@ -192,6 +192,7 @@ Tres consecuencias importantes:
 |---|---|---|---|
 | Tareas nuevas guardadas en la línea base del PV sin aprobación | El PV incluye trabajo no aprobado: el plan «persigue» a la realidad | `validar --informe` (análisis de las líneas base); columna *Comienzo previsto* con fechas recientes; fecha de guardado reciente | `corregir-linea-base`: mover a una línea base libre o borrar |
 | Tareas aprobadas que faltan en la línea base aprobada | Faltan en el PV | Tareas con la línea base de una replanificación y sin la aprobada | `corregir-linea-base`: mover a la línea base aprobada |
+| Tareas aprobadas que no se guardaron en ninguna línea base (por ejemplo, el desglose de una tarea aprobada) | Faltan en el PV; si su tarea resumen tiene la línea base, el PV la cuenta como un bloque | `validar --informe` (tareas sin la línea base que usa el % planificado, al final de la sección 4); columna *Comienzo previsto* en NA; `FEC-019` | `corregir-linea-base --establecer N`: establecer la línea base con los valores actuales |
 | Tareas guardadas en otra línea base (no la del PV) | Ninguno en el PV, pero confunde el historial | Columnas *Comienzo previstoN* | `corregir-linea-base`: mover a la línea base correcta |
 | Línea base del proyecto completo guardada por error | Todo el PV pasa a las fechas actuales | Fecha de guardado del día; desvíos que desaparecen | Recuperar de una copia del `.mpp` o de otra línea base (fuera del alcance del comando) |
 | Resumen sin actualizar tras guardar subtareas | Normalmente ninguno; puede formar un bloque en el PV | Fechas previstas de la resumen distintas de las de sus subtareas (`LBA-017`) | Resumir líneas base |
@@ -234,17 +235,26 @@ tareas `3.4.3` y `3.4.4` cuentan en el EV como trabajo no previsto: el paquete a
 terminan. Si el cliente aprueba el cambio, se mueven de la 10 a la 2 con el mismo comando y entran en el PV
 con las fechas que se propusieron.
 
-### 3.2 Las dos acciones
+### 3.2 Las tres acciones
 
 | Acción | Origen | Destino | Uso |
 |---|---|---|---|
 | **Mover** (`--de N --a M`) | Queda en NA | Recibe una copia exacta de la línea base N de cada tarea | Sacar tareas de la línea base del PV sin perder sus fechas (propuesta pendiente), o pasarlas a la línea base correcta |
 | **Borrar** (`--borrar N`) | Queda en NA | — | Sacar tareas de una línea base sin conservar sus fechas |
+| **Establecer** (`--establecer N`) | Los valores actuales de la tarea | La línea base N, solo en las tareas que no la tienen | Dar una línea base a tareas que no tienen ninguna (o no tienen la N): por ejemplo, el desglose de una tarea aprobada que no se guardó en la línea base aprobada |
 
 Campos de cada tarea que se copian o se borran: *Comienzo previsto*, *Fin previsto*, *Duración prevista*,
-*Trabajo previsto* y *Costo previsto* de la línea base indicada. Si el destino ya tiene valores, se
-reemplazan y el informe guarda los anteriores. Una tarea que no tiene la línea base de origen no cambia
+*Trabajo previsto* y *Costo previsto* de la línea base indicada. Al mover, si el destino ya tiene valores,
+se reemplazan y el informe guarda los anteriores. Una tarea que no tiene la línea base de origen no cambia
 (ni en el destino) y se informa (`LBA-016`).
+
+**Establecer** copia a la línea base N los valores actuales de cada tarea (*Comienzo*, *Fin*, *Duración*,
+*Trabajo* y *Costo*), como *Establecer línea base* de MS Project con *Tareas seleccionadas*, pero solo en
+las tareas que no tienen esa línea base: las que ya la tienen conservan sus valores y se informa
+(`LBA-016`). Para reemplazar la línea base de una tarea que ya la tiene, se hace en MS Project. Si una tarea
+resumen de encima tenía la línea base N y ninguna de sus subtareas la tenía (el PV la contaba como un
+bloque), deja de ser un bloque: el PV pasa a contar solo las subtareas con línea base, y el aviso `LBA-021`
+indica las que siguen sin ella (se incluyen con `--tarea <resumen> --rama`).
 
 Desde el punto de vista del PV, **mover y borrar tienen el mismo efecto** cuando el origen es la línea
 base del PV: la tarea sale del PV y sigue contando en el EV. La diferencia es que mover conserva sus fechas
@@ -262,8 +272,12 @@ python evm_export.py corregir-linea-base --origen activo --tarea 3.4.5 --rama --
 # Borrar la línea base 2 de una rama
 python evm_export.py corregir-linea-base --origen activo --tarea 3.4.5 --rama --borrar 2 --motivo "Guardada por error"
 
-# Decidir caso a caso, un cambio cada vez (3.5)
+# Establecer la línea base 0 (la aprobada) en el desglose de 1.1.0, que no se guardó en ella
+python evm_export.py corregir-linea-base --origen activo --tarea 1.1.0 --rama --establecer 0 --motivo "Desglose aprobado no guardado"
+
+# Decidir caso a caso, un cambio cada vez (3.5); también con --borrar o --establecer
 python evm_export.py corregir-linea-base --origen activo --tarea 3.4.5 --rama --de 2 --a 10 --interactivo
+python evm_export.py corregir-linea-base --origen activo --tarea 1.1.0.1 --establecer 0 --interactivo
 ```
 
 | Opción | Uso |
@@ -272,6 +286,7 @@ python evm_export.py corregir-linea-base --origen activo --tarea 3.4.5 --rama --
 | `--rama` | Incluye también todas las subtareas de cada `--tarea` (a cualquier nivel). Una tarea resumen sin `--rama` es un error (`LBA-004`): se movería sin sus subtareas. |
 | `--de N --a M` | Mover de la línea base N a la M (0 a 10, distintas). |
 | `--borrar N` | Borrar la línea base N. Excluye `--de` y `--a`. |
+| `--establecer N` | Establecer la línea base N con los valores actuales en las tareas que no la tienen. Excluye las otras acciones. |
 | `--motivo "texto"` | Texto que se agrega a las Notas de cada tarea que cambia (3.7). **Obligatoria** al escribir; con `--interactivo`, si no se indica, se pregunta. |
 | `--aprobada N` | Línea base aprobada por el cliente. Si no es la del PV, avisa (`LBA-011`). Con `--interactivo`, si no se indica, se pregunta. |
 | `--interactivo` | Pregunta qué hacer con cada caso y escribe un cambio cada vez, que se puede deshacer (3.5). |
@@ -335,8 +350,9 @@ Project antes de seguir:
 3. **Un cambio cada vez.** Al aplicar, escribe el caso en MS Project (sin guardar), con el motivo en las
    Notas, y pregunta cómo quedó: `s` correcto, seguir; `d` deshacer este cambio (el programa vuelve a
    escribir los valores y las Notas anteriores, y pregunta otra vez el caso); `x` salir.
-4. **Tareas resumen de encima.** Después de cada caso escrito, si una tarea resumen de encima conserva la
-   línea base de origen y ninguna de sus subtareas la tiene (`LBA-015`), pregunta qué hacer con ella:
+4. **Tareas resumen de encima** (al mover o borrar). Después de cada caso escrito, si una tarea resumen de
+   encima conserva la línea base de origen y ninguna de sus subtareas la tiene (`LBA-015`), pregunta qué
+   hacer con ella:
 
    | Opción | Cuándo |
    |---|---|
@@ -348,6 +364,10 @@ Project antes de seguir:
 
    Si se mueve o se borra, se revisa la siguiente tarea resumen hacia arriba; si se conserva, las de encima
    ya tienen una subtarea con la línea base.
+
+   Con `--establecer` no queda ninguna tarea resumen como bloque, así que no hay esta pregunta: si una
+   tarea resumen de encima deja de ser un bloque, el caso lo muestra (`LBA-021`) antes de aplicarlo, con
+   las subtareas que seguirían sin la línea base.
 5. **Al salir** (`x`, o al terminar los casos) los cambios hechos se conservan **sin guardar** y el archivo
    queda abierto y visible en MS Project: se revisan y se guarda, o se cierra sin guardar para
    descartarlos. El informe recoge cada caso con la decisión tomada.
@@ -376,8 +396,8 @@ Caso 1 de 1: 3.4.5 «Ensayos» y su rama (3 tareas): mover de la línea base 2 a
 
 ### 3.6 Tareas resumen y avisos que piden confirmación
 
-**Tareas resumen dentro de la rama.** Con `--rama`, la tarea resumen se mueve o se borra junto con sus
-subtareas.
+**Tareas resumen dentro de la rama.** Con `--rama`, la tarea resumen se mueve, se borra o se establece
+junto con sus subtareas.
 
 **Tareas resumen de encima.** El comando no las modifica sin decidirlo:
 
@@ -411,6 +431,7 @@ A cada tarea que cambia se le agrega **al final** de sus Notas una línea como:
 ```text
 21/11/2026 · Línea base 2 movida a línea base 10: Tareas no comunicadas al cliente
 21/11/2026 · Línea base 2 borrada: Guardada por error
+22/11/2026 · Línea base 0 establecida con los valores actuales: Desglose aprobado no guardado
 ```
 
 **Limitación de MS Project:** desde el programa, las Notas se leen y escriben como **texto sin formato**.
@@ -425,8 +446,8 @@ Cada ejecución deja un informe en Markdown (`<origen>_linea-base-AAAAMMDD-HHMMS
 - la acción, el motivo, la línea base del PV, la aprobada, el modo y el resultado;
 - las líneas base del proyecto (tareas, fecha de guardado y marcas);
 - las observaciones, con las opciones de los avisos que piden confirmación;
-- cada caso: la decisión (en `--interactivo`), el resultado, las filas cuyo PV cambia, las tareas sin la
-  línea base de origen, una tabla con los cinco campos antes y después en cada línea base, y las Notas
+- cada caso: la decisión (en `--interactivo`), el resultado, las filas cuyo PV cambia, las tareas que no
+  cambian (sin la línea base de origen o, al establecer, que ya la tenían), una tabla con los cinco campos antes y después en cada línea base, y las Notas
   anteriores.
 
 El informe lleva nombres de tareas: es de uso interno.

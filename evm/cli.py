@@ -9,6 +9,7 @@
     python evm_export.py generar-cliente --origen interno.mpp --simular
     python evm_export.py actualizar-edt --origen activo --desde 2.7.1
     python evm_export.py corregir-linea-base --origen activo --tarea 3.4.5 --rama --de 2 --a 10 --motivo "..."
+    python evm_export.py corregir-linea-base --origen activo --tarea 1.1.0.1 --establecer 0 --interactivo
 """
 from __future__ import annotations
 
@@ -1022,7 +1023,7 @@ def cmd_corregir_linea_base(args) -> int:
     from evm import baseline_fix as bf
     from evm.edt_renumber import backup_path
     from evm.wbs import build_tree, select_scope
-    action = bf.parse_action(args.de, args.a, args.borrar)
+    action = bf.parse_action(args.de, args.a, args.borrar, args.establecer)
     name, origen, cfg = _edt_source(cfg, args, command="corregir-linea-base")
     files = [(name, origen, cfg)]
     engine = _engine_for(origen, args.motor)
@@ -1148,7 +1149,8 @@ def cmd_corregir_linea_base(args) -> int:
                 for c in cases:
                     c.result = "simulación" if c.changes else "sin cambios"
             elif not changes:
-                result = "No hay cambios: ninguna tarea indicada tiene la línea base de origen."
+                result = ("No hay cambios: todas las tareas indicadas ya tienen la línea base." if action.establish else
+                          "No hay cambios: ninguna tarea indicada tiene la línea base de origen.")
             elif confirm and not args.continuar:
                 result = (f"No se escribió nada: hay {plural(len(confirm), 'aviso que pide', 'avisos que piden')} "
                           "confirmación. Se vuelve a ejecutar con la opción elegida (--continuar, o --interactivo para "
@@ -1457,9 +1459,9 @@ def build_parser() -> argparse.ArgumentParser:
     e.add_argument("--sobrescribir", action="store_true", help="reemplaza el informe de --informe si existe")
     e.set_defaults(func=cmd_actualizar_edt)
 
-    b = sub.add_parser("corregir-linea-base", help="mueve o borra la línea base de tareas indicadas por su código EDT "
-                                                   "(con --rama, con todas sus subtareas), para corregir erratas; "
-                                                   "agrega el motivo a las Notas. Ver docs/lineas-base.md")
+    b = sub.add_parser("corregir-linea-base", help="mueve, borra o establece la línea base de tareas indicadas por su "
+                                                   "código EDT (con --rama, con todas sus subtareas), para corregir "
+                                                   "erratas; agrega el motivo a las Notas. Ver docs/lineas-base.md")
     common_source(b)
     b.add_argument("--proyecto", metavar="NOMBRE",
                    help="con varios archivos ([[proyectos]] en la configuración): el archivo que se corrige, por su "
@@ -1473,6 +1475,10 @@ def build_parser() -> argparse.ArgumentParser:
     b.add_argument("--a", type=int, choices=range(0, 11), metavar="M", help="mover a la línea base M (0 a 10)")
     b.add_argument("--borrar", type=int, choices=range(0, 11), metavar="N",
                    help="borrar la línea base N (queda vacía: NA, o ND en MS Project en español)")
+    b.add_argument("--establecer", type=int, choices=range(0, 11), metavar="N",
+                   help="establecer la línea base N con los valores actuales (comienzo, fin, duración, trabajo y "
+                        "costo) en las tareas que no la tienen, como «Establecer línea base» de MS Project; las que "
+                        "ya la tienen no cambian")
     b.add_argument("--motivo", metavar="TEXTO", help="motivo de la corrección: se agrega al final de las Notas de "
                                                      "cada tarea que cambia (obligatorio al escribir)")
     b.add_argument("--aprobada", type=int, choices=range(0, 11), metavar="N",

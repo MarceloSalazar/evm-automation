@@ -60,8 +60,12 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   planificaciones pasa a ser la 5): cada línea base guardada en las tareas de la planificación, con sus
   tareas, fechas, fecha de guardado (con un .mpp) e indicios de un guardado por error (en pocas tareas,
   solo en tareas resumen o copia de la que usa el % planificado). De la que usa el % planificado se indica
-  cuántas tareas la tienen; de las demás, sus tareas por código EDT, con las ramas completas agrupadas.
-  Sirve para detectar líneas base adicionales guardadas por error
+  cuántas tareas la tienen; de las demás, sus tareas por código EDT. Al final, las tareas sin la línea
+  base que usa el % planificado, con las otras líneas base que tienen (sin ninguna, o solo con otras).
+  Cada lista indica primero el comienzo de cada rama (la tarea que se busca en MS Project, con dónde está
+  y qué abarca) y después el detalle en un esquema con sangría, con las tareas resumen de encima para
+  ver la jerarquía; las ramas completas van en una línea y las tareas hermanas seguidas, como un rango. Sirve para detectar líneas base adicionales guardadas por error
+  y tareas que faltan en la línea base
   ([Informe de mejoras](docs/comandos.md#informe-de-mejoras)).
 - **`--origen` con prioridad sobre `[[proyectos]]`:** si la configuración tiene varios archivos y se indica
   una sola ruta en `--origen` (sin `NOMBRE=`), se lee solo ese archivo, con la planificación y la línea base
@@ -79,7 +83,8 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   informe con los cambios. Con varios archivos (`[[proyectos]]`), `--proyecto NOMBRE` indica cuál se
   numera, con la ruta, la planificación y la línea base de su sección. Códigos nuevos `NUM-001` a `NUM-017`
   ([actualizar-edt](docs/comandos.md#actualizar-edt-numera-los-códigos-edt-de-una-rama)).
-- **Comando `corregir-linea-base`:** mueve (`--de N --a M`) o borra (`--borrar N`) la línea base de las
+- **Comando `corregir-linea-base`:** mueve (`--de N --a M`), borra (`--borrar N`) o establece
+  (`--establecer N`, con los valores actuales, solo en las tareas que no la tienen) la línea base de las
   tareas indicadas por su código EDT (`--tarea`, con `--rama` para incluir todas sus subtareas), para
   corregir erratas antes de generar el libro: por ejemplo, tareas nuevas guardadas en la línea base del PV
   sin la aprobación del cliente. Mover copia los cinco campos (comienzo, fin, duración, trabajo y costo
@@ -90,7 +95,9 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   `--interactivo` muestra las líneas base del proyecto, pregunta cuál es la aprobada y decide caso a caso,
   con un cambio cada vez que se puede deshacer; con las tareas resumen de encima ofrece moverlas a la
   aprobada, borrarlas, moverlas a otra línea base u omitirlas. El motivo (`--motivo`) se agrega a las Notas
-  de cada tarea. Cada ejecución deja un informe. Códigos nuevos `LBA-001` a `LBA-020`. Guía nueva
+  de cada tarea. Establecer da una línea base a tareas que no la tienen (por ejemplo, el desglose de una
+  tarea aprobada) y avisa si una tarea resumen de encima deja de contar en el PV como un bloque. Cada
+  ejecución deja un informe. Códigos nuevos `LBA-001` a `LBA-021`. Guía nueva
   [Líneas base en MS Project y en el programa EVM](docs/lineas-base.md), con los conceptos, las buenas
   prácticas y el comando.
 
