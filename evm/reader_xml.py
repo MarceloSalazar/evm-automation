@@ -211,7 +211,7 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True, client: bool = F
     try:
         ev_baseline = int(r.text(root, "BaselineForEarnedValue") or 0)
     except ValueError:
-        ev_baseline = 0
+        ev_baseline = -1
     n = cfg.baseline if cfg.baseline is not None else (ev_baseline if 0 <= ev_baseline <= 10 else 0)
     tasks_el = root.find(r.q("Tasks"))
     if tasks_el is None:
@@ -332,7 +332,7 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True, client: bool = F
         baseline_found=any_baseline, warnings=warnings, calendar=calendar, fields_found=found,
         minutes_per_day=per_day if per_day > 0 else 480.0,
         multiple_critical_paths=critical_paths in ("1", "true", "True") if critical_paths else None,
-        baseline_number=n,
+        baseline_number=n, ev_baseline=ev_baseline if 0 <= ev_baseline <= 10 else None,
     )
     if not any_baseline:
         use_current_schedule(project)

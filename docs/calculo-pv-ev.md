@@ -338,7 +338,7 @@ Casos especiales (se informan en `Validación`):
 | `Peso hito` negativo | Se toma como 0. |
 | Ninguna tarea con duración ni hito con peso | Todas las tareas pesan igual. |
 | Tarea sin fechas de línea base (agregada después de guardarla) en una fila con otras tareas con línea base | No forma parte del % planificado, que es el de la línea base aprobada: cuenta en el % ganado y en la fecha de fin ([abajo](#tareas-sin-línea-base-retrabajo-y-trabajo-no-previsto)). Con `generar --pv-fechas-actuales`, se usan sus fechas actuales. |
-| Ninguna tarea de la fila tiene línea base | Se usan sus fechas actuales y se advierte. |
+| Ninguna tarea de la fila tiene línea base | La fila no tiene % planificado: su BAC debe ser 0 hasta que el trabajo se apruebe ([FEC-019](codigos.md#fec-019)). Con `generar --pv-fechas-actuales`, se usan sus fechas actuales. |
 | Ninguna tarea de la fila tiene fechas | La fila no tiene % planificado: su BAC no se puede repartir en el tiempo. |
 
 En las filas con el método `Ponderado` el peso de cada tarea sale del campo de peso, por tarea resumen
@@ -374,8 +374,9 @@ ser la de la subtarea. `generar` y `validar` lo informan con [FEC-019](codigos.m
 nuevo es un cambio aprobado, se guarda su línea base (*Tareas seleccionadas* y *Resumir líneas base*) y
 entra en el PV.
 
-Si ninguna tarea de la fila tiene línea base, se usan las fechas actuales, como en un proyecto sin línea base
-([FEC-010](codigos.md#fec-010)). Con `generar --pv-fechas-actuales` se usa el criterio anterior a la 2.7.0:
+Si ninguna tarea de la fila tiene línea base, la fila no tiene % planificado: es trabajo no aprobado y su
+BAC debe ser 0 hasta que el cliente lo apruebe ([FEC-019](codigos.md#fec-019)). Para sacar de la línea base
+tareas que se guardaron sin aprobación, ver [Líneas base](lineas-base.md). Con `generar --pv-fechas-actuales` se usa el criterio anterior a la 2.7.0:
 las tareas sin línea base forman el % planificado con sus fechas actuales. El libro guarda el criterio con
 que se generó y `actualizar` lo usa para comparar el % planificado con la línea base de MS Project
 ([ACT-047](codigos.md#act-047)); los libros anteriores a la 2.7.0 se comparan con el criterio anterior.
@@ -820,7 +821,7 @@ comportamiento esperado de ese método.
 |---|---|
 | El PV y el EV de cada fila son el BAC × ... | Recordatorio de dónde se ingresa el BAC. |
 | N tareas sin línea base no forman parte del % planificado | Se agregaron después de guardar la línea base (retrabajo o trabajo no previsto): cuentan en el % ganado, no en el PV. Si son trabajo aprobado, guardar su línea base. |
-| N tareas no tienen fechas de línea base | Ninguna tarea de su fila tiene línea base (o `--pv-fechas-actuales`): se usaron sus fechas actuales. |
+| N tareas no tienen fechas de línea base | Con `generar --pv-fechas-actuales`: las tareas sin línea base forman el % planificado con sus fechas actuales. |
 | Los pesos de los hitos suman X % | Pesos mayores que 100, o menores sin tareas con duración: se escalaron a 100 %. |
 | Las tareas no tienen duración ni hitos con peso | Todas las tareas de la fila pesan igual. |
 | Ninguna tarea de la fila tiene fechas | La fila no tiene % planificado: su BAC no se puede repartir. |

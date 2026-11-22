@@ -41,7 +41,8 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   con esa tarea como un bloque. Una subtarea sin línea base (un retrabajo o trabajo no previsto, agregado
   después de guardarla) ya no cambia el PV ni las fechas del Plan de su fila, tampoco al regenerar con
   `--migrar-desde`: cuenta en el % ganado y en la fecha de fin de la hoja `EV` (`FEC-019`, advertencia,
-  nuevo). Si ninguna tarea de la fila tiene línea base se siguen usando las fechas actuales. El criterio
+  nuevo). Si ninguna tarea de la fila tiene línea base, la fila no tiene % planificado: su BAC debe ser 0
+  hasta que el trabajo se apruebe (`FEC-019` lo indica). El criterio
   anterior se mantiene con la opción nueva `generar --pv-fechas-actuales`; el libro guarda el criterio y
   `actualizar` lo usa al comparar con la línea base de MS Project (`ACT-047`)
   ([Tareas sin línea base](docs/calculo-pv-ev.md#tareas-sin-línea-base-retrabajo-y-trabajo-no-previsto)).
@@ -78,6 +79,20 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   informe con los cambios. Con varios archivos (`[[proyectos]]`), `--proyecto NOMBRE` indica cuál se
   numera, con la ruta, la planificación y la línea base de su sección. Códigos nuevos `NUM-001` a `NUM-017`
   ([actualizar-edt](docs/comandos.md#actualizar-edt-numera-los-códigos-edt-de-una-rama)).
+- **Comando `corregir-linea-base`:** mueve (`--de N --a M`) o borra (`--borrar N`) la línea base de las
+  tareas indicadas por su código EDT (`--tarea`, con `--rama` para incluir todas sus subtareas), para
+  corregir erratas antes de generar el libro: por ejemplo, tareas nuevas guardadas en la línea base del PV
+  sin la aprobación del cliente. Mover copia los cinco campos (comienzo, fin, duración, trabajo y costo
+  previstos) y deja el origen vacío (NA, o ND en MS Project en español). Antes de escribir avisa de lo que
+  conviene decidir: una fila que se queda sin PV, una tarea resumen de encima que quedaría en el PV como un
+  bloque (no se modifica sin decidirlo), un destino con valores, un destino que es la línea base del PV o
+  una línea base aprobada (`--aprobada`) que no es la del PV; sin `--continuar` no escribe nada. Con
+  `--interactivo` muestra las líneas base del proyecto, pregunta cuál es la aprobada y decide caso a caso,
+  con un cambio cada vez que se puede deshacer; con las tareas resumen de encima ofrece moverlas a la
+  aprobada, borrarlas, moverlas a otra línea base u omitirlas. El motivo (`--motivo`) se agrega a las Notas
+  de cada tarea. Cada ejecución deja un informe. Códigos nuevos `LBA-001` a `LBA-020`. Guía nueva
+  [Líneas base en MS Project y en el programa EVM](docs/lineas-base.md), con los conceptos, las buenas
+  prácticas y el comando.
 
 ### Correcciones
 

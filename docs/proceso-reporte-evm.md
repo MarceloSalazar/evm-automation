@@ -195,6 +195,8 @@ gantt
 
 La línea base solo se modifica por **cambios aprobados** (alcance, plazo o presupuesto), nunca para
 "borrar" desviaciones de desempeño.
+Qué guarda cada línea base, cuál usa el PV, buenas prácticas y cómo corregir tareas guardadas por error
+(`corregir-linea-base`): [Líneas base en MS Project y en el programa EVM](lineas-base.md).
 
 ```mermaid
 flowchart TD

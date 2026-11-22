@@ -126,6 +126,8 @@ class ProjectData:
     baseline_number: int = 0
     # Fecha en que se guardó cada línea base (número -> fecha); solo con COM, en validar (el XML no la incluye)
     baseline_saved: dict[int, datetime] = field(default_factory=dict)
+    # Línea base del valor acumulado configurada en MS Project (Opciones > Avanzado; None = no se leyó o no es válida)
+    ev_baseline: int | None = None
 
 
 def use_current_schedule(project: ProjectData) -> None:

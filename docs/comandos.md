@@ -2,14 +2,15 @@
 
 [Inicio](../README.md) › [Documentación](README.md) › Comandos y opciones
 
-El programa tiene ocho comandos: `validar` (revisa el archivo de MS Project sin crear ningún
+El programa tiene nueve comandos: `validar` (revisa el archivo de MS Project sin crear ningún
 archivo), `generar` (crea el libro con el % planificado de cada mes), `actualizar` (carga el % ganado
 de un mes), `analizar` (actualiza la hoja `Análisis de desviaciones` sin leer MS Project),
 `generar-fichas` (crea un documento con la ficha de cada tarea para el cliente), `procesar-costes`
 (revisa el plan de costes de una empresa y escribe sus cálculos, en un libro con
 [depuración de costes](depuracion-costes.md)), `generar-cliente` (genera el `.mpp` del cliente a partir
-de la planificación interna; ver [Planificación para el cliente](generar-cliente.md)) y `actualizar-edt`
-(numera los códigos EDT de una rama según la jerarquía de MS Project). El BAC y el AC se ingresan a mano en el libro
+de la planificación interna; ver [Planificación para el cliente](generar-cliente.md)), `actualizar-edt`
+(numera los códigos EDT de una rama según la jerarquía de MS Project) y `corregir-linea-base` (mueve o
+borra la línea base de unas tareas para corregir erratas; ver [Líneas base](lineas-base.md)). El BAC y el AC se ingresan a mano en el libro
 ([Cálculo del PV y el EV](calculo-pv-ev.md)). La ayuda se obtiene con:
 
 ```powershell
@@ -22,6 +23,7 @@ python evm_export.py generar-fichas --help
 python evm_export.py procesar-costes --help
 python evm_export.py generar-cliente --help
 python evm_export.py actualizar-edt --help
+python evm_export.py corregir-linea-base --help
 ```
 
 Con el [instalador de Windows](../README.md#opción-1-instalador-para-windows-sin-python), el programa se
@@ -681,6 +683,42 @@ son de ese nivel, y las fichas ya generadas. Los vínculos no cambian: van por I
 
 ---
 
+## `corregir-linea-base`: mueve o borra la línea base de unas tareas
+
+```powershell
+python evm_export.py corregir-linea-base --origen activo --config config.toml --tarea 3.4.5 --rama --de 2 --a 10 --motivo "Tareas no comunicadas al cliente"
+```
+
+Corrige erratas en la línea base antes de generar el libro: por ejemplo, tareas nuevas que se guardaron en
+la línea base del PV sin la aprobación del cliente. **Mover** (`--de N --a M`) copia los cinco campos de
+la línea base N de cada tarea (comienzo, fin, duración, trabajo y costo previstos) a la M y deja la N
+vacía (NA, o ND en MS Project en español); **borrar** (`--borrar N`) la deja vacía. El motivo se agrega a
+las Notas de cada tarea que cambia.
+
+Antes de escribir, avisa de lo que conviene decidir: una fila que se queda sin PV, una tarea resumen de
+encima que quedaría en el PV como un bloque, un destino con valores o un destino que es la línea base
+del PV. Sin `--continuar` no escribe nada (código de salida 1); con `--interactivo` pregunta caso a caso y
+escribe un cambio cada vez, que se puede deshacer. El archivo abierto y el `.mpp` cerrado se tratan como
+en `actualizar-edt` (sin guardar y una sola acción de deshacer, o copia de respaldo y guardado).
+
+Los conceptos, las buenas prácticas, las opciones y los avisos están en
+[Líneas base en MS Project y en el programa EVM](lineas-base.md#parte-3-comando-corregir-linea-base).
+
+| Opción | Descripción |
+|---|---|
+| `--tarea CODIGO` | Código EDT de la tarea. **Obligatoria.** Se puede repetir; las tareas no deben estar una dentro de otra. |
+| `--rama` | Incluye todas las subtareas de cada `--tarea`. Una tarea resumen sin `--rama` es un error ([LBA-004](codigos.md#lba-004)). |
+| `--de N --a M` / `--borrar N` | Mover de la línea base N a la M, o borrar la N (0 a 10). |
+| `--motivo "texto"` | Se agrega al final de las Notas de cada tarea que cambia. **Obligatoria** al escribir (con `--interactivo`, si falta, se pregunta). |
+| `--aprobada N` | Línea base aprobada: si no es la del PV, avisa ([LBA-011](codigos.md#lba-011)). Con `--interactivo`, si falta, se pregunta. |
+| `--interactivo` | Decide caso a caso y escribe un cambio cada vez, con la opción de deshacerlo. |
+| `--continuar` | Escribe aunque haya avisos que piden confirmación. |
+| `--simular` | Muestra los cambios y escribe el informe, sin escribir en MS Project. Admite el XML. |
+| `--informe RUTA` | Informe en Markdown. Por defecto `<origen>_linea-base-AAAAMMDD-HHMMSS.md` junto al archivo (con `activo`, `LINEA-BASE-AAAAMMDD-HHMMSS.md` en la carpeta actual). |
+| `--origen`, `--proyecto`, `--sin-respaldo`, `--sobrescribir`, `--config`, `--planificacion`, `--linea-base`, `--motor`, `--visible`, `--silenciar` | Como en `actualizar-edt`. `--linea-base` indica la línea base del PV. |
+
+---
+
 ## Ejemplos frecuentes
 
 ```powershell
@@ -712,6 +750,9 @@ python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx --calculos
 # Planificación: numerar las subtareas de 2.7.1 en el proyecto abierto (revisar en MS Project y guardar)
 python evm_export.py actualizar-edt --origen activo --config config.toml --desde 2.7.1
 
+# Errata: sacar de la línea base del PV (la 2) una rama nueva no aprobada, conservando sus fechas en la 10
+python evm_export.py corregir-linea-base --origen activo --config config.toml --tarea 3.4.5 --rama --de 2 --a 10 --motivo "No comunicada al cliente" --interactivo
+
 # Varios archivos de MS Project ([[proyectos]] en la configuración): sin --origen
 python evm_export.py generar --config config.toml --salida EVM_Programa.xlsx
 python evm_export.py actualizar --config config.toml --libro EVM_Programa.xlsx
@@ -729,7 +770,7 @@ Todos los comandos terminan con un código que permite usarlos en procesos autom
 | Código | Significado |
 |---|---|
 | 0 | El comando terminó correctamente. En `validar`: no hay errores, aunque puede haber advertencias. |
-| 1 | `validar` encontró errores (`[X]`) en el archivo de MS Project: se deben corregir antes de generar o actualizar el libro. En `actualizar-edt`: hay errores y no se escribió ningún código. Ningún otro comando termina con 1. |
+| 1 | `validar` encontró errores (`[X]`) en el archivo de MS Project: se deben corregir antes de generar o actualizar el libro. En `actualizar-edt`: hay errores y no se escribió ningún código. En `corregir-linea-base`: hay avisos que piden confirmación y no se escribió nada. Ningún otro comando termina con 1. |
 | 2 | El comando no se pudo ejecutar por un problema previsto, explicado en el mensaje `ERROR CFG-001: ...` (con su [código](codigos.md)): configuración no válida, archivo inexistente o sin permiso, libro abierto en Excel o con un formato que no se reconoce, MS Project que no responde, error de lectura o escritura (disco lleno, unidad de red no disponible) u opción mal escrita. |
 | 3 | Error inesperado del programa (`ERROR SIS-001: error inesperado: ...`). Se debe ejecutar de nuevo con `-v` y, si se repite, informarlo en un [ticket](https://github.com/MarceloSalazar/evm-automation/issues/new/choose) con ese detalle. |
 | 130 | Ejecución cancelada con Ctrl+C. |

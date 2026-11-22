@@ -122,6 +122,21 @@ de un día laborable, por eso se admite una pequeña diferencia. Los mensajes de
 códigos EDT, UniqueID, fechas y porcentajes (con multi-empresa, «empresa A» y «empresa B»), y los datos
 del proyecto no aparecen si una prueba falla.
 
+`test_msproject_edt.py` y `test_msproject_linea_base.py` (misma marca) prueban la escritura de
+`actualizar-edt` y de `corregir-linea-base` en copias del `.mpp` de `EVM_MPP`: en un archivo cerrado (copia
+de respaldo y guardado) y en uno abierto (sin guardar, con una sola acción de deshacer que un Ctrl+Z
+quita). La de `corregir-linea-base` mueve la línea base del PV de una tarea a una línea base libre y la
+devuelve, comprueba que los valores vuelven a ser los originales y que el motivo quedó en las Notas,
+muestra el texto de NA que acepta MS Project («NA» en inglés, «ND» en español) y escribe la línea base de
+una tarea resumen. Opcionales: `EVM_EDT_DESDE` (rama de `actualizar-edt`), `EVM_LB_TAREA` (tarea de
+`corregir-linea-base`; por defecto, la primera de detalle con la línea base del PV) y `EVM_LB_LIBRE`
+(línea base libre; por defecto, la última sin tareas). Se recomienda ejecutarlas también con MS Project en
+español:
+
+```powershell
+python -m pytest tests/test_msproject_edt.py tests/test_msproject_linea_base.py -m msproject -v -s
+```
+
 El proyecto de ejemplo (`ejemplos/programa_ejemplo.xml`) y su generador se describen en el
 [tutorial](ejemplo-paso-a-paso.md). El segundo proyecto de ejemplo (`ejemplos/proyecto2_ejemplo.xml`,
 para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyecto 2`.
@@ -161,6 +176,7 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/progress.py` | Barra de progreso de la consola (etapas de cada comando, %, tiempo transcurrido y ETA, refresco cada medio segundo). |
 | `evm/review.py` | Informe de mejoras de `validar` (`--informe`): observaciones por prioridad con la causa y qué hacer del catálogo, sin nombres; datos de cada revisión, evaluación DCMA, análisis de las líneas base y comparación de planificaciones (la DCMA y la comparación también en la consola). |
 | `evm/edt_renumber.py` | Comando `actualizar-edt`: códigos nuevos de las subtareas de una rama (tareas protegidas, orden y saltos), escritura en MS Project en una sola acción de deshacer, comprobación e informe. |
+| `evm/baseline_fix.py` | Comando `corregir-linea-base`: cambios de la línea base de cada tarea de una rama, avisos que piden confirmación (filas sin PV, tareas resumen que quedarían como un bloque), escritura en MS Project con NA o ND según el idioma, motivo en las Notas, modo interactivo con deshacer, e informe. |
 | `evm/task_cards.py` | Comando `generar-fichas`: ficha de cada elemento EDT del libro (fechas y duración de la línea base, predecesoras y sucesoras) y documento Markdown. |
 | `instalador/` | Instalador de Windows: `construir.py`, especificación de PyInstaller, script de Inno Setup y consola ([3.2](#32-instalador-de-windows)). |
 

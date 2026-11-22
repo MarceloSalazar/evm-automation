@@ -159,6 +159,7 @@ W_REVIEW = "generar con depuracion_costes (hoja Validación)"
 W_PROC = "procesar-costes"
 W_ACT = "actualizar"
 W_NUM = "actualizar-edt"
+W_LBA = "corregir-linea-base"
 W_AN = "actualizar y analizar"
 W_ROW = "actualizar (observaciones por fila)"
 W_FIC = "generar-fichas"
@@ -214,6 +215,9 @@ AREAS = {a.prefix: a for a in [
     Area("NUM", "Numeración EDT (actualizar-edt)", TOPIC_WBS, W_NUM,
          "Comando actualizar-edt: tarea de --desde, tareas protegidas, orden y saltos de sus códigos, y escritura "
          "en MS Project."),
+    Area("LBA", "Corrección de línea base (corregir-linea-base)", TOPIC_DATES, W_LBA,
+         "Comando corregir-linea-base: tareas indicadas, avisos que piden confirmación antes de mover o borrar la "
+         "línea base, y escritura en MS Project."),
     Area("SIS", "Errores del sistema", TOPIC_BOOK, W_ALL,
          "Errores de archivos del sistema y errores inesperados del programa."),
 ]}
@@ -762,8 +766,9 @@ _CODES = [
           "línea base guardada es la aprobada y está completa, indicarla con linea_base (en [[proyectos]], la del "
           "archivo) o --linea-base."),
     _code("FEC-010", W, "Tareas sin fechas de línea base",
-          "Algunas tareas no tienen fechas de línea base (p. ej. se agregaron después de guardarla): su % "
-          "planificado se calculó con sus fechas actuales. Un resumen con la cantidad y una línea por tarea.",
+          "Con generar --pv-fechas-actuales, algunas tareas no tienen fechas de línea base (p. ej. se agregaron "
+          "después de guardarla): su % planificado se calculó con sus fechas actuales (sin esa opción quedan fuera "
+          "del PV: FEC-019). Un resumen con la cantidad y una línea por tarea.",
           "Si corresponde, actualizar la línea base de esas tareas."),
     _code("FEC-011", W, "Tarea sin fechas de línea base",
           "Desde la versión 2.6.0, el resumen y cada tarea se informan con FEC-010.",
@@ -1801,6 +1806,101 @@ _CODES = [
           "código escrito es una acción.",
           "Revisar los cambios y guardar el archivo, o cerrarlo sin guardar para descartarlos."),
 
+    # --- LBA: corrección de línea base (corregir-linea-base) ----------------------------------------------------
+    _code("LBA-001", F, "No se encontró la tarea de --tarea",
+          "Ninguna tarea de la planificación tiene el código EDT indicado en --tarea. Los ceros finales no cuentan: "
+          "3.4 es también la tarea 3.4.0.",
+          "Revisar el código y la planificación elegida ([exportacion] planificacion o --planificacion)."),
+    _code("LBA-002", F, "Código de --tarea repetido",
+          "Varias tareas de la planificación tienen el código EDT de --tarea: no se sabe cuál corregir.",
+          "Elegir la planificación con --planificacion o corregir el código duplicado (validar lo informa con "
+          "EDT-009)."),
+    _code("LBA-003", F, "Tareas de --tarea superpuestas",
+          "Una tarea de --tarea está dentro de la rama de otra (o se repite): ya se corrige con la otra.",
+          "Indicar solo la tarea superior, o ramas separadas."),
+    _code("LBA-004", F, "Tarea resumen sin --rama",
+          "La tarea indicada es una tarea resumen: sin --rama se movería o borraría su línea base sin la de sus "
+          "subtareas.",
+          "Agregar --rama para corregir la tarea con todas sus subtareas, o indicar las subtareas una a una."),
+    _code("LBA-005", F, "Acción no indicada o no válida",
+          "Falta la acción (--de N --a M para mover, o --borrar N), se indicaron las dos, o --de y --a son la misma "
+          "línea base.",
+          "Indicar --de y --a con dos líneas base distintas (0 a 10), o solo --borrar."),
+    _code("LBA-006", F, "Archivo de corregir-linea-base sin indicar",
+          "corregir-linea-base trabaja con un archivo de MS Project. La configuración tiene varias secciones "
+          "[[proyectos]] y no se indicó cuál (o el nombre no existe), o se usó --proyecto sin [[proyectos]].",
+          "Indicar el archivo con --proyecto NOMBRE, con uno de los nombres de [[proyectos]]. Sin [[proyectos]], "
+          "indicarlo con --origen."),
+    _code("LBA-007", F, "La escritura necesita MS Project",
+          "La línea base solo se escribe en un archivo .mpp o en el proyecto abierto en MS Project (activo). Con un "
+          "XML solo se puede simular.",
+          "Indicar el archivo .mpp o activo, o usar --simular para ver los cambios."),
+    _code("LBA-008", F, "Falta el motivo",
+          "Al escribir, el motivo de la corrección es obligatorio: se agrega al final de las Notas de cada tarea "
+          "que cambia, para que quede constancia en el archivo.",
+          "Indicar --motivo \"texto\" (con --interactivo, si no se indica, se pregunta)."),
+    _code("LBA-009", F, "--interactivo no se puede usar",
+          "--interactivo pregunta en la consola y escribe en MS Project un cambio cada vez: necesita una consola "
+          "en la que responder y no se combina con --simular.",
+          "Ejecutar el comando en una consola (PowerShell o símbolo del sistema), sin --simular. Para ver los "
+          "cambios sin escribirlos, usar --simular sin --interactivo."),
+    _code("LBA-010", F, "Error al escribir la línea base en MS Project",
+          "MS Project devolvió un error al escribir un campo de la línea base o las Notas, no aceptó dejar vacía "
+          "una fecha (NA o ND), o un valor no coincide con el previsto al volver a leerlo. El programa vuelve a "
+          "escribir los valores anteriores de las tareas del cambio.",
+          "Revisar las tareas en MS Project (o cerrar el archivo sin guardar) y ejecutar con -v para ver el detalle. "
+          "Si se repite, corregir la línea base a mano en MS Project."),
+    _code("LBA-011", W, "La línea base aprobada no es la del PV",
+          "La línea base aprobada (--aprobada o la respuesta de --interactivo) no es la que usa el PV: linea_base "
+          "de la configuración o, si no se indica, la línea base del valor acumulado de MS Project. El PV no sería "
+          "el aprobado. No se escribe nada sin confirmarlo.",
+          "Indicar linea_base con la aprobada en la configuración, o elegirla para el valor acumulado en MS Project "
+          "(Archivo > Opciones > Avanzado). Para seguir igualmente, --continuar (o continuar en --interactivo)."),
+    _code("LBA-012", W, "La línea base de destino ya tiene valores",
+          "Al mover, la línea base de destino de alguna tarea ya tiene fechas: se reemplazan por las de origen (los "
+          "valores anteriores quedan en el informe). No se escribe nada sin confirmarlo.",
+          "Revisar las tareas; para reemplazar los valores, --continuar (o aplicar en --interactivo)."),
+    _code("LBA-013", W, "La línea base de destino es la del PV",
+          "Las tareas se mueven a la línea base que usa el PV: entran en el PV, lo que equivale a aprobar el "
+          "cambio. No se escribe nada sin confirmarlo.",
+          "Confirmar con --continuar (o aplicar en --interactivo) solo si el cliente aprobó el cambio."),
+    _code("LBA-014", W, "Fila del libro que se queda sin PV",
+          "Después del cambio, ninguna tarea de la fila tiene la línea base del PV: la fila no tendrá % planificado "
+          "y su BAC debe ser 0 hasta que el trabajo se apruebe. No se escribe nada sin confirmarlo.",
+          "Si el trabajo no está aprobado, confirmar con --continuar y poner el BAC de la fila en 0; o ubicar las "
+          "tareas en MS Project dentro de una fila existente, como trabajo no previsto de ese paquete; o no corregir "
+          "si el trabajo sí estaba aprobado."),
+    _code("LBA-015", W, "Tarea resumen de encima que quedaría como un bloque",
+          "Una tarea resumen por encima de las tareas corregidas conserva la línea base de origen y ninguna de sus "
+          "subtareas la tendrá: el PV la cuenta como un bloque con sus fechas. Es lo correcto si su línea base está "
+          "aprobada (la tarea se desglosó después en subtareas); si también es nueva, seguiría en el PV por error. "
+          "El programa no la modifica sin decidirlo. No se escribe nada sin confirmarlo.",
+          "Si su línea base está aprobada, --continuar la conserva. Si también es nueva, incluirla con --tarea "
+          "CODIGO --rama, o decidir con --interactivo (moverla a la línea base aprobada, borrarla, moverla a otra "
+          "u omitirla)."),
+    _code("LBA-016", I, "Tareas sin la línea base de origen",
+          "Algunas tareas de la rama no tienen la línea base de origen: no cambian (ni en la de destino).",
+          "Ninguna: es informativo."),
+    _code("LBA-017", I, "Tarea resumen de encima que no coincide con sus subtareas",
+          "Las fechas de la línea base de una tarea resumen por encima de las corregidas ya no coinciden con las de "
+          "sus subtareas (por ejemplo, abarca tareas que se sacaron). El programa no la modifica. No cambia el PV: "
+          "una tarea resumen con subtareas con línea base no forma parte del PV.",
+          "Si se quiere, corregirla en MS Project: seleccionar las subtareas, Establecer línea base con «Resumir "
+          "líneas base» en la tarea superior."),
+    _code("LBA-018", I, "Filas del libro cuyo PV cambia",
+          "Las tareas corregidas forman parte del PV de esas filas: su PV cambia (y el BAC repartido en el tiempo).",
+          "Ninguna: es informativo. El libro se genera después de la corrección."),
+    _code("LBA-019", W, "Los cambios no se pueden deshacer de una vez",
+          "MS Project no permitió agrupar los cambios en una sola acción de deshacer (OpenUndoTransaction): cada "
+          "valor escrito es una acción.",
+          "Revisar los cambios y guardar el archivo, o cerrarlo sin guardar para descartarlos."),
+    _code("LBA-020", W, "Duración, trabajo o costo previstos recalculados",
+          "Al escribir la línea base, MS Project recalculó la duración, el trabajo o el costo previstos de alguna "
+          "tarea (por ejemplo, el trabajo de una tarea con recursos asignados): no coinciden con los copiados. Las "
+          "fechas sí son las copiadas.",
+          "Revisar esas tareas en MS Project. Las fechas son las que usa el PV; el trabajo y el costo previstos no "
+          "se usan en el libro."),
+
     # --- SIS: errores del sistema -------------------------------------------------------------------------------
     _code("SIS-001", F, "Error inesperado",
           "Un error no previsto del programa (código de salida 3).",
@@ -1817,7 +1917,8 @@ del F, E, W, I
 
 CATALOG: dict[str, Code] = {c.id: c for c in _CODES}
 # El resumen de las observaciones silenciadas y los avisos del registro de diagnóstico (no son observaciones)
-UNSILENCEABLE = {"CFG-049", "LEC-022"}
+# Los avisos de corregir-linea-base que piden confirmación no se silencian: impiden escribir
+UNSILENCEABLE = {"CFG-049", "LEC-022", "LBA-011", "LBA-012", "LBA-013", "LBA-014", "LBA-015"}
 SUMMARY_ID = "CFG-049"
 
 

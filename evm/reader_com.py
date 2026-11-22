@@ -34,6 +34,7 @@ log = logging.getLogger(__name__)
 PJ_DO_NOT_SAVE = 0                            # pjDoNotSave
 PJ_POOL_READ_ONLY = 1                         # pjPoolReadOnly (no pregunta; abre subproyectos)
 MSO_AUTOMATION_SECURITY_FORCE_DISABLE = 3     # sin macros
+MSO_AUTOMATION_SECURITY_BY_UI = 2             # la de la configuración de seguridad de MS Project (uso normal)
 
 PROGID = "MSProject.Application"
 # Espera máxima (segundos) a que responda MS Project: una instancia que se está cerrando (p. ej. la que
@@ -47,6 +48,27 @@ def _dt(v) -> datetime | None:
         if not 1984 <= v.year <= 2149:
             return None
         return datetime(v.year, v.month, v.day, v.hour, v.minute, v.second)
+    return None
+
+
+# Texto del valor vacío de un campo de fecha: «NA» en MS Project en inglés, «ND» en español (el valor depende del
+# idioma de MS Project; al leer, cualquier valor que no es una fecha se toma como vacío)
+NA_TEXTS = ("NA", "ND")
+
+
+def set_na(obj, prop: str, first: str | None = None) -> str | None:
+    """Deja vacío el campo de fecha prop de obj: prueba «NA» y «ND» (primero first, el que funcionó antes) y vuelve a
+    leer el campo. Devuelve el texto aceptado, o None si MS Project no aceptó ninguno."""
+    for text in dict.fromkeys(([first] if first else []) + list(NA_TEXTS)):
+        try:
+            setattr(obj, prop, text)
+        except Exception:
+            continue
+        try:
+            if _dt(getattr(obj, prop)) is None:
+                return text
+        except Exception:
+            continue
     return None
 
 
@@ -333,6 +355,28 @@ class ComSession:
         self.opened_by_us = True
         self._opened_names = (self._open_project_names() or set()) - before
 
+    def hand_over(self) -> None:
+        """Deja MS Project y el proyecto en manos del usuario (corregir-linea-base --interactivo): visible, con sus
+        avisos (al cerrar sin guardar pregunta) y sin cerrarlo al terminar. Si el programa inició MS Project, los
+        avisos y la seguridad de macros vuelven a sus valores habituales."""
+        app = self.app
+        props = (self._saved_app_props if not self.started_by_us else
+                 {"DisplayAlerts": True, "AutomationSecurity": MSO_AUTOMATION_SECURITY_BY_UI})
+        for prop, value in props.items():
+            if value is not None:
+                try:
+                    setattr(app, prop, value)
+                except Exception:
+                    pass
+        self._saved_app_props = {}
+        for prop in ("Visible", "UserControl"):
+            try:
+                setattr(app, prop, True)
+            except Exception:
+                pass
+        self.opened_by_us = self.started_by_us = False
+        self._prev_active = None            # el proyecto corregido queda como proyecto activo
+
     def save(self) -> None:
         """Guarda el proyecto en su archivo (solo la copia que escribe generar-cliente, abierta con read_only=False)."""
         if self.read_only:
@@ -358,10 +402,13 @@ class ComSession:
     def _cleanup(self) -> None:
         try:
             if self.project is not None and self._status_changed and not self.opened_by_us:
-                try:
-                    self.project.StatusDate = self._orig_status if self._orig_status is not None else "NA"
-                except Exception:
-                    pass
+                if _dt(self._orig_status) is not None:
+                    try:
+                        self.project.StatusDate = self._orig_status
+                    except Exception:
+                        pass
+                else:
+                    set_na(self.project, "StatusDate")
             if self.project is not None and self.opened_by_us:
                 try:
                     self.project.Activate()
@@ -664,6 +711,7 @@ class ComSession:
             minutes_per_day=hours * 60 if hours and hours > 0 else 480.0,
             multiple_critical_paths=bool(critical_paths) if isinstance(critical_paths, (bool, int)) else None,
             baseline_number=n, baseline_saved=saved_dates,
+            ev_baseline=ev_baseline if 0 <= ev_baseline <= 10 else None,
         )
         if not any_baseline:
             use_current_schedule(project)

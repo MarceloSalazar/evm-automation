@@ -143,6 +143,9 @@ planificación; mientras no la apruebe, **no se define línea base**.
 - Retrabajo o trabajo no previsto, sin cambio aprobado: la tarea se agrega **sin línea base**.
 - La línea base no se modifica al registrar el avance ni al reprogramar.
 - Cada cambio de línea base se justifica en las **Notas** de las tareas afectadas.
+- Una tarea guardada por error en una línea base se corrige con `corregir-linea-base` (mover o borrar su
+  línea base, con el motivo en las Notas), no editando a mano *Comienzo previsto*
+  ([Líneas base](lineas-base.md)).
 
 **Cómo afecta al informe EVM:**
 

@@ -173,8 +173,11 @@ Detalle y ejemplos en [Métodos de medición](metodos-de-medicion.md).
 3. Retrabajo o trabajo no previsto (sin cambio de alcance): la subtarea se agrega **sin línea base**. No
    cambia el PV de su fila, ni al regenerar el libro, pero cuenta en el % ganado y en la fecha de fin
    ([Tareas sin línea base](calculo-pv-ev.md#tareas-sin-línea-base-retrabajo-y-trabajo-no-previsto)).
-3. Copia de cada línea base aprobada en *Línea base 1..10* (*Establecer plan provisional*, *Copiar:
+4. Copia de cada línea base aprobada en *Línea base 1..10* (*Establecer plan provisional*, *Copiar:
    Línea base*, *En: Línea base N*).
+5. Tareas guardadas por error en una línea base (por ejemplo, tareas nuevas sin aprobación del cliente):
+   se mueven a otra línea base o se borra la suya con `corregir-linea-base`, que deja el motivo en las
+   Notas. Conceptos, buenas prácticas y el comando: [Líneas base](lineas-base.md).
 
 ![Esquema del cuadro Establecer línea base](img/ms-project/establecer-linea-base.svg)
 
