@@ -94,7 +94,8 @@ def setup(tmp_path_factory):
                          and pv in t.baseline_dates and not t.milestone), None)
         if task is None:
             pytest.skip("No hay ninguna tarea de detalle con código EDT y con la línea base del PV.")
-        summary = next((t for t in scope.tasks() if t.children and pv in t.baseline_dates), None)
+        summary = next((t for t in scope.tasks() if t.children and (t.wbs or "").strip()
+                        and pv in t.baseline_dates), None)
         data.update(cfg=cfg, pv=pv, free=free, uid=task.uid, code=task.wbs.strip(),
                     original=bf.read_values(store.tasks[task.uid], pv),
                     notes=bf._notes_of(store.tasks[task.uid]),
@@ -144,11 +145,18 @@ def test_open_file_delete_is_not_saved_and_one_undo_restores_it(setup):
     shutil.copyfile(MPP, mpp)
     disk = _hash(mpp)
     with ComSession(str(mpp), read_only=False) as outer:
+        opened = _hash(mpp)
         rc, text = _run("corregir-linea-base", "--origen", mpp, "--config", config_path(), "--tarea", setup["code"],
                         "--borrar", setup["pv"], "--motivo", "Borrado de prueba", "--continuar",
                         "--informe", setup["folder"] / "abierto.md")
+        after = _hash(mpp)
+        # Diagnóstico: MS Project puede reescribir el .mpp al abrirlo para escribir o con el autoguardado; lo que se
+        # comprueba de verdad es que en el disco sigue la línea base original (al final, ya cerrado sin guardar).
+        print(f"\nArchivo en el disco: {'cambió' if opened != disk else 'igual'} al abrirlo en MS Project; "
+              f"{'cambió' if after != opened else 'igual'} durante corregir-linea-base")
         assert rc == 0, f"corregir-linea-base terminó con código {rc} (mensajes: {_codes_of(text)})"
-        assert "sin guardar" in text and _hash(mpp) == disk, "El archivo abierto se guardó"
+        assert "sin guardar" in text, "corregir-linea-base no dejó el archivo abierto sin guardar"
+        assert not list(setup["folder"].glob("abierto.respaldo-*.mpp")), "Quedó un respaldo de un archivo sin guardar"
         com = bf.ComStore(outer).tasks[setup["uid"]]
         assert bf.read_values(com, setup["pv"]).empty
         assert "Ctrl+Z" in text, "Los cambios no se agruparon en una sola acción de deshacer (LBA-019)"
@@ -156,8 +164,11 @@ def test_open_file_delete_is_not_saved_and_one_undo_restores_it(setup):
         com = bf.ComStore(outer).tasks[setup["uid"]]
         assert bf.same(bf.read_values(com, setup["pv"]), setup["original"]), "Un Ctrl+Z no restauró la línea base"
         assert bf._notes_of(com) == setup["notes"], "Un Ctrl+Z no restauró las Notas"
+    got = _values(mpp, setup["uid"], [setup["pv"]])
     if not setup["was_running"]:
         wait_until_closed()
+    assert bf.same(got[setup["pv"]], setup["original"]), \
+        f"El archivo se guardó con la línea base {setup['pv']} cambiada: {got[setup['pv']].dates()}"
 
 
 def test_na_text_and_summary_baseline_can_be_written(setup):

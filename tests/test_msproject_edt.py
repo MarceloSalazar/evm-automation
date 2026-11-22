@@ -147,18 +147,26 @@ def test_open_file_is_not_saved_and_one_undo_restores_it(setup):
     shutil.copyfile(MPP, mpp)
     disk = _hash(mpp)
     with ComSession(str(mpp), read_only=False) as outer:
+        opened = _hash(mpp)
         rc, text = _run("actualizar-edt", "--origen", mpp, "--config", config_path(), "--desde", setup["start"],
                         "--informe", setup["folder"] / "abierto.md")
+        # Diagnóstico: MS Project puede reescribir el .mpp al abrirlo para escribir o con el autoguardado; lo que se
+        # comprueba de verdad es que en el disco siguen los códigos originales (al final, ya cerrado sin guardar).
+        print(f"\nArchivo en el disco: {'cambió' if opened != disk else 'igual'} al abrirlo en MS Project; "
+              f"{'cambió' if _hash(mpp) != opened else 'igual'} durante actualizar-edt")
         assert rc == 0, f"actualizar-edt terminó con código {rc}"
         assert "sin guardar" in text and not list(setup["folder"].glob("abierto.respaldo-*.mpp"))
         got = _codes(outer.read_project(setup["cfg"], links=False))
         diffs = _diffs(got, setup["expected"])
         assert not diffs, _report(diffs)
-        assert _hash(mpp) == disk, "El archivo abierto se guardó"
         assert "Ctrl+Z" in text, "Los cambios no se agruparon en una sola acción de deshacer (NUM-017)"
         outer.app.EditUndo()
         got = _codes(outer.read_project(setup["cfg"], links=False))
         diffs = _diffs(got, setup["before"])
         assert not diffs, "Un Ctrl+Z no deshizo todos los cambios. " + _report(diffs)
+    with ComSession(str(mpp)) as s:
+        got = _codes(s.read_project(setup["cfg"], links=False))
     if not setup["was_running"]:
         wait_until_closed()
+    diffs = _diffs(got, setup["before"])
+    assert not diffs, "El archivo se guardó con los códigos cambiados. " + _report(diffs)
