@@ -159,32 +159,29 @@ def _task_tree(picked_names, situation=None):
     return TaskTree(every, lambda x: x.wbs, selected, "la tienen", lambda x: "no la tiene"), t
 
 
-def test_task_tree_shows_where_each_branch_starts_and_the_hierarchy():
-    # Una rama completa va en una línea, sin desplegar
+def test_task_tree_lists_each_branch_with_its_tasks_below():
+    # Cada rama en una línea sin sangría, con dónde está; una rama completa no se despliega
     tt, _t = _task_tree(["Grupo", "A", "B", "C", "D", "E", "F"])
-    assert tt.starts() == ["- `1.1` — dentro de `1`; rama completa (6 tareas)", "- `1.2` — dentro de `1`; tarea de detalle"]
-    assert tt.detail() == ["- `1` — no la tiene; de sus 7 subtareas, 7 la tienen",
-                           "  - **`1.1`** — rama completa (6 tareas)", "  - **`1.2`**"]
-    # La fase la tiene, el grupo no: las tareas del grupo son comienzos de rama dentro de la de la fase; tres o más
-    # hermanas seguidas, como un rango
+    assert tt.lines() == ["- **`1.1`** — dentro de `1`; rama completa (6 tareas)",
+                          "- **`1.2`** — dentro de `1`; tarea de detalle"]
+    # La fase la tiene, el grupo no: debajo de la fase, el grupo en texto normal y sus tareas que la tienen, una por
+    # línea, con 4 espacios de sangría por nivel
     tt, _t = _task_tree(["Fase", "A", "B", "C", "E"])
-    assert tt.starts() == ["- `1` — nivel 1; tarea resumen; de sus 7 subtareas, 4 la tienen",
-                           "- `1.1.1` a `1.1.3` — dentro de `1.1`; 3 tareas de detalle",
-                           "- `1.1.5` — dentro de `1.1`; tarea de detalle"]
-    assert tt.detail() == ["- **`1`** — tarea resumen; de sus 7 subtareas, 4 la tienen",
-                           "  - `1.1` — no la tiene; de sus 5 subtareas, 4 la tienen",
-                           "    - **`1.1.1`** a **`1.1.3`** (3 tareas)",
-                           "    - **`1.1.5`**"]
-    # Una hermana que no está corta el rango; una situación distinta, también
-    tt, _t = _task_tree(["A", "B", "C"], {"C": "solo con la Línea base 1"})
-    assert tt.detail()[-3:] == ["    - **`1.1.1`**", "    - **`1.1.2`**", "    - **`1.1.3`** — solo con la Línea base 1"]
-    tt, t = _task_tree(["E"])
+    assert tt.lines() == ["- **`1`** — nivel 1; tarea resumen; de sus 7 subtareas, 4 la tienen",
+                          "    - `1.1` — no la tiene; de sus 5 subtareas, 4 la tienen",
+                          "        - **`1.1.1`**",
+                          "        - **`1.1.2`**",
+                          "        - **`1.1.3`**",
+                          "        - **`1.1.5`**"]
+    # Situación de cada tarea; sin código EDT, el UniqueID
+    tt, t = _task_tree(["A", "E"], {"E": "solo con la Línea base 1"})
     t["E"].wbs = ""
-    assert tt.starts() == [f"- `UID {t['E'].uid}` — dentro de `1.1`; tarea de detalle"]
+    assert tt.lines() == ["- **`1.1.1`** — dentro de `1.1`; tarea de detalle",
+                          f"- **`UID {t['E'].uid}`** — dentro de `1.1`; tarea de detalle; solo con la Línea base 1"]
     # Una tarea resumen que la tiene sin ninguna subtarea con ella; una tarea superior sin código: el nivel
     tt, t = _task_tree(["Grupo"])
     t["Fase"].wbs = ""
-    assert tt.starts() == ["- `1.1` — nivel 2; tarea resumen; ninguna de sus 5 subtareas la tiene"]
+    assert tt.lines() == ["- **`1.1`** — nivel 2; tarea resumen; ninguna de sus 5 subtareas la tiene"]
 
 
 def test_validar_report_analyses_every_baseline(tmp_path):
@@ -200,15 +197,12 @@ def test_validar_report_analyses_every_baseline(tmp_path):
     assert "### Línea base\n\n13 tareas de 13 (la usa el % planificado)." in text     # solo cuántas
     lb1 = text[text.index("### Línea base 1\n"):text.index("### Línea base 2\n")]
     assert "1 tarea tiene la Línea base 1 (ninguna resumen)." in lb1
-    assert "- `1.1.1` — dentro de `1.1.0`; tarea de detalle\n" in lb1
-    assert "- `1.0.0` — no la tiene; de sus 12 subtareas, 1 la tiene\n  - `1.1.0` — no la tiene" in lb1
+    assert "\n- **`1.1.1`** — dentro de `1.1.0`; tarea de detalle\n" in lb1
     lb2 = text[text.index("### Línea base 2\n"):text.index("### Tareas sin la Línea base\n")]
     assert "10 tareas tienen la Línea base 2 (1 resumen)." in lb2
-    assert ("- `1.0.0` — nivel 1; tarea resumen; de sus 12 subtareas, 9 la tienen\n"
-            "- `1.1.3` a `1.1.11` — dentro de `1.1.0`; 9 tareas de detalle\n") in lb2
-    assert ("- **`1.0.0`** — tarea resumen; de sus 12 subtareas, 9 la tienen\n"
-            "  - `1.1.0` — no la tiene; de sus 11 subtareas, 9 la tienen\n"
-            "    - **`1.1.3`** a **`1.1.11`** (9 tareas)\n") in lb2
+    assert ("- **`1.0.0`** — nivel 1; tarea resumen; de sus 12 subtareas, 9 la tienen\n"
+            "    - `1.1.0` — no la tiene; de sus 11 subtareas, 9 la tienen\n"
+            + "".join(f"        - **`1.1.{k}`**\n" for k in range(3, 12))) in lb2
 
 
 def test_validar_report_lists_the_tasks_without_the_used_baseline(tmp_path):
@@ -228,15 +222,13 @@ def test_validar_report_lists_the_tasks_without_the_used_baseline(tmp_path):
                            "planificado: 2 sin ninguna línea base y 1 solo con otras.")
     assert "--establecer 0" in part
     # Comienzos de rama: el grupo (sin ninguna, pero con una subtarea solo con la 1: no es una rama completa) y 1.3
-    # La situación más frecuente se indica una vez; en cada tarea, solo las demás
-    assert "Salvo que se indique otra cosa, las tareas de las listas están sin ninguna línea base." in part
-    assert ("- `1.1.0` — dentro de `1.0.0`; tarea resumen; de sus 2 subtareas, 2 no la tienen\n"
-            "- `1.3.0` — dentro de `1.0.0`; tarea de detalle\n") in part
-    assert ("- `1.0.0` — la tiene; de sus 5 subtareas, 4 no la tienen\n"
-            "  - **`1.1.0`** — tarea resumen; de sus 2 subtareas, 2 no la tienen\n"
+    # La situación más frecuente se indica una vez; en cada tarea, solo las demás. El grupo no es una rama completa:
+    # una subtarea está solo con la Línea base 1
+    assert "Salvo que se indique otra cosa, las tareas están sin ninguna línea base." in part
+    assert ("- **`1.1.0`** — dentro de `1.0.0`; tarea resumen; de sus 2 subtareas, 2 no la tienen\n"
             "    - **`1.1.1`**\n"
             "    - **`1.1.2`** — solo con la Línea base 1\n"
-            "  - **`1.3.0`**\n") in part
+            "- **`1.3.0`** — dentro de `1.0.0`; tarea de detalle\n") in part
     # Con todas las tareas con la línea base usada
     assert main(["validar", "--origen", str(baselines_xml(tmp_path)), "--informe", "--sobrescribir"]) in (0, 1)
     text = (tmp_path / "p_mejoras.md").read_text(encoding="utf-8")

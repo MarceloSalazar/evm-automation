@@ -237,6 +237,32 @@ def test_establishing_the_pv_baseline_asks_for_confirmation_and_changes_the_pv()
     assert not case.changes and [t.wbs for t in case.skipped] == ["1.1.1"]
 
 
+def test_all_targets_are_the_first_task_of_each_branch():
+    # Otra fase sin la línea base 0, con una subtarea que sí la tiene
+    extra = [_task(11, 1, "2", "Otra fase", {}, 1), _task(12, 2, "2.1", "Con 0", {0: JAN}, 1)]
+    _p, scope, state, _ctx = _setup(extra=extra)
+    assert [t.wbs for t in bf.all_targets(scope, state, bf.Action(0, None))] == ["1", "2.1"]
+    # Al establecer: las ramas que no la tienen en ninguna tarea
+    assert [t.wbs for t in bf.all_targets(scope, state, bf.Action(None, 0))] == ["1.1.2", "1.2", "1.3.1"]
+
+
+def test_a_large_case_is_shown_as_a_summary_by_branch():
+    _p, scope, state, ctx = _setup()
+    case = bf.plan_branch(state, bf.find_task(scope, "1"), True, bf.Action(0, None))
+    out: list[str] = []
+    bf.show_case(bf.Console(ask=lambda q: "", out=out.append), case, "1 de 1", 480, limit=2, state=state, pv=1)
+    text = "\n".join(out)
+    assert "4 tareas cambian (3 resumen, 1 de detalle); 6 tareas de la rama no cambian." in text
+    assert "Fechas de la línea base 0: del 05/01/2026 al 27/03/2026." in text
+    assert "Con las mismas fechas en la línea base 1 (la del PV): 4 tareas." in text
+    assert ("Tareas que cambian, por rama:\n"
+            "      - 1 — nivel 1; tarea resumen; de sus 9 subtareas, 3 cambian\n"
+            "          - 1.1 — tarea resumen; de sus 4 subtareas, 1 cambia\n"
+            "              - 1.1.1\n"
+            "          - 1.3 — tarea resumen; su única subtarea no cambia") in text
+    assert "Existente" not in text          # el resumen no lista las tareas una a una con su nombre
+
+
 def test_approved_baseline_that_is_not_the_pv_one():
     _p, _scope, _state, ctx = _setup(pv=1, approved=0)
     issue = bf.approved_issue(ctx)
@@ -617,6 +643,47 @@ def test_command_interactive_establishes(mpp, tmp_path, monkeypatch):
     assert rc == 0, text
     assert s.com[10].BaselineStart == Q1[0] and not s.saved and not s.closed
     assert "Interactivo: 1 tarea cambiada en MS Project, sin guardar" in text
+
+
+@pytest.mark.parametrize("extra", [[], ["--tarea", "1.2", "--todas"]])
+def test_command_needs_either_tarea_or_todas(mpp, extra):
+    path, cfg = mpp
+    rc, text = _run("corregir-linea-base", "--origen", path, "--config", cfg, "--borrar", "0", "--simular", *extra)
+    assert rc == 2 and "LBA-022" in text, text
+
+
+def test_command_todas_writes_every_branch_with_the_reason_only_in_the_report(mpp, tmp_path):
+    path, cfg = mpp
+    args = ["corregir-linea-base", "--origen", path, "--config", cfg, "--todas", "--borrar", "0", "--motivo",
+            "Línea base sin uso", "--continuar"]
+    rc, text = _run(*args, "--informe", tmp_path / "r1.md")
+    s = FakeComSession.last
+    assert rc == 0 and "--todas: 1 rama de la planificación" in text, text
+    assert all(s.com[u].BaselineStart == "NA" for u in (1, 2, 3, 9)) and s.com[3].Notes == ""
+    body = (tmp_path / "r1.md").read_text(encoding="utf-8")
+    assert "- Tareas: todas las ramas de la planificación (--todas)" in body
+    assert "Motivo: Línea base sin uso" in body and "--notas lo agrega" in body
+    # --notas: también en las Notas
+    rc, text = _run(*args, "--notas", "--informe", tmp_path / "r2.md")
+    s = FakeComSession.last
+    assert rc == 0 and s.com[3].Notes.endswith("Línea base 0 borrada: Línea base sin uso"), text
+
+
+def test_command_interactive_todas_goes_branch_by_branch(mpp, tmp_path, monkeypatch):
+    path, cfg = mpp
+    # Al establecer la 0: tres ramas (1.1.2, 1.2 y 1.3.1). Aplicar la primera, omitir la segunda, salir en la tercera
+    answers = iter(["0", "c", "Errata", "s", "s", "o", "x"])
+    monkeypatch.setattr(bf, "console_available", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda q="": next(answers))
+    rc, text = _run("corregir-linea-base", "--origen", path, "--config", cfg, "--todas", "--establecer", "0",
+                    "--interactivo", "--informe", tmp_path / "r.md")
+    s = FakeComSession.last
+    assert rc == 0, text
+    assert "Caso 1 de 3" in text and "Caso 2 de 3" in text and "Caso 3 de 3" in text
+    assert s.com[4].BaselineStart == Q1[0] and s.com[5].BaselineStart == Q1[0]     # 1.1.2 y su rama
+    assert s.com[7].BaselineStart == "NA" and s.com[10].BaselineStart == "NA"      # omitida; no aplicada
+    assert s.com[4].Notes == "" and "con el motivo en el informe" in text
+    assert not s.saved and not s.closed
 
 
 @pytest.mark.parametrize("started", [True, False])

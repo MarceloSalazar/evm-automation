@@ -423,6 +423,35 @@ def find_targets(scope: Scope, codes: list[str], branch: bool) -> list[Task]:
     return found
 
 
+def all_targets(scope: Scope, state: State, action: Action) -> list[Task]:
+    """--todas: la primera tarea de cada rama de la planificación a la que afecta la acción, como en el informe de
+    validar (la más alta del grupo: su tarea superior no está en él). Al mover o borrar, las tareas con la línea base
+    de origen; al establecer, las que no tienen la de destino en toda su rama. Cada una es un caso, con su rama."""
+    roots = list(scope.roots)
+    if action.establish:
+        lacking: dict[int, bool] = {}
+        for t in reversed(list(scope.tasks())):         # las subtareas van después de su tarea resumen
+            lacking[t.uid] = not state.has(t.uid, action.dst) and all(lacking[c.uid] for c in t.children)
+
+        def hit(t: Task) -> bool:
+            return lacking[t.uid]
+    else:
+        def hit(t: Task) -> bool:
+            return state.has(t.uid, action.src)
+
+    out: list[Task] = []
+
+    def walk(kids: list[Task]) -> None:
+        for t in kids:
+            if hit(t):
+                out.append(t)
+            else:
+                walk(t.children)
+
+    walk(roots)
+    return out
+
+
 def plan_branch(state: State, top: Task, branch: bool, action: Action, kind: str = "rama") -> Case:
     """Cambios de la tarea (y de su rama con --rama): la línea base de origen queda vacía y, al mover, el destino
     recibe una copia exacta. Las tareas sin la línea base de origen no cambian. Al establecer, las tareas sin la línea
@@ -788,12 +817,13 @@ def case_notes(case: Case, state: State, motivo: str, when: datetime) -> dict[in
 
 
 def write_cases(writer: ComWriter, cases: list[Case], state: State, motivo: str, when: datetime,
-                name: str = UNDO_NAME) -> bool:
-    """Escribe los cambios y las notas de los casos en una acción de deshacer. Si MS Project da un error, restaura
-    los valores anteriores (y lo indica en el mensaje). Devuelve si los cambios quedaron en una sola acción."""
+                name: str = UNDO_NAME, notes_on: bool = True) -> bool:
+    """Escribe los cambios y, con notes_on, el motivo en las Notas de cada tarea, en una acción de deshacer. Si MS
+    Project da un error, restaura los valores anteriores (y lo indica en el mensaje). Devuelve si los cambios
+    quedaron en una sola acción."""
     changes = [c for case in cases for c in case.changes]
     notes: dict[int, tuple[Task, str]] = {}
-    for case in cases:
+    for case in cases if notes_on else []:
         notes.update(case_notes(case, state, motivo, when))
     grouped = writer.begin(name)
     try:
@@ -901,7 +931,42 @@ def baseline_lines(project: ProjectData, ctx: Context) -> list[str]:
     return lines
 
 
-def show_case(console: Console, case: Case, number: str, minutes_per_day: float, limit: int = 30) -> None:
+def case_summary(case: Case, state: State | None = None, pv: int | None = None, limit: int = 40) -> list[str]:
+    """Resumen de un caso con muchas tareas: cuántas cambian, las fechas de la línea base de origen (y cuántas
+    tienen las mismas que la del PV) y las tareas que cambian por rama (como en el informe de validar), con las
+    ramas completas plegadas."""
+    from evm.review import TaskTree
+    a = case.action
+    tasks = case.tasks
+    summaries = sum(1 for t in tasks if t.children)
+    lines = [f"    {plural(len(tasks), 'tarea cambia', 'tareas cambian')} ({fmt_number(summaries, 0)} resumen, "
+             f"{fmt_number(len(tasks) - summaries, 0)} de detalle)"
+             + (f"; {plural(len(case.skipped), 'tarea de la rama no cambia', 'tareas de la rama no cambian')}"
+                if case.skipped else "") + "."]
+    source = [c.before if a.src is not None else c.after for c in case.changes
+              if c.slot == (a.src if a.src is not None else a.dst)]
+    starts = [v.start for v in source if v.start is not None]
+    finishes = [v.finish for v in source if v.finish is not None]
+    if starts or finishes:
+        which = label(a.src) if a.src is not None else f"{label(a.dst)} (valores actuales)"
+        lines.append(f"    Fechas de la {which}: del {_day(min(starts) if starts else None)} al "
+                     f"{_day(max(finishes) if finishes else None)}.")
+    if state is not None and pv is not None and a.src is not None and a.src != pv:
+        same_dates = sum(1 for c in case.changes if c.slot == a.src and state.dates(c.task.uid, pv) is not None
+                         and same(c.before, Values(*state.dates(c.task.uid, pv)), numbers=False))
+        lines.append(f"    Con las mismas fechas en la {label(pv)} (la del PV): {plural(same_dates, 'tarea', 'tareas')}.")
+    tree = TaskTree(list(iter_subtree(case.top)), lambda t: (t.wbs or "").strip(), {t.uid: "" for t in tasks},
+                    "cambian", lambda t: "no cambia").lines()
+    lines.append("    Tareas que cambian, por rama:")
+    lines += [f"      {x.replace('**', '').replace('`', '')}" for x in tree[:limit]]      # consola: sin Markdown
+    if len(tree) > limit:
+        lines.append(f"      ... y {len(tree) - limit} líneas más (todas las tareas están en el informe).")
+    return lines
+
+
+def show_case(console: Console, case: Case, number: str, minutes_per_day: float, limit: int = 30,
+              state: State | None = None, pv: int | None = None) -> None:
+    """Cambios de un caso: tarea a tarea si son pocos; si no, un resumen (case_summary)."""
     out = console.out
     out("")
     out(f"Caso {number}: {case.title()}")
@@ -909,10 +974,11 @@ def show_case(console: Console, case: Case, number: str, minutes_per_day: float,
     rows = {}
     for c in case.changes:
         rows.setdefault(c.task.uid, (c.task, []))[1].append(c)
-    for i, (t, changes) in enumerate(rows.values()):
-        if i == limit:
-            out(f"    ... y {len(rows) - limit} tareas más (en el informe).")
-            break
+    if len(rows) > limit:
+        for line in case_summary(case, state, pv):
+            out(line)
+        rows = {}
+    for t, changes in rows.values():
         parts = [f"LB {c.slot}: {c.before.short(minutes_per_day)} -> {c.after.short(minutes_per_day)}"
                  for c in changes]
         out(f"    {_code(t):<14} {t.name[:40]:<40}  {' | '.join(parts)}")
@@ -933,7 +999,8 @@ def _cell(text: str) -> str:
 
 def write_report(path: Path, project: ProjectData, ctx: Context, cases: list[Case], *, origen: str, version: str,
                  action: Action, motivo: str, mode: str, result: str, notices: list[Issue],
-                 backup: Path | None = None, scope_prefix: str = "") -> None:
+                 backup: Path | None = None, scope_prefix: str = "", notes_on: bool = True,
+                 targets: str = "") -> None:
     """Informe local de corregir-linea-base (con nombres de tareas: uso interno)."""
     per_day = project.minutes_per_day
     lines = [f"# Corrección de línea base: {Path(origen).name if origen.lower() != 'activo' else 'proyecto activo'}",
@@ -943,8 +1010,12 @@ def write_report(path: Path, project: ProjectData, ctx: Context, cases: list[Cas
              f"- Origen: {origen}"]
     if scope_prefix:
         lines.append(f"- Planificación: {scope_prefix}")
-    lines += [f"- Acción: {action.text()}",
-              f"- Motivo: {motivo or '(sin motivo: simulación)'}",
+    lines += [f"- Acción: {action.text()}"]
+    if targets:
+        lines.append(f"- Tareas: {targets}")
+    lines += [f"- Motivo: {motivo or '(sin motivo: simulación)'}",
+              "- Notas de las tareas: " + ("se agrega el motivo" if notes_on else
+                                           "sin cambios (el motivo queda solo en este informe; --notas lo agrega)"),
               f"- Línea base del PV: {ctx.pv}" + (" (linea_base de la configuración)" if ctx.cfg.baseline is not None
                                                    else " (la del valor acumulado de MS Project)"),
               f"- Línea base aprobada: {ctx.approved if ctx.approved is not None else 'no indicada'}",
@@ -1020,15 +1091,17 @@ class Session:
     when: datetime
     keep: Callable[[list[Issue]], list[Issue]] = lambda issues: issues      # sin las observaciones silenciadas
     cases: list[Case] = field(default_factory=list)
+    notes: bool = True          # el motivo se agrega a las Notas (con --todas, solo con --notas)
 
 
 def _written(s: Session, case: Case) -> bool:
     """Escribe el caso y pregunta cómo quedó. 'd' lo deshace (devuelve False: se vuelve a preguntar el caso)."""
     code = (case.top.wbs or "").strip() or f"Id {case.top.id}"
-    write_cases(s.writer, [case], s.state, s.motivo, s.when, name=f"{UNDO_NAME} {code}")
+    write_cases(s.writer, [case], s.state, s.motivo, s.when, name=f"{UNDO_NAME} {code}", notes_on=s.notes)
     case.result = "escrito en MS Project, sin guardar"
-    s.console.out(f"  Escrito en MS Project ({plural(len(case.tasks), 'tarea', 'tareas')}, sin guardar), con el motivo "
-                  "en las Notas. Se puede revisar en MS Project antes de seguir.")
+    where = "con el motivo en las Notas" if s.notes else "con el motivo en el informe"
+    s.console.out(f"  Escrito en MS Project ({plural(len(case.tasks), 'tarea', 'tareas')}, sin guardar), {where}. Se "
+                  "puede revisar en MS Project antes de seguir.")
     for i in s.writer.warnings:
         if i.id == "LBA-020":
             case.issues.append(i)
@@ -1045,7 +1118,8 @@ def _written(s: Session, case: Case) -> bool:
         s.state.revert(case.changes)
         case.result = "escrito y deshecho"
         s.cases.append(case)
-        s.console.out("  Deshecho: las tareas tienen otra vez sus valores y sus Notas anteriores.")
+        s.console.out("  Deshecho: las tareas tienen otra vez sus valores" + (" y sus Notas anteriores." if s.notes else
+                                                                               " anteriores."))
         return False
     s.cases.append(case)
     if key == "x":
@@ -1059,7 +1133,7 @@ def branch_case(s: Session, top: Task, branch: bool, action: Action, number: str
         case = plan_branch(s.state, top, branch, action)
         check_case(case, s.state, s.ctx, blocks=False)
         case.issues = s.keep(case.issues)
-        show_case(s.console, case, number, s.ctx.project.minutes_per_day)
+        show_case(s.console, case, number, s.ctx.project.minutes_per_day, state=s.state, pv=s.ctx.pv)
         if not case.changes:
             case.result = "sin cambios"
             s.cases.append(case)

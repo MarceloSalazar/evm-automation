@@ -62,9 +62,9 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   solo en tareas resumen o copia de la que usa el % planificado). De la que usa el % planificado se indica
   cuántas tareas la tienen; de las demás, sus tareas por código EDT. Al final, las tareas sin la línea
   base que usa el % planificado, con las otras líneas base que tienen (sin ninguna, o solo con otras).
-  Cada lista indica primero el comienzo de cada rama (la tarea que se busca en MS Project, con dónde está
-  y qué abarca) y después el detalle en un esquema con sangría, con las tareas resumen de encima para
-  ver la jerarquía; las ramas completas van en una línea y las tareas hermanas seguidas, como un rango. Sirve para detectar líneas base adicionales guardadas por error
+  Cada lista va por rama, una tarea por línea: la primera tarea de cada rama (la que se busca en MS
+  Project, con dónde está y qué abarca) y, debajo, con sangría, las tareas de esa rama que también están
+  en la lista, en su jerarquía; una rama completa no se despliega. Sirve para detectar líneas base adicionales guardadas por error
   y tareas que faltan en la línea base
   ([Informe de mejoras](docs/comandos.md#informe-de-mejoras)).
 - **`--origen` con prioridad sobre `[[proyectos]]`:** si la configuración tiene varios archivos y se indica
@@ -97,7 +97,10 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   aprobada, borrarlas, moverlas a otra línea base u omitirlas. El motivo (`--motivo`) se agrega a las Notas
   de cada tarea. Establecer da una línea base a tareas que no la tienen (por ejemplo, el desglose de una
   tarea aprobada) y avisa si una tarea resumen de encima deja de contar en el PV como un bloque. Cada
-  ejecución deja un informe. Códigos nuevos `LBA-001` a `LBA-021`. Guía nueva
+  ejecución deja un informe. Con `--todas`, en lugar de `--tarea`, la acción se aplica a todas las ramas de
+  la planificación a las que afecta (por ejemplo, para borrar una línea base entera), y con `--interactivo`
+  se revisan rama a rama, con un resumen de las tareas de cada una; el motivo queda en el informe y solo se
+  agrega a las Notas con `--notas`. Códigos nuevos `LBA-001` a `LBA-022`. Guía nueva
   [Líneas base en MS Project y en el programa EVM](docs/lineas-base.md), con los conceptos, las buenas
   prácticas y el comando.
 

@@ -128,7 +128,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
 | [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 33 |
 | [NUM](#417-num--numeración-edt-actualizar-edt) | Numeración EDT (actualizar-edt) | Estructura y códigos EDT | actualizar-edt | 17 |
-| [LBA](#418-lba--corrección-de-línea-base-corregir-linea-base) | Corrección de línea base (corregir-linea-base) | Fechas y duración | corregir-linea-base | 21 |
+| [LBA](#418-lba--corrección-de-línea-base-corregir-linea-base) | Corrección de línea base (corregir-linea-base) | Fechas y duración | corregir-linea-base | 22 |
 | [SIS](#419-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
 
 ---
@@ -3303,6 +3303,7 @@ Comando corregir-linea-base: tareas indicadas, avisos que piden confirmación an
 | [LBA-019](#lba-019) | Advertencia | Los cambios no se pueden deshacer de una vez |
 | [LBA-020](#lba-020) | Advertencia | Duración, trabajo o costo previstos recalculados |
 | [LBA-021](#lba-021) | Advertencia | Tarea resumen de encima que deja de ser un bloque |
+| [LBA-022](#lba-022) | Error (detiene el programa) | Tareas de corregir-linea-base sin indicar |
 
 #### LBA-001
 
@@ -3364,7 +3365,7 @@ La línea base solo se escribe en un archivo .mpp o en el proyecto abierto en MS
 
 **Falta el motivo** · Error (detiene el programa) · corregir-linea-base · no se puede silenciar
 
-Al escribir, el motivo de la corrección es obligatorio: se agrega al final de las Notas de cada tarea que cambia, para que quede constancia en el archivo.
+Al escribir, el motivo de la corrección es obligatorio: queda en el informe y se agrega al final de las Notas de cada tarea que cambia, para que quede constancia en el archivo (con `--todas`, solo con `--notas`).
 
 **Qué hacer:** Indicar `--motivo` "texto" (con `--interactivo`, si no se indica, se pregunta).
 
@@ -3471,6 +3472,14 @@ Al escribir la línea base, MS Project recalculó la duración, el trabajo o el 
 Con `--establecer`, una tarea resumen por encima tenía la línea base y ninguna de sus subtareas la tenía (el PV la contaba como un bloque con sus fechas). Al establecerla en alguna subtarea, el PV cuenta solo las subtareas con línea base: las que siguen sin ella quedan fuera.
 
 **Qué hacer:** Si esas subtareas también forman parte de la errata, incluirlas: `--tarea` con la tarea resumen y `--rama`.
+
+#### LBA-022
+
+**Tareas de corregir-linea-base sin indicar** · Error (detiene el programa) · corregir-linea-base · no se puede silenciar
+
+Falta indicar las tareas que se corrigen, o se indicaron de las dos formas: `--tarea` CODIGO (una o varias) o `--todas` (todas las ramas de la planificación a las que afecta la acción).
+
+**Qué hacer:** Indicar `--tarea` o `--todas`, no las dos.
 
 ---
 

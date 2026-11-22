@@ -10,6 +10,7 @@
     python evm_export.py actualizar-edt --origen activo --desde 2.7.1
     python evm_export.py corregir-linea-base --origen activo --tarea 3.4.5 --rama --de 2 --a 10 --motivo "..."
     python evm_export.py corregir-linea-base --origen activo --tarea 1.1.0.1 --establecer 0 --interactivo
+    python evm_export.py corregir-linea-base --origen activo --todas --borrar 2 --motivo "..." --interactivo
 """
 from __future__ import annotations
 
@@ -1024,6 +1025,11 @@ def cmd_corregir_linea_base(args) -> int:
     from evm.edt_renumber import backup_path
     from evm.wbs import build_tree, select_scope
     action = bf.parse_action(args.de, args.a, args.borrar, args.establecer)
+    if bool(args.tarea) == bool(args.todas):
+        raise ConfigError("LBA-022", "Se indican las tareas con --tarea CODIGO (se puede repetir) o todas las de la "
+                                     "planificación con --todas, no las dos.")
+    branch = args.rama or args.todas
+    notes_on = args.notas or not args.todas     # con --todas, el motivo solo va a las Notas con --notas
     name, origen, cfg = _edt_source(cfg, args, command="corregir-linea-base")
     files = [(name, origen, cfg)]
     engine = _engine_for(origen, args.motor)
@@ -1038,8 +1044,9 @@ def cmd_corregir_linea_base(args) -> int:
         raise ConfigError("LBA-009", "--interactivo necesita una consola en la que responder a las preguntas.")
     motivo = (args.motivo or "").strip()
     if not simulate and not interactive and not motivo:
-        raise ConfigError("LBA-008", "Se debe indicar el motivo de la corrección con --motivo \"texto\": se agrega a "
-                                     "las Notas de cada tarea que cambia.")
+        raise ConfigError("LBA-008", "Se debe indicar el motivo de la corrección con --motivo \"texto\": queda en el "
+                                     "informe y se agrega a las Notas de cada tarea que cambia (con --todas, solo con "
+                                     "--notas).")
     if origen.lower() != "activo" and not Path(origen).is_file():
         raise MissingFileError("LEC-001", f"No existe el archivo de origen: {origen}")
     informe = _edt_report_path(args, origen, kind="linea-base", command="corregir-linea-base")
@@ -1066,7 +1073,9 @@ def cmd_corregir_linea_base(args) -> int:
         bf.write_report(informe, project, ctx, cases, origen=origen, version=version_label(), action=action,
                         motivo=motivo, mode=mode, result=result, notices=keep(notices) + [
                             i for c in cases for i in c.issues], backup=backup,
-                        scope_prefix=scope.prefix if scope is not None else "")
+                        scope_prefix=scope.prefix if scope is not None else "", notes_on=notes_on,
+                        targets="todas las ramas de la planificación (--todas)" if args.todas else
+                        ", ".join(args.tarea) + (" (con su rama)" if args.rama else ""))
 
     stages = _stages(files, args.motor, compute=0.5)
     try:
@@ -1094,8 +1103,9 @@ def cmd_corregir_linea_base(args) -> int:
                 store = bf.ComStore(session)
             _computing(name, "Cálculo de los cambios")
             scope = select_scope(build_tree(project.tasks), cfg.plan)
-            targets = bf.find_targets(scope, args.tarea, args.rama)
             state = bf.State(project, store)
+            targets = (bf.all_targets(scope, state, action) if args.todas else
+                       bf.find_targets(scope, args.tarea, args.rama))
             ctx = bf.Context(project, cfg, project.baseline_number, args.aprobada)
         print(f"Proyecto: {project.name}")
         if scope.prefix:
@@ -1103,6 +1113,9 @@ def cmd_corregir_linea_base(args) -> int:
         print("Líneas base del proyecto:")
         for line in bf.baseline_lines(project, ctx):
             print(line)
+        if args.todas:
+            print(f"--todas: {plural(len(targets), 'rama', 'ramas')} de la planificación a las que afecta la acción "
+                  f"({action.text()}); el motivo {'se agrega a las Notas' if notes_on else 'queda solo en el informe'}.")
         if interactive:
             session.hand_over()
             if ctx.approved is None:
@@ -1115,11 +1128,12 @@ def cmd_corregir_linea_base(args) -> int:
                 if console.choose("¿Seguir?", [("c", "continuar igualmente"), ("x", "salir")]) == "x":
                     raise bf.Stop
             if not motivo:
-                motivo = console.text("Motivo de la corrección (se agrega a las Notas de cada tarea que cambia)")
+                motivo = console.text("Motivo de la corrección (" + (
+                    "se agrega a las Notas de cada tarea que cambia)" if notes_on else "queda en el informe)"))
             writer = bf.ComWriter(session, store)
-            run = bf.Session(console, ctx, state, writer, motivo, when, keep, cases)
+            run = bf.Session(console, ctx, state, writer, motivo, when, keep, cases, notes=notes_on)
             try:
-                bf.run_interactive(run, targets, args.rama, action)
+                bf.run_interactive(run, targets, branch, action)
             finally:
                 notices += writer.warnings
             written = len({t.uid for c in cases if c.result.startswith("escrito en") for t in c.tasks})
@@ -1132,12 +1146,13 @@ def cmd_corregir_linea_base(args) -> int:
                 notices.append(wrong)
                 print(_issue_line(wrong))
             for n, top in enumerate(targets, start=1):
-                case = bf.plan_branch(state, top, args.rama, action)
+                case = bf.plan_branch(state, top, branch, action)
                 bf.check_case(case, state, ctx)
                 case.issues = keep(case.issues)
+                bf.show_case(console, case, f"{n} de {len(targets)}", project.minutes_per_day, state=state,
+                             pv=ctx.pv)
                 state.apply(case.changes)
                 cases.append(case)
-                bf.show_case(console, case, f"{n} de {len(targets)}", project.minutes_per_day)
             for case in reversed(cases):
                 state.revert(case.changes)
             confirm = [i for i in notices if i.id in bf.CONFIRM] + [i for c in cases for i in c.confirm]
@@ -1163,7 +1178,8 @@ def cmd_corregir_linea_base(args) -> int:
                     progress.stage("escribir", "Escritura de la línea base")
                     writer = bf.ComWriter(session, store)
                     try:
-                        grouped = bf.write_cases(writer, [c for c in cases if c.changes], state, motivo, when)
+                        grouped = bf.write_cases(writer, [c for c in cases if c.changes], state, motivo, when,
+                                                 notes_on=notes_on)
                     finally:
                         notices += writer.warnings
                     if not was_open:
@@ -1467,8 +1483,14 @@ def build_parser() -> argparse.ArgumentParser:
                    help="con varios archivos ([[proyectos]] en la configuración): el archivo que se corrige, por su "
                         "nombre en [[proyectos]] (no hace falta si hay uno solo). --origen RUTA o activo reemplaza "
                         "su ruta")
-    b.add_argument("--tarea", action="append", required=True, metavar="CODIGO",
-                   help="código EDT de la tarea que se corrige (p. ej. 3.4.5). Se puede repetir")
+    b.add_argument("--tarea", action="append", metavar="CODIGO",
+                   help="código EDT de la tarea que se corrige (p. ej. 3.4.5). Se puede repetir. O bien --todas")
+    b.add_argument("--todas", action="store_true",
+                   help="todas las tareas de la planificación a las que afecta la acción, rama a rama (cada rama es "
+                        "un caso, como en el informe de validar); el motivo queda en el informe y solo se agrega a las "
+                        "Notas con --notas")
+    b.add_argument("--notas", action="store_true", help="con --todas, agrega también el motivo a las Notas de cada "
+                                                        "tarea que cambia")
     b.add_argument("--rama", action="store_true", help="corrige también todas las subtareas de cada --tarea (una "
                                                        "tarea resumen solo se corrige con su rama)")
     b.add_argument("--de", type=int, choices=range(0, 11), metavar="N", help="mover desde la línea base N (0 a 10)")

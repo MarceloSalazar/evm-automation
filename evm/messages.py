@@ -1836,8 +1836,8 @@ _CODES = [
           "XML solo se puede simular.",
           "Indicar el archivo .mpp o activo, o usar --simular para ver los cambios."),
     _code("LBA-008", F, "Falta el motivo",
-          "Al escribir, el motivo de la corrección es obligatorio: se agrega al final de las Notas de cada tarea "
-          "que cambia, para que quede constancia en el archivo.",
+          "Al escribir, el motivo de la corrección es obligatorio: queda en el informe y se agrega al final de las "
+          "Notas de cada tarea que cambia, para que quede constancia en el archivo (con --todas, solo con --notas).",
           "Indicar --motivo \"texto\" (con --interactivo, si no se indica, se pregunta)."),
     _code("LBA-009", F, "--interactivo no se puede usar",
           "--interactivo pregunta en la consola y escribe en MS Project un cambio cada vez: necesita una consola "
@@ -1907,6 +1907,10 @@ _CODES = [
           "PV la contaba como un bloque con sus fechas). Al establecerla en alguna subtarea, el PV cuenta solo las "
           "subtareas con línea base: las que siguen sin ella quedan fuera.",
           "Si esas subtareas también forman parte de la errata, incluirlas: --tarea con la tarea resumen y --rama."),
+    _code("LBA-022", F, "Tareas de corregir-linea-base sin indicar",
+          "Falta indicar las tareas que se corrigen, o se indicaron de las dos formas: --tarea CODIGO (una o varias) "
+          "o --todas (todas las ramas de la planificación a las que afecta la acción).",
+          "Indicar --tarea o --todas, no las dos."),
 
     # --- SIS: errores del sistema -------------------------------------------------------------------------------
     _code("SIS-001", F, "Error inesperado",

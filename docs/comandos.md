@@ -237,23 +237,22 @@ publicada, con la última versión publicada y el commit, como lo muestra GitHub
    guardarlo, se corrige con `corregir-linea-base --establecer N`
    ([Líneas base](lineas-base.md#32-las-tres-acciones)).
 
-   Las tareas de cada lista, por código EDT (sin código, por su UniqueID), se indican en dos partes:
-
-   - **Comienzo de cada rama:** la tarea más alta de cada grupo (su tarea superior no está en la
-     lista), que es la que se busca en MS Project, con dónde está (`dentro de 2.3.0.1`, o el nivel) y
-     qué abarca (tarea de detalle, *rama completa (25 tareas)* o tarea resumen con cuántas de sus
-     subtareas están en la lista).
-   - **Detalle:** el esquema con sangría, con las tareas de la lista en negrita y, en texto normal,
-     las tareas resumen de encima que no están en ella, para ver la jerarquía.
-
-   Una tarea resumen con toda su rama en la lista va en una línea, sin desplegar; tres o más tareas de
-   detalle hermanas seguidas, como un rango (`` `1.1.3` a `1.1.11` ``). Por ejemplo, para una línea
-   base adicional:
+   Las tareas de cada lista van **por rama, una por línea**, por código EDT (sin código, por su
+   UniqueID). Sin sangría, la primera tarea de cada rama (su tarea superior no está en la lista), que
+   es la que se busca en MS Project, con dónde está (`dentro de 2.3.0.1`, o el nivel) y qué abarca
+   (tarea de detalle, tarea resumen con cuántas de sus subtareas están en la lista, o *rama completa
+   (25 tareas)*, que no se despliega). Debajo, con sangría, las tareas de esa rama que también están en
+   la lista, en su jerarquía; en texto normal, sin negrita, las tareas resumen intermedias que no
+   están. Por ejemplo, para una línea base adicional:
 
    ```markdown
-   - **`1.0.0`** — tarea resumen; de sus 12 subtareas, 9 la tienen
-     - `1.1.0` — no la tiene; de sus 11 subtareas, 9 la tienen
-       - **`1.1.3`** a **`1.1.11`** (9 tareas)
+   - **`1.0.0`** — nivel 1; tarea resumen; de sus 12 subtareas, 9 la tienen
+       - `1.1.0` — no la tiene; de sus 11 subtareas, 9 la tienen
+           - **`1.1.3`**
+           - **`1.1.4`**
+           - ...
+   - **`3.0.0`** — nivel 1; rama completa (86 tareas)
+   - **`2.2.3.1`** — dentro de `2.2.3`; tarea de detalle
    ```
 5. **Comparación de planificaciones**, si se revisaron varias.
 
@@ -729,10 +728,12 @@ Los conceptos, las buenas prácticas, las opciones y los avisos están en
 
 | Opción | Descripción |
 |---|---|
-| `--tarea CODIGO` | Código EDT de la tarea. **Obligatoria.** Se puede repetir; las tareas no deben estar una dentro de otra. |
+| `--tarea CODIGO` | Código EDT de la tarea. Se puede repetir; las tareas no deben estar una dentro de otra. Se indica `--tarea` o `--todas` ([LBA-022](codigos.md#lba-022)). |
+| `--todas` | Todas las ramas de la planificación a las que afecta la acción (por ejemplo, para borrar una línea base entera): cada rama es un caso, con todas sus subtareas; con `--interactivo`, se revisan rama a rama, con un resumen de sus tareas. El motivo queda solo en el informe, salvo con `--notas`. |
+| `--notas` | Con `--todas`, agrega también el motivo a las Notas de cada tarea que cambia. |
 | `--rama` | Incluye todas las subtareas de cada `--tarea`. Una tarea resumen sin `--rama` es un error ([LBA-004](codigos.md#lba-004)). |
 | `--de N --a M` / `--borrar N` / `--establecer N` | Mover de la línea base N a la M, borrar la N, o establecer la N con los valores actuales en las tareas que no la tienen (0 a 10). Se indica una sola acción. |
-| `--motivo "texto"` | Se agrega al final de las Notas de cada tarea que cambia. **Obligatoria** al escribir (con `--interactivo`, si falta, se pregunta). |
+| `--motivo "texto"` | Queda en el informe y se agrega al final de las Notas de cada tarea que cambia (con `--todas`, solo con `--notas`). **Obligatoria** al escribir (con `--interactivo`, si falta, se pregunta). |
 | `--aprobada N` | Línea base aprobada: si no es la del PV, avisa ([LBA-011](codigos.md#lba-011)). Con `--interactivo`, si falta, se pregunta. |
 | `--interactivo` | Decide caso a caso y escribe un cambio cada vez, con la opción de deshacerlo. |
 | `--continuar` | Escribe aunque haya avisos que piden confirmación. |

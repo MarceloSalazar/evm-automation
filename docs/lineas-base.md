@@ -275,6 +275,9 @@ python evm_export.py corregir-linea-base --origen activo --tarea 3.4.5 --rama --
 # Establecer la línea base 0 (la aprobada) en el desglose de 1.1.0, que no se guardó en ella
 python evm_export.py corregir-linea-base --origen activo --tarea 1.1.0 --rama --establecer 0 --motivo "Desglose aprobado no guardado"
 
+# Borrar una línea base entera, rama a rama (cada rama es un caso, con un resumen de sus tareas)
+python evm_export.py corregir-linea-base --origen activo --todas --borrar 2 --motivo "Línea base 2 sin uso" --interactivo
+
 # Decidir caso a caso, un cambio cada vez (3.5); también con --borrar o --establecer
 python evm_export.py corregir-linea-base --origen activo --tarea 3.4.5 --rama --de 2 --a 10 --interactivo
 python evm_export.py corregir-linea-base --origen activo --tarea 1.1.0.1 --establecer 0 --interactivo
@@ -282,12 +285,14 @@ python evm_export.py corregir-linea-base --origen activo --tarea 1.1.0.1 --estab
 
 | Opción | Uso |
 |---|---|
-| `--tarea CODIGO` | Código `Item EDT` de la tarea. Se puede repetir. **Obligatoria.** |
+| `--tarea CODIGO` | Código `Item EDT` de la tarea. Se puede repetir. Se indica `--tarea` o `--todas` (`LBA-022`). |
+| `--todas` | Todas las tareas de la planificación a las que afecta la acción, **rama a rama**: cada rama es un caso, con la primera tarea de la rama (como en el informe de `validar`) y todas sus subtareas. Al mover o borrar, las ramas con la línea base de origen; al establecer, las que no tienen la de destino. El motivo queda en el informe y no en las Notas, salvo con `--notas`. |
+| `--notas` | Con `--todas`, agrega también el motivo a las Notas de cada tarea que cambia. |
 | `--rama` | Incluye también todas las subtareas de cada `--tarea` (a cualquier nivel). Una tarea resumen sin `--rama` es un error (`LBA-004`): se movería sin sus subtareas. |
 | `--de N --a M` | Mover de la línea base N a la M (0 a 10, distintas). |
 | `--borrar N` | Borrar la línea base N. Excluye `--de` y `--a`. |
 | `--establecer N` | Establecer la línea base N con los valores actuales en las tareas que no la tienen. Excluye las otras acciones. |
-| `--motivo "texto"` | Texto que se agrega a las Notas de cada tarea que cambia (3.7). **Obligatoria** al escribir; con `--interactivo`, si no se indica, se pregunta. |
+| `--motivo "texto"` | Texto que queda en el informe y se agrega a las Notas de cada tarea que cambia (3.7; con `--todas`, solo con `--notas`). **Obligatoria** al escribir; con `--interactivo`, si no se indica, se pregunta. |
 | `--aprobada N` | Línea base aprobada por el cliente. Si no es la del PV, avisa (`LBA-011`). Con `--interactivo`, si no se indica, se pregunta. |
 | `--interactivo` | Pregunta qué hacer con cada caso y escribe un cambio cada vez, que se puede deshacer (3.5). |
 | `--continuar` | Escribe aunque haya avisos que piden confirmación (3.6). |
@@ -345,8 +350,12 @@ Project antes de seguir:
 1. **Al empezar**, muestra las líneas base del proyecto (3.3) y pregunta cuál es la **línea base aprobada**
    (Intro = la del PV). Si no es la del PV, avisa (`LBA-011`) y pregunta si seguir. Si no se indicó
    `--motivo`, lo pregunta.
-2. **Cada `--tarea` (con su rama) es un caso.** Muestra los cambios de cada tarea y los avisos, y pregunta:
-   `s` aplicar, `o` omitir este caso, `x` salir.
+2. **Cada `--tarea` (con su rama) es un caso; con `--todas`, cada rama de la planificación.** Muestra los
+   cambios de cada tarea y los avisos, y pregunta: `s` aplicar, `o` omitir este caso, `x` salir. Si el caso
+   cambia más de 30 tareas, en lugar de listarlas una a una muestra un **resumen**: cuántas cambian
+   (resumen y de detalle) y cuántas de la rama no, las fechas de la línea base de origen, cuántas tienen
+   las mismas fechas en la línea base del PV (posibles duplicados) y las tareas que cambian por rama, con
+   sangría y las ramas completas plegadas. Todas las tareas están en el informe.
 3. **Un cambio cada vez.** Al aplicar, escribe el caso en MS Project (sin guardar), con el motivo en las
    Notas, y pregunta cómo quedó: `s` correcto, seguir; `d` deshacer este cambio (el programa vuelve a
    escribir los valores y las Notas anteriores, y pregunta otra vez el caso); `x` salir.
@@ -426,7 +435,9 @@ Estos avisos no se pueden silenciar. **Errores (no se escribe nada):** código i
 
 ### 3.7 Notas de la tarea (`--motivo`)
 
-A cada tarea que cambia se le agrega **al final** de sus Notas una línea como:
+El motivo siempre queda en el informe. Además, a cada tarea que cambia se le agrega **al final** de sus
+Notas una línea como la siguiente; con `--todas`, solo si se indica `--notas` (al borrar una línea base
+entera no hace falta repetir el motivo en cientos de tareas):
 
 ```text
 21/11/2026 · Línea base 2 movida a línea base 10: Tareas no comunicadas al cliente
