@@ -66,6 +66,13 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
   BAC). Los archivos de pruebas tienen las suyas (`multi_book`, el libro de umbrales propios de
   `test_rangos_admisibles.py`, `books` de `test_varios_archivos.py`). Una prueba que revisa la salida de
   `generar` o de `actualizar` ejecuta ese comando ella misma.
+- **Libros de referencia:** `tests/libros/formato_N.xlsx` es un libro del ejemplo generado con la versión que
+  introdujo el formato N del libro (`formato_libro` de la hoja `_meta`), después del cierre de junio de 2027.
+  `test_libros_referencia.py` comprueba que la versión actual los sigue actualizando, analizando y migrando.
+  Al aumentar `formato_libro` se genera el del formato nuevo con `python tests\libros\generar_libro_referencia.py`
+  (no sobrescribe un libro existente) y se agrega la migración de los anteriores. Con la variable de entorno
+  `EVM_LIBROS` (rutas separadas por `;`) se revisan también libros reales: se leen y se ejecuta `analizar` en una
+  copia, sin MS Project.
 - **Problemas conocidos:** las pruebas marcadas `xfail` documentan problemas detectados que aún no se
   corrigieron; aparecen como `xfailed` y no hacen fallar la ejecución. Cuando se corrige el problema,
   la prueba aparece como fallida (`XPASS(strict)`) para que se quite la marca.

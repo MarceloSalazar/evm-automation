@@ -471,12 +471,13 @@ def _print_notices(issues: list[Issue], limit: int = 30) -> None:
 
 
 def _print_deviations(res, limit: int = 25) -> None:
-    """Paquetes con SPI o CPI acumulado fuera del rango verde de los rangos admisibles (hoja Análisis de desviaciones)."""
+    """Paquetes con algún indicador fuera del rango verde de los rangos admisibles (hoja Análisis de desviaciones)."""
     th = res.thresholds
     if th is None:
         return
     from evm.workbook import fmt_decimal
-    rule = f"SPI o CPI fuera de {fmt_decimal(th.yellow_low)} a {fmt_decimal(th.yellow_high)}"
+    rule = (f"SPI o CPI fuera de {fmt_decimal(th.yellow_low)} a {fmt_decimal(th.yellow_high)}, o SV %, CV % o "
+            "desviación del avance fuera de su rango verde")
     found = res.deviations
     if not found:
         print(f"Paquetes fuera de umbral ({rule}): ninguno.")

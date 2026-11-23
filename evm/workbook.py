@@ -14,7 +14,7 @@ from pathlib import Path
 from openpyxl import Workbook
 from openpyxl.cell.cell import ERROR_CODES, ILLEGAL_CHARACTERS_RE
 from openpyxl.formatting.rule import FormulaRule
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Protection, Side
 from openpyxl.styles.cell_style import StyleArray
 from openpyxl.utils import get_column_letter
 from openpyxl.utils.datetime import from_excel
@@ -954,6 +954,9 @@ def _write_summary(ws, report: Report, cfg: Config, lay: _Layout, generated: dat
     th = Thresholds.from_config(cfg)
     for ref in ("B22", "B23", "B38"):
         _traffic_light(ws, ref, th)
+    pct_light(ws, "B20", 'IFERROR(B20/B17,"")', th, "sv")
+    pct_light(ws, "B21", 'IFERROR(B21/B18,"")', th, "cv")
+    pct_light(ws, "B31", 'IFERROR(B31-B30,"")', th, "avance")
     ws.column_dimensions["A"].width = 42
     ws.column_dimensions["B"].width = 20
     ws.column_dimensions["C"].width = 70
@@ -1142,20 +1145,42 @@ def read_schedule(wb, rows: dict[int, str]) -> dict[str, tuple]:
 
 @dataclass(frozen=True)
 class Thresholds:
-    """Rangos admisibles comunes de SPI y CPI ([rangos_admisibles]). Rojo: menor que red_low o mayor que red_high; amarillo:
+    """Rangos admisibles ([rangos_admisibles]). SPI y CPI: rojo si es menor que red_low o mayor que red_high; amarillo:
     menor que yellow_low o mayor que yellow_high; verde: entre yellow_low y yellow_high (inclusive)."""
 
     red_low: float
     yellow_low: float
     yellow_high: float
     red_high: float
+    # SV %, CV % y desviación del avance técnico (valor absoluto): amarillo por encima de *_yellow, rojo de *_red
+    sv_yellow: float = 0.05
+    sv_red: float = 0.10
+    cv_yellow: float = 0.05
+    cv_red: float = 0.10
+    progress_yellow: float = 0.05
+    progress_red: float = 0.10
 
     META_KEYS = ("rango_rojo_inferior", "rango_amarillo_inferior", "rango_amarillo_superior",
-                 "rango_rojo_superior")
+                 "rango_rojo_superior", "rango_sv_amarillo", "rango_sv_rojo", "rango_cv_amarillo", "rango_cv_rojo",
+                 "rango_avance_amarillo", "rango_avance_rojo")
 
     @classmethod
     def from_config(cls, cfg: Config) -> "Thresholds":
-        return cls(cfg.threshold_red, cfg.threshold_yellow, cfg.threshold_yellow_upper, cfg.threshold_red_upper)
+        return cls(cfg.threshold_red, cfg.threshold_yellow, cfg.threshold_yellow_upper, cfg.threshold_red_upper,
+                   cfg.threshold_sv_yellow, cfg.threshold_sv_red, cfg.threshold_cv_yellow, cfg.threshold_cv_red,
+                   cfg.threshold_progress_yellow, cfg.threshold_progress_red)
+
+    def limits(self, kind: str) -> tuple[float, float]:
+        """(amarillo, rojo) de 'sv', 'cv' o 'avance'."""
+        return {"sv": (self.sv_yellow, self.sv_red), "cv": (self.cv_yellow, self.cv_red),
+                "avance": (self.progress_yellow, self.progress_red)}[kind]
+
+    def band(self, value: float | None, kind: str) -> str:
+        """'Rojo', 'Amarillo', 'Verde' ('' sin valor) de un SV %, CV % o desviación del avance (en valor absoluto)."""
+        if value is None:
+            return ""
+        yellow, red = self.limits(kind)
+        return "Rojo" if abs(value) > red else "Amarillo" if abs(value) > yellow else "Verde"
 
     @classmethod
     def from_meta(cls, meta: dict) -> "Thresholds":
@@ -1167,7 +1192,9 @@ class Thresholds:
                                                  f"({', '.join(cls.META_KEYS)}).") from None
 
     def meta(self) -> dict:
-        return dict(zip(self.META_KEYS, (self.red_low, self.yellow_low, self.yellow_high, self.red_high)))
+        return dict(zip(self.META_KEYS, (self.red_low, self.yellow_low, self.yellow_high, self.red_high,
+                                         self.sv_yellow, self.sv_red, self.cv_yellow, self.cv_red,
+                                         self.progress_yellow, self.progress_red)))
 
     def light(self, value: float | None) -> str:
         """'Rojo', 'Amarillo', 'Verde' ('' sin valor)."""
@@ -1186,12 +1213,46 @@ class Thresholds:
                 (f"{f(self.yellow_low)} a {f(self.yellow_high)}", "Verde"),
                 (f"{f(self.yellow_high)} a {f(self.red_high)}", "Amarillo"), (f"> {f(self.red_high)}", "Rojo")]
 
+    def describe_pct(self) -> str:
+        """'SV %, CV % y desviación del avance: verde hasta 5 %, amarillo hasta 10 %, rojo por encima' (o cada uno)."""
+        def pct(v: float) -> str:
+            return f"{fmt_number(v * 100, 0 if abs(v * 100 - round(v * 100)) < 1e-9 else 1)} %"
+        parts = [(name, self.limits(k))
+                 for name, k in (("SV %", "sv"), ("CV %", "cv"), ("desviación del avance", "avance"))]
+        if len({lim for _n, lim in parts}) == 1:
+            y, r = parts[0][1]
+            return (f"SV %, CV % y desviación del avance: verde hasta ±{pct(y)}, amarillo hasta ±{pct(r)}, rojo por "
+                    "encima")
+        return "; ".join(f"{n}: verde hasta ±{pct(y)}, amarillo hasta ±{pct(r)}" for n, (y, r) in parts)
+
     def describe(self) -> str:
         """'verde de 0,95 a 1,05; amarillo de 0,90 a 0,95 y de 1,05 a 1,10; rojo fuera de 0,90 a 1,10'."""
         f = fmt_decimal
         return (f"verde de {f(self.yellow_low)} a {f(self.yellow_high)}; amarillo de {f(self.red_low)} a "
                 f"{f(self.yellow_low)} y de {f(self.yellow_high)} a {f(self.red_high)}; rojo por debajo de "
                 f"{f(self.red_low)} o por encima de {f(self.red_high)}")
+
+
+# Claves de la configuración que intervienen en el cálculo del libro y que 'actualizar' debe usar igual que
+# 'generar' (docs/configuracion.md): se guardan en _meta como config.<clave> y 'actualizar' avisa si cambian (ACT-052)
+CONFIG_PREFIX = "config."
+
+
+def config_snapshot(cfg: Config) -> dict[str, str]:
+    """Valores (como texto) de las claves de cálculo de la configuración, para guardarlos en _meta."""
+    out = {
+        "linea_base": "" if cfg.baseline is None else str(cfg.baseline),
+        "distribucion": cfg.distribution,
+        "feriados": ", ".join(sorted(f"{d:%Y-%m-%d}" for d in cfg.holidays)),
+        "incluir_inactivas": "true" if cfg.include_inactive else "false",
+        "rellenar_edt": "true" if cfg.pad_wbs else "false",
+        "campos.edt": cfg.wbs_field,
+        "campos.metodo": cfg.method_field,
+        "campos.peso_hito": cfg.milestone_weight_field,
+    }
+    for spec in cfg.projects:
+        out[f"proyectos.{spec.name}.linea_base"] = "" if spec.baseline is None else str(spec.baseline)
+    return {CONFIG_PREFIX + k: v for k, v in out.items()}
 
 
 def fmt_decimal(v: float) -> str:
@@ -1207,6 +1268,18 @@ def _traffic_light(ws, rng: str, th: Thresholds) -> None:
             formula=[f'AND(ISNUMBER({first}),OR({first}<{low!r},{first}>{high!r}))'], fill=fill, stopIfTrue=True))
     ws.conditional_formatting.add(rng, FormulaRule(
         formula=[f'ISNUMBER({first})'], fill=FILL_GREEN, stopIfTrue=True))
+
+
+def pct_light(ws, rng: str, ratio: str, th: Thresholds, kind: str) -> None:
+    """Colores de los rangos admisibles de SV %, CV % o desviación del avance (kind) en las celdas rng. ratio: la
+    fórmula del valor para la primera celda del rango (referencias relativas, p. ej. 'H5/E5')."""
+    yellow, red = th.limits(kind)
+    value = f"({ratio})"
+    for limit, fill in ((red, FILL_RED), (yellow, FILL_YELLOW)):
+        ws.conditional_formatting.add(rng, FormulaRule(
+            formula=[f'AND(ISNUMBER({value}),ABS({value})>{limit!r})'], fill=fill, stopIfTrue=True))
+    ws.conditional_formatting.add(rng, FormulaRule(formula=[f"ISNUMBER({value})"], fill=FILL_GREEN,
+                                                   stopIfTrue=True))
 
 
 def _write_indicators(ws, report: Report, cfg: Config, lay: _Layout) -> None:
@@ -1252,7 +1325,11 @@ def _write_indicators(ws, report: Report, cfg: Config, lay: _Layout) -> None:
             if lay.review:
                 ws.row_dimensions[r + 1].hidden = True
     last = lay.total_row
-    _traffic_light(ws, f"J{FIRST_ROW}:K{last}", Thresholds.from_config(cfg))
+    th = Thresholds.from_config(cfg)
+    _traffic_light(ws, f"J{FIRST_ROW}:K{last}", th)
+    pct_light(ws, f"H{FIRST_ROW}:H{last}", f'IFERROR(H{FIRST_ROW}/E{FIRST_ROW},"")', th, "sv")
+    pct_light(ws, f"I{FIRST_ROW}:I{last}", f'IFERROR(I{FIRST_ROW}/F{FIRST_ROW},"")', th, "cv")
+    pct_light(ws, f"O{FIRST_ROW}:O{last}", f'IFERROR(O{FIRST_ROW}-N{FIRST_ROW},"")', th, "avance")
     for c_, w in {1: 12, 2: 46, 3: 20}.items():
         ws.column_dimensions[col(c_)].width = w
     for c_ in range(4, 17):
@@ -1513,6 +1590,7 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
         "ignorar_ceros_intermedios": cfg.ignore_interior_zeros,
         "decimales": cfg.decimals,
         **Thresholds.from_config(cfg).meta(),
+        **config_snapshot(cfg),
         "generado": generated.replace(microsecond=0),
         "campo_visible": cfg.visible_field,
         # Criterio del % planificado (wbs.pv_selection); los libros anteriores a la 2.7.0 no lo tienen: True
@@ -1547,12 +1625,53 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
                          f"planificacion.{s.name}": s.plan})
     write_meta(ws_meta, meta)
 
+    if cfg.protect_sheets:
+        protect_sheets(wb)
     wb.calculation = CalcProperties(fullCalcOnLoad=True)
     wb.properties.creator = "evm_export"
     wb.properties.title = clean_text(f"EVM - {report.title}")
     progress.stage("guardar", "Guardado del libro")
     save_workbook(wb, path, fast=cfg.fast_save)
     return meta
+
+
+def _protected(name: str) -> bool:
+    """Hojas que se protegen: resultados (Cuadro de Mando, Resumen, Indicadores EDT, Evolución mensual), las hojas de
+    datos PV, EV, AC y % PV (y las de cada empresa) y las ocultas de datos. Quedan sin proteger las que se completan
+    o se ordenan a mano: % EV (historial), Análisis de desviaciones, Registro de cambios, Validación, Listas y las de
+    la depuración de costes."""
+    from evm.dashboard import SHEET_CHARTDATA, SHEET_DASHBOARD
+    fixed = {SHEET_SUMMARY, SHEET_DASHBOARD, SHEET_IND, SHEET_CURVE, SHEET_CHARTDATA, SHEET_STRUCT, SHEET_META,
+             SHEET_WBS_LIST}
+    data = (SHEET_PV, SHEET_EV, SHEET_AC, pct_sheet(SHEET_PV))
+    return name in fixed or any(name == b or name.startswith(f"{b}-") for b in data)
+
+
+def _unlock(cell) -> None:
+    cell.protection = Protection(locked=False)
+
+
+def protect_sheets(wb) -> None:
+    """Protege las hojas de _protected sin contraseña (Revisar > Desproteger hoja): solo las celdas de ingreso
+    (amarillas, o con una lista desplegable) quedan editables. Se permiten el filtro, el orden y el ancho de columnas
+    y filas."""
+    input_color = FILL_INPUT.fgColor.rgb
+    for ws in wb.worksheets:
+        if not _protected(ws.title):
+            continue
+        for dv in ws.data_validations.dataValidation:
+            for rng in dv.sqref.ranges:
+                for row in ws[rng.coord] if ":" in rng.coord else ((ws[rng.coord],),):
+                    for cell in row:
+                        _unlock(cell)
+        for row in ws.iter_rows():
+            for cell in row:
+                if cell.fill is not None and cell.fill.fgColor is not None and cell.fill.fgColor.rgb == input_color:
+                    _unlock(cell)
+        p = ws.protection
+        p.sheet = True
+        p.formatColumns = p.formatRows = p.autoFilter = p.sort = False     # False = permitido
+        p.selectLockedCells = p.selectUnlockedCells = False
 
 
 def _save_error(path: Path) -> str:

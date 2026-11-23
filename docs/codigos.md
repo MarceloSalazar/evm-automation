@@ -112,7 +112,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | Área | Nombre | Tema en la hoja Validación | Dónde aparecen | Códigos |
 |---|---|---|---|---|
 | [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 57 |
-| [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 17 |
+| [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 18 |
 | [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 21 |
 | [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 5 |
 | [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 14 |
@@ -124,9 +124,9 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) | 17 |
 | [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 20 |
 | [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 19 |
-| [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 51 |
+| [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 52 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
-| [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 33 |
+| [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 34 |
 | [NUM](#417-num--numeración-edt-actualizar-edt) | Numeración EDT (actualizar-edt) | Estructura y códigos EDT | actualizar-edt | 17 |
 | [LBA](#418-lba--corrección-de-línea-base-corregir-linea-base) | Corrección de línea base (corregir-linea-base) | Fechas y duración | corregir-linea-base | 22 |
 | [SIS](#419-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
@@ -307,7 +307,7 @@ decimales no está entre 0 y 4.
 
 **Umbrales de los rangos admisibles incoherentes** · Error (detiene el programa) · Todos los comandos · no se puede silenciar
 
-Los umbrales de [rangos_admisibles] no cumplen 0 < rojo_inferior <= amarillo_inferior < amarillo_superior <= rojo_superior.
+Los umbrales de [rangos_admisibles] no cumplen 0 < rojo_inferior <= amarillo_inferior < amarillo_superior <= rojo_superior, o 0 < X_amarillo <= X_rojo en los de SV, CV y avance (sv, cv, avance).
 
 **Qué hacer:** Corregir los umbrales (por defecto 0,90 / 0,95 / 1,05 / 1,10).
 
@@ -680,6 +680,7 @@ Apertura del archivo .mpp o .xml y campos configurados que no se encuentran o es
 | [LEC-024](#lec-024) | Info | Líneas base guardadas |
 | [LEC-025](#lec-025) | Advertencia | Calendario del proyecto no leído |
 | [LEC-026](#lec-026) | Error (detiene el programa) | No se encontró el campo del cliente |
+| [LEC-027](#lec-027) | Error (detiene el programa) | MS Project no pudo guardar el archivo |
 
 #### LEC-001
 
@@ -816,6 +817,14 @@ Con un .mpp, MS Project no devolvió el calendario del proyecto (la jornada de c
 El campo de [cliente] campo no existe en el archivo de MS Project, ni con ese nombre ni como alias: no se puede saber qué tareas se muestran al cliente.
 
 **Qué hacer:** Revisar el nombre del campo en [cliente] campo (el alias, por ejemplo "Etiqueta Cliente", o el nombre, por ejemplo "Text15").
+
+#### LEC-027
+
+**MS Project no pudo guardar el archivo** · Error (detiene el programa) · generar-cliente, actualizar-edt y corregir-linea-base · no se puede silenciar
+
+MS Project no pudo guardar el .mpp: el archivo o su carpeta son de solo lectura o sin permiso de escritura, el archivo está abierto en otra instancia de MS Project o por otro usuario, el disco está lleno o MS Project mostró un diálogo. El mensaje incluye el error de MS Project.
+
+**Qué hacer:** Revisar los permisos y el espacio de la carpeta, cerrar el archivo en otras instancias de MS Project y volver a ejecutar el comando. Con actualizar-edt y corregir-linea-base, el archivo queda sin cambios: el respaldo se elimina.
 
 ---
 
@@ -2298,6 +2307,7 @@ Carga del % ganado del mes: fecha de corte, filas del libro, BAC y observaciones
 | [ACT-049](#act-049) | Advertencia | Mucho BAC en filas LOE |
 | [ACT-050](#act-050) | Advertencia | Ceros intermedios con otro criterio que el libro |
 | [ACT-051](#act-051) | Advertencia | Tareas nuevas que se suman en una fila |
+| [ACT-052](#act-052) | Advertencia | Configuración de cálculo distinta de la del libro |
 
 #### ACT-001
 
@@ -2707,6 +2717,14 @@ Se agregaron tareas en MS Project después de generar el libro, con un código E
 
 **Qué hacer:** Para darles fila propia, con su % planificado, regenerar el libro con `--migrar-desde`.
 
+#### ACT-052
+
+**Configuración de cálculo distinta de la del libro** · Advertencia · actualizar · se puede silenciar
+
+Una clave de la configuración que interviene en el cálculo (linea_base, distribucion, feriados, incluir_inactivas, rellenar_edt o los campos edt, metodo y peso_hito) no tiene el valor con que se generó el libro, guardado en la hoja oculta `_meta`. El % ganado del mes se calcula con la configuración actual, de modo que puede no ser coherente con el % planificado del libro.
+
+**Qué hacer:** Si el cambio no es intencionado, volver a la configuración del libro. Si lo es, regenerar el libro con `--migrar-desde`.
+
 ---
 
 ### 4.15 FIC · Fichas de tareas
@@ -2793,6 +2811,7 @@ Comando generar-cliente: tareas que se muestran al cliente, «Otras tareas», re
 | [CLI-031](#cli-031) | Advertencia | Tareas sin valor debajo de una tarea que se muestra |
 | [CLI-032](#cli-032) | Info | Calendarios y macros quitados del archivo del cliente |
 | [CLI-033](#cli-033) | Advertencia | Calendarios o macros que no se pudieron quitar |
+| [CLI-034](#cli-034) | Advertencia | Columna del campo del cliente que no se pudo quitar |
 
 #### CLI-001
 
@@ -3057,6 +3076,14 @@ El archivo del cliente es una copia del .mpp. Se quitaron los calendarios que no
 MS Project no dejó quitar un calendario sin uso, o el archivo del cliente guardado todavía tiene módulos de macros (se comprueba leyendo el archivo). Las macros se quitan con el proyecto VBA o, si MS Project no da acceso a él (Centro de confianza), con el Organizador.
 
 **Qué hacer:** Quitarlos en el archivo del cliente con el Organizador de MS Project (Archivo > Información > Organizador), o permitir en el Centro de confianza de MS Project el acceso al modelo de objetos de proyectos de VBA y volver a generar el archivo.
+
+#### CLI-034
+
+**Columna del campo del cliente que no se pudo quitar** · Advertencia · generar-cliente · se puede silenciar
+
+El archivo del cliente conserva la columna del campo de [cliente] campo en alguna tabla de tareas (sin nombre, se ve como Texto15 o similar): MS Project no dejó quitarla. Sus valores sí se vaciaron.
+
+**Qué hacer:** Quitar la columna en el archivo del cliente (clic derecho en el encabezado > Ocultar columna) y guardarlo.
 
 ---
 

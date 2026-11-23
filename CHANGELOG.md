@@ -26,6 +26,20 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   `Cerrada`). Una fila `Cerrada` no se avisa en el cierre siguiente (`ACT-043`, `ACT-045`) y, si el paquete
   vuelve a quedar fuera de umbral, su texto no se copia al mes nuevo (antecedente `Nuevo (cerrada en
   MM/AAAA)`) ([Análisis de desviaciones](docs/analisis-desviaciones.md#2-columnas)).
+- **Rangos admisibles de SV %, CV % y desviación del avance técnico:** además de SPI y CPI, el SV % (SV / PV),
+  el CV % (CV / EV) y la desviación del avance técnico (% completado − % planificado, en puntos del BAC) tienen
+  rangos verde, amarillo y rojo (por defecto ±5 % y ±10 %: `sv_amarillo`, `sv_rojo`, `cv_amarillo`, `cv_rojo`,
+  `avance_amarillo` y `avance_rojo` en `[rangos_admisibles]`). Colorean esos valores en el `Cuadro de Mando`, el
+  `Resumen`, `Indicadores EDT` y el `Análisis de desviaciones`, que lista también los paquetes fuera de su
+  verde y tiene la columna nueva *Desv. avance* ([Configuración](docs/configuracion.md)).
+- **Código de acción** en el `Análisis de desviaciones`: el de la acción en el registro de acciones del
+  programa, para su trazabilidad ([Análisis de desviaciones](docs/analisis-desviaciones.md#2-columnas)).
+- **Configuración de cálculo guardada en el libro:** `_meta` guarda `linea_base`, `distribucion`, `feriados`,
+  `incluir_inactivas`, `rellenar_edt` y los campos `edt`, `metodo` y `peso_hito` con que se generó el libro;
+  `actualizar` avisa si alguna cambió (`ACT-052`, nuevo) ([Configuración](docs/configuracion.md)).
+- **Hojas protegidas** sin contraseña: en las hojas de resultados y de datos solo se editan las celdas de
+  ingreso (`[exportacion] proteger_hojas`, `true` por defecto)
+  ([El libro Excel](docs/libro-excel.md#3-reglas-de-uso)).
 - **Formato del libro:** la hoja oculta `_meta` guarda `formato_libro = 1`. Desde la 2.7.1, cada cambio de
   la estructura del libro aumenta ese número y la versión que lo introduce migra los libros anteriores; un
   libro de otro formato se rechaza (`LIB-018`, nuevo)
@@ -33,6 +47,13 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 ### Correcciones
 
+- `generar-cliente`, `actualizar-edt` y `corregir-linea-base`: si MS Project no podía guardar el archivo (de solo
+  lectura, abierto en otra instancia, sin espacio), el programa terminaba con un error inesperado (código de
+  salida 3). Ahora informa `LEC-027` (nuevo), con el error de MS Project y qué revisar, y sale con el código 2
+  ([Códigos de errores y advertencias](docs/codigos.md#lec-027)).
+- `generar-cliente`: el archivo del cliente conservaba la columna del campo de `[cliente] campo` en las tablas de
+  tareas, sin nombre (se veía como *Texto15*). Ahora se quita de todas las tablas; si MS Project no lo permite,
+  se avisa (`CLI-034`, nuevo) ([Planificación para el cliente](docs/generar-cliente.md)).
 - `generar-cliente`: cuando no se muestra ninguna tarea porque una tarea superior no tiene `Sí` (por
   ejemplo, la única tarea de primer nivel, la del proyecto completo, sin valor), `CLI-002` decía solo que
   ninguna tarea tenía `Sí`. Ahora indica cuántas tareas lo tienen y qué tarea superior no lo tiene, para
@@ -62,6 +83,9 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   antiguos, valores por defecto de `_meta`, formatos anteriores de la hoja `PV-depuración`, reparto del
   plan de costes en `% PV` (anterior a la 2.6.0) y el nombre de método `Avance lineal (LOE)` en
   `[metodos] lista`. Se retiran `LIB-009`, `DEP-007`, `DEP-009`, `DEP-020`, `DEP-021` y `DEP-024`.
+- Pruebas: libro de referencia del formato 1 (`tests/libros/formato_1.xlsx`), que cada versión debe seguir
+  actualizando, analizando y migrando, y revisión opcional de libros reales con `EVM_LIBROS`
+  ([Desarrollo](docs/desarrollo.md#1-pruebas-automáticas)).
 - Capturas del libro regeneradas y presentación con la terminología nueva.
 
 <a id="v2.7.0"></a>

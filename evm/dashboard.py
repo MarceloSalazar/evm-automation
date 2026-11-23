@@ -35,7 +35,7 @@ from evm.workbook import (C_AC, C_ACN, C_DATE, C_EV, C_EVN, C_PVC, CURVE_FIRST_R
                           FILL_GREEN, FILL_HEADER, FILL_INPUT, FILL_RED, FILL_YELLOW, FMT_DATE, FMT_RATIO,
                           MONTHNUM_ROW, NAME_START, NAME_STATUS, ROW_BL_FINISH, ROW_CRITICAL, ROW_ES_FINISH,
                           ROW_FINISH, ROW_LATE, ROW_PLAN_STATUS, ROW_VARIANCE, SHEET_AC, SHEET_CURVE, SHEET_EV,
-                          SHEET_PV, SHEET_SUMMARY, Thresholds, _Layout, _traffic_light, col, fmt_decimal,
+                          SHEET_PV, SHEET_SUMMARY, Thresholds, _Layout, _traffic_light, pct_light, col, fmt_decimal,
                           loaded_month, money_format, month_sum, put_text)
 
 SHEET_DASHBOARD = "Cuadro de Mando"
@@ -486,6 +486,10 @@ def write_dashboard(ws, report: Report, cfg: Config, lay: _Layout, packages: lis
     th = Thresholds.from_config(cfg)
     for ref in (cpi, spi):
         _traffic_light(ws, ref.replace("$", ""), th)
+    # SV y CV por su % (fila 16); % completado (L11) por su desviación del % planificado (G11)
+    pct_light(ws, cv.replace("$", ""), 'IFERROR($B$16,"")', th, "cv")
+    pct_light(ws, sv.replace("$", ""), 'IFERROR($G$16,"")', th, "sv")
+    pct_light(ws, "L11", 'IFERROR($L$11-$G$11,"")', th, "avance")
     _threshold_scale(ws, 17, th)
     _section(ws, 18, "Pronósticos")
     m = NAME_EAC_METHOD
@@ -510,7 +514,8 @@ def write_dashboard(ws, report: Report, cfg: Config, lay: _Layout, packages: lis
     ws.row_dimensions[27].height = 10
     _plan_cards(ws)
 
-    # Gráficos (la fila anterior a la sección es más baja para compensar la escala de los rangos admisibles de la fila 17)
+    # Gráficos (la fila anterior a la sección es más baja para compensar la escala de los rangos admisibles de la
+    # fila 17)
     charts, charts_end, scatter, scatter_end = chart_rows()
     ws.row_dimensions[charts - 3].height = 5
     _section(ws, charts - 2, "Evolución en el tiempo")

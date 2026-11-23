@@ -31,9 +31,14 @@ paquetes como ejemplo: uno por encima del rango verde (CPI 1,10) y dos por debaj
 ## 1. Qué paquetes se listan
 
 `actualizar` agrega a la hoja las **filas de ingreso** (paquetes de trabajo y filas `-D Otras tareas`)
-cuyo **SPI o CPI acumulado** al mes de la fecha de corte está fuera del **rango verde** de los rangos
-admisibles: menor que `amarillo_inferior` o mayor que `amarillo_superior` (0,95 y 1,05 por defecto,
-[Configuración](configuracion.md)). Es decir, los paquetes en amarillo o rojo en `Indicadores EDT`.
+con algún indicador acumulado al mes de la fecha de corte fuera del **rango verde** de los rangos admisibles
+([Configuración](configuracion.md)):
+
+- **SPI o CPI** menor que `amarillo_inferior` o mayor que `amarillo_superior` (0,95 y 1,05 por defecto);
+- **SV %** (SV / PV), **CV %** (CV / EV) o **desviación del avance técnico** (% completado − % planificado,
+  en puntos del BAC) de más de ±5 % (`sv_amarillo`, `cv_amarillo` y `avance_amarillo`).
+
+Es decir, los paquetes con algún indicador en amarillo o rojo en `Indicadores EDT`.
 
 - Un índice **por debajo** del rango indica atraso (SPI) o sobrecoste (CPI).
 - Un índice **por encima** del rango también se analiza: puede indicar un AC incompleto, un avance
@@ -71,12 +76,13 @@ Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05): 13 (hoja 'Análisis d
 | Mes | Mes analizado (el de la fecha de corte). |
 | Código EDT, Actividad | Paquete de trabajo. |
 | BAC, PV, EV y AC acumulados, SV, CV, SPI, CPI | **Fórmulas** sobre las hojas `PV`, `EV` y `AC`, acumuladas hasta el mes de la fila. Si se corrige un valor en esas hojas, el análisis se recalcula. |
-| Rango admisible | `Rojo`, `Amarillo` o `Verde`, según el índice más alejado del rango verde: `Rojo` si alguno de los dos está por debajo de `rojo_inferior` o por encima de `rojo_superior`. Una fila puede quedar en `Verde` si se corrigieron los datos después de agregarla. |
+| Desv. avance | **Fórmula**: desviación del avance técnico, (EV − PV) / BAC: % completado menos % planificado del paquete. |
+| Rango admisible | `Rojo`, `Amarillo` o `Verde`, según el indicador más alejado de su rango verde (SPI, CPI, SV %, CV % y desviación del avance): `Rojo` si alguno está en rojo. Una fila puede quedar en `Verde` si se corrigieron los datos después de agregarla. |
 | SPI mes ant., CPI mes ant. | **Fórmulas**: SPI y CPI acumulados del paquete en el último mes con EV cargado antes del mes de la fila (con informes bimestrales, el del informe anterior). Vacíos si no hay un mes anterior con datos. |
 | Tendencia | `Empeora` si el SPI o el CPI se alejan de 1 más de 0,01 respecto del mes anterior; `Mejora` si alguno se acerca y ninguno se aleja; `Estable` en otro caso. Un índice por encima del rango verde que baja hacia 1 también mejora. |
 | Desvío fin (días lab.), Holgura (días lab.), Crítica | Plazo del paquete según el cronograma de MS Project en el mes del análisis ([Indicadores EDT](libro-excel.md#indicadores-edt)): días laborables entre el fin de la línea base y el fin previsto (> 0 = atraso), menor holgura total de sus tareas sin terminar y si alguna de ellas es crítica. Son valores (no fórmulas): las filas de meses anteriores conservan los de su mes. El desvío se marca en rojo si el paquete es crítico o tiene holgura negativa (el atraso afecta la fecha de fin), y en amarillo si no lo es. |
 | Antecedente | `Nuevo` (primer mes fuera de umbral), `También en MM/AAAA` (estaba fuera de umbral el mes anterior, sin texto), `Texto copiado de MM/AAAA: se debe revisar` o `Nuevo (cerrada en MM/AAAA)` (ver la [sección 4](#4-qué-se-conserva-de-un-mes-a-otro)). |
-| **Causa**, **Impacto en alcance, plazo y coste**, **Acción**, **Responsable**, **Fecha objetivo**, **Criterio de cierre** | Celdas amarillas: se completan a mano. La *Acción* es la de recuperación o mitigación; el *Criterio de cierre*, la condición que se debe cumplir para dar la desviación por corregida. |
+| **Causa**, **Impacto en alcance, plazo y coste**, **Acción**, **Código de acción**, **Responsable**, **Fecha objetivo**, **Criterio de cierre** | Celdas amarillas: se completan a mano. La *Acción* es la de recuperación o mitigación; el *Código de acción*, el de la acción en el registro de acciones del programa (trazabilidad); el *Criterio de cierre*, la condición que se debe cumplir para dar la desviación por corregida. |
 | **Estado** | Celda amarilla con una lista: `Abierta`, `En curso` o `Cerrada`. Una fila `Cerrada` no se avisa en el cierre siguiente ni copia su texto al mes siguiente ([sección 3](#3-cierre-mensual)). |
 
 La columna oculta `clave` asocia cada fila con su paquete (el *Id. único* de la tarea en MS Project). No

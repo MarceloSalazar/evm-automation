@@ -700,6 +700,35 @@ class _Writer:
             log.warning("No se encontró el FieldID del campo '%s'", self.cfg.client_field)
         self.r.field_name_removed = removed
         log.info("Nombre del campo '%s': %s", self.cfg.client_field, "quitado" if removed else "no se pudo quitar")
+        if fid is not None:
+            self._remove_columns(fid)
+
+    def _remove_columns(self, fid: int) -> None:
+        """Quita la columna del campo del cliente de todas las tablas de tareas: sin su nombre, el cliente vería una
+        columna «Texto15» vacía. Después vuelve a aplicar la tabla de la vista activa, para que se vea sin ella."""
+        try:
+            tables = _items(self.s.project.TaskTables)
+        except Exception as exc:
+            log.warning("No se pudieron leer las tablas de tareas: %s", com_error_text(exc))
+            return
+        for table in tables:
+            name = str(getattr(table, "Name", "") or "?")
+            try:
+                fields = [tf for tf in _items(table.TableFields) if int(getattr(tf, "Field", -1)) == fid]
+                for tf in reversed(fields):
+                    tf.Delete()
+            except Exception as exc:
+                log.warning("No se pudo quitar la columna del campo de la tabla %s: %s", name, com_error_text(exc))
+                self.r.columns_kept.append(name)
+                continue
+            if fields:
+                self.r.columns_removed[name] = len(fields)
+        if self.r.columns_removed:
+            try:
+                self.app.TableApply(Name=self.s.project.CurrentTable)
+            except Exception as exc:
+                log.debug("No se pudo volver a aplicar la tabla activa: %s", com_error_text(exc))
+        log.info("Columnas del campo del cliente quitadas: %s", self.r.columns_removed or "ninguna")
 
     def _rename_root(self) -> None:
         root, name = self.plan.root, self.plan.new_name

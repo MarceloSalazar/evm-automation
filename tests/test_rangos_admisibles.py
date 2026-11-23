@@ -12,7 +12,10 @@ from evm.cli import main
 from evm.config import Config, ConfigError, load_config
 from evm.workbook import Thresholds
 
-CUSTOM = "[rangos_admisibles]\nrojo_inferior = 0.85\namarillo_inferior = 0.9\namarillo_superior = 1.1\nrojo_superior = 1.2\n"
+# Umbrales propios de SPI y CPI; los de SV %, CV % y avance, amplios para que no influyan en la lista del Análisis
+CUSTOM = ("[rangos_admisibles]\nrojo_inferior = 0.85\namarillo_inferior = 0.9\namarillo_superior = 1.1\n"
+          "rojo_superior = 1.2\nsv_amarillo = 0.5\nsv_rojo = 0.6\ncv_amarillo = 0.5\ncv_rojo = 0.6\n"
+          "avance_amarillo = 0.5\navance_rojo = 0.6\n")
 
 
 def config(tmp_path, text: str, name: str = "c.toml"):
@@ -46,7 +49,7 @@ def test_config_defaults_and_keys(tmp_path):
     th = Thresholds.from_config(Config())
     assert (th.red_low, th.yellow_low, th.yellow_high, th.red_high) == (0.9, 0.95, 1.05, 1.1)
     cfg = load_config(config(tmp_path, CUSTOM))
-    assert Thresholds.from_config(cfg) == Thresholds(0.85, 0.9, 1.1, 1.2)
+    assert Thresholds.from_config(cfg) == Thresholds(0.85, 0.9, 1.1, 1.2, 0.5, 0.6, 0.5, 0.6, 0.5, 0.6)
     # Sección con el nombre anterior: error claro (CFG-058)
     with pytest.raises(ConfigError) as exc:
         load_config(config(tmp_path, "[semaforo]\nrojo_inferior = 0.8\n"))
@@ -73,6 +76,19 @@ def test_light_boundaries(value, light):
     assert Thresholds(0.85, 0.9, 1.1, 1.2).light(value) == light
 
 
+@pytest.mark.parametrize("value, band", [(None, ""), (0.05, "Verde"), (-0.05, "Verde"), (0.051, "Amarillo"),
+                                         (-0.1, "Amarillo"), (0.11, "Rojo"), (-0.2, "Rojo")])
+def test_percent_bands(value, band):
+    """SV %, CV % y desviación del avance: en valor absoluto; en el umbral exacto, el color más favorable."""
+    th = Thresholds.from_config(Config())
+    assert th.band(value, "sv") == th.band(value, "cv") == th.band(value, "avance") == band
+
+
+def test_percent_thresholds_must_be_ordered(tmp_path):
+    with pytest.raises(ConfigError, match="avance_amarillo <= avance_rojo"):
+        load_config(config(tmp_path, "[rangos_admisibles]\navance_amarillo = 0.2\navance_rojo = 0.1\n"))
+
+
 def test_dashboard_shows_the_thresholds(book):
     wb = load_workbook(book)
     ws = wb[dashboard.SHEET_DASHBOARD]
@@ -82,7 +98,7 @@ def test_dashboard_shows_the_thresholds(book):
     assert [ws.cell(17, c).fill.fgColor.rgb[-6:] for c in (5, 8, 11, 15, 18)] == [
         "F8CBAD", "FFE699", "C6E0B4", "FFE699", "F8CBAD"]
     meta = {r[0]: r[1] for r in wb["_meta"].iter_rows(min_row=2, values_only=True)}
-    assert [meta[k] for k in Thresholds.META_KEYS] == [0.85, 0.9, 1.1, 1.2]
+    assert [meta[k] for k in Thresholds.META_KEYS] == [0.85, 0.9, 1.1, 1.2, 0.5, 0.6, 0.5, 0.6, 0.5, 0.6]
     data = wb[dashboard.SHEET_CHARTDATA]
     assert [data[c].value for c in ("B4", "B5", "B8", "B9")] == [0.85, 0.9, 1.1, 1.2]
     assert data.cell(dashboard.D_HEADER_ROW, dashboard.M_GREEN).value == "Zona verde (0,90 a 1,10)"

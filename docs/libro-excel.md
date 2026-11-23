@@ -98,6 +98,12 @@ Los valores mensuales son el **valor del mes**, no el acumulado.
   detalle, también otras) son **subtotales** (fórmulas `SUM` de sus hijos). Los valores se ingresan solo
   en las filas sin subelementos: paquetes de trabajo y filas `-D`.
 - Las filas se pueden **contraer por nivel** con los botones de esquema (1, 2, 3) a la izquierda.
+- Las hojas de resultados y de datos (`Cuadro de Mando`, `Resumen`, `PV`, `EV`, `AC`, `% PV`, `Indicadores EDT`,
+  `Evolución mensual` y las ocultas) están **protegidas sin contraseña**: solo se pueden editar las celdas de
+  ingreso (amarillas o con lista desplegable). Se pueden filtrar, ordenar y cambiar el ancho de columnas. Para
+  usar los botones de esquema o corregir otra celda, se desprotege la hoja (Revisar > Desproteger hoja) y se
+  vuelve a proteger al terminar. `[exportacion] proteger_hojas = false` genera el libro sin protección
+  ([Configuración](configuracion.md)).
 - **No se deben insertar, eliminar ni ordenar filas o columnas** en `PV`, `% PV`, `EV`, `% EV`, `AC` ni
   en las hojas de cada empresa: `actualizar` ubica cada fila por su posición. Si los códigos EDT de la columna A no
   coinciden con los del libro generado, o si falta una hoja o se modificaron las hojas ocultas,
@@ -299,7 +305,10 @@ Métodos de medición del desplegable de la columna C y su regla de cálculo.
 
 La hoja oculta `_meta` guarda el **formato del libro** (`formato_libro`): la estructura de sus hojas,
 columnas y datos. La versión 2.7.1 introduce el formato 1. Desde entonces, una versión que cambie el
-formato debe poder actualizar y migrar los libros de los formatos anteriores.
+formato debe poder actualizar y migrar los libros de los formatos anteriores: las pruebas del programa
+actualizan, analizan y migran un libro de referencia de cada formato
+([Desarrollo](desarrollo.md#1-pruebas-automáticas)). `_meta` guarda también la configuración de cálculo con que se
+generó el libro (`config.*`): `actualizar` avisa si cambió ([ACT-052](codigos.md#act-052)).
 
 Los libros generados con versiones anteriores a la 2.7.1 (sin `formato_libro`) **no se admiten**:
 `actualizar`, `analizar`, `procesar-costes` y `--migrar-desde` se detienen sin modificarlos

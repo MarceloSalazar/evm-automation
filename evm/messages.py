@@ -306,8 +306,9 @@ _CODES = [
           "decimales no está entre 0 y 4.",
           "Indicar una cantidad de decimales entre 0 y 4."),
     _code("CFG-014", F, "Umbrales de los rangos admisibles incoherentes",
-          "Los umbrales de [rangos_admisibles] no cumplen 0 < rojo_inferior <= amarillo_inferior < amarillo_superior <= "
-          "rojo_superior.",
+          "Los umbrales de [rangos_admisibles] no cumplen 0 < rojo_inferior <= amarillo_inferior < "
+          "amarillo_superior <= "
+          "rojo_superior, o 0 < X_amarillo <= X_rojo en los de SV, CV y avance (sv, cv, avance).",
           "Corregir los umbrales (por defecto 0,90 / 0,95 / 1,05 / 1,10)."),
     _code("CFG-015", F, "Umbral del semáforo indicado dos veces",
           "En [semaforo] se indicó una clave y también su nombre anterior, que es la misma clave.",
@@ -584,6 +585,13 @@ _CODES = [
           "puede saber qué tareas se muestran al cliente.",
           "Revisar el nombre del campo en [cliente] campo (el alias, por ejemplo \"Etiqueta Cliente\", o el nombre, "
           "por ejemplo \"Text15\").", W_CLI),
+    _code("LEC-027", F, "MS Project no pudo guardar el archivo",
+          "MS Project no pudo guardar el .mpp: el archivo o su carpeta son de solo lectura o sin permiso de "
+          "escritura, el archivo está abierto en otra instancia de MS Project o por otro usuario, el disco está "
+          "lleno o MS Project mostró un diálogo. El mensaje incluye el error de MS Project.",
+          "Revisar los permisos y el espacio de la carpeta, cerrar el archivo en otras instancias de MS Project y "
+          "volver a ejecutar el comando. Con actualizar-edt y corregir-linea-base, el archivo queda sin cambios: el "
+          "respaldo se elimina.", f"{W_CLI}, {W_NUM} y {W_LBA}"),
 
     # --- EDT: estructura y códigos EDT --------------------------------------------------------------------------
     _code("EDT-001", E, "Código EDT con formato no válido",
@@ -1572,6 +1580,13 @@ _CODES = [
           "les daría fila propia, dentro de una fila de ingreso: su avance se suma en el % ganado de esa fila, pero "
           "su duración no forma parte del % planificado del libro (ver ACT-047).",
           "Para darles fila propia, con su % planificado, regenerar el libro con --migrar-desde."),
+    _code("ACT-052", W, "Configuración de cálculo distinta de la del libro",
+          "Una clave de la configuración que interviene en el cálculo (linea_base, distribucion, feriados, "
+          "incluir_inactivas, rellenar_edt o los campos edt, metodo y peso_hito) no tiene el valor con que se generó "
+          "el libro, guardado en la hoja oculta _meta. El % ganado del mes se calcula con la configuración actual, de "
+          "modo que puede no ser coherente con el % planificado del libro.",
+          "Si el cambio no es intencionado, volver a la configuración del libro. Si lo es, regenerar el libro con "
+          "--migrar-desde."),
 
     # --- FIC: fichas de tareas ----------------------------------------------------------------------------------
     _code("FIC-001", W, "No hay fichas",
@@ -1752,6 +1767,11 @@ _CODES = [
           "Quitarlos en el archivo del cliente con el Organizador de MS Project (Archivo > Información > "
           "Organizador), o permitir en el Centro de confianza de MS Project el acceso al modelo de objetos de "
           "proyectos de VBA y volver a generar el archivo."),
+    _code("CLI-034", W, "Columna del campo del cliente que no se pudo quitar",
+          "El archivo del cliente conserva la columna del campo de [cliente] campo en alguna tabla de tareas (sin "
+          "nombre, se ve como Texto15 o similar): MS Project no dejó quitarla. Sus valores sí se vaciaron.",
+          "Quitar la columna en el archivo del cliente (clic derecho en el encabezado > Ocultar columna) y guardarlo.",
+          W_CLI),
 
     # --- NUM: numeración EDT (actualizar-edt) -------------------------------------------------------------------
     _code("NUM-001", F, "No se encontró la tarea de --desde",

@@ -34,7 +34,7 @@ Las imágenes de este documento corresponden al [proyecto de ejemplo](ejemplo-pa
 | 1 | **Mes de reporte** | Celda amarilla `E5`: mes cuyos valores acumulados se muestran. |
 | 2 | **Método EAC** | Celda amarilla `R5`: fórmula de la estimación a la conclusión. |
 | 3 | **Valores acumulados** | BAC, PV, EV y AC acumulados hasta el final del mes de reporte, con su % del BAC. |
-| 4 | **Desviaciones e índices** | CV y SV (con su %), CPI y SPI con el color de su rango admisible, y la escala de los rangos admisibles del libro. |
+| 4 | **Desviaciones e índices** | CV y SV (con su %), CPI y SPI, cada uno con el color de su rango admisible (CV y SV por su %), y la escala de los rangos admisibles de CPI y SPI del libro. El % completado de la tarjeta EV lleva el color de la desviación del avance técnico (% completado − % planificado). |
 | 5 | **Pronósticos** | ETC, EAC, VAC, TCPI (BAC) y TCPI (EAC). |
 | 6 | **Tendencia** | CPI y SPI de los últimos 3 meses y variación del CPI, el SPI y el EAC respecto del mes anterior ([sección 4](#4-tendencia-y-plazo)). |
 | 7 | **Plazo** | Fin de línea base y fin previsto según MS Project, desvío de fin, paquetes críticos y término estimado con el SPI(t). |

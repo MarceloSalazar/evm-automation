@@ -57,6 +57,28 @@ class FakeList(list):
         return self[i - 1]
 
 
+class FakeTableField:
+    def __init__(self, table, field):
+        self.table, self.Field = table, field
+
+    def Delete(self):
+        if self.table.fail_delete:
+            raise RuntimeError("no se puede")
+        self.table.TableFields.remove(self)
+
+
+class FakeTable:
+    """Tabla de tareas con sus columnas (FieldID de cada una)."""
+
+    def __init__(self, name, fields, fail_delete=False):
+        self.Name, self.fail_delete = name, fail_delete
+        self.TableFields = FakeList(FakeTableField(self, f) for f in fields)
+
+    @property
+    def fields(self):
+        return [tf.Field for tf in self.TableFields]
+
+
 class FakeCalendar:
     def __init__(self, project, name):
         self.project, self.Name = project, name
@@ -217,6 +239,10 @@ class FakeProject:
         self.Resources = FakeList()
         self.vba: FakeComponents | None = None   # proyecto VBA (None: MS Project no da acceso a él)
         self.has_vba = False                    # el archivo guardado tiene un proyecto VBA (con sus módulos)
+        # Tablas de tareas: la de la vista con la columna del campo del cliente (FIELD), y otra sin ella
+        self.TaskTables = FakeList([FakeTable("Entrada", [188743731, FIELD, 188743747]),
+                                    FakeTable("Costo", [188743731, 188743747])])
+        self.CurrentTable = "Entrada"
 
     @property
     def BaseCalendars(self):
@@ -339,6 +365,9 @@ class FakeApp:
             raise RuntimeError("no se puede")
         self.names[fid] = name
 
+    def TableApply(self, Name):
+        self.applied_table = Name
+
     def FieldNameToFieldConstant(self, name, kind):
         raise RuntimeError("no existe")
 
@@ -357,6 +386,10 @@ class FakeApp:
         self.project.calculate()
 
     def FileSave(self):
+        if getattr(self, "save_fails", False):
+            # Como pywintypes.com_error: (hresult, texto, (código, fuente, descripción, ...), argumento)
+            raise RuntimeError(-2147352567, "Exception occurred.",
+                               (0, "MS Project", "El archivo es de solo lectura.", None, 0, -2146827284), None)
         self.saved += 1
 
 
@@ -428,6 +461,9 @@ def test_generates_the_client_file_from_a_copy(tmp_path):
     assert [x.UniqueID for x in p.live] == [1, 2, 3, 5, 6, 9, 11]
     assert t["root"].Name == "CLIENTE"
     assert all(x.Text15 == "" for x in p.live) and app.names[FIELD] == "" and result.field_name_removed
+    # La columna del campo del cliente se quita de las tablas (sin nombre, se vería «Texto15»)
+    assert [t_.fields for t_ in p.TaskTables] == [[188743731, 188743747], [188743731, 188743747]]
+    assert result.columns_removed == {"Entrada": 1} and app.applied_table == "Entrada"
     links = sorted((x.From.UniqueID, x.To.UniqueID, x.Type, x.Lag) for x in p.links)
     assert links == [(3, 5, LINK_FS, 1440), (6, 9, LINK_FS, 0)]               # puente y vínculo del resumen
     assert result.removed_links == []
@@ -582,6 +618,26 @@ def test_field_name_that_cannot_be_removed(tmp_path):
     _, _, plan, result = run(tmp_path, app)
     assert not result.field_name_removed and all(x.Text15 == "" for x in app.project.live)
     assert "CLI-017" in {i.id for i in result.issues(plan)}
+
+
+def test_save_error_is_reported_with_its_code(tmp_path):
+    """MS Project no puede guardar la copia: LEC-027 con el error de MS Project (no un error inesperado)."""
+    from evm.messages import ProjectAppError
+    app, _ = build()
+    app.save_fails = True
+    with pytest.raises(ProjectAppError) as exc:
+        run(tmp_path, app)
+    assert exc.value.id == "LEC-027" and "El archivo es de solo lectura." in str(exc.value)
+    assert not (tmp_path / "cliente.mpp").exists()
+
+
+def test_column_that_cannot_be_removed(tmp_path):
+    """MS Project no deja quitar la columna del campo de una tabla: CLI-034, y el informe lo indica."""
+    app, _ = build()
+    app.project.TaskTables[0].fail_delete = True
+    _, destino, plan, result = run(tmp_path, app)
+    assert result.columns_kept == ["Entrada"] and result.columns_removed == {}
+    assert "CLI-034" in {i.id for i in result.issues(plan)}
 
 
 # ----------------------------------------------------------------------------

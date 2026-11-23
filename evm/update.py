@@ -405,6 +405,24 @@ def book_level(book: BookData, cfg: Config) -> int:
     return int(book.meta.get("nivel_maximo") or cfg.max_level)
 
 
+def config_warnings(cfg: Config, meta: dict) -> list[Issue]:
+    """ACT-052: claves de cálculo de la configuración distintas de las que guardó 'generar' en _meta."""
+    from evm.workbook import CONFIG_PREFIX, config_snapshot
+
+    def shown(value) -> str:
+        return f"'{value}'" if str(value or "") != "" else "vacío"
+
+    changed = [f"{key[len(CONFIG_PREFIX):]}: {shown(meta.get(key))} en el libro y {shown(value)} en la configuración"
+               for key, value in config_snapshot(cfg).items()
+               if key in meta and str(meta.get(key) or "") != str(value or "")]
+    if not changed:
+        return []
+    return [Issue("ACT-052", message="La configuración de cálculo no es la del libro (" + "; ".join(changed) + "). "
+                                     "El % ganado se calcula con la configuración actual: si el cambio no es "
+                                     "intencionado, se debe volver a la del libro; si lo es, se debe regenerar el "
+                                     "libro con --migrar-desde.")]
+
+
 def book_ignores_interior_zeros(meta: dict) -> bool:
     """ignorar_ceros_intermedios con que se generó el libro (los libros que no lo guardan: false)."""
     return meta.get("ignorar_ceros_intermedios") is True
@@ -756,6 +774,7 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     check_sources(book.meta, list(projects))
     warnings: list[Issue] = [_tag(n, w) for n, p in projects.items() for w in p.warnings]
     warnings += _list_warnings(cfg, book)
+    warnings += config_warnings(cfg, book.meta)
     configured_zeros = cfg.ignore_interior_zeros
     cfg = apply_book_settings(cfg, book.meta)
     cfg.wbs_list = book.wbs_list            # las filas del libro se decidieron con su lista (o sin lista)

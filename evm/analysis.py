@@ -22,18 +22,18 @@ from openpyxl.worksheet.properties import PageSetupProperties
 from evm.messages import Issue
 from evm.wbs import plural
 from evm.workbook import (BORDER, COL_BAC, FILL_GREEN, FILL_INPUT, FILL_RED, FILL_YELLOW, FIRST_MONTH_COL,
-                          FMT_DATE, FMT_DAYS, FMT_MONTH, FMT_RATIO, FMT_SLACK, FONT_NOTE, FONT_TITLE, HEADER_ROW,
-                          NAME_START, SHEET_AC, SHEET_EV, SHEET_IND, SHEET_PV, Thresholds, _header, _traffic_light,
-                          col, fmt_decimal, loaded_month, money_format, put_text, styled)
+                          FMT_DATE, FMT_DAYS, FMT_MONTH, FMT_PCT, FMT_RATIO, FMT_SLACK, FONT_NOTE, FONT_TITLE,
+                          HEADER_ROW, NAME_START, SHEET_AC, SHEET_EV, SHEET_IND, SHEET_PV, Thresholds, _header,
+                          _traffic_light, col, fmt_decimal, loaded_month, money_format, pct_light, put_text, styled)
 
 SHEET_ANALYSIS = "Análisis de desviaciones"
 STATUS_ROW = 3              # resumen del último análisis
 HEAD_ROW = 4                # encabezados
 FIRST = 5                   # primera fila de datos
-(A_MONTH, A_CODE, A_NAME, A_BAC, A_PV, A_EV, A_AC, A_SV, A_CV, A_SPI, A_CPI, A_LIGHT, A_SPI_PREV, A_CPI_PREV,
- A_TREND, A_VARIANCE, A_SLACK, A_CRITICAL, A_ORIGIN, A_CAUSE, A_IMPACT, A_ACTION, A_OWNER, A_DATE, A_CLOSE,
- A_STATUS, A_KEY) = range(1, 28)
-TEXT_COLS = (A_CAUSE, A_IMPACT, A_ACTION, A_OWNER, A_DATE, A_CLOSE, A_STATUS)
+(A_MONTH, A_CODE, A_NAME, A_BAC, A_PV, A_EV, A_AC, A_SV, A_CV, A_SPI, A_CPI, A_PROGRESS, A_LIGHT, A_SPI_PREV,
+ A_CPI_PREV, A_TREND, A_VARIANCE, A_SLACK, A_CRITICAL, A_ORIGIN, A_CAUSE, A_IMPACT, A_ACTION, A_ACTION_ID, A_OWNER,
+ A_DATE, A_CLOSE, A_STATUS, A_KEY) = range(1, 30)
+TEXT_COLS = (A_CAUSE, A_IMPACT, A_ACTION, A_ACTION_ID, A_OWNER, A_DATE, A_CLOSE, A_STATUS)
 # Estado de la acción (lista de la columna Estado). Una fila Cerrada no se avisa (ACT-043, ACT-045) ni copia su texto
 # al mes siguiente
 STATUSES = ("Abierta", "En curso", "Cerrada")
@@ -41,17 +41,20 @@ CLOSED = "Cerrada"
 PLAN_COLS = (A_VARIANCE, A_SLACK, A_CRITICAL)      # plazo según MS Project en el mes del análisis (valores)
 HEADERS = {
     A_MONTH: "Mes", A_CODE: "Código EDT", A_NAME: "Actividad", A_BAC: "BAC", A_PV: "PV acum.", A_EV: "EV acum.",
-    A_AC: "AC acum.", A_SV: "SV", A_CV: "CV", A_SPI: "SPI", A_CPI: "CPI", A_LIGHT: "Rango admisible",
+    A_AC: "AC acum.", A_SV: "SV", A_CV: "CV", A_SPI: "SPI", A_CPI: "CPI", A_PROGRESS: "Desv. avance",
+    A_LIGHT: "Rango admisible",
     A_SPI_PREV: "SPI mes ant.", A_CPI_PREV: "CPI mes ant.", A_TREND: "Tendencia",
     A_VARIANCE: "Desvío fin (días lab.)", A_SLACK: "Holgura (días lab.)", A_CRITICAL: "Crítica",
     A_ORIGIN: "Antecedente", A_CAUSE: "Causa", A_IMPACT: "Impacto en alcance, plazo y coste",
-    A_ACTION: "Acción", A_OWNER: "Responsable", A_DATE: "Fecha objetivo", A_CLOSE: "Criterio de cierre",
+    A_ACTION: "Acción", A_ACTION_ID: "Código de acción", A_OWNER: "Responsable", A_DATE: "Fecha objetivo",
+    A_CLOSE: "Criterio de cierre",
     A_STATUS: "Estado", A_KEY: "clave",
 }
 WIDTHS = {A_MONTH: 10, A_CODE: 11, A_NAME: 34, A_BAC: 13, A_PV: 13, A_EV: 13, A_AC: 13, A_SV: 12, A_CV: 12,
-          A_SPI: 7, A_CPI: 7, A_LIGHT: 10, A_SPI_PREV: 8, A_CPI_PREV: 8, A_TREND: 10, A_VARIANCE: 9, A_SLACK: 9,
+          A_SPI: 7, A_CPI: 7, A_PROGRESS: 8, A_LIGHT: 10, A_SPI_PREV: 8, A_CPI_PREV: 8, A_TREND: 10, A_VARIANCE: 9,
+          A_SLACK: 9,
           A_CRITICAL: 9, A_ORIGIN: 24, A_CAUSE: 38, A_IMPACT: 30, A_ACTION: 38, A_OWNER: 16, A_DATE: 12,
-          A_CLOSE: 30, A_STATUS: 11}
+          A_CLOSE: 30, A_STATUS: 11, A_ACTION_ID: 12}
 NEW = "Nuevo"
 ALIGN_TOP = Alignment(vertical="top", wrap_text=False)
 ALIGN_TOP_WRAP = Alignment(vertical="top", wrap_text=True)
@@ -60,7 +63,7 @@ CELL_ALIGN = {**{c_: ALIGN_TOP_WRAP for c_ in (A_NAME, A_ORIGIN) + TEXT_COLS},
               **{c_: ALIGN_TOP_CENTER for c_ in (A_TREND, A_VARIANCE, A_SLACK, A_CRITICAL)}}
 # Formato de número de las columnas (las demás quedan con el que tengan: una fecha escrita a mano se ve como fecha)
 MONEY_COLS = (A_BAC, A_PV, A_EV, A_AC, A_SV, A_CV)
-CELL_FORMATS = {A_MONTH: FMT_MONTH, A_SPI: FMT_RATIO, A_CPI: FMT_RATIO, A_SPI_PREV: FMT_RATIO,
+CELL_FORMATS = {A_MONTH: FMT_MONTH, A_SPI: FMT_RATIO, A_CPI: FMT_RATIO, A_PROGRESS: FMT_PCT, A_SPI_PREV: FMT_RATIO,
                 A_CPI_PREV: FMT_RATIO, A_VARIANCE: FMT_DAYS, A_SLACK: FMT_SLACK, A_DATE: FMT_DATE}
 TREND_TOL = 0.01            # variación de la distancia de un índice a 1 que cuenta como mejora o empeoramiento
 
@@ -141,17 +144,23 @@ def read_entries(ws) -> list[Entry]:
 
 
 def deviations(book, idx: int, th: Thresholds) -> list[Deviation]:
-    """Filas de ingreso con SPI o CPI acumulado fuera del rango verde de los rangos admisibles (menor que el amarillo
-    inferior o mayor que el amarillo superior) en el mes idx del horizonte (mismos cálculos que la hoja
-    Indicadores EDT)."""
+    """Filas de ingreso fuera del rango verde de los rangos admisibles en el mes idx del horizonte (mismos cálculos
+    que la hoja Indicadores EDT): SPI o CPI acumulado menor que el amarillo inferior o mayor que el amarillo
+    superior, o SV %, CV % o desviación del avance técnico (% completado - % planificado) por encima de su umbral
+    amarillo, en valor absoluto."""
     out = []
     for s in book.input_rows:
         pv = sum(book.pv[s.row][: idx + 1])
         ev = sum(v or 0.0 for v in book.ev[s.row][: idx + 1])
         ac = sum(v or 0.0 for v in book.ac[s.row][: idx + 1])
+        bac = book.bac.get(s.row) or 0.0
         spi = ev / pv if abs(pv) > 1e-9 else None
         cpi = ev / ac if abs(ac) > 1e-9 else None
-        if any(th.light(x) in ("Rojo", "Amarillo") for x in (spi, cpi)):
+        bands = [th.band((ev - pv) / pv if abs(pv) > 1e-9 else None, "sv"),
+                 th.band((ev - ac) / ev if abs(ev) > 1e-9 and abs(ac) > 1e-9 else None, "cv"),
+                 th.band((ev - pv) / bac if abs(bac) > 1e-9 else None, "avance")]
+        if any(th.light(x) in ("Rojo", "Amarillo") for x in (spi, cpi)) or any(b in ("Rojo", "Amarillo")
+                                                                                for b in bands):
             out.append(Deviation(s.key, s.code, s.name, spi, cpi))
     return out
 
@@ -260,11 +269,15 @@ def overdue(entries: list[Entry], found: list[Deviation], month: date, status: d
     return out
 
 
-def _light_formula(rng: str, th: Thresholds) -> str:
-    """Rango admisible (color) del peor de los dos índices de la fila (SPI y CPI)."""
+def _light_formula(rng: str, sv: str, cv: str, progress: str, th: Thresholds) -> str:
+    """Rango admisible (color) del peor indicador de la fila: SPI y CPI (rng) y SV %, CV % y desviación del avance
+    (fórmulas sv, cv y progress, en valor absoluto)."""
     low, high = f"MIN({rng})", f"MAX({rng})"
-    return (f'=IF(COUNT({rng})=0,"",IF(OR({low}<{th.red_low!r},{high}>{th.red_high!r}),"Rojo",'
-            f'IF(OR({low}<{th.yellow_low!r},{high}>{th.yellow_high!r}),"Amarillo","Verde")))')
+    pcts = [(f"IFERROR(ABS({f}),0)", th.limits(k)) for f, k in ((sv, "sv"), (cv, "cv"), (progress, "avance"))]
+    red = ",".join([f"{low}<{th.red_low!r}", f"{high}>{th.red_high!r}"] + [f"{v}>{r!r}" for v, (_y, r) in pcts])
+    yellow = ",".join([f"{low}<{th.yellow_low!r}", f"{high}>{th.yellow_high!r}"]
+                      + [f"{v}>{y!r}" for v, (y, _r) in pcts])
+    return f'=IF(COUNT({rng})=0,"",IF(OR({red}),"Rojo",IF(OR({yellow}),"Amarillo","Verde")))'
 
 
 def _trend_formula(i: int) -> str:
@@ -305,8 +318,8 @@ def write_sheet(wb, entries: list[Entry], row_of: dict[str, int], months: int, t
 
     ws.cell(row=1, column=1, value="Análisis de desviaciones").font = FONT_TITLE
     ws.cell(row=2, column=1, value=(
-        f"Paquetes con SPI o CPI acumulado fuera del rango verde ({fmt_decimal(th.yellow_low)} a "
-        f"{fmt_decimal(th.yellow_high)}) en el mes de corte. Rangos admisibles: {th.describe()}. Tendencia: SPI y CPI "
+        f"Paquetes con algún indicador acumulado fuera del rango verde en el mes de corte. Rangos admisibles: SPI y "
+        f"CPI {th.describe()}; {th.describe_pct()}. Desv. avance: % completado - % planificado. Tendencia: SPI y CPI "
         f"frente a los del mes anterior (Empeora si alguno se aleja de 1 más de {fmt_decimal(TREND_TOL)}). Desvío "
         "de fin, holgura y crítica: cronograma de MS Project en el mes del análisis. Las columnas amarillas se "
         "completan a mano y se conservan al actualizar; las filas de meses anteriores sin texto se "
@@ -353,7 +366,9 @@ def write_sheet(wb, entries: list[Entry], row_of: dict[str, int], months: int, t
                     A_CV: f'=IFERROR({L[A_EV]}{i}-{L[A_AC]}{i},"")',
                     A_SPI: f'=IFERROR({L[A_EV]}{i}/{L[A_PV]}{i},"")',
                     A_CPI: f'=IFERROR({L[A_EV]}{i}/{L[A_AC]}{i},"")',
-                    A_LIGHT: _light_formula(f"{L[A_SPI]}{i}:{L[A_CPI]}{i}", th),
+                    A_PROGRESS: f'=IFERROR(({L[A_EV]}{i}-{L[A_PV]}{i})/{L[A_BAC]}{i},"")',
+                    A_LIGHT: _light_formula(f"{L[A_SPI]}{i}:{L[A_CPI]}{i}", f"{L[A_SV]}{i}/{L[A_PV]}{i}",
+                                            f"{L[A_CV]}{i}/{L[A_EV]}{i}", f"{L[A_PROGRESS]}{i}", th),
                     A_SPI_PREV: f'=IFERROR(IF({prev_n}="","",{ev1}/{pv1}),"")',
                     A_CPI_PREV: f'=IFERROR(IF({prev_n}="","",{ev1}/{ac1}),"")',
                     A_TREND: _trend_formula(i),
@@ -373,6 +388,10 @@ def write_sheet(wb, entries: list[Entry], row_of: dict[str, int], months: int, t
     status.add(f"{col(A_STATUS)}{FIRST}:{col(A_STATUS)}{end + 200}")
     ws.add_data_validation(status)
     _traffic_light(ws, f"{col(A_SPI)}{FIRST}:{col(A_CPI)}{end}", th)
+    sv, cv, pv, ev, bac = (f"{col(c_)}{FIRST}" for c_ in (A_SV, A_CV, A_PV, A_EV, A_BAC))
+    pct_light(ws, f"{col(A_SV)}{FIRST}:{col(A_SV)}{end}", f'IFERROR({sv}/{pv},"")', th, "sv")
+    pct_light(ws, f"{col(A_CV)}{FIRST}:{col(A_CV)}{end}", f'IFERROR({cv}/{ev},"")', th, "cv")
+    pct_light(ws, f"{col(A_PROGRESS)}{FIRST}:{col(A_PROGRESS)}{end}", f"{col(A_PROGRESS)}{FIRST}", th, "avance")
     _traffic_light(ws, f"{col(A_SPI_PREV)}{FIRST}:{col(A_CPI_PREV)}{end}", th)
     light = f"{col(A_LIGHT)}{FIRST}:{col(A_LIGHT)}{end}"
     for text, fill in (("Rojo", FILL_RED), ("Amarillo", FILL_YELLOW), ("Verde", FILL_GREEN)):
