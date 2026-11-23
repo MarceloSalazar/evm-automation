@@ -696,7 +696,7 @@ son de ese nivel, y las fichas ya generadas. Los vínculos no cambian: van por I
 |---|---|
 | `--desde CODIGO` | Código EDT de la tarea cuyas subtareas se numeran (su código no cambia). **Obligatoria.** Se puede repetir para numerar varias ramas, que no deben estar una dentro de otra. |
 | `--origen` | `.mpp`, `activo` o, solo con `--simular`, `.xml`. Con varios archivos (`[[proyectos]]`) se omite: se usa la ruta de la sección de `--proyecto`; si se indica, reemplaza esa ruta (también `activo`). |
-| `--proyecto NOMBRE` | Con varios archivos (`[[proyectos]]`): el archivo que se numera, por su `nombre`, con su planificación y su línea base. No hace falta si hay una sola sección. |
+| `--proyecto NOMBRE` | Con varios archivos (`[[proyectos]]`): el archivo que se numera, por su `nombre`, con su planificación y su línea base. No hace falta si hay una sola sección ni si `--origen` es la ruta de una sección. Sin él, con varias secciones, un `--origen` que no es la ruta de ninguna se lee solo, con la planificación y la línea base generales ([CFG-057](codigos.md#cfg-057)). |
 | `--simular` | Muestra los cambios y escribe el informe, sin escribir los códigos. Admite el XML. |
 | `--sin-respaldo` | No crea la copia de respaldo del `.mpp` antes de guardarlo. |
 | `--informe RUTA` | Informe en Markdown. Por defecto `<origen>_edt-AAAAMMDD-HHMMSS.md` junto al archivo (con `activo`, `EDT-AAAAMMDD-HHMMSS.md` en la carpeta actual). |

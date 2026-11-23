@@ -14,7 +14,7 @@ from pathlib import Path
 
 from evm import progress
 from evm.config import Config
-from evm.fields import (TASK_NUMBER_IDS, builtin_kind, field_id, is_notes_name, is_spanish_wbs_name, missing_field,
+from evm.fields import (TASK_NUMBER_IDS, TASK_TEXT_IDS, builtin_kind, field_id, is_notes_name, is_spanish_wbs_name, missing_field,
                         parse_custom_name, parse_number, same_name)
 from evm.messages import EvmError, Issue
 from evm.model import CONSTRAINT_ASAP, Link, ProjectData, Task, use_current_schedule
@@ -167,7 +167,13 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True, client: bool = F
     elif method_ref is not None:
         found["metodo"] = cfg.method_field
     weight_ref = _resolve(cfg.milestone_weight_field, defs) if cfg.milestone_weight_field else None
-    weight_numeric = weight_ref is not None and weight_ref[0] == "ext" and weight_ref[1] in TASK_NUMBER_IDS.values()
+    # Tipo del campo de peso (True numérico: 0 = vacío; False texto: 0 = Peso 0; None un campo empresarial u otro
+    # campo que no es Número1..20 ni Texto1..30: se decide con los valores, como con COM)
+    weight_numeric: bool | None = False
+    if weight_ref is not None and weight_ref[0] == "ext":
+        weight_numeric = (True if weight_ref[1] in TASK_NUMBER_IDS.values() else
+                          False if weight_ref[1] in TASK_TEXT_IDS.values() else None)
+    raw_weights: list[tuple[Task, str]] = []
     if cfg.milestone_weight_field and weight_ref is None:
         warnings.append(missing_field("peso_hito", cfg.milestone_weight_field, "el XML", cfg))
     elif weight_ref is not None:
@@ -283,7 +289,8 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True, client: bool = F
 
         weight = None
         if weight_ref is not None:
-            weight = parse_number(value_of(weight_ref))
+            raw_weight = value_of(weight_ref)
+            weight = parse_number(raw_weight)
             if weight == 0 and weight_numeric:
                 weight = None           # campo numérico: el 0 no se distingue del vacío (sin definir)
         company = value_of(company_ref).strip() if company_ref is not None else ""
@@ -316,7 +323,17 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True, client: bool = F
             description=value_of(description_ref).strip(), client_mark=value_of(client_ref).strip(),
         )
         tasks.append(task)
+        if weight_ref is not None:
+            raw_weights.append((task, raw_weight))
 
+    if weight_numeric is None and raw_weights:
+        # Como con COM: todos los valores escritos son números y al menos la mitad de las tareas tienen 0
+        written = [w for _t, w in raw_weights if w.strip()]
+        numbers = [parse_number(w) for w in written]
+        if written and all(n is not None for n in numbers) and sum(1 for n in numbers if n == 0) * 2 >= len(raw_weights):
+            for t, w in raw_weights:
+                if parse_number(w) == 0:
+                    t.milestone_weight = None
     tasks.sort(key=lambda t: t.id)
     if not title:
         name = r.text(root, "Name")

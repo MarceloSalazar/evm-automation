@@ -113,6 +113,30 @@ def _weight(value, numeric: bool) -> float | None:
     return None if numeric and weight == 0 else weight
 
 
+def weight_kind(ref) -> bool | None:
+    """Tipo del campo de peso: True si es Número1..20, False si es Texto1..30 u otro campo de MS Project (con su
+    nombre), None si se lee por su constante y no es uno de ellos (p. ej. un campo empresarial de Project Online)."""
+    if ref is None:
+        return False
+    kind, value = ref
+    if kind == "attr":
+        return str(value).startswith("Number")
+    if value in TASK_NUMBER_IDS.values():
+        return True
+    if value in TASK_TEXT_IDS.values():
+        return False
+    return None
+
+
+def _is_number(value) -> bool:
+    if isinstance(value, bool):
+        return False
+    try:
+        return parse_number(value) is not None
+    except (TypeError, ValueError):
+        return False
+
+
 def _number(v) -> float | None:
     """Número de COM; None si no es numérico (p. ej. la duración en texto de una tarea manual)."""
     if isinstance(v, bool) or not isinstance(v, (int, float)):
@@ -557,9 +581,9 @@ class ComSession:
         elif method_ref is not None:
             found["metodo"] = cfg.method_field
         weight_ref = self._resolve_field(cfg.milestone_weight_field) if cfg.milestone_weight_field else None
-        weight_numeric = weight_ref is not None and (
-            (weight_ref[0] == "attr" and str(weight_ref[1]).startswith("Number"))
-            or (weight_ref[0] == "fid" and weight_ref[1] in TASK_NUMBER_IDS.values()))
+        # Tipo del campo de peso: True numérico (0 = vacío), False texto (0 = Peso 0), None desconocido (un campo
+        # empresarial de Project Online u otro campo que se lee por su constante): se decide con los valores leídos
+        weight_numeric = weight_kind(weight_ref)
         if cfg.milestone_weight_field and weight_ref is None:
             warnings.append(missing_field("peso_hito", cfg.milestone_weight_field, "MS Project", cfg))
         elif weight_ref is not None:
@@ -587,6 +611,7 @@ class ComSession:
                 found["campo_reparto"] = cfg.split_field
 
         tasks: list[Task] = []
+        raw_weights: list[tuple[Task, object]] = []     # peso leído de cada tarea (campo de tipo desconocido)
         any_baseline = False
         skipped_external = 0
         count = int(_number(_get(p.Tasks, "Count", 0)) or 0)
@@ -650,7 +675,7 @@ class ComSession:
                 baseline_dates=dict(sorted(dates.items())),
                 calendar=own_calendar,
                 method=str(self._field_value(t, method_ref) or "").strip(),
-                milestone_weight=_weight(weight, weight_numeric),
+                milestone_weight=_weight(weight, bool(weight_numeric)),
                 company=str(company or "").strip(),
                 split_a=None if split in (None, "") else parse_number(split),
                 visible="" if visible is None else str(visible).strip(),
@@ -658,6 +683,16 @@ class ComSession:
                 client_mark="" if mark is None else str(mark).strip(),
             )
             tasks.append(task)
+            raw_weights.append((task, weight))
+        if weight_numeric is None and raw_weights:
+            # Un campo numérico devuelve «0» en las tareas sin valor; uno de texto, vacío (y un 0 solo en las pocas
+            # tareas que no deben contar). Si todos los valores escritos son números y al menos la mitad de las
+            # tareas tienen 0, es numérico y el 0 se lee como vacío
+            written = [w for _t, w in raw_weights if w not in (None, "")]
+            zeros = sum(1 for w in written if _is_number(w) and parse_number(w) == 0)
+            if written and all(_is_number(w) for w in written) and zeros * 2 >= len(raw_weights):
+                for t, w in raw_weights:
+                    t.milestone_weight = _weight(w, True)
         if skipped_external:
             warnings.append(Issue("LEC-017", message=f"Se omitieron {skipped_external} tareas externas (vínculos "
                                                      "entre proyectos)."))

@@ -73,7 +73,9 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   su tarea superior y no forma filas -D (`HIT-015`, nuevo). Un peso vacío sigue significando sin definir
   (depende de sus tareas hermanas). Una tarea resumen cuyas subtareas tienen todas 0 tampoco cuenta. Una fila
   del libro con 0 se conserva con PV y EV 0 (`HIT-016`, nuevo), y los pesos de las subtareas de una tarea con
-  0 se informan como advertencia (`HIT-014`). En un campo numérico el 0 se lee como vacío.
+  0 se informan como advertencia (`HIT-014`). En un campo numérico el 0 se lee como vacío; un campo empresarial
+  de Project Online (que no es Número1-20 ni Texto1-30) se trata como numérico si todos sus valores son números
+  y al menos la mitad de las tareas tienen 0.
 - **Líneas base en el informe de mejoras** (`validar --informe`, sección 4 nueva; la comparación de
   planificaciones pasa a ser la 5): cada línea base guardada en las tareas de la planificación, con sus
   tareas, fechas, fecha de guardado (con un .mpp) e indicios de un guardado por error (en pocas tareas,
