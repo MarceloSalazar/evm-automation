@@ -58,7 +58,7 @@ La pantalla también muestra la lista al terminar `actualizar`, incluso con `--s
 de 2027, el de [Comandos](comandos.md#actualizar-carga-el--ganado-del-mes)):
 
 ```text
-Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05): 13 (hoja 'Análisis de desviaciones')
+Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05, o SV %, CV % o desviación del avance fuera de su rango verde): 13 (hoja 'Análisis de desviaciones')
   1.1.1      Oficina de gestión del programa (PMO)     SPI  1,00  CPI  1,11
   1.1.2      Control de proyectos y EVM                SPI  1,00  CPI  1,11
   1.1.3      Gestión de riesgos                        SPI  1,00  CPI  1,09

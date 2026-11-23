@@ -5,7 +5,8 @@ Project de forma que sirva, sin trabajo adicional, para el **informe EVM** (info
 ganado) que se entrega al cliente. Cada regla indica **qué** hacer y **por qué** se decidió así. No hace
 falta conocer la herramienta que prepara el informe EVM.
 
-> Los nombres de los campos (`Item EDT`, `Visible EVM`, `Peso`, `Método EVM`...) son los habituales; en
+> Los nombres de los campos (`Item EDT`, `Visible EVM`, `Peso`, `Método EVM`, `Etiqueta Cliente`...) son los
+> habituales; en
 > un proyecto pueden tener otro nombre. Los nombres de menú son los de MS Project en español.
 
 ## 1. Por qué importan estas reglas
@@ -17,6 +18,10 @@ El informe EVM compara, para cada elemento de la EDT y cada mes, tres valores:
 | **PV** (*Planned Value*) | Trabajo que se planificó hacer | Fechas de la **línea base** y peso de cada tarea |
 | **EV** (*Earned Value*) | Trabajo realmente hecho | **Avance** registrado en MS Project, según el método de medición |
 | **AC** (*Actual Cost*) | Coste real | Contabilidad (no se carga en MS Project) |
+
+Cada mes, el informe marca cada indicador de cada elemento (SPI, CPI, SV %, CV % y la desviación entre el
+avance real y el planificado) en **verde, amarillo o rojo** según los **rangos admisibles** acordados, y
+pide explicar las desviaciones ([sección 11](#11-explicar-las-desviaciones)).
 
 El presupuesto (**BAC**) de cada elemento se carga en el informe EVM, no en MS Project. Del cronograma
 solo se toma **cómo se reparte el trabajo en el tiempo y cuánto se avanzó**. Por eso, la estructura, la
@@ -84,12 +89,12 @@ tarea superior** (no se propaga más arriba). El 0 también vale en cualquier pa
 - Los pesos de las hermanas suman **100** o menos. Si suman menos de 100, el resto se reparte entre las
   hermanas con el peso vacío, según su duración. Si suman 100, las de peso vacío no reciben nada. Más de
   100 es un error.
-- Un hito sin peso no recibe nada (dura 0): si debe valer, se le pone peso. Solo en un paquete `Hitos`
-  sin ningún peso, los hitos valen lo mismo y las tareas no cuentan.
+- Un hito sin peso no recibe nada (dura 0): si debe valer, se le pone peso. Solo en un paquete
+  `Hitos ponderados` sin ningún peso, los hitos valen lo mismo y las tareas no cuentan.
 - El campo es de **texto**: en un campo numérico, MS Project no distingue un 0 de un campo vacío.
 - Una tarea con 0 queda fuera con todas sus subtareas: no suma en su paquete ni forma una fila aparte de
   «otras tareas». Un elemento del informe EVM con 0 se conserva, con valor 0.
-- El motivo de un peso 0 se anota en las **Notas** de la tarea ([sección 10](#10-notas-de-la-tarea)).
+- El motivo de un peso 0 se anota en las **Notas** de la tarea ([sección 12](#12-notas-de-la-tarea)).
 
 **Por qué:** el vacío permite cargar solo los pesos que importan (por ejemplo, los entregables) y dejar
 que el resto se reparta por duración. El 0 permite planificar tareas necesarias (coordinación interna,
@@ -104,7 +109,7 @@ Por ahora se usan estos métodos de medición:
 | Método de medición | Cómo avanza | Cuándo usarlo |
 |---|---|---|
 | `0/100` | 0 hasta terminar; todo al terminar | Paquetes que empiezan y terminan en el mismo mes |
-| `Hitos` | Cada hito vale su `Peso` al cumplirse; si los pesos suman menos de 100, las tareas se reparten el resto por duración | Tres meses o más, con entregables intermedios (al menos un hito por mes) |
+| `Hitos ponderados` | Cada hito vale su `Peso` al cumplirse; si los pesos suman menos de 100, las tareas se reparten el resto por duración | Tres meses o más, con entregables intermedios (al menos un hito por mes) |
 | `% Completado` | El *% completado* de sus tareas, ponderado por su `Peso` o, sin peso, por su duración | Trabajo continuo sin entregables intermedios |
 | `Ponderado` | Cada subtarea con su `Peso` y su propio método de medición | Paquetes con subtareas de distinta naturaleza (por ejemplo, ingeniería, compras y entregables) |
 | `Avance lineal` | Avanza con el tiempo, igual que lo planificado | Solo soporte sin entregables (gestión, apoyo) |
@@ -133,7 +138,29 @@ mes. El avance lineal se limita porque siempre parece «en plazo» y oculta los 
 **Por qué:** cada empresa recibe su propio PV y EV. MS Project no distingue un 0 de un campo vacío, por
 eso el 0 no puede significar 0 %.
 
-## 7. Línea base
+## 7. Campo `Etiqueta Cliente`: qué ve el cliente en su planificación
+
+La planificación que se entrega al cliente se genera desde la interna: solo muestra las tareas marcadas.
+
+| Valor | Significado |
+|---|---|
+| **Sí** | El cliente ve la tarea (si también la ven todas sus tareas superiores) |
+| **No** | El cliente no la ve, con todas sus subtareas |
+| vacío | Igual que No, pero queda **sin decidir**: el programa lo avisa cada mes |
+
+**Reglas:**
+
+- El campo es de **texto** (con lista `Sí`, `No`).
+- Una tarea solo se muestra si ella **y todas sus tareas superiores** tienen `Sí`, también la de primer
+  nivel que resume el proyecto completo.
+- Toda tarea nueva recibe `Sí` o `No` al crearla: vacía, el cliente deja de verla sin que nadie lo haya
+  decidido.
+- La planificación del cliente no lleva este campo: se quita al generarla.
+
+**Por qué:** el cliente ve el plan con el mismo detalle en cada entrega; decidir tarea a tarea, con un valor
+explícito, evita mostrar trabajo interno por error o esconder trabajo comprometido.
+
+## 8. Línea base
 
 La línea base es el **plan aprobado por el cliente**. Solo se guarda cuando el cliente aprueba la
 planificación; mientras no la apruebe, **no se define línea base**.
@@ -167,7 +194,7 @@ EV; en el PV, su parte se reparte entre sus hermanas con línea base.
 los desvíos desaparecen del informe EVM. El trabajo no previsto, en cambio, tiene que verse: por eso
 cuenta en el EV y no en el PV.
 
-## 8. Duración, hitos y lógica
+## 9. Duración, hitos y lógica
 
 - Una tarea de **duración 0 es un hito** y se marca como hito.
 - La duración de cada tarea representa su trabajo: a igual peso vacío, una tarea más larga vale más.
@@ -178,18 +205,38 @@ cuenta en el EV y no en el PV.
 **Por qué:** con la lógica completa, MS Project calcula una fecha de fin y una holgura fiables, que el
 informe EVM usa para saber si un atraso afecta al plazo.
 
-## 9. Registro mensual del avance
+## 10. Registro mensual del avance
 
 1. **Fecha de estado** = último día del mes informado (*Proyecto > Fecha de estado*).
 2. Registrar el avance **a esa fecha**: % completado, comienzo y fin reales, hitos cumplidos.
 3. Reprogramar el trabajo pendiente para que empiece **después** de la fecha de estado.
 4. No tocar la línea base.
 5. Anotar en las **Notas** las causas de los retrasos o adelantos importantes.
+6. Explicar en el informe EVM las desviaciones del mes y actualizar el estado de las acciones abiertas
+   ([sección 11](#11-explicar-las-desviaciones)).
 
 **Por qué:** el EV del mes es el avance a la fecha de estado. Avance registrado en otra fecha, o trabajo
 pendiente que queda en el pasado, distorsionan el mes y la previsión de fin.
 
-## 10. Notas de la tarea
+## 11. Explicar las desviaciones
+
+El informe EVM lista cada mes los elementos con algún indicador fuera del verde. Para cada uno, el
+responsable del elemento completa:
+
+| Dato | Qué se escribe |
+|---|---|
+| Causa | La causa raíz, no el síntoma («proveedor entregó 6 semanas tarde», no «retraso») |
+| Impacto en alcance, plazo y coste | Qué se espera si no se actúa |
+| Acción | La acción de recuperación o mitigación |
+| Código de acción | El de la acción en el registro de acciones del programa |
+| Responsable y fecha objetivo | Quién la ejecuta y para cuándo |
+| Criterio de cierre | Qué se debe cumplir para dar la desviación por corregida |
+| Estado | `Abierta`, `En curso` o `Cerrada` (solo con evidencia de que se cumplió el criterio de cierre) |
+
+**Por qué:** una desviación sin causa ni acción no se puede gestionar. El estado y el criterio de cierre
+permiten seguir cada acción mes a mes hasta cerrarla, y no volver a analizar lo ya resuelto.
+
+## 12. Notas de la tarea
 
 Las **Notas** de cada tarea (doble clic en la tarea > pestaña *Notas*) son el lugar para justificar los
 cambios y dar contexto. Se anota, con la fecha y quién lo decide:
@@ -203,7 +250,7 @@ cambios y dar contexto. Se anota, con la fecha y quién lo decide:
 **Por qué:** el informe EVM muestra *qué* cambió; las Notas explican *por qué*. Sin ellas, al mes
 siguiente nadie recuerda el motivo, y cada desvío se tiene que volver a investigar.
 
-## 11. Tareas que no deben contar en el informe EVM
+## 13. Tareas que no deben contar en el informe EVM
 
 | Situación | Qué hacer |
 |---|---|
@@ -214,7 +261,7 @@ siguiente nadie recuerda el motivo, y cada desvío se tiene que volver a investi
 **Por qué:** desactivar una tarea también la saca del cálculo de fechas de MS Project: sus vínculos dejan
 de mover a las sucesoras. Durante la planificación conviene el `Peso` = 0, que no altera el cronograma.
 
-## 12. Lista de control
+## 14. Lista de control
 
 **Al planificar:**
 
@@ -224,6 +271,7 @@ de mover a las sucesoras. Durante la planificación conviene el `Peso` = 0, que 
 - [ ] Los pesos de cada grupo de hermanas suman 100 o menos; 0 solo donde la tarea no debe contar.
 - [ ] Cada paquete tiene su método de medición acordado.
 - [ ] `Empresa` y `% Reparto` completos (si el proyecto es entre dos empresas).
+- [ ] `Etiqueta Cliente` con `Sí` o `No` en todas las tareas, incluida la de primer nivel.
 - [ ] Hitos marcados como hitos; lógica completa; sin delimitaciones innecesarias.
 - [ ] Línea base guardada y resumida en las tareas resumen, **solo si el cliente aprobó la
       planificación**.
@@ -234,3 +282,5 @@ de mover a las sucesoras. Durante la planificación conviene el `Peso` = 0, que 
 - [ ] Fecha de estado = último día del mes.
 - [ ] Avance registrado a esa fecha y trabajo pendiente reprogramado.
 - [ ] Línea base sin cambios (salvo un cambio aprobado por el cliente, anotado en las Notas).
+- [ ] Tareas nuevas con `Etiqueta Cliente` (`Sí` o `No`).
+- [ ] Desviaciones del mes explicadas y estado de las acciones abiertas actualizado.

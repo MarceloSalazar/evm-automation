@@ -20,6 +20,52 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 ### Nuevas funciones
 
+- Ninguna.
+
+### Correcciones
+
+- Ninguna.
+
+### Otros
+
+- Ninguna.
+
+<a id="v2.7.1"></a>
+
+## [2.7.1] - 2026-11-24 · Rangos admisibles, seguimiento de las desviaciones y formato estable del libro
+
+### Resumen
+
+**Nuevas funciones**
+
+- **Rangos admisibles de SV %, CV % y desviación del avance técnico,** además de SPI y CPI, en el Cuadro de
+  Mando, el Resumen, Indicadores EDT y el Análisis de desviaciones ([Configuración](docs/configuracion.md)).
+- **Análisis de desviaciones con seguimiento hasta el cierre:** impacto en alcance, plazo y coste, código de
+  acción, fecha objetivo, criterio de cierre y estado (`Abierta`, `En curso`, `Cerrada`)
+  ([Análisis de desviaciones](docs/analisis-desviaciones.md#2-columnas)).
+- **Libro protegido y con formato estable:** solo se editan las celdas de ingreso; el libro guarda su formato y
+  la configuración de cálculo, y avisa si esta cambia
+  ([El libro Excel](docs/libro-excel.md#6-formato-del-libro-y-versiones-anteriores)).
+
+**Correcciones**
+
+- **`generar-cliente`:** quita la columna del campo del cliente, que quedaba sin nombre (*Texto15*), y explica qué
+  tarea superior no tiene `Sí` cuando no se muestra ninguna
+  ([Planificación para el cliente](docs/generar-cliente.md#2-qué-tareas-ve-el-cliente)).
+- **Errores al guardar con MS Project** con un mensaje claro, y lectura correcta de un campo de peso
+  empresarial desde el XML ([Configuración](docs/configuracion.md)).
+
+**Otros**
+
+- Terminología: «coste», «sobrecoste», «Rangos admisibles» y la línea base (PMB) en la hoja `PV`. La sección
+  `[semaforo]` de la configuración pasa a llamarse `[rangos_admisibles]` ([Configuración](docs/configuracion.md)).
+- **Los libros anteriores a la 2.7.1 no se admiten:** se debe generar un libro nuevo con `generar`. Desde esta
+  versión, los libros se seguirán actualizando en las versiones siguientes
+  ([El libro Excel](docs/libro-excel.md#6-formato-del-libro-y-versiones-anteriores)).
+- Instalador de Windows adjunto a la publicación.
+
+### Nuevas funciones
+
 - **Análisis de desviaciones con seguimiento hasta el cierre:** las columnas que se completan a mano son
   *Causa*, *Impacto en alcance, plazo y coste*, *Acción*, *Responsable*, *Fecha objetivo* (antes *Fecha
   compromiso*), *Criterio de cierre* (nueva) y *Estado* (nueva, con la lista `Abierta`, `En curso` y
@@ -86,6 +132,9 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 - Pruebas: libro de referencia del formato 1 (`tests/libros/formato_1.xlsx`), que cada versión debe seguir
   actualizando, analizando y migrando, y revisión opcional de libros reales con `EVM_LIBROS`
   ([Desarrollo](docs/desarrollo.md#1-pruebas-automáticas)).
+- Guía de convenios en MS Project: campo `Etiqueta Cliente` (qué ve el cliente, incluida la tarea de primer
+  nivel), cómo explicar las desviaciones y seguir sus acciones, rangos admisibles y el nombre `Hitos
+  ponderados` ([Guía de convenios](docs/guia-convenios-ms-project.md)).
 - Capturas del libro regeneradas y presentación con la terminología nueva.
 
 <a id="v2.7.0"></a>
@@ -1628,7 +1677,8 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.7.0...desarrollo
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.7.1...desarrollo
+[2.7.1]: https://github.com/MarceloSalazar/evm-automation/compare/v2.7.0...v2.7.1
 [2.7.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.1...v2.5.0
