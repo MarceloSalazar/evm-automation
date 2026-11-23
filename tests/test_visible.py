@@ -216,3 +216,12 @@ def test_migration_sums_the_history_of_rows_that_are_now_hidden(tmp_path):
         sum(v or 0 for r in ("1.1.1", "1.1.2") for v in a.ev[ra[r]])) == pytest.approx(150)
     assert b.bac[rb["1.1.0"]] == 300
     assert issues_with(rep, "Se sumó el historial")
+
+
+def test_no_on_a_top_task_keeps_its_row_so_its_branch_counts():
+    """Visible = No en una tarea de nivel 1, sin fila superior en la que sumarse: conserva su fila (VIS-012) y su
+    rama sigue en el libro."""
+    rep = report(tasks(**{"Gestión": "No"}), max_level=2)
+    assert "1" in {code.split(".")[0] for code in codes(rep)}
+    assert {"PMO", "Control", "Pliegos", "Adjudicación", "Obras"} <= all_leaves(rep)
+    assert any(i.id == "VIS-012" and "conserva su fila" in i.message for i in rep.issues)

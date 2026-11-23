@@ -1732,6 +1732,8 @@ def read_meta(wb) -> dict:
     if not 1 <= meta["meses"] <= 16384 - FIRST_MONTH_COL:
         raise invalid("meses")
     meta["multiempresa"] = _as_bool(meta.get("multiempresa"))
+    if meta.get("pv_fechas_actuales") not in (None, ""):     # los libros anteriores a la 2.7.0 no lo tienen
+        meta["pv_fechas_actuales"] = _as_bool(meta["pv_fechas_actuales"])
     return meta
 
 

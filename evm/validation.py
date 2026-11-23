@@ -461,10 +461,14 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
         if milestone is not None:
             dates.append(milestone)
         elif not t.milestone and _zero_duration(t):
+            weight = (t.milestone_weight or 0) > 0
             dates.append(_issue("FEC-005", t, code_of,
-                                "Duración 0 y no está marcada como hito: no pesa en el % planificado de su fila "
-                                "(pesan las tareas con duración y los hitos con peso). Si es un hito, se debe "
-                                "marcar como hito."))
+                                "Duración 0 y no está marcada como hito: "
+                                + ("cuenta en el % planificado por su peso, en un solo mes, como un hito. "
+                                   if weight else
+                                   "sin peso no recibe parte del % planificado de su fila (las tareas sin peso "
+                                   "pesan por su duración). ")
+                                + "Si es un hito, se debe marcar como hito; si no, indicar su duración."))
         baseline = _one_day_baseline(t, project, code_of) if project.baseline_found else None
         if baseline is not None:
             dates.append(baseline)

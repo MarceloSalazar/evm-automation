@@ -121,6 +121,8 @@ def _single_origin(cfg: Config, args) -> Config:
     given = getattr(args, "origen", None) or []
     if not cfg.projects or len(given) != 1 or getattr(args, "proyecto", None):
         return cfg
+    if getattr(args, "comando", "") in ("actualizar-edt", "corregir-linea-base"):
+        return cfg                      # trabajan con un archivo: la sección la elige _edt_source (--origen = su ruta)
     item = given[0].strip()
     name, sep, _path = (x.strip() for x in item.partition("="))
     if sep and name and not any(c in name for c in "\\/:."):
@@ -982,7 +984,8 @@ def cmd_actualizar_edt(args) -> int:
         progress.stage("informe", "Escritura del informe")
         silence = _silence(cfg)
         notices = silence.apply(project.warnings + plan.issues + (outcome.issues if outcome else []))
-        errors = [i for i in notices if i.severity == SEV_ERROR]
+        # Los errores del plan impiden escribir aunque estén silenciados: se cuentan igual
+        errors = [i for i in notices if i.severity == SEV_ERROR] or list(plan.errors)
         if errors:
             result = f"No se escribió ningún código: hay {plural(len(errors), 'error', 'errores')}."
         elif not plan.changes:
@@ -1103,7 +1106,7 @@ def cmd_corregir_linea_base(args) -> int:
                 store = bf.ComStore(session)
             _computing(name, "Cálculo de los cambios")
             scope = select_scope(build_tree(project.tasks), cfg.plan)
-            state = bf.State(project, store)
+            state = bf.State(project, store, {t.uid for t in scope.tasks()})
             targets = (bf.all_targets(scope, state, action) if args.todas else
                        bf.find_targets(scope, args.tarea, args.rama))
             ctx = bf.Context(project, cfg, project.baseline_number, args.aprobada)

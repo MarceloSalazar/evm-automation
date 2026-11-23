@@ -200,15 +200,28 @@ def test_a_task_without_baseline_leaves_its_share_to_its_siblings():
 
 
 def test_a_summary_without_weight_and_without_planned_duration_is_reported():
-    """1.2.3 sin peso: en el PV su duración planificada es 0 (solo el hito tiene línea base)."""
+    """1.2.3 sin peso: en el PV su duración planificada es 0 (solo un hito sin peso tiene línea base) y no recibe
+    parte, aunque en el EV sí (su tarea nueva tiene duración): HIT-017."""
+    tasks = [summary(1, 1, "1", "Fase"), summary(2, 2, "1.2", "Paquete", method="% Completado"),
+             task(3, 3, "1.2.1", "Tarea A", JAN, done=100),
+             summary(4, 3, "1.2.3", "Resumen"), task(5, 4, "1.2.3.1", "Nueva", FEB, baseline=False),
+             task(6, 4, "1.2.3.4", "Hito", MAR, milestone=True)]
+    rep = report(tasks)
+    assert row_of(rep).pct_vec[""][0] == pytest.approx(1.0)
+    [issue] = ids(rep, "HIT-017")
+    assert "Resumen" in issue.name
+
+
+def test_weighted_content_without_planned_duration_weighs_the_same_in_the_pv():
+    """1.2.3 sin peso con un hito de peso 50 con línea base y una tarea nueva: en el PV, sin duración planificada pero
+    con pesos dentro, pesa igual que 1.2.1."""
     tasks = [summary(1, 1, "1", "Fase"), summary(2, 2, "1.2", "Paquete", method="% Completado"),
              task(3, 3, "1.2.1", "Tarea A", JAN, done=100),
              summary(4, 3, "1.2.3", "Resumen"), task(5, 4, "1.2.3.1", "Nueva", FEB, 50, baseline=False),
              task(6, 4, "1.2.3.4", "Hito", MAR, 50, milestone=True)]
     rep = report(tasks)
-    assert row_of(rep).pct_vec[""][0] == pytest.approx(1.0)
-    [issue] = ids(rep, "HIT-017")
-    assert "Resumen" in issue.name
+    assert row_of(rep).pct[""] == pytest.approx({(2026, 1): 0.5, (2026, 3): 0.5})
+    assert not ids(rep, "HIT-017")
 
 
 def test_residual_row_weights_stay_in_their_summary():
@@ -244,3 +257,70 @@ def test_update_uses_the_same_split_as_generate(tmp_path):
     row = next(r for r in res.rows if r.code == "1.2")
     assert row.ev_cum == pytest.approx((0.50 + 0.45 * 0.5) * 1_000_000, abs=1)
     assert not [i for i in res.warnings + row.notes if i.id == "ACT-047"]
+
+
+# ----------------------------------------------------------------------------
+# Revisión de la 2.7.0
+# ----------------------------------------------------------------------------
+def test_a_weighted_leaf_row_is_not_a_group_of_weights():
+    """La tarea de una fila sin subtareas con peso: su peso es de su tarea superior, no se compara con 100."""
+    tasks = [summary(1, 1, "1", "Fase"), task(2, 2, "1.1", "A", JAN, 30), task(3, 2, "1.2", "B", FEB, 70)]
+    rep = report(tasks)
+    assert not ids(rep, "HIT-013")
+    tasks = [summary(1, 1, "1", "Fase"), task(2, 2, "1.1", "A", JAN, method="Ponderado")]
+    assert not ids(report(tasks), "HIT-012")
+
+
+def test_weights_scaled_because_the_unweighted_siblings_are_milestones_are_reported():
+    tasks = [summary(1, 1, "1", "Fase"), summary(2, 2, "1.1", "Paquete", method="% Completado"),
+             task(3, 3, "1.1.1", "A", JAN, 30), task(4, 3, "1.1.2", "B", FEB, 30),
+             task(5, 3, "1.1.3", "Hito", MAR, milestone=True)]
+    [issue] = ids(report(tasks), "HIT-013")
+    assert issue.severity == "Advertencia" and "suman 60" in issue.message
+
+
+def test_residual_row_weights_are_not_compared_with_100():
+    """En la fila -D solo están las tareas sin fila propia: su peso no se compara con 100."""
+    tasks = [summary(1, 1, "1", "Fase"), task(2, 2, "1.1", "A", JAN, 60), task(3, 2, "", "B", FEB, 40)]
+    rep = report(tasks)
+    assert "1.0-D" in rows_by_code(rep) and not ids(rep, "HIT-013")
+
+
+def test_a_zero_weight_leaf_row_has_no_planned_percent_in_update(tmp_path):
+    c = cfg()
+    tasks = [summary(1, 1, "1", "Fase"), task(2, 2, "1.1", "A", JAN), task(3, 2, "1.2", "B", FEB, 0)]
+    book = tmp_path / "libro.xlsx"
+    write_workbook(build_report(P(tasks), c), c, book)
+    set_bac(book)
+    res = run_update(P(tasks, status_date=datetime(2026, 2, 28)), c, book, backup=False, dry_run=True)
+    assert not [i for r in res.rows for i in r.notes if i.id == "ACT-047"]
+    assert not [i for i in res.warnings if i.id == "ACT-047"]
+
+
+def test_residual_block_is_the_same_in_generate_and_update(tmp_path):
+    """Tarea intermedia sin fila con línea base y una subtarea con fila propia: no es un bloque (generar y
+    actualizar coinciden, sin ACT-047)."""
+    c = cfg()
+    tasks = [summary(1, 1, "1", "Fase"), task(2, 2, "1.1", "A", JAN),
+             summary(3, 2, "", "X", period=(JAN[0], FEB[1])), task(4, 3, "1.2", "X1", JAN),
+             task(5, 3, "", "X2", FEB, baseline=False)]
+    book = tmp_path / "libro.xlsx"
+    write_workbook(build_report(P(tasks), c), c, book)
+    set_bac(book)
+    res = run_update(P(tasks, status_date=datetime(2026, 2, 28)), c, book, backup=False, dry_run=True)
+    assert not [i for r in res.rows for i in r.notes if i.id == "ACT-047"]
+    assert not [i for i in res.warnings if i.id == "ACT-047"]
+
+
+def test_unweighted_siblings_weigh_the_same_when_one_without_duration_holds_weights():
+    """Ninguna hermana tiene peso y una tarea resumen de duración 0 contiene hitos con peso: todas pesan igual
+    (HIT-009), en lugar de quedarse sin parte (HIT-014)."""
+    tasks = [summary(1, 1, "1", "Fase"), summary(2, 2, "1.2", "Paquete", method="% Completado"),
+             task(3, 3, "1.2.1", "Tarea A", JAN),
+             summary(4, 3, "1.2.3", "Hitos"), task(5, 4, "1.2.3.1", "H1", FEB_M, 50, milestone=True),
+             task(6, 4, "1.2.3.2", "H2", MAR, 50, milestone=True)]
+    rep = report(tasks)
+    assert row_of(rep).weights[""].weights == pytest.approx({3: 0.5, 5: 0.25, 6: 0.25})
+    assert not ids(rep, "HIT-014")
+    [issue] = ids(rep, "HIT-009")
+    assert "1.2.3" in issue.message and "pesan igual" in issue.message

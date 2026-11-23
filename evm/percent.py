@@ -179,8 +179,9 @@ class RowTree:
     """
 
     def __init__(self, top: Task | None, leaves: list[Task], time_of: Callable[[Task], TaskTime],
-                 units: list[Task] | None = None, method: Method | None = None):
+                 units: list[Task] | None = None, method: Method | None = None, residual: bool = False):
         self.top = top
+        self.residual = residual            # fila -D: la tarea resumen no forma parte de la fila (parte de sus hijas)
         self.time_of = time_of
         self.method = method or Method(PCT)
         self.units = units
@@ -206,6 +207,7 @@ class RowTree:
             inside.update((x.uid, x) for x in chain)
         self._inside = inside
         self._root = ([c for c in top.children if c.uid in inside] if top is not None else []) + orphans
+        self._leaf_row = top is not None and self._root == [top]       # la fila es una tarea de detalle
         self.nodes: list[Task] = [x for x in list(inside.values()) + orphans if x is not top]
         self._leaf_ids = {t.uid for t in self.leaves}
         self.has_weights = any(task_weight(x) > 0 for x in self.nodes)
@@ -217,6 +219,8 @@ class RowTree:
         self.groups: list[WeightGroup] = []             # tareas resumen con pesos que no suman 100
         self.equal: list[Task | None] = []              # tareas resumen repartidas en partes iguales (sin duración)
         self.pv_lost: list[Task] = []                   # tareas sin parte del PV por duración planificada 0
+        # tareas resumen cuyas subtareas pesan igual porque una, sin duración, contiene tareas con peso
+        self.equal_zero: list[tuple[Task | None, list[Task]]] = []
         self._memo: dict[tuple[int, bool], list[Task]] = {}
         self._full = self._split(lambda t: 1.0, True)
 
@@ -243,6 +247,10 @@ class RowTree:
             self._memo[key] = out
         return self._memo[key]
 
+    def _weighted_inside(self, t: Task) -> bool:
+        """Alguna tarea de la rama de t (sin t) tiene peso."""
+        return any(task_weight(c) > 0 or self._weighted_inside(c) for c in self.kids(t))
+
     def branch_leaves(self, t: Task) -> list[Task]:
         """Tareas de detalle de la fila en la rama de t."""
         return self._inner(t, False)
@@ -256,6 +264,7 @@ class RowTree:
         total = sum(weight.values())
         rest = [c for c in ks if weight[c.uid] <= 0]
         scaled = total > WEIGHT_TOTAL + _EPS or (total > 0 and not rest)
+        note = note and not self._partial(t)
         if note and scaled and abs(total - WEIGHT_TOTAL) > _EPS:
             self.groups.append(WeightGroup(t if t is not None else self.top, total))
         base = total if scaled else WEIGHT_TOTAL
@@ -265,15 +274,37 @@ class RowTree:
         if remainder > _EPS:
             minutes = {c.uid: sum(self.time_of(x).minutes * part(x) for x in self._inner(c, pv)) for c in rest}
             span = sum(minutes.values())
-            if span > 0:
+            zero = [c for c in rest if minutes[c.uid] <= 0 and self._weighted_inside(c)
+                    and any(part(x) > TOL for x in self._inner(c, pv))]
+            if total <= 0 and span > 0 and zero:
+                # Ninguna subtarea tiene peso y alguna dura 0 pero contiene tareas con peso (p. ej. una tarea resumen
+                # de hitos con peso): todas pesan igual, en lugar de quedarse esa sin parte (HIT-009)
+                found = [c for c in rest if any(part(x) > TOL for x in self._inner(c, pv))]
+                out.update((c.uid, remainder / len(found)) for c in found)
+                if note:
+                    self.equal_zero.append((t, zero))
+            elif span > 0:
                 out.update((c.uid, remainder * minutes[c.uid] / span) for c in rest)
+            elif total > 0 and note:
+                # Las subtareas sin peso no tienen duración (p. ej. hitos): el resto no lo recibe nadie y los pesos se
+                # escalan a 100
+                self.groups.append(WeightGroup(t if t is not None else self.top, total))
             elif total <= 0:                                    # sin pesos y todas de duración 0: partes iguales
                 found = [c for c in rest if any(part(x) > TOL for x in self._inner(c, pv))]
                 out.update((c.uid, remainder / len(found)) for c in found)
                 equal = len(found) > 1
         return out, (NO_SHARE_DURATION if remainder > _EPS else NO_SHARE_FULL), equal
 
+    def _partial(self, t: Task | None) -> bool:
+        """En la fila solo están algunas subtareas de t (fila -D, o una tarea intermedia con subtareas con fila propia):
+        sus pesos no se comparan con 100."""
+        if t is None:
+            return self.residual
+        return self.residual and len(self.kids(t)) < sum(1 for c in t.children if not no_count(c))
+
     def _alloc(self, t: Task | None, amount: float, part: Callable[[Task], float], pv: bool, note: bool) -> Pairs:
+        if t is None and self._leaf_row:
+            return self._alloc(self.top, amount, part, pv, note)
         if t is not None:
             if pv and self._unit_ids is not None and t.uid in self._unit_ids:
                 return [(t, amount)] if part(t) > TOL else []
@@ -310,7 +341,7 @@ class RowTree:
         if self._unit_ids is None:
             pv = ev
         elif self.top is not None and self.top.uid in self._unit_ids:
-            pv = [(self.top, 1.0)] if part(self.top) > TOL else []
+            pv = [(self.top, 1.0)] if part(self.top) > TOL and self.leaves else []
         else:
             pv = self._alloc(None, 1.0, part, True, note)
         return _normalized(ev), _normalized(pv)

@@ -264,7 +264,9 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True, client: bool = F
             number = r.text(b, "Number")
             if number == str(n):
                 bl = b
-            if number.isdigit() and (r.text(b, "Start") or r.text(b, "Finish")):
+            # Como con COM: una línea base distinta de la del PV cuenta si tiene comienzo (la del PV, con cualquiera
+            # de sus fechas); solo con el fin es incompleta (incomplete)
+            if number.isdigit() and (r.text(b, "Start") or (number == str(n) and r.text(b, "Finish"))):
                 dates[int(number)] = (r.date(b, "Start"), r.date(b, "Finish"))
             if number.isdigit() and r.text(b, "Start"):
                 saved.append(int(number))

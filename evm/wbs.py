@@ -108,7 +108,7 @@ class ReportPart:
     issues: list[Issue]         # observaciones de la lectura y de la estructura EDT
     checks: list[Issue]         # controles finales (tareas omitidas, BAC, códigos duplicados...)
     first_date: date | None     # inicio del horizonte si ninguna fila tiene % planificado
-    scope: "Scope | None" = None                # tareas exportadas (sin las inactivas ni las de Visible = No)
+    scope: "Scope | None" = None                # tareas exportadas (sin las inactivas ni las de Peso = 0)
     code_of: Callable[[Task], str] | None = None    # código EDT de una tarea, como en el libro
     list_matched: set[str] | None = None        # lista EDT: códigos de la lista que tienen tarea (None = sin lista)
     # validar: evaluación DCMA de 14 puntos, punto -> (valor, umbral, cumple; None = no se evalúa)
@@ -314,10 +314,8 @@ class Visibility:
     rows: dict[int, bool]               # UniqueID -> tiene fila propia
     issues: list[Issue]
     shown: int = 0                      # tareas con Visible = Sí y fila propia por debajo del nivel máximo
-    # Visible = No: ramas que no forman parte del PV, el EV ni el AC
+    # Peso = 0: ramas que no forman parte del PV, el EV ni el AC (desde la 2.7.0, Visible = No ya no excluye)
     excluded: list[Task] = field(default_factory=list)
-    # Tareas cuyas subtareas tienen todas Visible = No: la tarea las representa (con toda su rama)
-    represented: list[Task] = field(default_factory=list)
     listed: bool = False                # las filas las decide la lista EDT (lista_edt) o el campo Visible
     by_visible: bool = False            # las filas las decide el campo Visible (alguna tarea con Sí)
     matched: set[str] = field(default_factory=set)     # códigos de la lista EDT que tienen tarea
@@ -468,15 +466,27 @@ def _rows_of(scope: Scope, cfg: Config, code_of=None) -> Visibility:
                                 "en su fila superior."))
         return out
     out = Visibility({}, issues)
+    kept: list[Task] = []               # Visible = No sin fila superior en la que sumarse: conservan su fila
 
-    def walk(group: list[Task], under_no: bool) -> None:
+    def walk(group: list[Task], under_no: bool, row_above: bool) -> None:
         for t in group:
             raw = scope.raw_code(t)
+            eligible = bool(raw) and code_level(raw, cfg.ignore_interior_zeros) <= cfg.max_level
             inner = under_no or values.get(t.uid) is False
-            out.rows[t.uid] = bool(raw) and not inner and code_level(raw, cfg.ignore_interior_zeros) <= cfg.max_level
-            walk(t.children, inner)
+            if inner and eligible and not row_above:
+                kept.append(t)
+                inner = False
+            out.rows[t.uid] = eligible and not inner
+            walk(t.children, inner, row_above or out.rows[t.uid])
 
-    walk(scope.roots, False)
+    walk(scope.roots, False, False)
+    if kept:
+        names = ", ".join(code_of(t) or t.name for t in kept[:10]) + (f" y {len(kept) - 10} más" if len(kept) > 10
+                                                                      else "")
+        out.issues.append(Issue("VIS-012", "", "",
+                                f"{plural(len(kept), 'tarea', 'tareas')} con Visible = No sin fila superior en la que "
+                                f"sumarse ({names}): {'conserva' if len(kept) == 1 else 'conservan'} su fila, para que "
+                                "su rama cuente en el libro."))
     return out
 
 
@@ -598,11 +608,14 @@ def pv_selection(leaves: list[Task], top: Task, include_top: bool, current_dates
     """
     if current_dates:
         return None, []
+    from evm.percent import no_count
     memo: dict[int, bool] = {}
 
     def baselined_below(t: Task) -> bool:
         if t.uid not in memo:
-            memo[t.uid] = any((allowed is None or c.uid in allowed) and (has_baseline_dates(c) or baselined_below(c))
+            # Todas las subtareas que cuentan, también las que tienen fila propia (en una fila -D): igual en 'generar'
+            # (árbol podado) y en 'actualizar' (allowed solo tiene las tareas de la fila)
+            memo[t.uid] = any(not no_count(c) and (has_baseline_dates(c) or baselined_below(c))
                               for c in t.children)
         return memo[t.uid]
 
@@ -637,7 +650,7 @@ def _weight_issues(row: ReportRow, tree, code_of) -> list[Issue]:
     kind = parse_method(row.method).kind
     weighted, milestones = kind == WEIGHTED, kind == MILESTONES
     where = f"la fila {row.code}"
-    if weighted and not tree.has_weights and tree.leaves:
+    if weighted and not tree.has_weights and tree.nodes:      # una fila de detalle no tiene tareas que pesar
         issues.append(Issue("HIT-012", row.code, row.name, "Método «Ponderado» y ninguna tarea con peso: % planificado "
                                                            "por duración y % ganado con el método de cada tarea."))
     if tree.negative:
@@ -687,8 +700,17 @@ def _weight_issues(row: ReportRow, tree, code_of) -> list[Issue]:
                                 "máximo 100.", SEV_ERROR, uid=None if own else g.task.uid))
         else:
             issues.append(Issue("HIT-013", code, name,
-                                f"Los pesos de las subtareas de {place} suman {total} y no hay subtareas sin peso que "
-                                "reciban el resto: se escalan a 100.", SEV_WARN, uid=None if own else g.task.uid))
+                                f"Los pesos de las subtareas de {place} suman {total} y no hay subtareas sin peso con "
+                                "duración que reciban el resto: se escalan a 100.", SEV_WARN,
+                                uid=None if own else g.task.uid))
+    for t, zero in tree.equal_zero:
+        place = "la fila" if t is None or t is row.task else f"«{t.name}»"
+        names = ", ".join(code_of(x) or task_name(x, code_of) for x in zero[:5])
+        issues.append(Issue("HIT-009", row.code, row.name,
+                            f"Ninguna subtarea de {place} tiene peso y {names} no "
+                            f"{'tiene' if len(zero) == 1 else 'tienen'} duración, pero "
+                            f"{'contiene' if len(zero) == 1 else 'contienen'} tareas con peso: todas las subtareas "
+                            f"de {place} pesan igual. Si no deben pesar igual, se indica su peso."))
     if tree.equal:
         places = ", ".join("la fila" if t is None or t is row.task else f"«{t.name}»" for t in tree.equal[:5])
         issues.append(Issue("HIT-009", row.code, row.name,
@@ -742,7 +764,8 @@ def _percent_curves(project: ProjectData, cfg: Config, rows: list[ReportRow], co
         if not row.is_input:
             continue
         own = row.pv_leaves is not None                       # tareas del PV distintas de las de detalle
-        tree = pct.RowTree(row.task, row.leaves, time_of, row.pv_leaves, parse_method(row.method))
+        tree = pct.RowTree(row.task, row.leaves, time_of, row.pv_leaves, parse_method(row.method),
+                           residual=row.kind == KIND_RESIDUAL)
         row.tree = tree
         planned.update((t.uid, time_of(t)) for t in (row.leaves if not own else row.pv_leaves))
         excluded.extend((t, row) for t in row.pv_out)

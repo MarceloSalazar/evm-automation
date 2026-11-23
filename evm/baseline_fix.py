@@ -284,9 +284,12 @@ class State:
     Saber si una tarea tiene una línea base no necesita leer MS Project: el lector ya trae las fechas de cada
     línea base."""
 
-    def __init__(self, project: ProjectData, store):
+    def __init__(self, project: ProjectData, store, scope_ids: set[int] | None = None):
         self.tasks = {t.uid: t for t in project.tasks}
         self.store = store
+        # Tareas de la planificación (None = todas): las tareas resumen de encima no pasan de ella (la tarea de la
+        # planificación, p. ej. INTERNO, no forma parte del PV)
+        self.scope_ids = scope_ids
         self.overlay: dict[tuple[int, int], Values] = {}
         self._cache: dict[tuple[int, int], Values] = {}
 
@@ -514,10 +517,13 @@ class Context:
 def summary_above(state: State, top: Task, src: int) -> Task | None:
     """La tarea resumen más cercana por encima de top que tiene la línea base src, si ninguna de sus subtareas la
     tiene: el PV la contaría como un bloque con sus fechas (wbs.pv_selection)."""
+    def inside(t: Task | None) -> bool:
+        return t is not None and (state.scope_ids is None or t.uid in state.scope_ids)
+
     a = top.parent
-    while a is not None and not state.has(a.uid, src):
+    while inside(a) and not state.has(a.uid, src):
         a = a.parent
-    if a is None:
+    if not inside(a):
         return None
     if any(state.has(d.uid, src) for d in iter_subtree(a) if d is not a):
         return None
@@ -634,7 +640,7 @@ def check_case(case: Case, state: State, ctx: Context, *, blocks: bool = True) -
             if k is None:
                 continue
             p = case.top.parent
-            while p is not None:
+            while p is not None and (state.scope_ids is None or p.uid in state.scope_ids):
                 own = state.dates(p.uid, k)
                 span = _span(state, p, k) if own is not None else None
                 if own is not None and span is not None and (own[0] != span[0] or own[1] != span[1]):
@@ -715,11 +721,13 @@ class ComWriter:
         if v.empty:
             date("Start", None)
             date("Finish", None)
-            for name in ("Duration", "Work", "Cost"):
+            # Sin fechas, los números se dejan como estaban en esos valores (0 al borrar; al restaurar, los
+            # anteriores, p. ej. una línea base con solo el costo)
+            for name, value in (("Duration", v.duration), ("Work", v.work), ("Cost", v.cost)):
                 try:
-                    setattr(com, _prop(k, name), 0)
+                    setattr(com, _prop(k, name), value or 0)
                 except Exception as exc:        # p. ej. trabajo de una tarea con recursos: no cuenta en el EVM
-                    log.debug("%s de UID %s no se puso a 0: %s", _prop(k, name), task.uid, exc)
+                    log.debug("%s de UID %s no se escribió: %s", _prop(k, name), task.uid, exc)
             return
         setattr(com, _prop(k, "Duration"), v.duration)
         date("Start", v.start)
@@ -1097,6 +1105,7 @@ class Session:
 def _written(s: Session, case: Case) -> bool:
     """Escribe el caso y pregunta cómo quedó. 'd' lo deshace (devuelve False: se vuelve a preguntar el caso)."""
     code = (case.top.wbs or "").strip() or f"Id {case.top.id}"
+    s.writer.warnings = [i for i in s.writer.warnings if i.id != "LBA-020"]     # solo los de este caso
     write_cases(s.writer, [case], s.state, s.motivo, s.when, name=f"{UNDO_NAME} {code}", notes_on=s.notes)
     case.result = "escrito en MS Project, sin guardar"
     where = "con el motivo en las Notas" if s.notes else "con el motivo en el informe"
@@ -1105,6 +1114,7 @@ def _written(s: Session, case: Case) -> bool:
     for i in s.writer.warnings:
         if i.id == "LBA-020":
             case.issues.append(i)
+            s.console.out(f"  {'[!]'} {i.id}: {i.message}")        # como en show_case
     s.writer.warnings = [i for i in s.writer.warnings if i.id != "LBA-020"]
     key = s.console.choose("¿Cómo quedó?", [("s", "correcto, seguir"), ("d", "deshacer este cambio"),
                                             ("x", "salir (se conservan los cambios hechos, sin guardar)")])

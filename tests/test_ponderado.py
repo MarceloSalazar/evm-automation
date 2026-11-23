@@ -195,18 +195,20 @@ def test_summary_without_weight_next_to_weights_that_sum_100_does_not_count():
     assert not found(rep, "HIT-013") and not found(rep, "HIT-011")
 
 
-def test_summary_without_weight_with_only_weighted_milestones_gets_nothing_by_duration():
-    """Fila sin pesos en su primer nivel: el resumen que solo tiene hitos (duración 0) no recibe nada y sus pesos no
-    se usan (HIT-014); una tarea sin peso junto a pesos que suman 100 se informa con HIT-011."""
+def test_summary_without_weight_with_only_weighted_milestones_weighs_the_same_as_its_siblings():
+    """Fila sin pesos en su primer nivel y un resumen que solo tiene hitos con peso (duración 0): en lugar de quedarse
+    sin parte, las tres subtareas pesan igual (HIT-009, desde la revisión de la 2.7.0); una tarea sin peso junto a
+    pesos que suman 100 se informa con HIT-011."""
     rep, pv = pv_of(paquete(T(3, 3, "", "Trabajo", bs=JAN[0], bf=MAR[1]),
                             T(4, 3, "", "Compras", bs=APR, bf=APR),
                             hito(5, "Compra 1", level=4, weight=50), hito(6, "Compra 2", level=4, weight=50),
                             T(7, 3, "", "Grupo", bs=JAN[0], bf=FEB[1]),
                             T(8, 4, "", "Con peso", bs=JAN[0], bf=JAN[1], milestone_weight=100),
                             T(9, 4, "", "Sin peso", bs=FEB[0], bf=FEB[1])))
-    assert pv[3] == pytest.approx(0.0) and sum(pv) == pytest.approx(1.0)
-    [lost] = found(rep, "HIT-014")
-    assert lost.name == "Compras (Id 4)" and "la suya es 0" in lost.message and "sus 2 subtareas" in lost.message
+    assert pv[3] == pytest.approx(1 / 3) and sum(pv) == pytest.approx(1.0)
+    assert not found(rep, "HIT-014")
+    [equal] = found(rep, "HIT-009")
+    assert "Compras" in equal.message and "pesan igual" in equal.message
     [unused] = found(rep, "HIT-011")
     assert unused.name == "Sin peso (Id 9)" and "suman 100 o más" in unused.message
 

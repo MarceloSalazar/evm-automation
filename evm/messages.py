@@ -42,7 +42,7 @@ ID_PATTERN = re.compile(r"[A-Z]{3}-\d{3}")
 TARGET_GENERAL = "General"          # sin tarea: el proyecto, la configuración o el libro
 TARGET_ROW = "Fila EDT"             # una fila de las hojas PV, EV y AC (paquete de trabajo o tarea resumen)
 TARGET_DETAIL = "Detalle"           # tarea que se suma en una fila (nivel mayor, fuera de la lista EDT o sin código)
-TARGET_OUT = "Fuera del libro"      # tarea que no está en ninguna fila (omitida, inactiva o con Visible = No)
+TARGET_OUT = "Fuera del libro"      # tarea que no está en ninguna fila (omitida, inactiva, con Peso = 0 o de otra planificación)
 TARGETS = [TARGET_GENERAL, TARGET_ROW, TARGET_DETAIL, TARGET_OUT]
 SEVERITIES = [SEV_ERROR, SEV_WARN, SEV_INFO]
 
@@ -742,8 +742,9 @@ _CODES = [
           "está en la línea base, guardar de nuevo su línea base (Establecer línea base > Tareas seleccionadas), "
           "como parte de un cambio de línea base aprobado."),
     _code("FEC-005", E, "Duración 0 sin marca de hito",
-          "La tarea dura 0 y no es un hito: no pesa en el % planificado de su fila (error desde la versión 2.7.0).",
-          "Si es un hito, marcarla como hito (y, si corresponde, indicar su peso)."),
+          "La tarea dura 0 y no es un hito (error desde la versión 2.7.0): sin peso no recibe parte del % "
+          "planificado de su fila; con peso, cuenta entera en un mes, como un hito.",
+          "Si es un hito, marcarla como hito (y, si corresponde, indicar su peso); si no, indicar su duración."),
     _code("FEC-006", W, "Duración estimada",
           "Algunas tareas tienen duración estimada (con «?», p. ej. «5 días?»): la duración define el % planificado. "
           "Un resumen con la cantidad y una línea por tarea.",
@@ -853,8 +854,9 @@ _CODES = [
           "La fila solo tiene hitos y sus pesos suman menos de 100 %: se escalaron a 100 %.",
           "Ninguna.", retired="2.7.0", by="HIT-013"),
     _code("HIT-009", W, "Tareas sin duración ni peso",
-          "En la fila o en una de sus tareas resumen, ninguna subtarea tiene peso ni duración (p. ej. tareas resumen "
-          "que solo tienen hitos): todas reciben la misma parte.",
+          "En la fila o en una de sus tareas resumen, ninguna subtarea tiene peso y todas duran 0 (p. ej. tareas "
+          "resumen que solo tienen hitos), o alguna dura 0 pero contiene tareas con peso: todas reciben la misma "
+          "parte, en lugar de repartirse por duración.",
           "Indicar el peso de esas subtareas, si no deben pesar igual."),
     _code("HIT-010", E, "Hito sin peso en una fila «Ponderado»",
           "En una fila con el método «Ponderado», un hito (0 días) sin peso no forma parte del % planificado ni del % "
@@ -883,7 +885,8 @@ _CODES = [
           "peso)."),
     _code("HIT-014", (E, W), "Pesos que no se usan",
           "Error: una tarea resumen sin peso no recibe parte de la fila (sus tareas hermanas "
-          "con peso suman 100 o más, o el resto se reparte por duración y la suya es 0, p. ej. solo tiene hitos). "
+          "con peso suman 100 o más, o reparten el resto por duración y la suya es 0, p. ej. solo tiene hitos; si "
+          "ninguna hermana tiene peso, todas pesan igual: HIT-009). "
           "Advertencia: la tarea tiene Peso = 0 (o está dentro de una que lo tiene) y no cuenta en el libro. En los "
           "dos casos, las subtareas con peso que contiene no forman parte del % planificado ni del % ganado.",
           "Indicar el peso de la tarea resumen (y ajustar los de sus tareas hermanas para que sumen como máximo 100), "

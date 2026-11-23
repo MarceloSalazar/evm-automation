@@ -389,6 +389,10 @@ def test_command_with_errors_ends_with_code_1(tmp_path):
     rc, out = _run("actualizar-edt", "--origen", xml, "--config", cfg, "--desde", "2.7.1", "--simular",
                    "--informe", tmp_path / "r.md")
     assert rc == 1 and "NUM-010" in out and "No se escribió ningún código" in out
+    # Silenciado, el error se deja de mostrar, pero sigue impidiendo escribir: código 1 y el mismo resultado
+    rc, out = _run("actualizar-edt", "--origen", xml, "--config", cfg, "--desde", "2.7.1", "--simular",
+                   "--silenciar", "NUM-010", "--informe", tmp_path / "r2.md")
+    assert rc == 1 and "No se escribió ningún código" in out
 
 
 def _two_files(tmp_path):

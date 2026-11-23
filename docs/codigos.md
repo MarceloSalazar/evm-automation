@@ -1120,9 +1120,9 @@ La tarea está marcada como hito y tiene duración en el programa actual o en la
 
 **Duración 0 sin marca de hito** · Error · generar (hoja Validación) y validar · se puede silenciar
 
-La tarea dura 0 y no es un hito: no pesa en el % planificado de su fila (error desde la versión 2.7.0).
+La tarea dura 0 y no es un hito (error desde la versión 2.7.0): sin peso no recibe parte del % planificado de su fila; con peso, cuenta entera en un mes, como un hito.
 
-**Qué hacer:** Si es un hito, marcarla como hito (y, si corresponde, indicar su peso).
+**Qué hacer:** Si es un hito, marcarla como hito (y, si corresponde, indicar su peso); si no, indicar su duración.
 
 #### FEC-006
 
@@ -1280,7 +1280,7 @@ Algunas tareas de la fila tienen peso negativo: se toman como si no tuvieran pes
 
 **Tareas sin duración ni peso** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-En la fila o en una de sus tareas resumen, ninguna subtarea tiene peso ni duración (p. ej. tareas resumen que solo tienen hitos): todas reciben la misma parte.
+En la fila o en una de sus tareas resumen, ninguna subtarea tiene peso y todas duran 0 (p. ej. tareas resumen que solo tienen hitos), o alguna dura 0 pero contiene tareas con peso: todas reciben la misma parte, en lugar de repartirse por duración.
 
 **Qué hacer:** Indicar el peso de esas subtareas, si no deben pesar igual.
 
@@ -1320,7 +1320,7 @@ En la fila o en una de sus tareas resumen, los pesos de las subtareas directas s
 
 **Pesos que no se usan** · Error o Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-Error: una tarea resumen sin peso no recibe parte de la fila (sus tareas hermanas con peso suman 100 o más, o el resto se reparte por duración y la suya es 0, p. ej. solo tiene hitos). Advertencia: la tarea tiene Peso = 0 (o está dentro de una que lo tiene) y no cuenta en el libro. En los dos casos, las subtareas con peso que contiene no forman parte del % planificado ni del % ganado.
+Error: una tarea resumen sin peso no recibe parte de la fila (sus tareas hermanas con peso suman 100 o más, o reparten el resto por duración y la suya es 0, p. ej. solo tiene hitos; si ninguna hermana tiene peso, todas pesan igual: [HIT-009](#hit-009)). Advertencia: la tarea tiene Peso = 0 (o está dentro de una que lo tiene) y no cuenta en el libro. En los dos casos, las subtareas con peso que contiene no forman parte del % planificado ni del % ganado.
 
 **Qué hacer:** Indicar el peso de la tarea resumen (y ajustar los de sus tareas hermanas para que sumen como máximo 100), o, si el Peso = 0 es intencionado, quitar los pesos de sus subtareas.
 

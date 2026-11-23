@@ -31,7 +31,7 @@ PRIORITY_TEXT = {
     PRIORITY_LOW: "observaciones informativas",
 }
 # Informativas que describen la estructura del libro: no son mejoras y sus datos están en el resumen (tareas
-# inactivas, planificación, filas «Otras tareas», tareas sumadas en su fila superior, Visible = No y líneas base)
+# inactivas, planificación, filas «Otras tareas», tareas sumadas en su fila superior, Peso = 0 y líneas base)
 FACT_CODES = ("EDT-016", "EDT-017", "EDT-018", "EDT-022", "VIS-012", "LEC-024")
 
 
@@ -89,7 +89,7 @@ class Facts:
     tasks: int = 0                      # tareas de la planificación (todas)
     active: int = 0
     inactive: int = 0
-    hidden: int = 0                     # tareas activas con Visible = No (no se revisan)
+    hidden: int = 0                     # tareas activas que no cuentan en el libro (Peso = 0; no se revisan)
     reviewed: int = 0
     rows: int = 0
     inputs: int = 0
@@ -168,7 +168,7 @@ def facts_table(items: list[Facts]) -> list[tuple[str, list[str]]]:
     return [
         ("Tareas de la planificación (activas)", [f"{n(f.tasks)} ({n(f.active)})" for f in items]),
         ("Tareas inactivas", [n(f.inactive) for f in items]),
-        ("Tareas activas con Visible = No", [n(f.hidden) for f in items]),
+        ("Tareas activas con Peso = 0", [n(f.hidden) for f in items]),
         ("Tareas revisadas", [n(f.reviewed) for f in items]),
         ("Filas del libro (de ingreso)", [f"{n(f.rows)} ({n(f.inputs)})" for f in items]),
         ("Filas «Otras tareas» (-D)", [n(f.residual) for f in items]),
@@ -256,7 +256,7 @@ class BaselineUse:
 
 def _plan_tasks(part: ReportPart) -> tuple[list[Task], set[int] | None]:
     """Tareas de la planificación revisada en el árbol completo de MS Project (también las inactivas y las de
-    Visible = No) y sus UniqueID (None sin planificación: todas las tareas del proyecto)."""
+    Peso = 0) y sus UniqueID (None sin planificación: todas las tareas del proyecto)."""
     from evm.validation import plan_members
     project: ProjectData = part.source.project
     members = plan_members(project, part.scope) if part.scope is not None else None
@@ -293,9 +293,10 @@ def baseline_uses(part: ReportPart) -> list[BaselineUse]:
                 use.signals.append("guardada, pero ninguna tarea de la planificación tiene sus fechas")
             else:
                 base = with_used or len(every)
+                of = f"de las que tienen la {used}" if with_used else "de las tareas de la planificación"
                 if len(tasks) < FEW_TASKS * base:
                     use.signals.append(f"solo en {_tasks(len(tasks))} "
-                                       f"({_num(100.0 * len(tasks) / base)} % de las que tienen la {used}): "
+                                       f"({_num(100.0 * len(tasks) / base)} % {of}): "
                                        "parece guardada por error para unas tareas seleccionadas")
                 if use.summaries == len(tasks):
                     use.signals.append("solo en tareas resumen")
@@ -476,6 +477,12 @@ def _without_baseline(project: ProjectData, every: list[Task], code_of, level: s
     lines = [f"{level} Tareas sin la {used}", ""]
     if not any(lacking.values()):
         return lines + [f"Todas las tareas de detalle de la planificación tienen la {used}.", ""]
+    if all(lacking.values()):
+        # El proyecto no tiene guardada la línea base del % planificado (FEC-009): el PV usa las fechas actuales
+        return lines + [f"Ninguna tarea de la planificación tiene la {used}, que usa el % planificado: no está "
+                        "guardada (FEC-009, error), así que el % planificado se calculó con las fechas actuales de "
+                        "todas las tareas. Se debe guardar la línea base o elegir la que corresponde en la "
+                        "configuración (`[exportacion] linea_base`).", ""]
 
     def situation(t: Task) -> str:
         others = sorted(t.baseline_dates)
@@ -670,7 +677,7 @@ def write_report(path: str | Path, units: list[Unit], cfg: Config, version: str,
     lines.append("")
 
     lines += ["---", "", "## 4. Líneas base", "",
-              "Líneas base guardadas en las tareas de la planificación (también las inactivas y las de Visible = No) "
+              "Líneas base guardadas en las tareas de la planificación (también las inactivas y las de Peso = 0) "
               "y, de cada una salvo la que usa el % planificado, las tareas que la tienen, por su código EDT. Sirve "
               "para detectar las guardadas por error: en pocas tareas (p. ej. con *Tareas seleccionadas* y otra "
               "línea base), solo en tareas resumen o copia de la que usa el % planificado. Al final, las tareas sin "
