@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 from openpyxl import load_workbook
@@ -7,7 +7,7 @@ from evm.cli import main
 from evm.config import load_config
 from evm.reader_xml import read_xml
 from evm.update import book_totals, read_book, run_update
-from evm.workbook import FIRST_MONTH_COL, FIRST_ROW, HEADER_ROW
+from evm.workbook import FIRST_MONTH_COL, FIRST_ROW, FMT_DATE, HEADER_ROW
 
 
 def load_ac(book, status: date) -> None:
@@ -138,13 +138,28 @@ def test_formulas_recalculate_without_errors(book, example_files, recalc):
 
 
 def test_currency_defaults_to_euro(book, tmp_path, example_files):
-    assert load_workbook(book)["Resumen"]["B9"].value == "EUR"
+    assert read_book(book).meta["moneda"] == "EUR"
     cfg = tmp_path / "moneda.toml"
     cfg.write_text('[exportacion]\nmoneda = ""\n', encoding="utf-8")
     out = tmp_path / "proyecto.xlsx"
     assert main(["generar", "--origen", str(example_files["base"]), "--config", str(cfg),
                  "--salida", str(out)]) == 0
-    assert load_workbook(out)["Resumen"]["B9"].value == "USD"          # moneda del proyecto
+    assert read_book(out).meta["moneda"] == "USD"                      # moneda del proyecto
+
+
+def test_summary_parameters(book, example_files):
+    """Resumen, cabeceras y Cuadro de Mando: sin planificación ni moneda, origen sin ruta y fecha sin hora."""
+    wb = load_workbook(book)
+    ws = wb["Resumen"]
+    labels = [ws.cell(r, 1).value for r in range(9, 15)]
+    assert labels == ["Línea base", "Origen", "Fuente del PV mensual", "Generado", None, None]
+    assert ws["B10"].value == example_files["base"].name                # solo el nombre del archivo, sin la ruta
+    assert ws["B12"].value.time() == datetime.min.time() and ws["B12"].number_format == FMT_DATE
+    generated = ws["B12"].value
+    for name in ("PV", "% PV", "EV", "% EV", "AC"):
+        assert wb[name]["A2"].value == (f"Proyecto: Programa de ejemplo EVM  |  Origen: base.xml  |  Línea base  |  "
+                                        f"Generado: {generated:%d/%m/%Y}")
+    assert wb["Cuadro de Mando"]["B3"].value == "Línea base"
 
 
 def test_previous_method_name_keeps_its_description():

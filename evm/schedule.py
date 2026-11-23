@@ -7,7 +7,11 @@ del % ganado):
 - fin de línea base y fin previsto (o real): el último de sus tareas;
 - desvío de fin: días laborables entre los dos (> 0 = atraso), con el calendario que reparte la duración;
 - holgura total: la menor de sus tareas sin terminar, en días laborables (la calcula MS Project);
-- crítica: alguna de sus tareas sin terminar es crítica según MS Project.
+- crítica: alguna de sus tareas sin terminar es crítica según MS Project;
+- comienzo y fin (columnas E y F de las hojas EV, % EV y AC), que cada lectura actualiza: el comienzo real más
+  temprano de sus tareas comenzadas (una vez comenzado el trabajo queda fijo) o, si ninguna comenzó, el comienzo
+  previsto más temprano; y el fin más tardío según la columna Fin de MS Project (real en las tareas terminadas,
+  previsto en las demás), que es real cuando todas terminaron.
 
 Las filas resumen y el proyecto combinan los valores de sus filas.
 """
@@ -16,7 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
-from evm.methods import is_complete
+from evm.methods import is_complete, is_started
 from evm.model import Task
 from evm.workcalendar import WorkCalendar
 
@@ -33,6 +37,8 @@ class RowSchedule:
     slack: float | None = None          # holgura total mínima de las tareas sin terminar (días laborables)
     critical: bool = False              # alguna tarea sin terminar es crítica
     open_tasks: bool = False            # tiene tareas sin terminar
+    start: datetime | None = None       # comienzo real más temprano o, sin tareas comenzadas, el previsto
+    started: bool = False               # alguna tarea comenzó: el comienzo es real y queda fijo
 
     @property
     def status(self) -> str:
@@ -84,14 +90,25 @@ def _variance(calendar: WorkCalendar, baseline: datetime | None, finish: datetim
 def row_schedule(leaves: list[Task], calendar: WorkCalendar, minutes_per_day: float) -> RowSchedule:
     """Plazo de una fila con sus tareas de detalle."""
     baselines = [t.baseline_finish for t in leaves if t.has_baseline and t.baseline_finish]
-    finishes = [t.finish for t in leaves if t.finish]
+    finishes = [d for d in (t.actual_finish or t.finish for t in leaves) if d]
     pending = [t for t in leaves if not finished(t)]
     slacks = [t.total_slack / minutes_per_day for t in pending if t.total_slack is not None]
     out = RowSchedule(max(baselines) if baselines else None, max(finishes) if finishes else None,
                       slack=round(min(slacks), 2) if slacks else None,
                       critical=any(t.critical for t in pending), open_tasks=bool(pending))
     out.variance = _variance(calendar, out.baseline_finish, out.finish)
+    out.start, out.started = _start(leaves)
     return out
+
+
+def _start(leaves: list[Task]) -> tuple[datetime | None, bool]:
+    """Comienzo de una fila: el real más temprano de sus tareas comenzadas (una tarea comenzada sin Comienzo real,
+    p. ej. solo con % físico, toma su comienzo) o, si ninguna comenzó, el previsto más temprano."""
+    started = [d for d in (t.actual_start or t.start for t in leaves if is_started(t) or finished(t)) if d]
+    if started:
+        return min(started), True
+    planned = [t.start for t in leaves if t.start]
+    return (min(planned) if planned else None), False
 
 
 def combine(parts: list[RowSchedule], calendar: WorkCalendar) -> RowSchedule:
@@ -103,6 +120,10 @@ def combine(parts: list[RowSchedule], calendar: WorkCalendar) -> RowSchedule:
                       slack=min(slacks) if slacks else None, critical=any(p.critical for p in parts),
                       open_tasks=any(p.open_tasks for p in parts))
     out.variance = _variance(calendar, out.baseline_finish, out.finish)
+    started = [p.start for p in parts if p.started and p.start]
+    planned = [p.start for p in parts if p.start]
+    out.started = bool(started)
+    out.start = min(started) if started else (min(planned) if planned else None)
     return out
 
 

@@ -42,6 +42,17 @@ def T(uid: int, level: int, wbs: str, name: str, *, bs: datetime | None = S, bf:
                 has_baseline=bs is not None, start=start, finish=finish, **kw)
 
 
+def row_tree(tasks: list[Task], method: str = "", top: Task | None = None, units: list[Task] | None = None,
+             calendar=None):
+    """Reparto de una fila (percent.RowTree); sin top, las tareas son subtareas directas de la fila."""
+    from evm.methods import parse_method
+    from evm.percent import RowTree, task_time
+    from evm.workcalendar import WorkCalendar
+    cal = calendar or WorkCalendar()
+    cache: dict = {}
+    return RowTree(top, tasks, lambda t: cache.setdefault(t.uid, task_time(t, cal)), units, parse_method(method))
+
+
 def P(tasks: list[Task], **kw) -> ProjectData:
     return ProjectData(name="Programa", source="p.xml", backend="xml", tasks=tasks, **kw)
 

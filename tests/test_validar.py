@@ -53,12 +53,42 @@ def test_valid_codes_have_no_wbs_observations():
           1.1 A
             1.1.1 A1
             1.1.2 A2
-              - Actividad sin código
+              1.1.2.1 Actividad
           1.2 B
         2 Fase 2
     ''')
     rep = report(tasks)
     assert not found(rep, TOPIC_WBS, SEV_ERROR) and not found(rep, TOPIC_WBS, SEV_WARN)
+
+
+def test_tasks_without_code_inside_a_wbs_element():
+    """EDT-023: hitos, actividades y tareas resumen sin código EDT dentro de un elemento EDT (advertencia, una línea
+    por tarea); las que dependen solo de la planificación o de ningún elemento no se informan (EDT-020)."""
+    tasks = tree('''
+        INTERNO Plan
+          - Reunión de arranque
+          1 Fase
+            1.1 A
+              1.1.1 A1
+                - Actividad
+                - Hito
+              - Grupo
+                - Dentro del grupo
+        - Suelta
+    ''')
+    by = by_name(tasks)
+    by["Hito"].milestone = True
+    rep = report(tasks, Config(plan="INTERNO"))
+    edt = [i for i in rep.issues if i.id == "EDT-023"]
+    assert all(i.severity == SEV_WARN for i in edt)
+    assert edt[0].message.startswith("4 tareas dependen de un elemento EDT sin tener código EDT, 1 hito (Id 6, Id 7, "
+                                     "Id 8, Id 9): se suman en la fila de su elemento")
+    assert [(i.name, i.message) for i in edt[1:]] == [
+        ("Actividad (Id 6)", "Tarea sin código EDT dentro de 1.1.1 «A1»: se esperaba 1.1.1.x."),
+        ("Hito (Id 7)", "Hito sin código EDT dentro de 1.1.1 «A1»: se esperaba 1.1.1.x."),
+        ("Grupo (Id 8)", "Tarea resumen sin código EDT dentro de 1.1.0 «A»: se esperaba 1.1.x."),
+        ("Dentro del grupo (Id 9)", "Tarea sin código EDT dentro de 1.1.0 «A»: se le debe asignar uno que dependa "
+                                    "del de su tarea superior.")]
 
 
 def test_code_format_errors():
@@ -209,10 +239,14 @@ def test_milestone_weight_checks():
     ''')
     t = by_name(tasks)
     t["Tarea con peso"].milestone_weight = 30
+    t["B"].milestone_weight = 50
     t["B"].method = "Hitos ponderados"
     rep = report(tasks, Config(milestone_weight_field="Peso hito", method_field="Método EVM"))
     weights = found(rep, TOPIC_WEIGHTS)
-    assert any(i.name.startswith("Tarea con peso") and "no es un hito" in i.message for i in weights)
+    # El peso de una tarea cuenta en todos los métodos (es la única de su fila: suma 30 y se escala a 100)
+    assert any(i.id == "HIT-013" and "suman 30" in i.message for i in weights)
+    # El peso de la tarea de una fila no se usa
+    assert [i.name for i in weights if i.id == "HIT-001"] == ["B"]
     assert any(i.code == "1.2.0" and "no tiene hitos" in i.message for i in weights)
 
 
@@ -620,7 +654,7 @@ def test_xml_reads_schedule_fields(tmp_path):
     assert (a.duration, a.estimated, a.manual, a.constraint_type) == (28800, True, True, CONSTRAINT_MSO)
     assert a.constraint_date == datetime(2026, 1, 5, 8) and a.predecessors == []
     assert b.duration == 0 and b.predecessors == [Link(1, LINK_SS, -480)]      # <LinkLag> en décimas de minuto
-    assert p.fields_found == {"metodo": "Método EVM", "peso_hito": "Peso hito"}
+    assert p.fields_found == {"edt": "WBS", "metodo": "Método EVM", "peso_hito": "Peso hito"}
 
 
 def test_com_reads_schedule_fields():
@@ -643,7 +677,7 @@ def test_com_reads_schedule_fields():
     assert (ta.duration, ta.estimated, ta.constraint_type, ta.predecessors) == (4800, True, 2, [])
     assert ta.constraint_date == datetime(2026, 1, 5, 8)
     assert tb.duration is None and tb.predecessors == [Link(1, LINK_SF, -60)]
-    assert p.fields_found == {"metodo": "Método EVM"}
+    assert p.fields_found == {"edt": "WBS", "metodo": "Método EVM"}
 
 
 # ----------------------------------------------------------------------------
@@ -867,7 +901,7 @@ def two_plans():
     ''')
     t = by_name(tasks)
     t["Inactiva I"].active = False
-    t["Oculta I"].visible = "No"
+    t["Oculta I"].active = False
     for name in ("A C", "B C", "A I", "Inactiva I", "Oculta I", "B I"):
         t[name].baselines = (0,)
     t["B C"].predecessors = [Link(t["A C"].uid, LINK_FS)]           # vínculo de CLIENTE
@@ -886,7 +920,7 @@ def test_only_the_configured_plan_is_read():
     assert {r.code: r.task.name for r in rep.rows} == {"1.0.0": "Fase I", "1.1.0": "A I", "1.4.0": "B I"}
     assert {x.name for r in rep.rows for x in r.leaves} == {"A I", "B I"}
     [inactive] = [i for i in rep.issues if i.id == "EDT-016"]
-    assert inactive.message == ("Se excluyó 1 tarea inactiva de la planificación INTERNO: no forma parte del % "
+    assert inactive.message == ("Se excluyeron 2 tareas inactivas de la planificación INTERNO: no forman parte del % "
                                 "planificado.")
     issues = part.issues + part.checks
     [line] = [i for i in issues if i.id == "LEC-024"]
@@ -894,7 +928,7 @@ def test_only_the_configured_plan_is_read():
     assert [i.id for i in issues if i.id == "LOG-001"] == ["LOG-001"]    # INTERNO no tiene vínculos
     assert not [i for i in issues if i.id == "LOG-018"]
     [inactive] = [i for i in build_report(P(tasks), Config()).issues if i.id == "EDT-016"]
-    assert inactive.message.startswith("Se excluyó 1 tarea inactiva: ")          # sin planificación: todas
+    assert inactive.message.startswith("Se excluyeron 2 tareas inactivas: ")          # sin planificación: todas
 
 
 def test_links_with_another_plan_are_reported():
@@ -1237,7 +1271,7 @@ def test_config_field_not_found_and_empty_are_one_code_each(tmp_path):
     assert [(w.id, w.message) for w in p.warnings] == [
         ("LEC-010", "No se encontró el campo de método 'No existe' ([campos] metodo) en el XML: todas las filas "
                     "tienen el método por defecto ('Por definir')."),
-        ("LEC-010", "No se encontró el campo de peso de hitos 'Tampoco' ([campos] peso_hito) en el XML: los hitos no "
+        ("LEC-010", "No se encontró el campo de peso 'Tampoco' ([campos] peso_hito) en el XML: los hitos no "
                     "tienen peso.")]
     assert "MET-005" not in {i.id for i in build_report(p, cfg).issues}         # ya lo dice LEC-010
     tasks = tree('''

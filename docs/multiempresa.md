@@ -88,7 +88,9 @@ flowchart LR
    evita errores de escritura; los valores deben coincidir con `empresa_a`, `empresa_b` y `ambas` de la
    configuración (sin distinguir mayúsculas ni tildes).
 2. Se crea un campo de tipo *Número* (por ejemplo *Número2*) con el nombre `% Reparto`: porcentaje de la
-   empresa A en las tareas `Ambas` (por ejemplo, 80 = 80 % para la empresa A y 20 % para la empresa B).
+   empresa A en las tareas `Ambas` (por ejemplo, 30 = 30 % para la empresa A y 70 % para la empresa B).
+   Solo se completa en las tareas cuya columna `Empresa` es `Ambas`: en las demás se ignora. Vacío o 0
+   significan el reparto por defecto (`reparto_por_defecto`), **nunca 0 %**.
 3. Se insertan las dos columnas en la vista *Diagrama de Gantt* y se completa la columna `Empresa`. Una
    tarea sin empresa **hereda** la de su tarea superior (con su `% Reparto`): basta con completarla en
    las tareas resumen y en las subtareas que sean de otra empresa.
@@ -129,8 +131,8 @@ en la hoja oculta `_meta`), aunque la configuración no tenga la sección `[mult
 ## 5. Parte de cada empresa en cada tarea
 
 La parte de cada empresa multiplica la **duración** de la tarea: es el peso que la tarea tiene en el %
-planificado y en el % ganado de esa empresa ([sección 6](#6-pv-ev-y-ac-de-cada-empresa)). No reparte el
-`Peso hito` de los hitos.
+planificado y en el % ganado de esa empresa ([sección 6](#6-pv-ev-y-ac-de-cada-empresa)). No reparte los
+pesos: un peso vale para cada empresa que participa en la tarea.
 
 | Columna `Empresa` | Parte de la empresa A (la empresa B recibe el resto) |
 |---|---|
@@ -138,11 +140,18 @@ planificado y en el % ganado de esa empresa ([sección 6](#6-pv-ev-y-ac-de-cada-
 | Empresa B | 0 % |
 | `Ambas` | El valor de `% Reparto`. Si está vacío o es 0, el reparto por defecto (`reparto_por_defecto`, 50 %). Si es negativo o mayor que 100, el reparto por defecto, y se informa en `Validación`. |
 | Vacía | La de la tarea superior. Si ninguna tarea superior tiene empresa, se trata como `Ambas` con el reparto por defecto y se informa en `Validación`. |
-| Otro valor | Se trata como `Ambas` con el reparto por defecto y se informa en `Validación`. |
+| Otro valor | **Error** ([EMP-005](codigos.md#emp-005), desde la versión 2.7.0): solo se aceptan `empresa_a`, `empresa_b` y `ambas`. Mientras no se corrija, se trata como `Ambas` con el reparto por defecto (sin usar su `% Reparto`). |
 
-- `% Reparto` solo se usa en las tareas `Ambas`; en las demás se ignora.
-- En MS Project un campo numérico vacío vale 0, por eso 0 equivale a vacío. Para asignar el 100 % a una
-  empresa se indica su nombre en `Empresa`.
+- `% Reparto` **solo se usa cuando la columna `Empresa` de la propia tarea es `Ambas`**; en cualquier otro
+  caso se ignora y se informa en `Validación` ([EMP-001](codigos.md#emp-001), informativo):
+  - Empresa A o empresa B: la tarea es entera de esa empresa.
+  - `Empresa` vacía: la tarea hereda la parte de su tarea superior (con el `% Reparto` de esa tarea), no
+    la de su propio `% Reparto`.
+  - Otro valor: error EMP-005; se usa el reparto por defecto.
+- **0 nunca significa 0 %**: en MS Project un campo numérico vacío vale 0 y no se puede distinguir de un 0
+  escrito, por eso 0 equivale a vacío y la tarea se reparte con `reparto_por_defecto`. Una tarea con 0 % o
+  100 % para una empresa no es compartida: se indica el nombre de esa empresa en `Empresa` (`empresa_b`
+  para el 0 % de la empresa A, `empresa_a` para el 100 %).
 - Una subtarea marcada `Ambas` sin `% Reparto` usa el reparto por defecto, **no** el de su tarea
   superior. Para heredar el reparto de la tarea superior, la columna `Empresa` de la subtarea se deja
   vacía.
@@ -170,7 +179,7 @@ resultante.*
 | Valor de cada empresa | Cálculo |
 |---|---|
 | BAC | Se ingresa a mano en la columna D de su hoja PV (`PV-EmpresaA` o `PV-EmpresaB`, celdas amarillas). |
-| % planificado | Con las tareas de la fila en las que participa: cada tarea pesa su duración de la línea base × la parte de la empresa. Un hito vale su `Peso hito` para cada empresa que participa en él. `generar` lo escribe en `% PV-EmpresaA` y `% PV-EmpresaB`. |
+| % planificado | Con las tareas de la fila en las que participa: cada tarea pesa su duración de la línea base × la parte de la empresa. Un peso (de un hito o una tarea) es un % de la parte de la empresa en su tarea resumen, para cada empresa que participa en la tarea. `generar` lo escribe en `% PV-EmpresaA` y `% PV-EmpresaB`. |
 | PV del mes | BAC de la empresa × su % planificado del mes. |
 | % ganado | Según el método de la fila (columna C), con las tareas y los hitos de la empresa (tabla siguiente). `actualizar` escribe el % del mes en `% EV-EmpresaA` y `% EV-EmpresaB`. |
 | EV del mes | BAC de la empresa × su % ganado del mes. |
@@ -180,8 +189,9 @@ resultante.*
 |---|---|
 | `% Completado`, `% Físico completado`, `Unidades completadas` | Avance de sus tareas, ponderado por el peso que cada tarea tiene para la empresa. |
 | `0/100`, `X/Y` | Según comiencen y terminen **sus** tareas: una empresa que terminó su parte no espera a la otra. |
-| `Hitos ponderados` | Sus hitos cumplidos, ponderados por su `Peso hito`. |
+| `Hitos ponderados` | Sus hitos cumplidos, ponderados por su parte (su peso, % de su tarea resumen). |
 | `Avance lineal` | Su % planificado acumulado a la fecha de corte. |
+| `Ponderado` | Avance de sus tareas, cada una según su propio método, ponderado por la parte que cada tarea tiene para la empresa. |
 
 Si una empresa **no participa** en ninguna tarea de la fila y se le asigna BAC, se usan el % planificado
 y el avance de la fila completa (se informa en `Validación` y en `actualizar`).
@@ -201,7 +211,8 @@ está en [Cálculo del PV y el EV](calculo-pv-ev.md#10-multi-empresa).
 - Las filas en las que una empresa **no participa** en ninguna tarea: si se le asigna BAC, su PV se
   reparte con el % planificado de la fila completa.
 - Tareas **sin empresa** (ni propia ni heredada): se reparten con el reparto por defecto.
-- Valores de empresa **no reconocidos** (por ejemplo, un error de escritura).
+- Valores de empresa **no reconocidos** (por ejemplo, un error de escritura o una empresa que no es
+  `empresa_a`, `empresa_b` ni `ambas`): **error** desde la versión 2.7.0.
 - `% Reparto` **fuera de rango** (negativo o mayor que 100).
 - `% Reparto` en una tarea que no es `Ambas` (informativo: se ignora).
 - Campo de empresa que existe, pero está vacío en todas las tareas (revisar `campo_empresa`).

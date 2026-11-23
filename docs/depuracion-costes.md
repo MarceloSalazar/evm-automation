@@ -5,7 +5,7 @@
 La **depuración de costes** compara, paquete por paquete, el **PV planificado** de una empresa (BAC × %
 planificado de MS Project) con la **previsión mensual de su plan de costes**: en la hoja PV de la empresa,
 debajo de cada fila va su fila «(coste)» con el plan. Sirve para ajustar el plan o MS Project (las tareas,
-sus fechas y el peso de sus hitos) hasta que las dos curvas se parezcan. El % planificado es siempre el de
+sus fechas y sus pesos) hasta que las dos curvas se parezcan. El % planificado es siempre el de
 MS Project: la depuración no lo modifica.
 
 Se activa solo mientras dura ese ajuste. Para los libros que se entregan y para las actualizaciones

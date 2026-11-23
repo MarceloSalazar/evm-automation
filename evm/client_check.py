@@ -25,7 +25,7 @@ from evm.fields import fmt_number, same_name
 from evm.messages import EvmError, Issue
 from evm.methods import parse_method
 from evm.model import MonthKey, ProjectData, Task
-from evm.percent import calendar_for, curve, earned_fraction, full_weights, leaf_times
+from evm.percent import earned_fraction, weighted_curve
 from evm.wbs import build_report, build_tree, plural, select_scope
 
 TOL = 1e-6                  # fracciones del % planificado de un mes y del % ganado
@@ -182,17 +182,15 @@ def project_percent(project: ProjectData, cfg: Config) -> float | None:
 def _book_rows(project: ProjectData, cfg: Config, status: datetime | None) -> list[BookRow]:
     """Filas de ingreso del libro EVM, con su % planificado mensual y su % ganado con el avance actual."""
     report = build_report(_copy_project(project, _copy_tasks(project.tasks)), cfg)
-    calendar = calendar_for(project, cfg)
     key = (status.year, status.month) if status is not None else None
     rows = []
     for r in report.rows:
         if not r.is_input:
             continue
-        times = leaf_times(r.leaves, calendar, cfg.distribution)
-        weights = full_weights(times)
-        pv = curve(times, weights)
+        weights, pairs = r.tree.full()          # fila completa, con el reparto de 'generar'
+        pv = weighted_curve(pairs)
         pv_cum = sum(v for k, v in pv.items() if key is None or k <= key)
-        ev, _note = earned_fraction(parse_method(r.method), weights, pv_cum)
+        ev, _note = earned_fraction(parse_method(r.method), weights, pv_cum, key)
         rows.append(BookRow(r.code, frozenset(t.uid for t in r.leaves), pv, ev))
     return rows
 

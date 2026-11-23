@@ -2,7 +2,7 @@
 
 - Datos que forman el libro: se informan en la hoja Validación de 'generar' y en el comando 'validar'. Son los
   códigos EDT (dependencia entre tareas superiores y subtareas, formato, orden y duplicados), las fechas y la
-  duración, los pesos de los hitos, el método de medición y el reparto entre empresas.
+  duración, los pesos de las tareas, el método de medición y el reparto entre empresas.
 - Cronograma: solo en 'validar'. Son el avance a la fecha de estado y la lógica del cronograma (vínculos,
   delimitaciones, holgura y duración), con los criterios de la evaluación DCMA de 14 puntos
   (docs/evaluacion-dcma.md).
@@ -304,7 +304,41 @@ def wbs_checks(scope: Scope, code_of: CodeOf, cfg: Config) -> list[Issue]:
             issues.append(Issue("EDT-009", code_of(same[0]), same[0].name,
                                 f"Código EDT duplicado: lo tienen {len(same)} tareas ({names}{more}).{hint}",
                                 uid=same[0].uid))
-    return _capped(bad_format + issues)
+    return _capped(bad_format + issues) + _uncoded_tasks(tasks, sig, coded_parent, code_of)
+
+
+def _uncoded_tasks(tasks: list[Task], sig: dict[int, tuple[int, ...] | None],
+                   coded_parent: Callable[[Task], Task | None], code_of: CodeOf) -> list[Issue]:
+    """Tareas sin código EDT que dependen de un elemento EDT numérico (EDT-023): hitos, actividades y tareas
+    resumen. Se suman en la fila de su elemento, pero sin código no se identifican en la jerarquía ni se comprueba su
+    numeración. Las que dependen solo de una planificación (p. ej. INTERNO) o de ningún elemento quedan fuera del
+    libro (EDT-020)."""
+    found: list[Task] = []
+    details: list[Issue] = []
+    for t in tasks:
+        if t.uid in sig:
+            continue
+        parent = coded_parent(t)
+        top = sig.get(parent.uid) if parent is not None else None
+        if not top or top == (0,):
+            continue
+        found.append(t)
+        what = "Hito" if t.milestone else "Tarea resumen" if t.children else "Tarea"
+        expected = (f"se esperaba {_pattern(top)}" if t.parent is parent else
+                    "se le debe asignar uno que dependa del de su tarea superior")
+        details.append(_issue("EDT-023", t, code_of,
+                              f"{what} sin código EDT dentro de {_label(parent, code_of)}: {expected}."))
+    if not found:
+        return []
+    milestones = sum(1 for t in found if t.milestone)
+    which = f", {plural(milestones, 'hito', 'hitos')}" if milestones else ""
+    summary = Issue("EDT-023", "", "",
+                    f"{plural(len(found), 'tarea depende', 'tareas dependen')} de un elemento EDT sin tener código "
+                    f"EDT{which} ({_codes(found, code_of)}): se suman en la fila de su elemento, pero sin código no "
+                    f"se {'identifica' if len(found) == 1 else 'identifican'} en la jerarquía ni se puede comprobar su "
+                    "numeración. Se debe asignar a cada una un código de un nivel más que su tarea superior (p. ej. "
+                    "1.2.1.1 bajo 1.2.1).")
+    return [summary] + details[:LIMIT]
 
 
 def _capped(found: list[Issue]) -> list[Issue]:
@@ -427,14 +461,18 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
         if milestone is not None:
             dates.append(milestone)
         elif not t.milestone and _zero_duration(t):
+            weight = (t.milestone_weight or 0) > 0
             dates.append(_issue("FEC-005", t, code_of,
-                                "Duración 0 y no está marcada como hito: no pesa en el % planificado de su fila "
-                                "(pesan las tareas con duración y los hitos con peso). Si es un hito, se debe "
-                                "marcar como hito."))
+                                "Duración 0 y no está marcada como hito: "
+                                + ("cuenta en el % planificado por su peso, en un solo mes, como un hito. "
+                                   if weight else
+                                   "sin peso no recibe parte del % planificado de su fila (las tareas sin peso "
+                                   "pesan por su duración). ")
+                                + "Si es un hito, se debe marcar como hito; si no, indicar su duración."))
         baseline = _one_day_baseline(t, project, code_of) if project.baseline_found else None
         if baseline is not None:
             dates.append(baseline)
-    issues += dates[:LIMIT]
+    issues += _capped(dates)
 
     estimated = [t for t in leaves if t.estimated]
     if estimated:
@@ -451,13 +489,16 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
 
     # --- Hitos y pesos --------------------------------------------------------
     if cfg.milestone_weight_field:
-        unused = [t for t in tasks if t.milestone_weight and (not t.milestone or t.children)]
+        # El peso de cualquier tarea de una fila cuenta, en todos los métodos (HIT-009 a HIT-014): no se usa el de la
+        # tarea de la fila (su BAC se ingresa en el libro) ni el de una tarea que no forma parte de ninguna fila
+        used = {x.uid for r in rows if r.is_input and r.tree is not None for x in r.tree.nodes}
+        unused = [t for t in tasks if (t.milestone_weight or 0) > 0 and t.uid not in used]
         for t in unused[:LIMIT]:
-            what = "es una tarea resumen" if t.children else "no es un hito"
+            what = ("es la tarea de una fila del libro (su BAC se ingresa en el libro)"
+                    if any(r.task is t for r in rows) else "no forma parte de ninguna fila del libro")
             issues.append(_issue("HIT-001", t, code_of,
                                  f"Tiene '{cfg.milestone_weight_field}' = {_num(t.milestone_weight, 2)}, pero {what}: "
-                                 "el peso no se usa (solo cuentan los hitos de detalle; las tareas pesan por su "
-                                 "duración)."))
+                                 "el peso no se usa."))
         milestones = [t for t in leaves if t.milestone]
         if ("peso_hito" in project.fields_found and milestones
                 and not any((t.milestone_weight or 0) > 0 for t in milestones)):
@@ -469,16 +510,17 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
         if not row.is_input or parse_method(row.method).kind != MILESTONES:
             continue
         milestones = [t for t in row.leaves if t.milestone]
-        weighted = [t for t in milestones if (t.milestone_weight or 0) > 0]
         if not milestones:
             issues.append(Issue("HIT-002", row.code, row.name,
                                 "Método «Hitos ponderados» y la fila no tiene hitos: «actualizar» calculará el % "
                                 "ganado con el % físico completado (o el % completado)."))
-        elif not weighted:
+        elif row.tree is not None and row.tree.equal_milestones:
             issues.append(Issue("HIT-003", row.code, row.name,
-                                "Método «Hitos ponderados» con hitos sin peso: los hitos se ponderan por igual."))
-        elif len(weighted) < len(milestones):
-            loose = [t for t in milestones if t not in weighted]
+                                "Método «Hitos ponderados» y ninguna tarea con peso: el % planificado y el % ganado se "
+                                "reparten por igual entre los hitos; las tareas sin hito no cuentan."))
+        elif row.tree is not None and any(row.tree.full()[0].weights.get(t.uid, 0.0) <= 0 for t in milestones):
+            share = row.tree.full()[0].weights
+            loose = [t for t in milestones if share.get(t.uid, 0.0) <= 0]
             issues.append(Issue("HIT-004", row.code, row.name,
                                 f"Método «Hitos ponderados»: {plural(len(loose), 'hito', 'hitos')} sin peso no "
                                 f"{'suma' if len(loose) == 1 else 'suman'} % ganado al cumplirse "

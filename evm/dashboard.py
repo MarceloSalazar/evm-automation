@@ -369,7 +369,6 @@ def write_dashboard(ws, report: Report, cfg: Config, lay: _Layout, packages: lis
     tr = lay.total_row
     money = money_format(cfg.decimals)
     money_signed = f"{money};[Red]-{money}"
-    currency = cfg.currency or report.currency or ""
 
     ws.sheet_view.showGridLines = False
     ws.sheet_view.zoomScale = 100
@@ -390,12 +389,11 @@ def write_dashboard(ws, report: Report, cfg: Config, lay: _Layout, packages: lis
         for c in range(GRID_FIRST, GRID_LAST + 1):
             ws.cell(row=r, column=c).fill = fill
         ws.row_dimensions[r].height = height
+    # Sin planificación ni moneda (se asume EUR)
     if report.multi_file:
-        info = ["Archivos: " + "; ".join(f"{s.name} (planificación {s.plan or 'todas'}, {s.project.baseline_label})"
-                                         for s in report.sources), f"Moneda: {currency or '-'}"]
+        info = ["Archivos: " + "; ".join(f"{s.name} ({s.project.baseline_label})" for s in report.sources)]
     else:
-        info = [f"Planificación: {report.plan}" if report.plan else "Planificación: todas",
-                p.baseline_label, f"Moneda: {currency or '-'}"]
+        info = [p.baseline_label]
     if report.multi:
         info.append(f"Empresas: {report.company_a} y {report.company_b} (valores totales)")
     cell = _merge(ws, 3, GRID_FIRST, GRID_LAST)

@@ -53,7 +53,7 @@ contratos del gobierno de EE. UU. no son obligatorios; se usan como buena práct
 ([Comandos](comandos.md#informe-de-mejoras)).
 
 - **Tareas revisadas:** las tareas de detalle (sin subtareas) que exporta el libro: las de la
-  planificación elegida, activas y sin `Visible = No`. Las tareas resumen no se cuentan.
+  planificación elegida, activas y sin `Peso` = 0. Las tareas resumen no se cuentan.
 - **Vínculos:** con una planificación, solo los vínculos entre sus tareas. Los que la unen con otra
   planificación del mismo archivo se informan aparte ([LOG-018](codigos.md#log-018)): MS Project los usa
   para calcular las fechas y la holgura, pero no son lógica de la planificación revisada.

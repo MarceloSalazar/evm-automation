@@ -13,9 +13,10 @@ MS Project.
 > corresponden a MS Project en español 2016 a 2024 y a la versión de suscripción; pueden variar
 > levemente según la versión.
 
-> **Ponderación de las subtareas.** En un paquete con subtareas, cada tarea pesa según su **duración de
-> línea base** y cada hito según su `Peso hito`, que es un % del BAC del paquete: son los mismos pesos
-> del % planificado ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)).
+> **Ponderación de las subtareas.** En un paquete con subtareas, cada tarea con peso recibe ese % de la
+> parte de **su tarea resumen**, y las demás se reparten el resto según su **duración de línea base** (un
+> hito sin peso no tiene valor, salvo en `Hitos ponderados` sin ningún peso en la fila, donde los hitos
+> pesan igual): es el mismo reparto del % planificado, en todos los métodos ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)).
 
 ---
 
@@ -34,6 +35,7 @@ MS Project.
    - [3.5 % Físico completado](#35--físico-completado)
    - [3.6 Unidades completadas](#36-unidades-completadas)
    - [3.7 Avance lineal](#37-avance-lineal)
+   - [3.8 Ponderado](#38-ponderado)
 4. [Guía para elegir el método](#4-guía-para-elegir-el-método)
 5. [Proceso para definir el método de cada paquete](#5-proceso-para-definir-el-método-de-cada-paquete)
    - [5.1 Roles](#51-roles)
@@ -51,11 +53,12 @@ MS Project.
 |---|---|---|
 | `0/100` | 0 hasta terminar; BAC al terminar. | Paquete al 100 % (o *Fin real*) al terminar. |
 | `50/50`, `25/75`, `20/80` (`X/Y`) | X % del BAC al comenzar; 100 % al terminar. | *Comienzo real* (o cualquier avance) al comenzar; 100 % al terminar. |
-| `Hitos ponderados` | BAC × Σ pesos de los hitos cumplidos / Σ pesos. | Cada hito al 100 % cuando se cumple. |
-| `% Completado` | BAC × *% completado* de las subtareas, ponderado por su duración de línea base (un hito cumplido cuenta su `Peso hito`). | *% completado* (o duración real) de las tareas. |
+| `Hitos ponderados` | BAC × Σ pesos de los hitos cumplidos / Σ pesos. Si suman menos de 100, las actividades se reparten el resto por duración. | Cada hito al 100 % cuando se cumple (y el *% completado* de las actividades, si los pesos suman menos de 100). |
+| `% Completado` | BAC × *% completado* de las subtareas, ponderado por su parte de la fila (su peso o su duración de línea base; un hito cumplido cuenta su parte). | *% completado* (o duración real) de las tareas. |
 | `% Físico completado` | BAC × *% físico completado* de las subtareas, con la misma ponderación. | *% físico completado* estimado o medido. |
 | `Unidades completadas` | BAC × unidades hechas / unidades totales. | El cociente, en *% físico completado*. |
 | `Avance lineal` | EV = PV acumulado de la fila. | Nada específico (fechas reales recomendables). |
+| `Ponderado` | BAC × Σ parte de cada tarea (su peso o su duración) × su avance según su propio método. | El avance de cada tarea según su método (ver los demás métodos). |
 | `Por definir` u otro texto | Se usa `% Completado` y se informa. | — |
 
 El detalle del cálculo (pesos, % del mes, controles) está en
@@ -101,10 +104,10 @@ flowchart LR
 
 | Qué | Dónde |
 |---|---|
-| Método de cada paquete (dato de referencia) | MS Project: campo `Método EVM` y, en los hitos, `Peso hito` ([2.2](#22-en-ms-project-campo-personalizado-método-evm)). |
+| Método de cada paquete (dato de referencia) | MS Project: campo `Método EVM` y, en las tareas con peso, `Peso hito` ([2.2](#22-en-ms-project-campo-personalizado-método-evm)). |
 | Avance del mes | MS Project: *% completado*, *% físico completado*, hitos al 100 % y fechas reales, en las tareas de detalle y los hitos ([Preparación en MS Project](preparacion-ms-project.md#7-fecha-de-estado-y-registro-del-avance)). |
 | Método que usa el cálculo | Excel: columna C de la hoja `PV`, que `generar` copia de MS Project ([2.3](#23-en-excel-columna-c-de-la-hoja-pv)). |
-| % ganado acumulado de cada paquete | El programa, al ejecutar `actualizar`, que escribe el % del mes en la hoja `% EV` ([Cálculo del PV y el EV](calculo-pv-ev.md#6--ganado-métodos-de-medición)). |
+| % ganado acumulado de cada paquete | El programa, al ejecutar `actualizar` (o `generar --ev-rellenar`, con un proyecto ya en ejecución), que escribe el % del mes en la hoja `% EV` ([Cálculo del PV y el EV](calculo-pv-ev.md#6--ganado-métodos-de-medición)). |
 | BAC y AC | Excel: se ingresan a mano en la columna D de la hoja `PV` y en la hoja `AC`. |
 | EV, acumulados, índices, pronósticos, semáforos y gráficos | Excel, con fórmulas ([Cuadro de Mando e indicadores](cuadro-de-mando.md)). |
 | Valor acumulado de MS Project (*CPTR*) | No se usa ([sección 6](#6-valor-acumulado-de-ms-project)). |
@@ -116,8 +119,8 @@ El reparto responde a los datos que tiene cada herramienta:
 - **Excel** tiene una fila por paquete: no tiene las subtareas, los hitos cumplidos, los pesos ni las
   fechas reales que necesita la regla del método.
 - **El programa** lee ese detalle de MS Project y escribe en Excel el resultado de cada paquete. En un
-  paquete con subtareas, el avance es el promedio de las subtareas ponderado por su duración de línea
-  base, y cada hito cuenta su `Peso hito`
+  paquete con subtareas, el avance es el promedio de las subtareas ponderado por su parte (su peso, que
+  es un % de su tarea resumen, o su duración de línea base)
   ([Cálculo del PV y el EV](calculo-pv-ev.md#6--ganado-métodos-de-medición)).
 
 > **Importante:** `actualizar` usa el método de la **columna C**, no el de MS Project, y no compara los
@@ -134,8 +137,8 @@ El reparto responde a los datos que tiene cada herramienta:
 2. **Campo: Tarea**, **Tipo: Texto**. Se selecciona un campo libre, por ejemplo *Texto10*, y con
    **Cambiar nombre...** se le asigna el nombre `Método EVM`.
 3. En **Atributos personalizados** se elige **Búsqueda...** y se escriben los valores de la lista:
-   `0/100`, `50/50`, `25/75`, `20/80`, `Hitos ponderados`, `% Completado`, `% Físico completado`,
-   `Unidades completadas`, `Avance lineal`. Se recomienda **desmarcar**
+   `0/100`, `50/50`, `25/75`, `20/80`, `Hitos ponderados`, `Ponderado`, `% Completado`,
+   `% Físico completado`, `Unidades completadas`, `Avance lineal`. Se recomienda **desmarcar**
    *Permitir introducir elementos adicionales en los campos*, para que solo se admitan valores de la
    lista.
 4. Se inserta la columna `Método EVM` (clic derecho en un encabezado > *Insertar columna*) y se completa
@@ -147,9 +150,11 @@ El reparto responde a los datos que tiene cada herramienta:
 
 ![Esquema del cuadro Editar tabla de búsqueda con los métodos](img/ms-project/tabla-busqueda.svg)
 
-Para el peso de los hitos (el % del BAC del paquete que vale cada hito) se crea, de la misma forma, un
-campo **Número** (por ejemplo *Número1*) con el nombre `Peso hito`, y en `config.toml` se indica
-`peso_hito = "Peso hito"`.
+Para el peso de las tareas y los hitos (el % de la parte de su tarea resumen que recibe cada uno) se
+crea, de la misma forma, un campo **Número** (por ejemplo *Número1*) con el nombre `Peso hito`, y en
+`config.toml` se indica `peso_hito = "Peso hito"`. Un campo numérico lee el 0 como vacío: si se
+quiere usar `Peso` = 0 (la tarea no cuenta en el libro), el campo debe ser de **texto** (por ejemplo
+*Texto7* con el nombre `Peso`).
 
 ### 2.3 En Excel: columna C de la hoja `PV`
 
@@ -214,17 +219,19 @@ recomendado para paquetes largos porque es **objetivo**.
 
 1. **Estructura:** el paquete es una tarea de nivel 3 (con código EDT) cuyas subtareas son las
    actividades de trabajo y los **hitos** (tareas de duración 0, o marcadas con *Marcar tarea como hito*
-   en *Información de la tarea > Avanzado*). Los hitos no necesitan código EDT: el programa los incluye
-   en su paquete.
+   en *Información de la tarea > Avanzado*). Las actividades y los hitos llevan su código EDT, de un
+   nivel más que el paquete (`2.1.2.1`, `2.1.2.2`... bajo `2.1.2`): se suman en su paquete y el código
+   los identifica en la jerarquía ([EDT-023](codigos.md#edt-023)).
 2. **Vínculos:** cada hito se vincula como sucesor de las actividades que producen su entregable, para
    que su fecha se mueva con el trabajo.
-3. **Pesos:** campo `Peso hito` (*Número1*) en cada hito: es el % del BAC del paquete que se planifica
-   en el mes del hito ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)).
+3. **Pesos:** campo `Peso hito` (*Número1*) en cada hito: es el % de la parte de su tarea resumen (del
+   paquete, si es una subtarea directa) que se planifica en el mes del hito ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)).
    Los pesos deben sumar 100 y ser proporcionales al presupuesto del trabajo que lleva a cada hito: así
-   el PV del paquete se concentra en los meses de sus hitos. Si suman menos de 100, el resto del %
-   planificado se reparte entre las actividades según su duración, pero el % ganado solo cuenta los
-   hitos. Un peso negativo se toma como 0; si ningún hito tiene peso positivo, en el % ganado todos
-   pesan igual.
+   el PV del paquete se concentra en los meses de sus hitos. Si suman menos de 100, el resto se reparte
+   entre las actividades según su duración, en el % planificado y en el % ganado (con su *% completado*):
+   los dos con el mismo criterio. Un peso negativo se toma como si no tuviera peso; si ninguna tarea de la
+   fila tiene peso, el % planificado y el % ganado se reparten por igual entre los hitos y las tareas no
+   cuentan ([HIT-003](codigos.md#hit-003)).
 4. **Método:** `Hitos ponderados` en el campo `Método EVM` del paquete.
 5. **Criterio de cumplimiento:** en las *Notas* de cada hito se escribe la evidencia que lo da por
    cumplido (por ejemplo, "plano aprobado por el cliente", "acta de prueba FAT firmada").
@@ -255,8 +262,8 @@ cualquier nivel.
 
 ### 3.4 % Completado
 
-**Regla:** BAC × *% completado* de las subtareas, ponderado por su duración de línea base; un hito
-cumplido cuenta su `Peso hito`.
+**Regla:** BAC × *% completado* de las subtareas, ponderado por su parte (su peso o su duración de línea
+base); un hito cumplido cuenta su parte.
 
 **Cuándo usarlo:** cuando no hay una medida física mejor y la duración transcurrida es un indicador
 razonable del avance.
@@ -321,6 +328,22 @@ indispensable y no mezclar en el mismo paquete trabajo de soporte con trabajo me
 `analizar` avisan si las filas LOE superan el `loe_maximo` del BAC total (15 % por defecto,
 [configuración](configuracion.md#claves); [ACT-049](codigos.md#act-049)).
 
+### 3.8 Ponderado
+
+**Regla:** cada tarea del paquete tiene su **peso** (un % de su tarea resumen; sin peso, su parte sale de
+su duración de línea base) y su **propio método** (`0/100` y `X/Y`, `% Físico completado`, `Unidades
+completadas`, `Avance lineal` o, sin método, `% Completado`; un hito es `0/100`). El EV es el BAC × Σ
+parte de cada tarea × su avance según su método.
+
+**Cuándo usarlo:** paquetes con tareas de distinta naturaleza (por ejemplo, ingeniería, compras y un
+entregable), en los que un solo método no mide bien todo el trabajo.
+
+**En MS Project:** el peso de cada tarea en `Peso hito`, el método de cada tarea en `Método EVM` y
+`Ponderado` en el paquete; cada mes, el avance de cada tarea según su método. Un hito sin peso en una fila
+`Ponderado` es un error ([HIT-010](codigos.md#hit-010)).
+
+El detalle, con un ejemplo, está en [Método «Ponderado»](calculo-pv-ev.md#método-ponderado).
+
 ---
 
 ## 4. Guía para elegir el método
@@ -335,6 +358,7 @@ flowchart TD
     C -- "Sí" --> F20["25/75 o 20/80"]
     B -- "3 meses o más" --> D{"¿Hay entregables<br/>intermedios verificables?"}
     D -- "Sí, al menos uno por mes" --> H["Hitos ponderados"]
+    D -- "Tareas de distinta naturaleza" --> PO["Ponderado"]
     D -- "No" --> E{"¿Se mide en<br/>cantidades?"}
     E -- "Sí" --> U["Unidades completadas"]
     E -- "No" --> P["% Físico completado<br/>(o % Completado)"]
@@ -345,6 +369,7 @@ flowchart TD
 | Empieza y termina en el mismo mes | `0/100` |
 | Hasta 2 meses | `50/50` (o `25/75`, `20/80` si el valor se concentra al final) |
 | 3 meses o más, con entregables intermedios | `Hitos ponderados` (al menos un hito por mes) |
+| Tareas de distinta naturaleza en el mismo paquete (ingeniería, compras, un entregable) | `Ponderado`, con el peso y el método de cada tarea |
 | Trabajo medible en cantidades (m³, planos, equipos) | `% Físico completado` o `Unidades completadas` |
 | Gestión, soporte, supervisión | `Avance lineal`, limitado a lo indispensable |
 
@@ -393,6 +418,7 @@ flowchart TD
    |---|---|
    | `0/100` y fórmulas fijas | Qué hecho marca el comienzo del paquete y qué evidencia lo da por terminado. |
    | `Hitos ponderados` | Los hitos, su peso (que sumen 100, proporcionales al presupuesto del trabajo que lleva a cada hito) y la evidencia que da cada hito por cumplido. |
+   | `Ponderado` | El peso de cada tarea (% de su tarea resumen), el método de cada tarea y su criterio de medición, como en los demás métodos. |
    | `% Físico completado` | Qué se mide (por ejemplo, planos emitidos sobre el total) y de dónde sale la medición. |
    | `Unidades completadas` | La unidad, la cantidad total y la fuente de la medición mensual. |
    | `% Completado` | Por qué no hay una medida física mejor. |

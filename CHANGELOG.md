@@ -20,15 +20,161 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 ### Nuevas funciones
 
-- Ninguna.
+- **% ganado hasta la fecha de estado al generar el libro** (opción nueva `generar --ev-rellenar`, o
+  `[exportacion] ev_historico = true`; desactivado por defecto): si el archivo de MS Project ya tiene avance
+  y fecha de estado, `generar` carga el % ganado de cada mes (de cada empresa en multi-empresa) hasta la
+  fecha de estado, que pasa a ser la fecha de corte del `Resumen` (`LIB-016`, nuevo). El acumulado a la
+  fecha de estado es el de MS Project; el de los meses anteriores se reconstruye con las fechas reales:
+  exacto en las fórmulas fijas, los hitos ponderados y el avance lineal, y en línea recta desde el
+  comienzo real en el % completado y el % físico completado. Con `--migrar-desde` se conserva el del libro
+  anterior. Si el archivo tiene avance pero no fecha de estado, no se carga y se avisa (`LIB-017`, nuevo)
+  ([Del % acumulado al % del mes](docs/calculo-pv-ev.md#7-del--acumulado-al--del-mes)).
+- **Método `Ponderado`:** para paquetes con tareas de distinta naturaleza (por ejemplo, ingeniería,
+  compras y un entregable), cada tarea de la fila tiene su peso (campo de `[campos] peso_hito`, de texto,
+  por ejemplo con alias `Peso`) y su propio método de medición (fórmula fija, % físico, avance lineal o %
+  completado; un hito, 0/100). El % ganado suma la parte de cada tarea por su avance. Un hito sin peso en
+  una fila `Ponderado` es un error (`HIT-010`), y una fila `Ponderado` sin ningún peso se avisa (`HIT-012`)
+  ([Método «Ponderado»](docs/calculo-pv-ev.md#método-ponderado)).
+- **Campo `Visible`: `Sí` decide las filas:** si alguna tarea tiene `Visible = Sí`, solo esas tareas (con
+  código EDT) tienen fila en el libro y las demás se suman en su fila superior, como una lista EDT dentro
+  del propio archivo (`VIS-011`, nuevo). Sin ningún `Sí`, las filas siguen el nivel máximo. `Visible = No`
+  ya no saca tareas del cálculo: no tienen fila propia y cuentan en su fila superior (`VIS-012`, nuevo; si no
+  tienen fila superior, como una tarea de nivel 1, conservan su fila); para
+  que una tarea no cuente, se escribe `Peso = 0` o se inactiva en MS Project. Se retiran `VIS-002`,
+  `VIS-003`, `VIS-005`, `VIS-007`, `VIS-009` y `VIS-010`
+  ([Campo Visible](docs/calculo-pv-ev.md#33-campo-visible-más-o-menos-detalle-en-cada-rama)).
+- **Más errores de datos:** pasan de advertencia a error una empresa distinta de las dos de la
+  configuración y de `ambas` (`EMP-005`), una tarea de 0 días sin la marca de hito (`FEC-005`) y un archivo
+  sin la línea base seleccionada (`FEC-009`)
+  ([Validaciones](docs/validaciones-y-problemas.md#1-validaciones)).
+- **Fechas de MS Project en las hojas `EV`, `% EV` y `AC`** (y en las de cada empresa): las columnas E y
+  F repetían las fechas del plan de la hoja `PV`. Ahora son *Fecha inicio real o prevista (EV)* (el
+  comienzo real más temprano de las tareas de detalle de la fila, fijo una vez comenzado el trabajo, o el
+  previsto si ninguna comenzó) y *Fecha fin real o prevista (EV)* (el fin más tardío según la columna *Fin*
+  de MS Project: previsto hasta que terminan todas), en todas las filas. `generar` y cada `actualizar` las
+  escriben con su lectura de MS Project; `actualizar` convierte los libros de versiones anteriores
+  ([Hojas PV, EV y AC](docs/libro-excel.md#2-hojas-pv-ev-y-ac)).
+- **PV solo con el trabajo con línea base:** `generar` forma el % planificado de cada fila con las tareas
+  de detalle con línea base y, si una tarea con línea base se desglosó después en subtareas sin línea base,
+  con esa tarea como un bloque. Una subtarea sin línea base (un retrabajo o trabajo no previsto, agregado
+  después de guardarla) ya no cambia el PV ni las fechas del Plan de su fila, tampoco al regenerar con
+  `--migrar-desde`: cuenta en el % ganado y en la fecha de fin de la hoja `EV` (`FEC-019`, advertencia,
+  nuevo). Si ninguna tarea de la fila tiene línea base, la fila no tiene % planificado: su BAC debe ser 0
+  hasta que el trabajo se apruebe (`FEC-019` lo indica). El criterio
+  anterior se mantiene con la opción nueva `generar --pv-fechas-actuales`; el libro guarda el criterio y
+  `actualizar` lo usa al comparar con la línea base de MS Project (`ACT-047`)
+  ([Tareas sin línea base](docs/calculo-pv-ev.md#tareas-sin-línea-base-retrabajo-y-trabajo-no-previsto)).
+- **Tareas sin código EDT dentro de un elemento EDT** (`EDT-023`, advertencia, nuevo): `validar` y la hoja
+  `Validación` informan los hitos, actividades y tareas resumen sin código que dependen de un elemento
+  EDT. Se siguen sumando en su elemento, pero sin código no se identifican en la jerarquía ni se puede
+  comprobar su numeración. La documentación ya no dice que los hitos no necesitan código EDT.
+- **Peso = 0: tareas que se hacen pero no cuentan en el libro:** con el campo de peso de texto, un 0 escrito
+  saca la tarea del libro con toda su rama: no entra en el PV, el EV ni el AC, no recibe parte del peso de
+  su tarea superior y no forma filas -D (`HIT-015`, nuevo). Un peso vacío sigue significando sin definir
+  (depende de sus tareas hermanas). Una tarea resumen cuyas subtareas tienen todas 0 tampoco cuenta. Una fila
+  del libro con 0 se conserva con PV y EV 0 (`HIT-016`, nuevo), y los pesos de las subtareas de una tarea con
+  0 se informan como advertencia (`HIT-014`). En un campo numérico el 0 se lee como vacío; un campo empresarial
+  de Project Online (que no es Número1-20 ni Texto1-30) se trata como numérico si todos sus valores son números
+  y al menos la mitad de las tareas tienen 0.
+- **Líneas base en el informe de mejoras** (`validar --informe`, sección 4 nueva; la comparación de
+  planificaciones pasa a ser la 5): cada línea base guardada en las tareas de la planificación, con sus
+  tareas, fechas, fecha de guardado (con un .mpp) e indicios de un guardado por error (en pocas tareas,
+  solo en tareas resumen o copia de la que usa el % planificado). De la que usa el % planificado se indica
+  cuántas tareas la tienen; de las demás, sus tareas por código EDT. Al final, las tareas sin la línea
+  base que usa el % planificado, con las otras líneas base que tienen (sin ninguna, o solo con otras).
+  Cada lista va por rama, una tarea por línea: la primera tarea de cada rama (la que se busca en MS
+  Project, con dónde está y qué abarca) y, debajo, con sangría, las tareas de esa rama que también están
+  en la lista, en su jerarquía; una rama completa no se despliega. Sirve para detectar líneas base adicionales guardadas por error
+  y tareas que faltan en la línea base
+  ([Informe de mejoras](docs/comandos.md#informe-de-mejoras)).
+- **`--origen` con prioridad sobre `[[proyectos]]`:** si la configuración tiene varios archivos y se indica
+  una sola ruta en `--origen` (sin `NOMBRE=`), se lee solo ese archivo, con la planificación y la línea base
+  de su sección si es uno de ellos, en lugar de detenerse con `CFG-039` (`CFG-057`, informativa, nuevo)
+  ([Varios archivos](docs/varios-archivos.md)).
+- **Guía de convenios en MS Project** para jefes de proyecto y planners: las reglas para trabajar el
+  cronograma (código EDT, `Visible`, `Peso`, método, empresas, línea base y avance) y sus motivos, sin
+  necesidad de conocer el programa ([Guía de convenios](docs/guia-convenios-ms-project.md)).
+- **Comando `actualizar-edt`:** numera los códigos EDT de las subtareas de una tarea (`--desde 2.7.1`)
+  según la jerarquía de MS Project, para no hacerlo a mano durante la planificación. No cambia los
+  códigos de nivel 1 a `nivel_maximo`, los de `Visible = Sí` ni los de la lista EDT, que deben ir
+  primero y sin saltos; las demás tareas, también las nuevas sin código, se numeran a continuación.
+  Escribe en el proyecto abierto sin guardarlo, en una sola acción de deshacer, o en el `.mpp` con una
+  copia de respaldo; con `--simular` solo muestra los cambios (admite el XML). Cada ejecución deja un
+  informe con los cambios. Con varios archivos (`[[proyectos]]`), `--proyecto NOMBRE` indica cuál se
+  numera, con la ruta, la planificación y la línea base de su sección. Códigos nuevos `NUM-001` a `NUM-017`
+  ([actualizar-edt](docs/comandos.md#actualizar-edt-numera-los-códigos-edt-de-una-rama)).
+- **Comando `corregir-linea-base`:** mueve (`--de N --a M`), borra (`--borrar N`) o establece
+  (`--establecer N`, con los valores actuales, solo en las tareas que no la tienen) la línea base de las
+  tareas indicadas por su código EDT (`--tarea`, con `--rama` para incluir todas sus subtareas), para
+  corregir erratas antes de generar el libro: por ejemplo, tareas nuevas guardadas en la línea base del PV
+  sin la aprobación del cliente. Mover copia los cinco campos (comienzo, fin, duración, trabajo y costo
+  previstos) y deja el origen vacío (NA, o ND en MS Project en español). Antes de escribir avisa de lo que
+  conviene decidir: una fila que se queda sin PV, una tarea resumen de encima que quedaría en el PV como un
+  bloque (no se modifica sin decidirlo), un destino con valores, un destino que es la línea base del PV o
+  una línea base aprobada (`--aprobada`) que no es la del PV; sin `--continuar` no escribe nada. Con
+  `--interactivo` muestra las líneas base del proyecto, pregunta cuál es la aprobada y decide caso a caso,
+  con un cambio cada vez que se puede deshacer; con las tareas resumen de encima ofrece moverlas a la
+  aprobada, borrarlas, moverlas a otra línea base u omitirlas. El motivo (`--motivo`) se agrega a las Notas
+  de cada tarea. Establecer da una línea base a tareas que no la tienen (por ejemplo, el desglose de una
+  tarea aprobada) y avisa si una tarea resumen de encima deja de contar en el PV como un bloque. Cada
+  ejecución deja un informe. Con `--todas`, en lugar de `--tarea`, la acción se aplica a todas las ramas de
+  la planificación a las que afecta (por ejemplo, para borrar una línea base entera), y con `--interactivo`
+  se revisan rama a rama, con un resumen de las tareas de cada una; el motivo queda en el informe y solo se
+  agrega a las Notas con `--notas`. Códigos nuevos `LBA-001` a `LBA-022`. Guía nueva
+  [Líneas base en MS Project y en el programa EVM](docs/lineas-base.md), con los conceptos, las buenas
+  prácticas y el comando.
 
 ### Correcciones
 
-- Ninguna.
+- **Pesos por tarea resumen, en todos los métodos:** el peso de un hito en un nivel inferior (por ejemplo,
+  `1.2.3.4` con peso 10 en el paquete `1.2`) era un % de toda la fila: ahora es un % de la parte de su tarea
+  resumen (`1.2.3`) y solo se reparte con sus tareas hermanas. El reparto es el mismo en todos los métodos
+  (también en las filas -D) y el método solo decide cómo se mide el avance de cada tarea. Además:
+  - el peso de una tarea con duración o de una tarea resumen ya no se ignora: es un % de su tarea resumen
+    (`HIT-001` pasa a informar solo el peso de la tarea de una fila o de una tarea fuera de las filas);
+  - los avisos de pesos se dan por tarea resumen, en todos los métodos: pesos que no suman 100 (`HIT-013`,
+    que reemplaza a `HIT-007` y `HIT-008`, retirados), tareas sin peso que no cuentan (`HIT-011`), pesos
+    que no se usan (`HIT-014`) y tareas que pesan igual (`HIT-009`). Antes no se avisaba cuando los hitos
+    sumaban 100 y las tareas quedaban sin PV, y se avisaba por error de pesos que sumaban más de 100 si
+    estaban en tareas resumen distintas. El hito sin peso solo es un error en las filas `Ponderado`
+    (`HIT-010`);
+  - `Hitos ponderados` sin ningún peso reparte por igual entre los hitos el % planificado y el % ganado (el
+    % planificado se repartía entre las tareas y el % ganado solo contaba los hitos); `HIT-003` pasa a ser
+    advertencia;
+  - el método `Ponderado` usa el bloque de una tarea desglosada después de guardar la línea base y respeta
+    `generar --pv-fechas-actuales`, como los demás métodos, y mide cada tarea con su propio método también
+    cuando ninguna tiene peso (`HIT-012`);
+  - si ninguna tarea hermana tiene peso y una de ellas dura 0 pero contiene tareas con peso (por ejemplo, una
+    tarea resumen de hitos con peso), todas pesan igual (`HIT-009`) en lugar de quedarse esa sin parte
+    (`HIT-014`);
+  - la parte de una tarea sin línea base la reciben, en el % planificado, sus tareas hermanas de la misma
+    tarea resumen; una tarea resumen sin peso cuyas tareas con línea base no tienen duración no recibe parte
+    del % planificado y se avisa (`HIT-017`, nuevo);
+  - en multi-empresa, el peso es un % de la parte de cada empresa también en el método `Ponderado`.
+  ([Pesos por tarea resumen](docs/calculo-pv-ev.md#pesos-por-tarea-resumen)).
+- Método `Hitos ponderados` con pesos que suman menos de 100 y tareas con duración: el % planificado
+  repartía el resto entre las tareas, pero el % ganado solo contaba los hitos. Ahora el % ganado usa el
+  mismo reparto: cada hito cumplido suma su peso y las tareas suman su parte por su % completado
+  ([Cálculo del PV y el EV](docs/calculo-pv-ev.md#hitos-ponderados-con-pesos-que-suman-menos-de-100)).
+
+- `actualizar` dejaba en la hoja `Indicadores EDT` y en la sección de plazo del `Resumen` el valor de la
+  lectura anterior cuando el nuevo quedaba vacío (por ejemplo, la holgura de un paquete que terminó).
 
 ### Otros
 
-- Ninguna.
+- Proyecto de ejemplo: los hitos de los paquetes con *Hitos ponderados* tienen código EDT (`2.1.2.2`,
+  `2.1.2.4`...), y sus actividades se renumeran. Las filas del libro no cambian.
+- Hoja `Resumen` del libro: *Origen* muestra solo el nombre del archivo de MS Project, sin la ruta (con
+  varios archivos, el nombre de cada uno); *Generado* muestra solo la fecha, sin la hora; se quitan las
+  filas *Moneda* (se asume EUR) y *Planificación*. Los parámetros pasan a las filas 9 a 12; los
+  indicadores no cambian de celda. Los libros ya generados conservan sus filas hasta que se regeneran.
+- Mismo criterio en la cabecera de las hojas `PV`, `% PV`, `EV`, `% EV` y `AC` (sin planificación ni
+  moneda, y *Generado* sin la hora) y en la línea de datos del `Cuadro de Mando` (solo la línea base y, con
+  varios archivos, la de cada uno). Los gráficos siguen indicando la moneda en el eje de importes.
+- Como el peso ya no es solo de los hitos, los textos del libro, de los mensajes, de la documentación y de
+  la presentación hablan del peso de las tareas (por ejemplo, el título de la hoja `% PV`, el aviso
+  `LIB-001` y la ayuda de los métodos en la hoja `Listas`). El campo se sigue configurando en
+  `[campos] peso_hito`.
 
 <a id="v2.6.0"></a>
 

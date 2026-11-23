@@ -32,6 +32,7 @@ from evm.client_check import compare
 from evm.client_plan import INTERNAL_NAME, build_client_plan, write_control
 from evm.client_writer import FILTER_NAME, generate_client
 from evm.config import load_config
+from evm.messages import EvmError
 from evm.mpp_macros import macro_modules
 from evm.reader_com import ComSession
 
@@ -85,13 +86,23 @@ def generated(tmp_path_factory):
     print(f"\nArchivos de la prueba: {d}")
     result = Hidden(was_running=ms_project_running(), folder=d)
     before = (_hash(MPP), os.path.getmtime(MPP))
+    unmarked = None
     with ComSession(MPP) as session:
         project = session.read_project(cfg, client=True)
-        result["plan"] = build_client_plan(project, cfg)
-        result["names"] = _names(project)
-        result["field"] = session._resolve_field(cfg.client_field)      # ('attr', 'Text15') o ('fid', id)
+        try:
+            result["plan"] = build_client_plan(project, cfg)
+        except EvmError as exc:
+            if getattr(exc, "id", "") != "CLI-002":
+                raise
+            unmarked = str(exc)
+        else:
+            result["names"] = _names(project)
+            result["field"] = session._resolve_field(cfg.client_field)  # ('attr', 'Text15') o ('fid', id)
     if not result["was_running"]:
         wait_until_closed()
+    if unmarked is not None:
+        pytest.skip(f"El archivo de EVM_MPP no tiene tareas marcadas para el cliente: {unmarked} Estas pruebas "
+                    "necesitan un archivo con tareas marcadas (Sí) en el campo de [cliente] campo.")
     destino, log = d / "cliente.mpp", d / "registro.log"
     rc, text = _run("--registro", log, "generar-cliente", "--origen", MPP, "--config", config_path(),
                     "--destino", destino)
@@ -409,7 +420,12 @@ def test_same_plan_with_mpp_and_xml():
     plans = {}
     for engine, origin in (("com", MPP), ("xml", XML)):
         with open_project(origin, cfg, engine, client=True) as project:
-            plans[engine] = build_client_plan(project, cfg)
+            try:
+                plans[engine] = build_client_plan(project, cfg)
+            except EvmError as exc:
+                if getattr(exc, "id", "") != "CLI-002":
+                    raise
+                pytest.skip(f"El archivo no tiene tareas marcadas para el cliente: {exc}")
     com, xml = plans["com"], plans["xml"]
     assert com.shown == xml.shown, (f"Tareas que se muestran: COM {len(com.shown)} / XML {len(xml.shown)}; distintas "
                                     f"(UID): {sorted(com.shown ^ xml.shown)[:LIMIT]}")
