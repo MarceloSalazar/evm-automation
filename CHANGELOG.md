@@ -20,6 +20,63 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 ### Nuevas funciones
 
+- Ninguna.
+
+### Correcciones
+
+- Ninguna.
+
+### Otros
+
+- Ninguna.
+
+<a id="v2.7.0"></a>
+
+## [2.7.0] - 2026-11-23 · Pesos por tarea resumen, método Ponderado y corrección de líneas base
+
+### Resumen
+
+**Nuevas funciones**
+
+- **Método `Ponderado`:** cada tarea del paquete con su peso y su propio método de medición, para paquetes
+  con tareas de distinta naturaleza ([Método «Ponderado»](docs/calculo-pv-ev.md#método-ponderado)).
+- **PV solo con el trabajo con línea base:** las tareas agregadas después de guardarla cuentan en el EV y no
+  cambian el PV aprobado
+  ([Tareas sin línea base](docs/calculo-pv-ev.md#tareas-sin-línea-base-retrabajo-y-trabajo-no-previsto)).
+- **Corregir la línea base desde el programa (`corregir-linea-base`):** mover, borrar o establecer la línea
+  base de unas tareas, caso a caso o rama a rama, en el proyecto abierto y sin guardarlo
+  ([Líneas base](docs/lineas-base.md)).
+- **Revisar las líneas base (`validar --informe`):** cada línea base guardada, por rama, y las tareas sin la
+  del PV ([Informe de mejoras](docs/comandos.md#informe-de-mejoras)).
+- **Numerar la EDT (`actualizar-edt`):** los códigos de una rama según el esquema de MS Project, sin
+  cambiar los que son filas del libro
+  ([actualizar-edt](docs/comandos.md#actualizar-edt-numera-los-códigos-edt-de-una-rama)).
+- **Campo `Visible`: `Sí` decide las filas,** y `Peso = 0` saca una tarea del libro
+  ([Campo Visible](docs/calculo-pv-ev.md#33-campo-visible-más-o-menos-detalle-en-cada-rama)).
+- **Fechas reales o previstas en las hojas `EV`, `% EV` y `AC`,** y el % ganado hasta la fecha de estado al
+  generar con `--ev-rellenar` ([Hojas PV, EV y AC](docs/libro-excel.md#2-hojas-pv-ev-y-ac)).
+- **Guía de convenios en MS Project** para jefes de proyecto y planners
+  ([Guía de convenios](docs/guia-convenios-ms-project.md)).
+
+**Correcciones**
+
+- **Pesos por tarea resumen en todos los métodos:** el peso de una tarea es un % de su tarea resumen y no
+  se propaga más arriba; los avisos de pesos se dan por tarea resumen
+  ([Pesos por tarea resumen](docs/calculo-pv-ev.md#pesos-por-tarea-resumen)).
+- **`Hitos ponderados`:** el % ganado usa el mismo reparto que el % planificado
+  ([Cálculo del PV y el EV](docs/calculo-pv-ev.md#hitos-ponderados-con-pesos-que-suman-menos-de-100)).
+
+**Otros**
+
+- Los libros generados con versiones anteriores se deben regenerar con `generar --migrar-desde`: cambian el
+  % planificado (solo trabajo con línea base y pesos por tarea resumen) y el significado de `Visible = No`
+  ([El libro Excel](docs/libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)).
+- Pasan a ser errores una empresa no reconocida, una tarea de 0 días sin marca de hito y un proyecto sin la
+  línea base seleccionada ([Validaciones](docs/validaciones-y-problemas.md#1-validaciones)).
+- Instalador de Windows adjunto a la publicación.
+
+### Nuevas funciones
+
 - **% ganado hasta la fecha de estado al generar el libro** (opción nueva `generar --ev-rellenar`, o
   `[exportacion] ev_historico = true`; desactivado por defecto): si el archivo de MS Project ya tiene avance
   y fecha de estado, `generar` carga el % ganado de cada mes (de cada empresa en multi-empresa) hasta la
@@ -160,6 +217,10 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 ### Otros
 
+- Los libros generados con versiones anteriores se deben regenerar con `generar --migrar-desde`:
+  cambian el % planificado (solo el trabajo con línea base y los pesos por tarea resumen) y el significado de
+  `Visible = No`.
+- Instalador de Windows adjunto a la publicación, con las funciones de la versión 2.7.0.
 - Proyecto de ejemplo: los hitos de los paquetes con *Hitos ponderados* tienen código EDT (`2.1.2.2`,
   `2.1.2.4`...), y sus actividades se renumeran. Las filas del libro no cambian.
 - Hoja `Resumen` del libro: *Origen* muestra solo el nombre del archivo de MS Project, sin la ruta (con
@@ -1503,7 +1564,8 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.6.0...desarrollo
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.7.0...desarrollo
+[2.7.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.1...v2.5.0
 [2.4.1]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.0...v2.4.1
