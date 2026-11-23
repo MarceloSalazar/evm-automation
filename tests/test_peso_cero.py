@@ -143,3 +143,26 @@ def test_actualizar_gives_the_same_earned_value_as_generar(tmp_path):
     ev = {r.code: r.ev_cum for r in res.rows}
     assert ev["1.1"] == pytest.approx(0.50 * 1_000_000, abs=1)      # 60 × 50 % + 40 × 50 %; «Cero» no cuenta
     assert ev["1.2"] == pytest.approx(0.50 * 1_000_000, abs=1)      # solo «A»
+
+
+ENTERPRISE = 188776001          # campo de tarea que no es Número1..20 ni Texto1..30 (p. ej. empresarial)
+
+
+@pytest.mark.parametrize("values, expected", [
+    (["0", "0", "0", "20"], [None, None, None, 20.0]),     # numérico: devuelve 0 en las tareas sin peso
+    (["", "", "0", "20"], [None, None, 0.0, 20.0]),        # texto: un 0 escrito es Peso = 0
+])
+def test_weight_field_of_unknown_type_is_read_by_its_values(tmp_path, values, expected):
+    tasks = [task_xml(0, 0, "Proyecto")] + [
+        task_xml(i, 1, f"T{i}", wbs=str(i), ext={ENTERPRISE: v} if v else None) for i, v in enumerate(values, start=1)]
+    path = write_xml(tmp_path / "p.xml", project_xml(tasks, definitions=[(ENTERPRISE, "Enterprise1", "Peso")]))
+    project = read_xml(path, cfg())
+    assert [t.milestone_weight for t in project.tasks if t.outline_level == 1] == expected
+
+
+def test_com_weight_field_kind():
+    from evm.fields import TASK_NUMBER_IDS, TASK_TEXT_IDS
+    from evm.reader_com import weight_kind
+    assert weight_kind(("attr", "Number3")) is True and weight_kind(("attr", "Text7")) is False
+    assert weight_kind(("fid", TASK_NUMBER_IDS[1])) is True and weight_kind(("fid", TASK_TEXT_IDS[7])) is False
+    assert weight_kind(("fid", ENTERPRISE)) is None and weight_kind(None) is False

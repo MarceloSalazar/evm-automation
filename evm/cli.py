@@ -908,6 +908,20 @@ def _edt_source(cfg: Config, args, command: str = "actualizar-edt") -> tuple[str
             if wanted and not same_name(wanted, name):
                 raise which(f"--proyecto {wanted} y --origen {path} indican archivos distintos.")
             wanted, path = name, rest
+    if wanted is None and path:
+        def key(p: str) -> str:
+            return os.path.normcase(os.path.abspath(p))
+        match = next((p for p in cfg.projects if path.lower() != "activo" and key(p.origin) == key(path)), None)
+        if match is not None:
+            wanted = match.name                 # la ruta de una sección: esa sección
+        elif len(names) > 1:
+            # Una ruta (o activo) que no es la de ninguna de varias secciones: solo ese archivo, con la planificación y
+            # la línea base generales (CFG-057), como en los demás comandos
+            print(_issue_line(Issue("CFG-057", message=f"Se lee solo el archivo de --origen (no es el de ninguna "
+                                                       f"sección: con la planificación y la línea base generales), no "
+                                                       f"los {len(names)} archivos de [[proyectos]]. Para usar los de "
+                                                       "una sección, se indica --proyecto NOMBRE.")))
+            return "", path, replace(cfg, projects=[])
     if wanted is None and len(names) == 1:
         wanted = names[0]
     spec = next((p for p in cfg.projects if wanted is not None and same_name(p.name, wanted)), None)

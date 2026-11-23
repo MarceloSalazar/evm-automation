@@ -416,6 +416,21 @@ def test_several_files_need_the_project_name(tmp_path):
     assert rc == 2 and "NUM-006" in text and "'P9'" in text
 
 
+def test_several_files_and_a_path_of_no_section_reads_only_that_file(tmp_path):
+    """Con varias secciones, sin --proyecto, una ruta que no es la de ninguna (p. ej. una copia) se lee sola, con la
+    configuración general (CFG-057), como en los demás comandos."""
+    cfg = _two_files(tmp_path)
+    copia = tmp_path / "copia.xml"
+    copia.write_bytes((tmp_path / "p.xml").read_bytes())
+    rc, text = _run("actualizar-edt", "--config", cfg, "--origen", copia, "--desde", "2.7.1", "--simular",
+                    "--informe", tmp_path / "r.md")
+    assert rc == 0 and "CFG-057" in text and "Simulación" in text
+    # La ruta de una sección elige esa sección
+    rc, text = _run("actualizar-edt", "--config", cfg, "--origen", tmp_path / "q.xml", "--desde", "3.1", "--simular",
+                    "--informe", tmp_path / "r2.md")
+    assert rc == 0 and "CFG-057" not in text
+
+
 def test_project_name_selects_the_file_of_its_section(tmp_path):
     cfg = _two_files(tmp_path)
     rc, text = _run("actualizar-edt", "--config", cfg, "--proyecto", "p2", "--desde", "3.1", "--simular",
