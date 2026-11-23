@@ -77,7 +77,7 @@ La columna **Controles** indica los códigos de los controles automáticos relac
 | **Planificación, programación y presupuesto** | | | |
 | 5 | Identificar los indicadores de avance | Parcial | [HIT](codigos.md#46-hit--hitos-y-pesos), [FEC-004](codigos.md#fec-004), [FEC-005](codigos.md#fec-005) |
 | 6 | Programar el trabajo autorizado | Cubre | [LOG](codigos.md#410-log--lógica-del-cronograma), [AVA-008](codigos.md#ava-008) a [AVA-015](codigos.md#ava-015), [FEC-008](codigos.md#fec-008) ([Evaluación DCMA](evaluacion-dcma.md)) |
-| 7 | Establecer y mantener una línea base distribuida en el tiempo | Cubre | [FEC-009](codigos.md#fec-009) a [FEC-012](codigos.md#fec-012), [CFG-044](codigos.md#cfg-044), [CFG-045](codigos.md#cfg-045), [ACT-022](codigos.md#act-022), [ACT-023](codigos.md#act-023), [ACT-047](codigos.md#act-047) |
+| 7 | Establecer y mantener una línea base distribuida en el tiempo | Cubre | [FEC-009](codigos.md#fec-009), [FEC-010](codigos.md#fec-010), [FEC-012](codigos.md#fec-012), [FEC-019](codigos.md#fec-019), [CFG-044](codigos.md#cfg-044), [CFG-045](codigos.md#cfg-045), [ACT-022](codigos.md#act-022), [ACT-023](codigos.md#act-023), [ACT-047](codigos.md#act-047) |
 | 8 | Autorizar alcance, plazo y presupuesto por elementos de costo | Fuera de alcance | — |
 | 9 | Planificar en paquetes de trabajo y de planificación | Parcial | [MET-004](codigos.md#met-004), [LOG-016](codigos.md#log-016), [HIT-005](codigos.md#hit-005), [EDT-018](codigos.md#edt-018) |
 | 10 | Establecer los criterios de medición de cada paquete | Parcial | [MET](codigos.md#47-met--método-de-medición), [LEC-019](codigos.md#lec-019), [ACT-049](codigos.md#act-049) |
@@ -169,7 +169,7 @@ responsables.
   avance, con criterios de cumplimiento definidos de antemano.
 - **Qué hace el programa:** revisa los hitos y sus pesos: hitos con duración, tareas de duración 0 sin
   marca de hito, pesos fuera de rango o que no suman el 100 % (`FEC-004`, `FEC-005`, `HIT-001` a
-  `HIT-009`). El método «Hitos ponderados» mide el EV con los hitos cumplidos.
+  `HIT-006` y `HIT-009` a `HIT-017`). El método «Hitos ponderados» mide el EV con los hitos cumplidos.
 - **Qué queda a cargo de la organización:** el criterio de cumplimiento de cada hito (qué evidencia lo
   da por cumplido). Puede registrarse en la descripción de la tarea, que muestran las fichas.
 
@@ -191,7 +191,7 @@ responsables.
   distribuida en el tiempo **de forma coherente con el cronograma**.
 - **Qué hace el programa:** el PV de cada fila es su BAC distribuido en los meses según las fechas de la
   línea base de MS Project: la coherencia con el cronograma está garantizada. Avisa si falta la línea base
-  o la tienen solo algunas tareas (`FEC-009` a `FEC-012`), si parte del PV cae fuera del horizonte
+  o la tienen solo algunas tareas (`FEC-009`, `FEC-010`, `FEC-012` y `FEC-019`), si parte del PV cae fuera del horizonte
   (`CFG-044`, `CFG-045`) y si hay filas sin BAC (`ACT-022`, `ACT-023`). Como el % planificado se fija al
   generar el libro, `actualizar` avisa si el que resulta hoy de la línea base de MS Project ya no coincide
   (`ACT-047`): se guardó una línea base nueva sin generar el libro con `--migrar-desde`.

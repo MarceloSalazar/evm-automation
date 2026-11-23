@@ -9,8 +9,8 @@ de un mes), `analizar` (actualiza la hoja `Análisis de desviaciones` sin leer M
 (revisa el plan de costes de una empresa y escribe sus cálculos, en un libro con
 [depuración de costes](depuracion-costes.md)), `generar-cliente` (genera el `.mpp` del cliente a partir
 de la planificación interna; ver [Planificación para el cliente](generar-cliente.md)), `actualizar-edt`
-(numera los códigos EDT de una rama según la jerarquía de MS Project) y `corregir-linea-base` (mueve o
-borra la línea base de unas tareas para corregir erratas; ver [Líneas base](lineas-base.md)). El BAC y el AC se ingresan a mano en el libro
+(numera los códigos EDT de una rama según la jerarquía de MS Project) y `corregir-linea-base` (mueve,
+borra o establece la línea base de unas tareas para corregir erratas; ver [Líneas base](lineas-base.md)). El BAC y el AC se ingresan a mano en el libro
 ([Cálculo del PV y el EV](calculo-pv-ev.md)). La ayuda se obtiene con:
 
 ```powershell
@@ -191,7 +191,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --config config
 Con varias planificaciones separadas por comas, `validar` lee el archivo una vez y revisa cada
 planificación por separado, como si se ejecutara una vez por planificación: sus observaciones, su
 evaluación DCMA y su resultado. Al final, una tabla las compara lado a lado (tareas, inactivas, con
-`Visible = No`, revisadas, filas del libro, tareas con comienzo en cada línea base, tareas resumen con la
+`Peso` = 0, revisadas, filas del libro, tareas con comienzo en cada línea base, tareas resumen con la
 línea base sin resumir, vínculos propios y con otras planificaciones, tareas críticas, fecha de estado,
 fin de la línea base y fin previsto, y observaciones) y lista sus diferencias: las filas del libro que
 solo están en una planificación y las filas comunes con otras fechas de plan (línea base) o con otro fin
@@ -222,10 +222,10 @@ publicada, con la última versión publicada y el commit, como lo muestra GitHub
    libro (filas, % planificado, % ganado u horizonte; los que también informa `generar`); **media**:
    advertencias de la calidad del cronograma que solo revisa `validar` (línea base, avance y lógica);
    **baja**: observaciones informativas. Las informativas que solo describen la estructura (`EDT-016`,
-   `EDT-017`, `EDT-018`, `EDT-022`, `VIS-007` y `LEC-024`) no se repiten: sus datos están en el resumen.
+   `EDT-017`, `EDT-018`, `EDT-022`, `VIS-012` y `LEC-024`) no se repiten: sus datos están en el resumen.
 3. **Evaluación DCMA de 14 puntos**, con una columna por planificación.
 4. **Líneas base:** las líneas base guardadas en las tareas de la planificación (también las inactivas
-   y las de `Visible` = No), para detectar las que se guardaron por error. Una tabla con cada línea base:
+   y las de `Peso` = 0), para detectar las que se guardaron por error. Una tabla con cada línea base:
    si la usa el % planificado, la fecha en que se guardó (solo con un .mpp: el XML no la incluye), sus
    tareas (y cuántas son resumen), su comienzo más temprano y su fin más tardío, cuántas tareas tienen
    las mismas fechas que la línea base usada e **indicios** de un guardado por error: en pocas tareas
@@ -278,22 +278,24 @@ python evm_export.py generar --origen "C:\Programa\Programa.mpp" --config config
 | `--config` | Archivo de configuración TOML ([Configuración](configuracion.md)). |
 | `--mes-inicio AAAA-MM` | Primer mes del horizonte (mes 1). Por defecto, `mes_inicio` de la configuración o, si no se indica, el primer mes con % planificado (en general, el de inicio de la línea base). |
 | `--meses N` | Cantidad de meses (columnas). Por defecto, `meses` de la configuración (120). |
-| `--planificacion CODIGO` | Código EDT de la planificación a exportar (`INTERNO`, `CLIENTE`...). Reemplaza el valor del archivo de configuración; `""` exporta todas. Con varios archivos no se admite: la planificación se indica en cada `[[proyectos]]`. |
-| `--linea-base N` | 0 = Línea base, 1..10 = Línea base N. Por defecto, la que el proyecto usa para el valor acumulado. Con varios archivos no se admite: se indica en cada `[[proyectos]]`. |
+| `--planificacion CODIGO` | Código EDT de la planificación a exportar (`INTERNO`, `CLIENTE`...). Reemplaza el valor del archivo de configuración; `""` exporta todas. Con varios archivos no se admite (la planificación se indica en cada `[[proyectos]]`), salvo con una sola ruta en `--origen`, que lee solo ese archivo ([CFG-057](codigos.md#cfg-057)). |
+| `--linea-base N` | 0 = Línea base, 1..10 = Línea base N. Por defecto, la que el proyecto usa para el valor acumulado. Con varios archivos no se admite (se indica en cada `[[proyectos]]`), salvo con una sola ruta en `--origen`. |
 | `--nivel-max N` | Nivel máximo del código EDT. Por defecto, `nivel_maximo` de la configuración (3). Con `lista_edt`, las filas las decide la lista y el nivel solo se usa para completar los códigos con ceros ([Lista EDT](calculo-pv-ev.md#34-lista-edt-filas-definidas-en-un-archivo)). |
 | `--motor auto\|com\|xml` | Forma de lectura. `auto` decide por la extensión. |
 | `--migrar-desde libro.xlsx` | Copia al libro nuevo el BAC ingresado, el % ganado y el AC ya cargados, los métodos editados en la columna C, el análisis de desviaciones y la fecha de corte de un libro anterior ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). Con depuración de costes, también la previsión pegada en `PV-depuración` ([Depuración de costes](depuracion-costes.md#9-ciclo-de-ajuste)). El % planificado es siempre el de MS Project. |
 | `--sobrescribir` | Reemplaza el libro de salida si ya existe. |
+| `--ev-rellenar` | Si el archivo de MS Project ya tiene avance y fecha de estado, carga también el % ganado de cada mes hasta la fecha de estado (ver abajo). Por defecto el % ganado se carga con `actualizar`. Equivale a `[exportacion] ev_historico = true` ([Configuración](configuracion.md#claves)). |
 | `--pv-fechas-actuales` | Las tareas sin línea base forman el % planificado con sus fechas actuales, como antes de la versión 2.7.0. Por defecto, en una fila con otras tareas con línea base, quedan fuera del PV y solo cuentan en el % ganado (retrabajo o trabajo no previsto; [Tareas sin línea base](calculo-pv-ev.md#tareas-sin-línea-base-retrabajo-y-trabajo-no-previsto)). |
 | `--visible` | Muestra la ventana de MS Project mientras se lee (solo COM). No tiene relación con el campo `Visible`. |
 | `--silenciar CODIGOS` | Códigos de las observaciones que no se muestran, separados por comas (`LOG-003,FEC-006`, o `MET-004:1.2.1` para una sola fila); se puede repetir y se suma a `[validacion] silenciar` ([Silenciar observaciones](codigos.md#2-silenciar-observaciones)). |
 
-Si el archivo de MS Project ya tiene avance y fecha de estado (un proyecto en ejecución), `generar`
-también carga el % ganado de cada mes hasta la fecha de estado, que pasa a ser la fecha de corte del
-`Resumen`, y lo indica en pantalla (`% ganado: cargado de 01/2026 a 11/2026`). El de los meses anteriores
-se reconstruye con las fechas reales ([Del % acumulado al % del mes](calculo-pv-ev.md#7-del--acumulado-al--del-mes)).
-Con `--migrar-desde` se conserva el del libro anterior, y con `[exportacion] ev_historico = false` no se
-carga ([Configuración](configuracion.md#claves)).
+Con `--ev-rellenar` (o `ev_historico = true`), si el archivo de MS Project ya tiene avance y fecha de
+estado (un proyecto en ejecución), `generar` también carga el % ganado de cada mes hasta la fecha de
+estado, que pasa a ser la fecha de corte del `Resumen`, y lo indica en pantalla (`% ganado: cargado de
+01/2026 a 11/2026`). El de los meses anteriores se reconstruye con las fechas reales
+([Del % acumulado al % del mes](calculo-pv-ev.md#7-del--acumulado-al--del-mes)).
+Con `--migrar-desde` se conserva el del libro anterior. Sin `--ev-rellenar` ni `ev_historico = true`, el
+libro se genera sin % ganado y se carga con `actualizar`.
 
 Ejemplo de salida con el proyecto de ejemplo (se omiten algunas líneas):
 
@@ -528,7 +530,7 @@ como predecesora y la de `1.2.1` muestra `1.2.3` como sucesora.
 - La ficha de un elemento resumen (por ejemplo `1.2.0`, con fichas debajo) muestra solo los vínculos
   de la propia tarea resumen y de sus tareas sin ficha propia (por ejemplo, las tareas sin código EDT
   que dependen directamente de ella).
-- Los vínculos con tareas sin ficha (de otra planificación, inactivas, con `Visible = No`, fuera de la
+- Los vínculos con tareas sin ficha (de otra planificación, inactivas, con `Peso` = 0, fuera de la
   lista EDT o de otro proyecto) no se muestran, para que el documento no incluya tareas que no se entregan. La consola
   indica cuántos se omitieron.
 - No se indica el tipo de vínculo (fin a comienzo, comienzo a comienzo...) ni la posición o el adelanto.

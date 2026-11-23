@@ -70,9 +70,8 @@ cualquier renumeración del detalle obligaría a cambiar sus códigos o dejaría
 
 ## 4. Campo `Peso`: cuánto vale cada tarea dentro de su tarea superior
 
-En los paquetes con método de medición `Ponderado`, el peso de cada subtarea es un **% de su tarea
-superior**; en `Hitos`, el de cada hito es un % del paquete. El 0 vale en cualquier paquete,
-sea cual sea su método de medición:
+En todos los paquetes, sea cual sea su método de medición, el peso de cada subtarea es un **% de su
+tarea superior** (no se propaga más arriba). El 0 también vale en cualquier paquete:
 
 | Peso | Significado |
 |---|---|
@@ -85,7 +84,8 @@ sea cual sea su método de medición:
 - Los pesos de las hermanas suman **100** o menos. Si suman menos de 100, el resto se reparte entre las
   hermanas con el peso vacío, según su duración. Si suman 100, las de peso vacío no reciben nada. Más de
   100 es un error.
-- Un hito sin peso no recibe nada (dura 0): si debe valer, se le pone peso.
+- Un hito sin peso no recibe nada (dura 0): si debe valer, se le pone peso. Solo en un paquete `Hitos`
+  sin ningún peso, los hitos valen lo mismo y las tareas no cuentan.
 - El campo es de **texto**: en un campo numérico, MS Project no distingue un 0 de un campo vacío.
 - Una tarea con 0 queda fuera con todas sus subtareas: no suma en su paquete ni forma una fila aparte de
   «otras tareas». Un elemento del informe EVM con 0 se conserva, con valor 0.
@@ -105,12 +105,13 @@ Por ahora se usan estos métodos de medición:
 |---|---|---|
 | `0/100` | 0 hasta terminar; todo al terminar | Paquetes que empiezan y terminan en el mismo mes |
 | `Hitos` | Cada hito vale su `Peso` al cumplirse; si los pesos suman menos de 100, las tareas se reparten el resto por duración | Tres meses o más, con entregables intermedios (al menos un hito por mes) |
-| `% Completado` | El *% completado* de sus tareas, ponderado por su duración | Trabajo continuo sin entregables intermedios |
+| `% Completado` | El *% completado* de sus tareas, ponderado por su `Peso` o, sin peso, por su duración | Trabajo continuo sin entregables intermedios |
 | `Ponderado` | Cada subtarea con su `Peso` y su propio método de medición | Paquetes con subtareas de distinta naturaleza (por ejemplo, ingeniería, compras y entregables) |
 | `Avance lineal` | Avanza con el tiempo, igual que lo planificado | Solo soporte sin entregables (gestión, apoyo) |
 
-En un paquete `Ponderado`, cada subtarea indica en `Método EVM` su propio método de medición (`0/100`,
-`% Completado` o `Avance lineal`; sin indicarlo, `% Completado`). Un hito cuenta al cumplirse.
+En un paquete `Ponderado`, cada subtarea indica en `Método EVM` su propio método de medición (`0/100` o
+`50/50`, `% Físico completado`, `Unidades completadas`, `% Completado` o `Avance lineal`; sin indicarlo,
+`% Completado`). Un hito cuenta al cumplirse.
 
 **Por qué:** el método de medición se acuerda antes para que el avance no dependa de la opinión de cada
 mes. El avance lineal se limita porque siempre parece «en plazo» y oculta los atrasos.
@@ -154,13 +155,13 @@ planificación; mientras no la apruebe, **no se define línea base**.
 | Tarea con línea base | Según las fechas de su línea base | Según su avance |
 | Tarea agregada sin línea base (retrabajo, trabajo no previsto) | No cambia: la tarea no forma parte del plan aprobado | **Cuenta**: su trabajo se suma al del paquete, que avanza menos hasta que la tarea termina |
 | Tarea nueva con línea base de un cambio aprobado | Entra en el PV en las fechas de su línea base | Según su avance |
-| Proyecto sin línea base (sin aprobación del cliente) | **Provisional**: sale de las fechas actuales y cambia con cada cambio del cronograma; el informe EVM lo indica | Según su avance |
+| Proyecto sin línea base (sin aprobación del cliente) | **Provisional**: sale de las fechas actuales y cambia con cada cambio del cronograma; el programa lo informa como error | Según su avance |
 | Línea base modificada sin aprobación | El PV deja de ser el plan aprobado | — |
 
 Ejemplo de retrabajo: un paquete terminado (EV = 100 %) recibe una tarea sin línea base para corregir un
 rechazo del cliente. Su PV sigue igual; su EV baja (queda trabajo por hacer) y vuelve al 100 % cuando la
-corrección termina. En un paquete `Ponderado`, el peso de la tarea nueva cuenta en el EV; en el PV, su
-parte se reparte entre sus hermanas con línea base.
+corrección termina. En cualquier paquete, la parte de la tarea nueva (su peso o su duración) cuenta en el
+EV; en el PV, su parte se reparte entre sus hermanas con línea base.
 
 **Por qué:** el PV sale de la línea base. Si se mueve sin aprobación, el plan «persigue» a la realidad y
 los desvíos desaparecen del informe EVM. El trabajo no previsto, en cambio, tiene que verse: por eso

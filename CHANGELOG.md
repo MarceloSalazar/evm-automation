@@ -20,15 +20,33 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 ### Nuevas funciones
 
-- **% ganado hasta la fecha de estado al generar el libro:** si el archivo de MS Project ya tiene avance y
-  fecha de estado, `generar` carga el % ganado de cada mes (de cada empresa en multi-empresa) hasta la
+- **% ganado hasta la fecha de estado al generar el libro** (opción nueva `generar --ev-rellenar`, o
+  `[exportacion] ev_historico = true`; desactivado por defecto): si el archivo de MS Project ya tiene avance
+  y fecha de estado, `generar` carga el % ganado de cada mes (de cada empresa en multi-empresa) hasta la
   fecha de estado, que pasa a ser la fecha de corte del `Resumen` (`LIB-016`, nuevo). El acumulado a la
   fecha de estado es el de MS Project; el de los meses anteriores se reconstruye con las fechas reales:
   exacto en las fórmulas fijas, los hitos ponderados y el avance lineal, y en línea recta desde el
   comienzo real en el % completado y el % físico completado. Con `--migrar-desde` se conserva el del libro
-  anterior. Se desactiva con `[exportacion] ev_historico = false` (activado por defecto). Si el archivo
-  tiene avance pero no fecha de estado, no se carga y se avisa (`LIB-017`, nuevo)
+  anterior. Si el archivo tiene avance pero no fecha de estado, no se carga y se avisa (`LIB-017`, nuevo)
   ([Del % acumulado al % del mes](docs/calculo-pv-ev.md#7-del--acumulado-al--del-mes)).
+- **Método `Ponderado`:** para paquetes con tareas de distinta naturaleza (por ejemplo, ingeniería,
+  compras y un entregable), cada tarea de la fila tiene su peso (campo de `[campos] peso_hito`, de texto,
+  por ejemplo con alias `Peso`) y su propio método de medición (fórmula fija, % físico, avance lineal o %
+  completado; un hito, 0/100). El % ganado suma la parte de cada tarea por su avance. Un hito sin peso en
+  una fila `Ponderado` es un error (`HIT-010`), y una fila `Ponderado` sin ningún peso se avisa (`HIT-012`)
+  ([Método «Ponderado»](docs/calculo-pv-ev.md#método-ponderado)).
+- **Campo `Visible`: `Sí` decide las filas:** si alguna tarea tiene `Visible = Sí`, solo esas tareas (con
+  código EDT) tienen fila en el libro y las demás se suman en su fila superior, como una lista EDT dentro
+  del propio archivo (`VIS-011`, nuevo). Sin ningún `Sí`, las filas siguen el nivel máximo. `Visible = No`
+  ya no saca tareas del cálculo: no tienen fila propia y cuentan en su fila superior (`VIS-012`, nuevo; si no
+  tienen fila superior, como una tarea de nivel 1, conservan su fila); para
+  que una tarea no cuente, se escribe `Peso = 0` o se inactiva en MS Project. Se retiran `VIS-002`,
+  `VIS-003`, `VIS-005`, `VIS-007`, `VIS-009` y `VIS-010`
+  ([Campo Visible](docs/calculo-pv-ev.md#33-campo-visible-más-o-menos-detalle-en-cada-rama)).
+- **Más errores de datos:** pasan de advertencia a error una empresa distinta de las dos de la
+  configuración y de `ambas` (`EMP-005`), una tarea de 0 días sin la marca de hito (`FEC-005`) y un archivo
+  sin la línea base seleccionada (`FEC-009`)
+  ([Validaciones](docs/validaciones-y-problemas.md#1-validaciones)).
 - **Fechas de MS Project en las hojas `EV`, `% EV` y `AC`** (y en las de cada empresa): las columnas E y
   F repetían las fechas del plan de la hoja `PV`. Ahora son *Fecha inicio real o prevista (EV)* (el
   comienzo real más temprano de las tareas de detalle de la fila, fijo una vez comenzado el trabajo, o el
@@ -124,6 +142,9 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   - el método `Ponderado` usa el bloque de una tarea desglosada después de guardar la línea base y respeta
     `generar --pv-fechas-actuales`, como los demás métodos, y mide cada tarea con su propio método también
     cuando ninguna tiene peso (`HIT-012`);
+  - si ninguna tarea hermana tiene peso y una de ellas dura 0 pero contiene tareas con peso (por ejemplo, una
+    tarea resumen de hitos con peso), todas pesan igual (`HIT-009`) en lugar de quedarse esa sin parte
+    (`HIT-014`);
   - la parte de una tarea sin línea base la reciben, en el % planificado, sus tareas hermanas de la misma
     tarea resumen; una tarea resumen sin peso cuyas tareas con línea base no tienen duración no recibe parte
     del % planificado y se avisa (`HIT-017`, nuevo);

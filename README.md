@@ -14,21 +14,23 @@ simulado.*
 ## Qué hace
 
 - **PV mensual** de cada elemento de la EDT hasta el nivel 3 del código EDT (`2.0.0`, `2.1.0`,
-  `2.1.1`), durante 120 meses. Con el campo `Visible` de MS Project se muestra más o menos detalle en
-  cada rama, o las filas se indican en una **lista de códigos EDT** en un archivo de texto.
+  `2.1.1`), durante 120 meses. Con el campo `Visible` de MS Project se eligen las tareas que son filas
+  (más o menos detalle en cada rama), o las filas se indican en una **lista de códigos EDT** en un archivo
+  de texto.
 - El cronograma de MS Project **no necesita importes**: el programa calcula el % planificado y el %
-  ganado de cada paquete con la duración de la línea base de sus tareas y el peso de sus hitos, y el PV y
-  el EV son el **BAC que se ingresa en el libro** multiplicado por ese %. Así, el cronograma se puede
-  compartir (con el cliente o entre las empresas que ejecutan el proyecto) sin importes.
+  ganado de cada paquete con la duración de la línea base de sus tareas y sus pesos (un % de su tarea
+  resumen), y el PV y el EV son el **BAC que se ingresa en el libro** multiplicado por ese %. Así, el
+  cronograma se puede compartir (con el cliente o entre las empresas que ejecutan el proyecto) sin
+  importes.
 - Selección de la **planificación** a exportar cuando el proyecto tiene varias (por ejemplo `INTERNO` y
   `CLIENTE`).
 - **Revisión del archivo de MS Project** antes de exportar (comando `validar`): códigos EDT, fechas,
-  duración y línea base, pesos de los hitos, método de medición, avance a la fecha de estado y lógica del
+  duración y línea base, pesos, método de medición, avance a la fecha de estado y lógica del
   cronograma, con la evaluación DCMA de 14 puntos. Revisa varias planificaciones a la vez y las compara, y
   escribe un **informe de mejoras** por prioridad, sin nombres de tareas, para compartirlo.
 - Cálculo del **% ganado** de cada paquete a la fecha de corte, según su **método de medición** (0/100,
-  50/50, hitos ponderados, % completado, % físico completado, unidades y avance lineal (LOE)), y carga del valor del mes
-  en el libro. El **AC** se carga a mano.
+  50/50, hitos ponderados, ponderado, % completado, % físico completado, unidades y avance lineal
+  (LOE)), y carga del valor del mes en el libro. El **AC** se carga a mano.
 - **Cuadro de Mando** con el mes de reporte seleccionable: BAC, PV, EV, AC, desviaciones, índices con
   semáforo, pronósticos (ETC, EAC, VAC, TCPI), **tendencia** (CPI y SPI de los últimos 3 meses y
   variación respecto del mes anterior) y tres gráficos nativos de Excel.
@@ -55,8 +57,9 @@ simulado.*
   importes: fechas y duración de la línea base, predecesoras y sucesoras de cada elemento de la EDT.
 - Opcional: **numeración de los códigos EDT** de una rama según la jerarquía de MS Project (comando
   `actualizar-edt`), durante la planificación, sin cambiar los códigos que son filas del libro.
-- Opcional: **corrección de la línea base** de unas tareas (comando `corregir-linea-base`): mover o borrar
-  la línea base de tareas guardadas por error, con avisos antes de escribir y el motivo en las Notas.
+- Opcional: **corrección de la línea base** de unas tareas (comando `corregir-linea-base`): mover, borrar
+  o establecer la línea base de tareas guardadas por error o sin ella, con avisos antes de escribir y el
+  motivo en las Notas.
 - Montos en **euros (EUR)** por defecto.
 
 ```mermaid
@@ -179,14 +182,15 @@ El [tutorial](docs/ejemplo-paso-a-paso.md) recorre el ciclo completo con 24 mese
 | Reglas para jefes de proyecto y planners: código EDT, `Visible`, `Peso`, método, empresas, línea base y avance, con sus motivos | [Guía de convenios en MS Project](docs/guia-convenios-ms-project.md) |
 | Código EDT, campos personalizados, línea base, fecha de estado y avance | [Preparación en MS Project](docs/preparacion-ms-project.md) |
 | Qué es una línea base, cuál usa el PV, buenas prácticas y corrección de erratas (`corregir-linea-base`) | [Líneas base](docs/lineas-base.md) |
-| 0/100, fórmulas fijas, hitos ponderados, % completado, % físico, unidades y avance lineal (LOE); cómo elegir y aprobar el método de cada paquete | [Métodos de medición](docs/metodos-de-medicion.md) |
+| 0/100, fórmulas fijas, hitos ponderados, ponderado, % completado, % físico, unidades y avance lineal (LOE); cómo elegir y aprobar el método de cada paquete | [Métodos de medición](docs/metodos-de-medicion.md) |
 | PV, EV y AC de dos empresas | [Multi-empresa (opcional)](docs/multiempresa.md) |
 | Varios archivos de MS Project en un mismo informe | [Varios archivos (opcional)](docs/varios-archivos.md) |
+| Una sola planificación y, a partir de ella, la del cliente sin las tareas internas (`generar-cliente`) | [Planificación para el cliente (opcional)](docs/generar-cliente.md) |
 | PV planificado frente al plan de costes de una empresa | [Depuración de costes (opcional)](docs/depuracion-costes.md) |
 | Hojas del libro, reglas de uso y `--migrar-desde` | [El libro Excel](docs/libro-excel.md) |
 | Tablero, gráficos, fórmulas e interpretación | [Cuadro de Mando e indicadores](docs/cuadro-de-mando.md) |
 | Paquetes fuera de umbral: causa, impacto y acción correctiva | [Análisis de desviaciones](docs/analisis-desviaciones.md) |
-| `validar`, `generar`, `actualizar`, `analizar`, `generar-fichas` (fichas de tareas para el cliente), `procesar-costes` (revisión del plan de costes), `actualizar-edt` (numeración de los códigos EDT), `corregir-linea-base` (corrección de la línea base) y sus opciones | [Comandos y opciones](docs/comandos.md) |
+| `validar`, `generar`, `actualizar`, `analizar`, `generar-fichas` (fichas de tareas para el cliente), `procesar-costes` (revisión del plan de costes), `generar-cliente` (planificación para el cliente), `actualizar-edt` (numeración de los códigos EDT), `corregir-linea-base` (corrección de la línea base) y sus opciones | [Comandos y opciones](docs/comandos.md) |
 | `config.toml` | [Configuración](docs/configuracion.md) |
 | Comando `validar`, hoja `Validación`, limitaciones y mensajes de error | [Validaciones y solución de problemas](docs/validaciones-y-problemas.md) |
 | Código de cada error y advertencia (`FEC-003`...), qué hacer y cómo silenciarlo | [Códigos de errores y advertencias](docs/codigos.md) |

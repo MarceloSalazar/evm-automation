@@ -32,7 +32,7 @@ El BAC de cada fila se ingresa en la hoja `PV`, el PV y el EV son el BAC × el %
 | **PV** | Valor planificado: columnas A–F con la EDT y el BAC, y una columna por mes. El BAC se ingresa en la columna D (celdas amarillas) y cada mes es el BAC × el % planificado. |
 | **% PV** | % planificado de cada mes, que calcula `generar` desde MS Project. |
 | **EV** | Valor ganado de cada mes: el BAC × el % ganado. |
-| **% EV** | % ganado de cada mes, que calcula `actualizar`. Si el archivo de MS Project ya tiene avance y fecha de estado, `generar` carga el de los meses hasta la fecha de estado (`[exportacion] ev_historico`, activado por defecto; [Cálculo del PV y el EV](calculo-pv-ev.md#7-del--acumulado-al--del-mes)). |
+| **% EV** | % ganado de cada mes, que calcula `actualizar`. Con `generar --ev-rellenar` (o `[exportacion] ev_historico = true`; desactivado por defecto), si el archivo de MS Project ya tiene avance y fecha de estado, `generar` carga el de los meses hasta la fecha de estado ([Cálculo del PV y el EV](calculo-pv-ev.md#7-del--acumulado-al--del-mes)). |
 | **AC** | Costo real de cada mes (celdas amarillas), que se ingresa a mano. |
 | **PV-EmpresaA**, **% PV-EmpresaA**, **EV-EmpresaA**, **% EV-EmpresaA**, **AC-EmpresaA** y las de EmpresaB | Solo en multi-empresa: valores de cada empresa, en lugar de las hojas `% PV` y `% EV`. Las hojas `PV`, `EV` y `AC` son la suma de las dos ([Multi-empresa](multiempresa.md)). |
 | **Evolución mensual** | Tabla mensual del proyecto (datos de la curva S). |
@@ -57,8 +57,8 @@ Las tres hojas tienen la misma estructura:
 | B | Actividad (nombre de la tarea). |
 | C | Método de medición (lista desplegable; solo se edita en la hoja `PV`). |
 | D | BAC: presupuesto de la fila. Se ingresa a mano en la hoja `PV` (en multi-empresa, en `PV-EmpresaA` y `PV-EmpresaB`), en las celdas amarillas; las demás hojas lo toman de allí. |
-| E | Hojas `PV` y `% PV`: **Fecha inicio Plan (PV)**, comienzo más temprano de la línea base de las tareas que forman el % planificado de la fila: las de detalle con línea base, o la tarea desglosada después en subtareas sin línea base (si ninguna tarea de la fila tiene línea base, sus fechas actuales; [tareas sin línea base](calculo-pv-ev.md#tareas-sin-línea-base-retrabajo-y-trabajo-no-previsto)); en una fila subtotal, el de sus filas. Hojas `EV`, `% EV` y `AC`: **Fecha inicio real o prevista (EV)**, *Comienzo real* más temprano de las tareas de detalle que forman el % ganado de la fila; si ninguna comenzó, el comienzo previsto más temprano. Una vez comenzado el trabajo, queda fija. |
-| F | Hojas `PV` y `% PV`: **Fecha fin Plan (PV)**, fin más tardío de esas mismas tareas. Las dos fechas coinciden con los meses del % planificado, aunque la línea base de la tarea resumen no esté resumida (en MS Project la tarea resumen muestra otras fechas de línea base: [FEC-013](codigos.md#fec-013)) o la rama tenga tareas con `Visible = No`. Hojas `EV`, `% EV` y `AC`: **Fecha fin real o prevista (EV)**, fin más tardío de esas tareas según la columna *Fin* de MS Project: el *Fin real* de las terminadas y el fin previsto de las demás (el mismo *Fin previsto* de la hoja `Indicadores EDT`). Todas las filas tienen las dos fechas, como una tarea resumen de MS Project. |
+| E | Hojas `PV` y `% PV`: **Fecha inicio Plan (PV)**, comienzo más temprano de la línea base de las tareas que forman el % planificado de la fila: las de detalle con línea base, o la tarea desglosada después en subtareas sin línea base (si ninguna tarea de la fila tiene línea base, la fila no tiene % planificado ni estas fechas, salvo con `generar --pv-fechas-actuales`, que usa sus fechas actuales; [tareas sin línea base](calculo-pv-ev.md#tareas-sin-línea-base-retrabajo-y-trabajo-no-previsto)); en una fila subtotal, el de sus filas. Hojas `EV`, `% EV` y `AC`: **Fecha inicio real o prevista (EV)**, *Comienzo real* más temprano de las tareas de detalle que forman el % ganado de la fila; si ninguna comenzó, el comienzo previsto más temprano. Una vez comenzado el trabajo, queda fija. |
+| F | Hojas `PV` y `% PV`: **Fecha fin Plan (PV)**, fin más tardío de esas mismas tareas. Las dos fechas coinciden con los meses del % planificado, aunque la línea base de la tarea resumen no esté resumida (en MS Project la tarea resumen muestra otras fechas de línea base: [FEC-013](codigos.md#fec-013)) o la rama tenga tareas con `Peso` = 0. Hojas `EV`, `% EV` y `AC`: **Fecha fin real o prevista (EV)**, fin más tardío de esas tareas según la columna *Fin* de MS Project: el *Fin real* de las terminadas y el fin previsto de las demás (el mismo *Fin previsto* de la hoja `Indicadores EDT`). Todas las filas tienen las dos fechas, como una tarea resumen de MS Project. |
 | G ... DV | Un mes por columna, del mes 1 al último mes del horizonte (`meses`; con 120, el valor por defecto, hasta la columna DV). Fila 3: número de mes; fila 4: fecha del mes. |
 | Al final | Columna **Total horizonte** (en la hoja `PV`, en rojo si no coincide con el BAC) y fila **TOTAL**. |
 
@@ -93,9 +93,9 @@ Los valores mensuales son el **valor del mes**, no el acumulado.
 
 ## 3. Reglas de uso
 
-- Las **filas con subelementos** (las de nivel 1 y 2 y, si el campo `Visible` agrega detalle, también
-  otras) son **subtotales** (fórmulas `SUM` de sus hijos). Los valores se ingresan solo en las filas sin
-  subelementos: paquetes de trabajo y filas `-D`.
+- Las **filas con subelementos** (las de nivel 1 y 2 y, si el campo `Visible` o la lista EDT agregan
+  detalle, también otras) son **subtotales** (fórmulas `SUM` de sus hijos). Los valores se ingresan solo
+  en las filas sin subelementos: paquetes de trabajo y filas `-D`.
 - Las filas se pueden **contraer por nivel** con los botones de esquema (1, 2, 3) a la izquierda.
 - **No se deben insertar, eliminar ni ordenar filas o columnas** en `PV`, `% PV`, `EV`, `% EV`, `AC` ni
   en las hojas de cada empresa: `actualizar` ubica cada fila por su posición. Si los códigos EDT de la columna A no
@@ -149,8 +149,8 @@ Qué se traslada:
   ***Id. único*** de la tarea en MS Project (o por código EDT si el proyecto cambió de nombre), sin
   duplicarlos.
 - Si una tarea quedó dentro de un paquete nuevo o de una fila `-D` (por ejemplo, al bajar `nivel_maximo`,
-  al cambiar `ignorar_ceros_intermedios` o al poner `No` en el campo `Visible` de todas las subtareas de
-  una tarea), su historial se suma a esa fila: el BAC y el AC se suman, y el % ganado se combina ponderado
+  al cambiar `ignorar_ceros_intermedios` o al poner `No` en el campo `Visible` de una tarea, o quitarle el
+  `Sí`), su historial se suma a esa fila: el BAC y el AC se suman, y el % ganado se combina ponderado
   por el BAC de cada fila anterior.
 - El **método** de la columna C se conserva solo si fue **editado en Excel**. Si el método cambió en
   MS Project, se usa el nuevo.
@@ -269,7 +269,7 @@ severidad y por alcance; debajo, la lista, con estas columnas:
 |---|---|
 | Severidad | `Error`, `Advertencia` o `Info`. |
 | Código | Código de la observación, explicado en [Códigos de errores y advertencias](codigos.md). |
-| Alcance | `General` (el proyecto, la configuración o el libro), `Fila EDT` (una fila de las hojas `PV`, `EV` y `AC`: paquete de trabajo o tarea resumen), `Detalle` (tarea que se suma en una fila: de nivel mayor al máximo, fuera de la lista EDT o sin código EDT, también en la fila `-D`) o `Fuera del libro` (tarea que no forma parte de ninguna fila: omitida o con `Visible = No`). |
+| Alcance | `General` (el proyecto, la configuración o el libro), `Fila EDT` (una fila de las hojas `PV`, `EV` y `AC`: paquete de trabajo o tarea resumen), `Detalle` (tarea que se suma en una fila: de nivel mayor al máximo, fuera de la lista EDT o sin código EDT, también en la fila `-D`) o `Fuera del libro` (tarea que no forma parte de ninguna fila: omitida, inactiva, con `Peso` = 0 o de otra planificación). |
 | Fila del libro | Código de la fila donde se ve o se suma la tarea, con un enlace a esa fila de la hoja `PV`. |
 | Código EDT, Tarea | Código y nombre de la tarea (las tareas sin código, con su Id de MS Project). |
 | Detalle | La observación. |

@@ -79,7 +79,7 @@ cálculo:
 
 | Paso | Qué se necesita |
 |---|---|
-| Código EDT | Cada fila del libro es un elemento EDT hasta el nivel máximo, con el detalle que indique el campo `Visible` de cada tarea, o un código de la lista EDT ([sección 3](#3-filas-del-libro)). |
+| Código EDT | Cada fila del libro es un elemento EDT hasta el nivel máximo, una tarea con `Visible` = `Sí` (si alguna lo tiene, solo esas) o un código de la lista EDT ([sección 3](#3-filas-del-libro)). |
 | Línea base | Guardada (*Proyecto > Establecer línea base*): el % planificado usa sus **fechas**. |
 | Tareas de detalle | Sin peso, su **duración** define su parte dentro de su tarea resumen: conviene que las tareas representen el trabajo del paquete. Una tarea larga de poco valor pesa más que una corta de mucho valor; para evitarlo, se indica su peso. |
 | Pesos | Con el campo de peso (por ejemplo, `Peso`, de texto), que se indica en `[campos] peso_hito`: el % de la parte de su tarea resumen que recibe la tarea, el hito o la tarea resumen ([sección 4](#4--planificado-peso-de-cada-tarea)). Un hito sin peso no tiene valor propio. |
@@ -91,7 +91,7 @@ Datos que se leen de cada tarea:
 
 | Campo de MS Project | Uso en el cálculo |
 |---|---|
-| *Comienzo previsto* y *Fin previsto* (fechas de la línea base) | % planificado: duración y reparto en los meses. Sin línea base, las fechas actuales ([sección 5](#5-horizonte-de-meses-y-proyecto-sin-línea-base)). |
+| *Comienzo previsto* y *Fin previsto* (fechas de la línea base) | % planificado: duración y reparto en los meses. Una tarea sin línea base queda fuera del % planificado ([sección 4](#tareas-sin-línea-base-retrabajo-y-trabajo-no-previsto)); si el proyecto no tiene guardada la línea base elegida, se usan las fechas actuales ([sección 5](#5-horizonte-de-meses-y-proyecto-sin-línea-base)). |
 | *Hito* y campo de peso | Parte de cada tarea en su tarea resumen ([sección 4](#4--planificado-peso-de-cada-tarea)); un hito, en el mes de su fecha. |
 | *% completado* | Métodos `% Completado`, `0/100` y `X/Y`; método de respaldo cuando falta otro dato. |
 | *% físico completado* | Métodos `% Físico completado` y `Unidades completadas`, y respaldo de `Hitos ponderados`. |
@@ -201,47 +201,49 @@ flowchart TD
 ### 3.3 Campo Visible: más o menos detalle en cada rama
 
 `nivel_maximo` fija el mismo nivel de detalle para todo el proyecto. Con el campo de texto `Visible`
-(*Texto5* o el que indique `[campos] visible`), se decide tarea por tarea qué información económica
-muestra el libro:
+(*Texto5* o el que indique `[campos] visible`), se decide tarea por tarea qué tareas son filas del libro:
 
 | Visible | Resultado |
 |---|---|
-| `Sí` (también Si, SI, S, X, 1) | **Fila propia**, aunque su código EDT sea más detallado que `nivel_maximo` (por ejemplo `2.1.1.4` con nivel 3). Su tarea superior pasa a ser subtotal. La tarea necesita código EDT. |
-| `No` (también NO, N, 0) | **Fuera del cálculo**: la tarea y toda su rama no forman parte del PV, el EV ni el AC, y no aparecen en el libro. |
-| Vacío | Según `nivel_maximo`. |
+| `Sí` (también Si, SI, S, X, 1) | **Fila propia**, aunque su código EDT sea más detallado que `nivel_maximo` (por ejemplo `2.1.1.4` con nivel 3). La tarea necesita código EDT ([VIS-004](codigos.md#vis-004)). |
+| `No` (también NO, N, 0) | **Sin fila propia**: la tarea y su rama cuentan en su fila superior. |
+| Vacío | Según la regla que corresponda (ver abajo). |
 
-- Si **todas** las subtareas de una tarea tienen `No`, la tarea las representa: no tienen fila propia,
-  pero se calculan con ella. Si la tarea tiene fila, pasa a ser el paquete de trabajo con toda su rama.
-  En MS Project una tarea resumen acumula las fechas y el avance de sus subtareas.
-- Si solo **algunas** tienen `No`, esas quedan fuera del cálculo y las demás siguen como siempre. No se
-  crea ninguna fila `-D` por ellas.
-- Dentro de un paquete se aplica igual: una subtarea con `No` no pesa en su % planificado ni en su %
-  ganado, salvo que todas las subtareas del paquete tengan `No`.
-- Un elemento de nivel 1 con `No` queda fuera del libro. Si todos los elementos de nivel 1 tienen `No`,
-  se ignora en ellos (el libro no tendría filas).
-- `No` prevalece sobre un `Sí` en su rama.
-- La hoja `Validación` lista las tareas que quedan fuera del cálculo, las tareas que representan a sus
-  subtareas, los valores no reconocidos y los `Sí` que no se pueden aplicar.
+Hay dos formas de usarlo:
+
+- **Con algún `Sí` en el proyecto**, el campo decide todas las filas, como una
+  [lista EDT](#34-lista-edt-filas-definidas-en-un-archivo) dentro del cronograma
+  ([VIS-011](codigos.md#vis-011)): solo tienen fila las tareas con `Sí` y código EDT, también los
+  subtotales (por ejemplo `1.0.0` y `1.2.0`), y `nivel_maximo` solo sirve para completar los códigos con
+  ceros. Las demás tareas (vacías o con `No`) se suman en su fila `Sí` superior más cercana: en su fila, si
+  es un paquete de trabajo, o en su fila `-D Otras tareas` si tiene otras filas por debajo. Las tareas que
+  no dependen de ninguna tarea con `Sí` quedan fuera del libro ([EDT-019](codigos.md#edt-019)).
+- **Sin ningún `Sí`**, las filas siguen `nivel_maximo`, y una tarea con `No` no tiene fila propia: ella y
+  su rama cuentan en su fila superior ([VIS-012](codigos.md#vis-012)). Si todas las subtareas de una
+  tarea tienen `No`, la tarea pasa a ser el paquete de trabajo con toda su rama; si solo algunas, esas se
+  suman en su fila `-D`. Una tarea con `No` sin fila superior en la que sumarse (por ejemplo, de nivel 1)
+  conserva su fila.
 
 Ejemplo con `nivel_maximo = 3`:
 
 | Tarea | Visible | Resultado |
 |---|---|---|
-| `1.1.1 PMO` y `1.1.2 Control` | `No` en las dos | Sin filas propias: `1.1.0 Dirección` es el paquete de trabajo, con las dos tareas. |
-| `1.2.2 Obras` | `No` | Fuera del cálculo: `1.2.0 Contratos` suma solo `1.2.1`. |
-| `1.2.1.1 Pliegos` (nivel 4) | `Sí` | Fila propia de nivel 4; `1.2.1` pasa a ser subtotal y su otra subtarea forma `1.2.1-D`. |
+| `1.1.1 PMO` y `1.1.2 Control` | `No` en las dos, sin ningún `Sí` en el proyecto | Sin filas propias: `1.1.0 Dirección` es el paquete de trabajo, con las dos tareas. |
+| `1.2.2 Obras` | `No`, sin ningún `Sí` en el proyecto | Sin fila propia: cuenta en `1.2.0 Contratos`, en su fila `1.2.0-D`. |
+| `1.2.1.1 Pliegos` (nivel 4) | `Sí`, con `Sí` también en `1.0.0`, `1.2.0` y `1.2.1` | Fila propia de nivel 4; `1.2.1` pasa a ser subtotal y su otra subtarea forma `1.2.1-D`. Las tareas sin `Sí` bajo `1.0.0` se suman en su fila `Sí` superior; las de `2.0.0`, sin `Sí`, quedan fuera del libro. |
 
-**BAC y AC de lo que queda fuera.** El BAC y el AC que se ingresan en el libro no deben incluir las
-tareas con `No`.
+**`Visible = No` no excluye tareas** desde la versión 2.7.0 (antes, la tarea y su rama quedaban fuera del
+PV, el EV y el AC). Para que una tarea no cuente en el libro, se inactiva en MS Project o se le da
+`Peso` = 0 en un campo de peso de texto ([sección 4](#4--planificado-peso-de-cada-tarea)). El BAC y el AC
+que se ingresan en el libro no deben incluir esas tareas, ni las que quedan fuera del libro por no
+depender de ninguna tarea con `Sí`. Los libros generados con una versión anterior con tareas con `No` se
+deben regenerar con `generar --migrar-desde`, porque esas tareas ahora cuentan en su fila superior.
 
-El campo se aplica al generar el libro. Si `Visible` cambia después, el libro conserva sus filas y su %
-planificado, pero `actualizar` usa el valor actual para el % ganado: una subtarea que pasa a `No` deja
-de contar en el avance de su paquete (y una que deja de tener `No` vuelve a contar). Si el cambio afecta
-a las filas, `actualizar` lo informa. Para aplicarlo se debe regenerar el libro con `--migrar-desde`:
-- el historial de las filas cuyas subtareas pasan todas a `No` se suma en la fila que las representa;
-- el de una fila que queda fuera del cálculo, o de un paquete que se divide por un `Sí` nuevo, no se
-  puede trasladar y se informa en `Validación` para cargarlo a mano
-  ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)).
+El campo se aplica al generar el libro. Si `Visible` cambia después, el libro conserva sus filas y
+`actualizar` lo informa ([ACT-014](codigos.md#act-014)). Para aplicar el cambio se debe regenerar el
+libro con `--migrar-desde`; el historial de una fila que desaparece o de un paquete que se divide por un
+`Sí` nuevo no siempre se puede trasladar, y se informa en `Validación` para cargarlo a mano
+([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)).
 
 Si se omite `[campos] visible`, se lee el campo con alias `Visible` cuando el proyecto lo tiene. Con
 `visible = ""` no se lee; así se puede generar, del mismo cronograma, un libro con todo el detalle hasta
@@ -340,8 +342,8 @@ Casos especiales (se informan en `Validación`):
 | Los pesos de las subtareas de una tarea resumen suman 100 | Las subtareas sin peso no reciben nada ([HIT-011](codigos.md#hit-011), salvo en las filas `Hitos ponderados`, donde es lo esperado; un hito sin peso solo se informa en las filas `Ponderado`, con [HIT-010](codigos.md#hit-010)). |
 | Suman más de 100 | Se escalan a 100 y las subtareas sin peso no reciben nada (error [HIT-013](codigos.md#hit-013)). |
 | Suman menos de 100 y no hay subtareas sin peso | Se escalan a 100 (aviso [HIT-013](codigos.md#hit-013)). |
-| Tarea resumen sin peso que no recibe parte (sus hermanas suman 100, o su duración es 0) y contiene tareas con peso | Sus pesos no se usan (error [HIT-014](codigos.md#hit-014)): se debe indicar el peso de la tarea resumen. |
-| Ninguna subtarea de una tarea resumen tiene duración ni peso (p. ej. tareas resumen que solo tienen hitos) | Todas reciben la misma parte ([HIT-009](codigos.md#hit-009)). |
+| Tarea resumen sin peso que no recibe parte (sus hermanas con peso suman 100, o reparten el resto por duración y la suya es 0) y contiene tareas con peso | Sus pesos no se usan (error [HIT-014](codigos.md#hit-014)): se debe indicar el peso de la tarea resumen. |
+| Ninguna subtarea de una tarea resumen tiene peso y todas duran 0 (p. ej. tareas resumen que solo tienen hitos), o alguna dura 0 pero contiene tareas con peso | Todas reciben la misma parte, en lugar de repartirse por duración ([HIT-009](codigos.md#hit-009)). |
 | Peso negativo | Se toma como si no tuviera peso ([HIT-006](codigos.md#hit-006)). |
 | Peso en la tarea de una fila, o en una tarea que no forma parte de ninguna fila | No se usa: el BAC de la fila se ingresa en el libro ([HIT-001](codigos.md#hit-001)). |
 | `Hitos ponderados` sin ningún peso en la fila | El % planificado y el % ganado se reparten por igual entre los hitos; las tareas sin hito no cuentan ([HIT-003](codigos.md#hit-003)). |
@@ -453,7 +455,8 @@ acumulado (*Archivo > Opciones > Avanzadas*). Se puede elegir otra con `--linea-
 `linea_base` en el [archivo de configuración](configuracion.md).
 
 **Proyecto sin línea base.** Si el proyecto no tiene guardada la línea base elegida, se usan las
-**fechas actuales** de las tareas y se advierte en `Validación` y en el título de las hojas. Sirve para
+**fechas actuales** de las tareas y se informa con un error en `Validación`
+([FEC-009](codigos.md#fec-009)) y en el título de las hojas. Sirve para
 una primera revisión, pero el % planificado cambiará cada vez que cambie el programa: antes de informar
 el EVM se debe guardar la línea base
 ([Preparación en MS Project](preparacion-ms-project.md#6-línea-base)).
@@ -607,10 +610,11 @@ fila:
 - Si hay valores en **meses posteriores** a la fecha de corte, `actualizar` se detiene. Se deben borrar
   esos valores o usar `--forzar`. Con `--forzar` esos meses no se recalculan: se avisa cuáles quedaron
   con un acumulado que ya no coincide con MS Project, para revisarlos o volver a cargarlos en orden.
-- **Libro generado con el proyecto ya en ejecución:** si el archivo de MS Project tiene avance y fecha de
-  estado, `generar` carga el % ganado de cada mes hasta la fecha de estado y la usa como fecha de corte
-  del `Resumen` ([LIB-016](codigos.md#lib-016)); con `[exportacion] ev_historico = false` no lo carga
-  ([Configuración](configuracion.md#claves)). MS Project guarda el avance acumulado, no el de cada
+- **Libro generado con el proyecto ya en ejecución:** por defecto, `generar` no carga el % ganado: se
+  carga con `actualizar`. Con `generar --ev-rellenar` (o `[exportacion] ev_historico = true`,
+  [Configuración](configuracion.md#claves)), si el archivo de MS Project tiene avance y fecha de estado,
+  `generar` carga el % ganado de cada mes hasta la fecha de estado y la usa como fecha de corte del
+  `Resumen` ([LIB-016](codigos.md#lib-016)). MS Project guarda el avance acumulado, no el de cada
   mes: el acumulado a la fecha de estado es el de MS Project (el mismo que calcularía `actualizar`), y el
   de los meses anteriores se reconstruye con las fechas reales de cada tarea de detalle:
   - **exacto** en las fórmulas fijas (`0/100`, `50/50`...: el mes del comienzo y del fin real), en
@@ -734,7 +738,7 @@ A 31 de marzo, con la excavación al 100 % y la estructura al 30 % (método `% C
 | `PV` (o `PV-EmpresaA` y `PV-EmpresaB`) | Columna D: BAC de cada fila. Meses: BAC × % planificado. | **El BAC** |
 | `% PV` (o `% PV-EmpresaA` y `% PV-EmpresaB`) | % planificado de cada mes, que calcula `generar`. No se edita. | — |
 | `EV` (o `EV-EmpresaA` y `EV-EmpresaB`) | Meses: BAC × % ganado. | — |
-| `% EV` (o `% EV-EmpresaA` y `% EV-EmpresaB`) | % ganado de cada mes (no acumulado), que calcula `actualizar` (y `generar`, hasta la fecha de estado, si el archivo ya tiene avance). La columna final es el % ganado acumulado. | — |
+| `% EV` (o `% EV-EmpresaA` y `% EV-EmpresaB`) | % ganado de cada mes (no acumulado), que calcula `actualizar` (y `generar --ev-rellenar`, hasta la fecha de estado, si el archivo ya tiene avance). La columna final es el % ganado acumulado. | — |
 | `AC` (o `AC-EmpresaA` y `AC-EmpresaB`) | AC de cada mes. | **El AC del mes** |
 | `PV`, `EV` y `AC` en multi-empresa | Suma de las dos empresas. | — |
 
@@ -855,7 +859,7 @@ comportamiento esperado de ese método.
 | Filas con % ganado y sin BAC | Su EV no se puede valorar hasta ingresar el BAC. Si ninguna fila tiene BAC, los indicadores quedan en 0. |
 | Fila cuya tarea ya no existe o está inactiva | La tarea se eliminó, se desactivó o cambió de *Id. único* en MS Project: la fila se omite y se conservan los valores ya cargados. Si cambió la EDT, se debe regenerar el libro con `--migrar-desde` ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). |
 | Tarea con código EDT sin fila en el libro | Paquetes con código EDT agregados en MS Project después de generar el libro: su avance no se incluye en el % ganado. Se debe regenerar el libro con `--migrar-desde`. |
-| Campo `Visible` distinto de las filas del libro | `Visible` cambió después de generar el libro: el libro conserva sus filas y su % planificado hasta regenerarlo; el % ganado usa el valor actual ([sección 3.3](#33-campo-visible-más-o-menos-detalle-en-cada-rama)). |
+| Campo `Visible` distinto de las filas del libro | `Visible` cambió después de generar el libro: el libro conserva sus filas y su % planificado hasta regenerarlo con `--migrar-desde` ([ACT-014](codigos.md#act-014), [sección 3.3](#33-campo-visible-más-o-menos-detalle-en-cada-rama)). |
 | Libro de otro proyecto | Si el nombre del proyecto no coincide con el del libro, las filas se asocian por código EDT y se recomienda verificar los resultados. |
 | Planificación distinta | `actualizar` usa siempre la planificación con la que se generó el libro. |
 | `ignorar_ceros_intermedios` distinto del libro | Algunas tareas con un 0 intermedio en el código tendrían otra fila: el libro conserva sus filas hasta regenerarlo con `--migrar-desde` ([ACT-050](codigos.md#act-050); [sección 3.2](#32-niveles-por-código-edt)). |

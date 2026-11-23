@@ -159,6 +159,7 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/validation.py` | Controles del archivo de MS Project: códigos EDT, fechas y duración, pesos, método y empresas (hoja `Validación` y `validar`), avance a la fecha de estado y lógica del cronograma con los criterios DCMA (solo `validar`). |
 | `evm/percent.py` | Reparto de cada fila entre sus tareas (`RowTree`: pesos por tarea resumen y duración de la línea base, el mismo en todos los métodos), % planificado y % ganado de cada fila y de cada empresa. |
 | `evm/cost_review.py` | Depuración de costes: hojas `PV-depuración`, `Depuración costes` y `_depuracion` (asignación con fórmulas de la previsión pegada, y la misma asignación en Python) e indicador de alineamiento. |
+| `evm/cost_price.py` | Depuración de costes: precio de las EDT interna con los recargos de la tabla `Recargos` (`[depuracion_precio]`), que `procesar-costes --calculos` escribe como fórmulas. |
 | `evm/cost_plan.py` | Comando `procesar-costes`: revisión del plan de costes de la hoja `PV-depuración` y, con `--calculos`, sus cálculos. No modifica el % planificado. |
 | `evm/companies.py` | Multi-empresa: parte de cada empresa en cada tarea (columnas `Empresa` y `% Reparto`, con herencia de la tarea superior). |
 | `evm/timeline.py` | Horizonte mensual y utilidades de meses. |
@@ -170,6 +171,7 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/changes.py` | Registro de cambios: referencia de la última ejecución (hoja oculta `_registro`), cambios del BAC y de los meses ya informados y hoja `Registro de cambios`. |
 | `evm/consistency.py` | Controles del libro en el cierre mensual: coherencia del EV y el AC, meses sin informe, EAC poco realista y peso del LOE en el BAC. |
 | `evm/update.py` | Comandos `actualizar` (% ganado del mes) y `analizar`, y lectura y verificación del libro. |
+| `evm/history.py` | % ganado de los meses hasta la fecha de estado al generar el libro (`generar --ev-rellenar` o `ev_historico`): reconstruye el estado de cada tarea al cierre de cada mes con sus fechas reales y calcula el % ganado como `actualizar`. |
 | `evm/migrate.py` | Traslado del BAC, el % ganado, el AC y los métodos al regenerar el libro (`--migrar-desde`). |
 | `evm/indicators.py` | Indicadores que se muestran en pantalla (mismos cálculos que la hoja `Resumen`), incluida la tendencia. |
 | `evm/schedule.py` | Plazo según el cronograma de MS Project: fin previsto, desvío de fin, holgura y camino crítico de cada fila y del proyecto. |
@@ -177,7 +179,12 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/review.py` | Informe de mejoras de `validar` (`--informe`): observaciones por prioridad con la causa y qué hacer del catálogo, sin nombres; datos de cada revisión, evaluación DCMA, análisis de las líneas base y comparación de planificaciones (la DCMA y la comparación también en la consola). |
 | `evm/edt_renumber.py` | Comando `actualizar-edt`: códigos nuevos de las subtareas de una rama (tareas protegidas, orden y saltos), escritura en MS Project en una sola acción de deshacer, comprobación e informe. |
 | `evm/baseline_fix.py` | Comando `corregir-linea-base`: cambios de la línea base de cada tarea de una rama, avisos que piden confirmación (filas sin PV, tareas resumen que quedarían como un bloque), escritura en MS Project con NA o ND según el idioma, motivo en las Notas, modo interactivo con deshacer, e informe. |
+| `evm/client_plan.py` | Comando `generar-cliente`: qué tareas de la planificación interna recibe el cliente y cómo queda la lógica del cronograma sin las demás («Otras tareas» o borradas, con vínculos puente). No usa MS Project. |
+| `evm/client_writer.py` | Comando `generar-cliente`: escritura del `.mpp` del cliente con MS Project, sobre una copia del archivo de origen, y comprobación del archivo guardado. |
+| `evm/client_check.py` | Comando `generar-cliente`: comparación de la planificación del cliente con la interna (% completado del proyecto, libro EVM fila a fila y datos de cada tarea). |
+| `evm/mpp_macros.py` | Módulos de macros (VBA) de un `.mpp`, leídos sin MS Project: `generar-cliente` comprueba que el archivo del cliente no tiene ninguno. |
 | `evm/task_cards.py` | Comando `generar-fichas`: ficha de cada elemento EDT del libro (fechas y duración de la línea base, predecesoras y sucesoras) y documento Markdown. |
+| `evm/version.py` | Versión que muestran la consola, el registro, el libro y el informe de mejoras: la publicada o, en una copia de desarrollo, la última publicada y el commit (`2.5.0 + desarrollo (b513fbb)`). |
 | `instalador/` | Instalador de Windows: `construir.py`, especificación de PyInstaller, script de Inno Setup y consola ([3.2](#32-instalador-de-windows)). |
 
 ```mermaid

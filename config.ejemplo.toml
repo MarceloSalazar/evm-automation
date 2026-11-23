@@ -21,11 +21,13 @@ edt = "Item EDT"
 # (por ejemplo "Text10", o su alias "Método EVM"). Vacío = no se lee.
 metodo = ""
 
-# Campo numérico con el peso de cada hito (por ejemplo "Number1" o su alias
-# "Peso hito"). Vacío = no se lee: los hitos no tienen valor propio y, en el
-# método "Hitos ponderados", pesan igual.
-# El peso es el % del BAC de la fila que se imputa en el mes del hito; el resto
-# se reparte entre las tareas según su duración.
+# Campo con el peso de cada tarea (por ejemplo "Number1" o su alias "Peso hito").
+# Vacío = no se lee: las tareas pesan por su duración, los hitos no tienen valor
+# propio y, en el método "Hitos ponderados", pesan igual.
+# El peso es el % de la parte de su tarea resumen que recibe la tarea, el hito o
+# la tarea resumen (del BAC de la fila, si es una subtarea directa), en todos los
+# métodos; no se propaga más arriba. El resto se reparte entre las tareas sin
+# peso según su duración.
 # Con un campo de TEXTO (por ejemplo "Text7" con alias "Peso") se distinguen:
 #   vacío  sin definir: la tarea depende de sus tareas hermanas
 #   0      peso cero: la tarea se hace, pero no cuenta en el libro EVM (con
@@ -35,12 +37,12 @@ peso_hito = ""
 
 # Campo de texto que decide, tarea por tarea, si tiene fila propia en el libro
 # (por ejemplo "Text5", o su alias "Visible"; ver docs/calculo-pv-ev.md):
-#   "Sí" (Si, SI, S, X, 1)  fila propia, también por debajo de nivel_maximo (la
-#                           tarea necesita código EDT)
-#   "No" (NO, N, 0)         la tarea y su rama quedan fuera del PV, el EV y el
-#                           AC; si todas las subtareas de una tarea tienen "No",
-#                           la tarea las representa (se calculan con ella)
-#   vacío                   según nivel_maximo
+#   "Sí" (Si, SI, S, X, 1)  fila propia (la tarea necesita código EDT). Si alguna
+#                           tarea tiene Sí, solo esas tienen fila y las demás se
+#                           suman en su fila superior con Sí
+#   "No" (NO, N, 0)         sin fila propia: cuenta en su fila superior (para que
+#                           una tarea no cuente, Peso = 0 o inactivarla)
+#   vacío                   sin ningún Sí, según nivel_maximo
 # Si se omite la clave, se lee el campo con alias "Visible" cuando existe.
 # Vacío ("") = no se lee.
 # visible = "Visible"
@@ -215,6 +217,7 @@ depuracion_calculos = false
 #   "25/75",
 #   "20/80",
 #   "Hitos ponderados",
+#   "Ponderado",
 #   "% Completado",
 #   "% Físico completado",
 #   "Unidades completadas",

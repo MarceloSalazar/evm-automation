@@ -191,6 +191,7 @@ resultante.*
 | `0/100`, `X/Y` | Según comiencen y terminen **sus** tareas: una empresa que terminó su parte no espera a la otra. |
 | `Hitos ponderados` | Sus hitos cumplidos, ponderados por su parte (su peso, % de su tarea resumen). |
 | `Avance lineal` | Su % planificado acumulado a la fecha de corte. |
+| `Ponderado` | Avance de sus tareas, cada una según su propio método, ponderado por la parte que cada tarea tiene para la empresa. |
 
 Si una empresa **no participa** en ninguna tarea de la fila y se le asigna BAC, se usan el % planificado
 y el avance de la fila completa (se informa en `Validación` y en `actualizar`).

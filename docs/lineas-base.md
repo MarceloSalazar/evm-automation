@@ -145,7 +145,7 @@ flowchart LR
 | Sin línea base (NA), en una fila con otras tareas con línea base | **No cuenta** (retrabajo o trabajo no previsto) | **Cuenta**, con el peso de su duración actual |
 | Tarea resumen con línea base cuyas subtareas no tienen ninguna | Cuenta como **un bloque** con las fechas de la tarea resumen (una tarea que se desglosó después de guardar la línea base) | Cuentan sus subtareas |
 | **Ninguna** tarea de la fila tiene línea base | La fila **no tiene PV**; su BAC debe ser 0 (aviso `FEC-019`) | Si el BAC es 0, el EV también es 0 |
-| El proyecto no tiene ninguna línea base | Provisional, con las fechas actuales (aviso) | Su avance |
+| El proyecto no tiene ninguna línea base | Provisional, con las fechas actuales (error `FEC-009`) | Su avance |
 
 Tres consecuencias importantes:
 

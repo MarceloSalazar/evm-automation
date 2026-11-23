@@ -85,14 +85,16 @@ costo real y el análisis tengan un responsable claro.
 2. **Guardar la línea base** aprobada.
 3. **Configurar** `config.toml` ([Configuración](configuracion.md)).
 4. **Validar el archivo** con `validar` y corregir en MS Project los errores (códigos EDT, fechas,
-   pesos de los hitos, métodos). Luego **generar el libro** y revisar la hoja `Validación`; si se corrige
+   pesos, métodos). Luego **generar el libro** y revisar la hoja `Validación`; si se corrige
    algo en MS Project, volver a generar.
 5. **Ingresar el BAC** de cada fila en la columna D de la hoja `PV` (o de `PV-EmpresaA` y
    `PV-EmpresaB`) y verificar que la fila TOTAL coincida con el presupuesto aprobado.
 6. **Verificar los métodos** de la columna C de la hoja `PV`: deben coincidir con los aprobados, sin
    filas `Por definir`.
 7. Si el proyecto ya está en ejecución: cargar el **historial mensual** de % ganado y AC, si existe,
-   antes del primer `actualizar` ([Cálculo del PV y el EV](calculo-pv-ev.md#7-del--acumulado-al--del-mes)).
+   antes del primer `actualizar`. `generar --ev-rellenar` carga el % ganado de cada mes hasta la fecha de
+   estado, reconstruido con las fechas reales; el AC se carga a mano
+   ([Cálculo del PV y el EV](calculo-pv-ev.md#7-del--acumulado-al--del-mes)).
 8. Opcional: crear con `generar-fichas` las **fichas de tareas** para el cliente (fechas y duración de la
    línea base, predecesoras y sucesoras de cada elemento EDT del libro)
    ([Comandos](comandos.md#generar-fichas-fichas-de-tareas-para-el-cliente)).

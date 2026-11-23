@@ -54,7 +54,7 @@ rápido están en el [README principal](../README.md).
 |---|---|
 | [Preparación del proyecto en MS Project](preparacion-ms-project.md) | Lista de control, código EDT, campos personalizados, línea base, fecha de estado, registro del avance y XML. |
 | [Líneas base en MS Project y en el programa EVM](lineas-base.md) | Qué guarda una línea base, las 11 de cada archivo, cuál usa el PV y cómo afecta al PV y al EV; buenas prácticas y erratas habituales; comando `corregir-linea-base` para moverla o borrarla en unas tareas, con avisos, modo interactivo y el motivo en las Notas. |
-| [Métodos de medición](metodos-de-medicion.md) | 0/100, fórmulas fijas, hitos ponderados, % completado, % físico, unidades y LOE; dónde se define el método y dónde se calcula el EV; guía y proceso para definir el método de cada paquete. |
+| [Métodos de medición](metodos-de-medicion.md) | 0/100, fórmulas fijas, hitos ponderados, ponderado, % completado, % físico, unidades y LOE; dónde se define el método y dónde se calcula el EV; guía y proceso para definir el método de cada paquete. |
 | [Multi-empresa (opcional)](multiempresa.md) | PV, EV y AC de dos empresas: preparación, reparto, cálculo y ejemplo. |
 | [Varios archivos de MS Project (opcional)](varios-archivos.md) | Un informe con los elementos EDT de varios archivos: códigos EDT, `[[proyectos]]`, cierre mensual, cambios de archivos y ejemplo. |
 | [Depuración de costes (opcional)](depuracion-costes.md) | PV planificado de una empresa frente a la previsión de su plan de costes, pegada en el libro; filas «(coste)», reglas de asignación, indicador de alineamiento, gráfico por elemento EDT, revisión y cálculos del plan (`procesar-costes`) y ciclo de ajuste. |

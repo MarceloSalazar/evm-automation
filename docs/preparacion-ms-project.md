@@ -108,10 +108,10 @@ encabezado de una columna > **Campos personalizados** (o *Proyecto > Campos pers
 |---|---|---|---|---|
 | *Texto2* | Texto | `Item EDT` | Código EDT (`1.0.0`, `1.1.0`, `1.1.1`) | `[campos] edt` |
 | *Texto10* | Texto | `Método EVM` | Lista de búsqueda con los métodos | `[campos] metodo` |
-| *Número1* | Número | `Peso hito` | Peso de cada tarea o hito: % de la parte de su tarea resumen | `[campos] peso_hito` |
+| *Número1* | Número | `Peso hito` | Peso de cada tarea o hito: % de la parte de su tarea resumen. Un campo numérico sirve si no se usa el 0, que lee como vacío: para `Peso` = 0 (la tarea no cuenta en el libro) hace falta un campo de **texto**, por ejemplo *Texto7* con alias `Peso` | `[campos] peso_hito` |
 | *Texto3* | Texto | `Empresa` | Lista: `EmpresaA`, `EmpresaB`, `Ambas` | `[multiempresa] campo_empresa` |
 | *Número2* | Número | `% Reparto` | % de la empresa A en tareas `Ambas` | `[multiempresa] campo_reparto` |
-| *Texto5* | Texto | `Visible` | Lista: `Sí`, `No` (vacío = según el nivel máximo) | `[campos] visible` |
+| *Texto5* | Texto | `Visible` | Lista: `Sí`, `No`. Si alguna tarea tiene `Sí`, solo esas son filas; si no, vacío = según el nivel máximo y `No` = sin fila propia | `[campos] visible` |
 | *Texto20* | Texto | `Descripción` | Texto de la ficha de cada tarea de `generar-fichas` (opcional; también se pueden usar las *Notas*) | `[campos] descripcion` |
 
 Pasos para cada campo:
@@ -142,7 +142,7 @@ español (`Texto10`, `Número1`) o por su alias (`Método EVM`).
 ## 4. Presupuesto (BAC)
 
 No se cargan costos ni recursos en MS Project. El % planificado de cada fila sale de la duración de
-línea base de sus tareas y del `Peso hito` de sus hitos
+línea base de sus tareas y de sus pesos (`Peso hito`: % de su tarea resumen)
 ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)), y el **BAC** de cada
 fila se ingresa a mano en la columna D de la hoja `PV` del libro (en multi-empresa, en `PV-EmpresaA` y
 `PV-EmpresaB`). Si el proyecto tiene recursos o costos cargados, no se usan.
@@ -156,6 +156,8 @@ fila se ingresa a mano en la columna D de la hoja `PV` del libro (en multi-empre
   peso es el % de la parte de su tarea resumen (del paquete, si es una subtarea directa) que se planifica
   en el mes del hito y que se gana al cumplirlo: para
   un paquete medido solo con hitos, los pesos deben sumar 100.
+- Para `Ponderado`: cada tarea del paquete con su peso en `Peso hito` y su propio método en `Método EVM`
+  ([Método Ponderado](calculo-pv-ev.md#método-ponderado)).
 
 El método de cada paquete se elige con la
 [guía](metodos-de-medicion.md#4-guía-para-elegir-el-método) y se aprueba con la línea base
@@ -185,8 +187,8 @@ Detalle y ejemplos en [Métodos de medición](metodos-de-medicion.md).
 Las **fechas** de la línea base de cada tarea (*Comienzo previsto* y *Fin previsto*) definen el %
 planificado. Por defecto se usa la línea base que el proyecto tiene configurada para el valor acumulado
 (*Archivo > Opciones > Avanzadas*); se puede elegir otra con `linea_base` o `--linea-base N`. Sin línea
-base guardada se usan las fechas actuales de las tareas y se advierte
-([Proyecto sin línea base](calculo-pv-ev.md#5-horizonte-de-meses-y-proyecto-sin-línea-base)).
+base guardada se usan las fechas actuales de las tareas y se informa con un error
+([FEC-009](codigos.md#fec-009); [Proyecto sin línea base](calculo-pv-ev.md#5-horizonte-de-meses-y-proyecto-sin-línea-base)).
 
 ---
 
