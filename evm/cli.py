@@ -422,10 +422,10 @@ def _print_update(res, currency: str, silence: Silence) -> None:
     reminder = []
     if res.book is not None and res.book.multi:
         reminder.append(Issue("ACT-026", message=f"El AC se carga a mano en las hojas 'AC-{res.book.company_a}' y "
-                                                 f"'AC-{res.book.company_b}'; los indicadores de costo usan los "
+                                                 f"'AC-{res.book.company_b}'; los indicadores de coste usan los "
                                                  "valores cargados."))
     elif res.book is not None:
-        reminder.append(Issue("ACT-026", message="El AC se carga a mano en la hoja 'AC'; los indicadores de costo "
+        reminder.append(Issue("ACT-026", message="El AC se carga a mano en la hoja 'AC'; los indicadores de coste "
                                                  "usan los valores cargados."))
     _print_notices(silence.apply(res.warnings + reminder))
     _print_deviations(res)
@@ -471,12 +471,13 @@ def _print_notices(issues: list[Issue], limit: int = 30) -> None:
 
 
 def _print_deviations(res, limit: int = 25) -> None:
-    """Paquetes con SPI o CPI acumulado fuera del rango verde del semáforo (hoja Análisis de desviaciones)."""
+    """Paquetes con algún indicador fuera del rango verde de los rangos admisibles (hoja Análisis de desviaciones)."""
     th = res.thresholds
     if th is None:
         return
     from evm.workbook import fmt_decimal
-    rule = f"SPI o CPI fuera de {fmt_decimal(th.yellow_low)} a {fmt_decimal(th.yellow_high)}"
+    rule = (f"SPI o CPI fuera de {fmt_decimal(th.yellow_low)} a {fmt_decimal(th.yellow_high)}, o SV %, CV % o "
+            "desviación del avance fuera de su rango verde")
     found = res.deviations
     if not found:
         print(f"Paquetes fuera de umbral ({rule}): ninguno.")
@@ -1436,7 +1437,7 @@ def build_parser() -> argparse.ArgumentParser:
                                         "sin leer MS Project (p. ej. después de cargar a mano el AC del mes)")
     n.add_argument("--libro", required=True, help="libro .xlsx generado con 'generar'")
     n.add_argument("--config", help="archivo de configuración: solo se usan [validacion] silenciar y loe_maximo y "
-                                    "[exportacion] guardado_rapido (el libro guarda los umbrales del semáforo)")
+                                    "[exportacion] guardado_rapido (el libro guarda los rangos admisibles)")
     n.add_argument("--sin-respaldo", action="store_true", help="no crea copia de respaldo del libro")
     silence_option(n)
     n.set_defaults(func=cmd_analizar)
@@ -1516,7 +1517,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="borrar la línea base N (queda vacía: NA, o ND en MS Project en español)")
     b.add_argument("--establecer", type=int, choices=range(0, 11), metavar="N",
                    help="establecer la línea base N con los valores actuales (comienzo, fin, duración, trabajo y "
-                        "costo) en las tareas que no la tienen, como «Establecer línea base» de MS Project; las que "
+                        "coste) en las tareas que no la tienen, como «Establecer línea base» de MS Project; las que "
                         "ya la tienen no cambian")
     b.add_argument("--motivo", metavar="TEXTO", help="motivo de la corrección: se agrega al final de las Notas de "
                                                      "cada tarea que cambia (obligatorio al escribir)")

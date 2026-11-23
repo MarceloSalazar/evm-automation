@@ -16,8 +16,6 @@ except ModuleNotFoundError:  # pragma: no cover
 
 # Cálculo del PV y del EV: MS Project da el % planificado y el % ganado de cada fila (por la duración de la línea
 # base y el peso de sus tareas); el importe es el BAC que se ingresa en el libro multiplicado por el %.
-# Libros de versiones anteriores calculados con los costos de MS Project: _meta modo = "costo" (no se admiten).
-MODE_PERCENT = "porcentaje"
 
 # Lista de métodos de medición ofrecida en el desplegable de la columna C.
 DEFAULT_METHODS = [
@@ -121,6 +119,8 @@ class Config:
     currency: str = "EUR"                 # "" = código de moneda del proyecto en MS Project
     decimals: int = 0
     fast_save: bool = True                # guardado_rapido: las celdas se escriben como texto al guardar el libro
+    # Protege (sin contraseña) las hojas de resultados y de datos: solo las celdas de ingreso quedan editables
+    protect_sheets: bool = True
     # ev_historico (o generar --ev-rellenar): 'generar' carga el % ganado de cada mes hasta la fecha de estado si el
     # archivo ya tiene avance. Desactivado por defecto
     ev_history: bool = False
@@ -142,12 +142,20 @@ class Config:
     # [metodos] -- None = lista por defecto
     methods_list: list[str] | None = None
 
-    # [semaforo] -- umbrales comunes de SPI y CPI. Rojo: menor que el rojo inferior o mayor que el rojo
+    # [rangos_admisibles] -- umbrales comunes de SPI y CPI. Rojo: menor que el rojo inferior o mayor que el rojo
     # superior; amarillo: menor que el amarillo inferior o mayor que el amarillo superior; verde: entre ambos
     threshold_red: float = 0.90           # rojo inferior
     threshold_yellow: float = 0.95        # amarillo inferior
     threshold_yellow_upper: float = 1.05  # amarillo superior
     threshold_red_upper: float = 1.10     # rojo superior
+    # SV % (SV / PV), CV % (CV / EV) y desviación del avance técnico (% completado - % planificado, puntos del BAC):
+    # verde hasta el umbral amarillo (en valor absoluto), amarillo hasta el rojo y rojo por encima
+    threshold_sv_yellow: float = 0.05
+    threshold_sv_red: float = 0.10
+    threshold_cv_yellow: float = 0.05
+    threshold_cv_red: float = 0.10
+    threshold_progress_yellow: float = 0.05
+    threshold_progress_red: float = 0.10
 
     # [multiempresa] -- reparto entre dos empresas (desactivado por defecto)
     multi_enabled: bool = False
@@ -223,8 +231,15 @@ class Config:
         if not (0 < self.threshold_red <= self.threshold_yellow < self.threshold_yellow_upper
                 <= self.threshold_red_upper):
             raise ConfigError("CFG-014",
-                              "Los umbrales del semáforo deben cumplir 0 < rojo_inferior <= amarillo_inferior < "
+                              "Los umbrales de [rangos_admisibles] deben cumplir 0 < rojo_inferior <= "
+                              "amarillo_inferior < "
                               "amarillo_superior <= rojo_superior (por defecto 0,90 / 0,95 / 1,05 / 1,10).")
+        for name, attr in (("sv", "sv"), ("cv", "cv"), ("avance", "progress")):
+            yellow, red = getattr(self, f"threshold_{attr}_yellow"), getattr(self, f"threshold_{attr}_red")
+            if not 0 < yellow <= red:
+                raise ConfigError("CFG-014", "Los umbrales de [rangos_admisibles] deben cumplir "
+                                             f"0 < {name}_amarillo <= "
+                                             f"{name}_rojo (por defecto 0.05 y 0.10: 5 % y 10 %).")
         if self.default_method and self.default_method not in self.methods:
             self.methods_list = [self.default_method] + self.methods
         if self.multi_enabled:
@@ -468,6 +483,7 @@ def load_config(path: str | Path | None) -> Config:
     cfg.currency = _get(exp, "moneda", cfg.currency, str).strip()
     cfg.decimals = _get(exp, "decimales", cfg.decimals, int)
     cfg.fast_save = _get(exp, "guardado_rapido", cfg.fast_save, bool)
+    cfg.protect_sheets = _get(exp, "proteger_hojas", cfg.protect_sheets, bool)
     cfg.ev_history = _get(exp, "ev_historico", cfg.ev_history, bool)
     cfg.title = _get(exp, "titulo", cfg.title, str).strip()
     cfg.cost_review = _get(exp, "depuracion_costes", cfg.cost_review, bool)
@@ -488,17 +504,18 @@ def load_config(path: str | Path | None) -> Config:
             raise ConfigError("CFG-018", "[metodos] lista debe ser una lista de textos.")
         cfg.methods_list = [x.strip() for x in lista if x.strip()]
 
-    sem = _section(data, "semaforo")
-    for key, alias in (("rojo_inferior", "rojo"), ("amarillo_inferior", "amarillo")):
-        if key in sem and alias in sem:
-            raise ConfigError("CFG-015",
-                              f"[semaforo]: se indicó '{key}' y '{alias}', que son la misma clave ('{alias}' es el "
-                              f"nombre anterior). Se debe dejar solo '{key}'.")
-    cfg.threshold_red = _get(sem, "rojo_inferior" if "rojo_inferior" in sem else "rojo", cfg.threshold_red, float)
-    cfg.threshold_yellow = _get(sem, "amarillo_inferior" if "amarillo_inferior" in sem else "amarillo",
-                                cfg.threshold_yellow, float)
+    if "semaforo" in data:
+        raise ConfigError("CFG-058", "La sección [semaforo] se llama [rangos_admisibles] desde la versión 2.7.1: se "
+                                     "debe cambiar el nombre de la sección (las claves son las mismas).")
+    sem = _section(data, "rangos_admisibles")
+    cfg.threshold_red = _get(sem, "rojo_inferior", cfg.threshold_red, float)
+    cfg.threshold_yellow = _get(sem, "amarillo_inferior", cfg.threshold_yellow, float)
     cfg.threshold_yellow_upper = _get(sem, "amarillo_superior", cfg.threshold_yellow_upper, float)
     cfg.threshold_red_upper = _get(sem, "rojo_superior", cfg.threshold_red_upper, float)
+    for name, attr in (("sv", "sv"), ("cv", "cv"), ("avance", "progress")):
+        for color, tag in (("amarillo", "yellow"), ("rojo", "red")):
+            key = f"threshold_{attr}_{tag}"
+            setattr(cfg, key, _get(sem, f"{name}_{color}", getattr(cfg, key), float))
 
     val = _section(data, "validacion")
     cfg.max_months_0_100 = _get(val, "meses_0_100", cfg.max_months_0_100, float)

@@ -12,6 +12,8 @@ venv/
 # Archivos generados o personales (no subir: el repositorio es público)
 /config.toml
 *.xlsx
+# Libros de referencia de cada formato (tests/test_libros_referencia.py)
+!tests/libros/formato_*.xlsx
 *.png
 !docs/img/**/*.png
 *.mpp

@@ -29,15 +29,15 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 
 | Archivo de pruebas | Contenido |
 |---|---|
-| `test_calculo_pv_ev.py` | Cálculo del PV y el EV: pesos de tareas e hitos, % planificado por empresa, % ganado por método y empresa, hojas y fórmulas del libro, cambio de BAC, `actualizar`, `--migrar-desde`, varios archivos, libros de versiones anteriores y recálculo de las fórmulas con LibreOffice. |
+| `test_calculo_pv_ev.py` | Cálculo del PV y el EV: pesos de tareas e hitos, % planificado por empresa, % ganado por método y empresa, hojas y fórmulas del libro, cambio de BAC, `actualizar`, `--migrar-desde`, varios archivos, libros anteriores a la 2.7.1 (LIB-018) y recálculo de las fórmulas con LibreOffice. |
 | `test_robustez_calculo.py` | Estructura EDT y % planificado, métodos de medición, multi-empresa, redondeo, indicadores y configuración. Incluye reglas que se verifican sobre árboles EDT aleatorios. |
 | `test_robustez_lectores.py` | Lectura del XML (campos, líneas base, calendarios y excepciones) y del `.mpp` con objetos que simulan MS Project. |
 | `test_robustez_libro.py` | `actualizar`, `--migrar-desde`, libros modificados a mano, errores de la línea de comandos y del archivo de configuración. |
 | `test_proyectos_aleatorios.py` | Proyectos aleatorios de punta a punta (`generar`, varias fechas de corte, migración y recálculo). |
-| `test_analisis_desviaciones.py` | Hoja `Análisis de desviaciones`: lista calculada aparte, texto conservado y copiado al mes siguiente, `analizar` con AC cargado a mano, libros antiguos, `--migrar-desde` y recálculo de sus fórmulas con LibreOffice. |
+| `test_analisis_desviaciones.py` | Hoja `Análisis de desviaciones`: lista calculada aparte, texto conservado y copiado al mes siguiente, `analizar` con AC cargado a mano, columnas que se completan a mano y Estado, `--migrar-desde` y recálculo de sus fórmulas con LibreOffice. |
 | `test_validar.py` | Comando `validar` y controles del archivo: códigos EDT (dependencia de la tarea superior, formato, orden, duplicados), fechas y duración, pesos, método frente a la duración, empresas, avance a la fecha de estado y fuera de secuencia, fecha de estado que no es fin de mes, lógica del cronograma y evaluación DCMA (holgura, duración, tareas incumplidas, CPLI y BEI), adelantos agrupados por tarea, varias rutas críticas, líneas base guardadas y línea base de las tareas resumen, lectura de duración, vínculos, delimitaciones, líneas base y opción de rutas críticas (XML y COM) y columna `Tema` de la hoja `Validación`. |
 | `test_fichas_tareas.py` | Comando `generar-fichas`: fichas de los elementos del libro, vínculos trasladados al elemento con ficha (internos, repetidos y con tareas sin ficha), fechas y duración de la línea base, documento Markdown, varios archivos y lectura de la duración de la línea base, las horas por día y la descripción (XML y COM). |
-| `test_plazo_tendencia.py` | Plazo según el cronograma (días laborables, fin previsto, holgura y crítica de cada fila, filas resumen y total), columnas de `Indicadores EDT`, secciones del `Resumen` y del `Cuadro de Mando`, libros de versiones anteriores, tendencia (mes anterior con datos y últimos 3 meses) y recálculo de sus fórmulas con LibreOffice. |
+| `test_plazo_tendencia.py` | Plazo según el cronograma (días laborables, fin previsto, holgura y crítica de cada fila, filas resumen y total), columnas de `Indicadores EDT`, secciones del `Resumen` y del `Cuadro de Mando`, tendencia (mes anterior con datos y últimos 3 meses) y recálculo de sus fórmulas con LibreOffice. |
 | `test_lista_edt.py` | Lista EDT (`lista_edt`): lectura del archivo, filas definidas por la lista, códigos sin los ceros finales, códigos faltantes, ramas sin elemento listado, lista guardada en el libro y usada por `actualizar`. |
 | `test_ceros_intermedios.py` | Ceros del código EDT. Intermedios (`ignorar_ceros_intermedios`): nivel del código, filas del libro y fila `-D`, controles de los códigos, criterio guardado en el libro y usado por `actualizar`, `--migrar-desde` y línea de comandos. Finales (`1.2` = `1.2.0` = `1.2.0.0`): duplicados y asociación por código en `actualizar` y `--migrar-desde`. |
 | `test_progreso.py` | Versión en pantalla y barra de progreso (etapas, % de la etapa y del total, tiempo transcurrido, ETA que no sube en una etapa lenta y cuenta hacia atrás en una sin conteo, refresco, tiempo total, consola no interactiva). |
@@ -51,7 +51,7 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 | `test_review_fixes.py` | Regresiones de los problemas detectados en las revisiones del código: migración, `actualizar` y `analizar` (tareas nuevas dentro de una fila), análisis de desviaciones, registro de cambios, fechas de plan de las filas, mensajes (horizonte, planificación, observaciones de fila agrupadas) y errores de la línea de comandos. |
 | `test_workbook_update.py` | Libro del proyecto de ejemplo: disposición de las hojas, ciclo de `actualizar`, respaldo, meses posteriores cargados, `--migrar-desde` y recálculo de las fórmulas con LibreOffice. |
 | `test_report_xml.py`, `test_timeline_methods.py` | Lectura del XML de ejemplo, filas EDT y % planificado; calendario, horizonte, fechas, redondeo, métodos de medición e indicadores. |
-| Resto | Cuadro de Mando, semáforo, multi-empresa, planificación, campo `Visible`, depuración de costes, calendario y lector COM simulado. |
+| Resto | Cuadro de Mando, rangos admisibles, multi-empresa, planificación, campo `Visible`, depuración de costes, calendario y lector COM simulado. |
 
 - **LibreOffice:** si está instalado, las pruebas marcadas `libreoffice` recalculan las fórmulas del
   libro y las comparan con el cálculo en Python. Se usa un perfil propio de LibreOffice, por lo que
@@ -64,8 +64,15 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
   carpeta. En `conftest.py`: `book` (libro del proyecto de ejemplo con el BAC de cada fila), `book_jun`
   (el mismo, con el AC de junio de 2027 cargado y actualizado a esa fecha) y `example_template` (sin
   BAC). Los archivos de pruebas tienen las suyas (`multi_book`, el libro de umbrales propios de
-  `test_semaforo.py`, `books` de `test_varios_archivos.py`). Una prueba que revisa la salida de
+  `test_rangos_admisibles.py`, `books` de `test_varios_archivos.py`). Una prueba que revisa la salida de
   `generar` o de `actualizar` ejecuta ese comando ella misma.
+- **Libros de referencia:** `tests/libros/formato_N.xlsx` es un libro del ejemplo generado con la versión que
+  introdujo el formato N del libro (`formato_libro` de la hoja `_meta`), después del cierre de junio de 2027.
+  `test_libros_referencia.py` comprueba que la versión actual los sigue actualizando, analizando y migrando.
+  Al aumentar `formato_libro` se genera el del formato nuevo con `python tests\libros\generar_libro_referencia.py`
+  (no sobrescribe un libro existente) y se agrega la migración de los anteriores. Con la variable de entorno
+  `EVM_LIBROS` (rutas separadas por `;`) se revisan también libros reales: se leen y se ejecuta `analizar` en una
+  copia, sin MS Project.
 - **Problemas conocidos:** las pruebas marcadas `xfail` documentan problemas detectados que aún no se
   corrigieron; aparecen como `xfailed` y no hacen fallar la ejecución. Cuando se corrige el problema,
   la prueba aparece como fallida (`XPASS(strict)`) para que se quite la marca.
@@ -152,8 +159,8 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/config.py` | Configuración TOML. |
 | `evm/messages.py` | Catálogo de los códigos de errores y advertencias (severidad, explicación y qué hacer), observaciones con código (`Issue`), errores con código que detienen el programa y silenciar ([5](#5-códigos-de-errores-y-advertencias)). |
 | `evm/model.py` | Datos comunes: tareas (fechas y duración de la línea base, fechas actuales, avance, duración, vínculos, delimitaciones, campos personalizados y descripción) y proyecto leídos de MS Project. |
-| `evm/reader_com.py` | Lectura de `.mpp` con MS Project (COM): fechas, avance, holgura, tareas críticas y campos personalizados. Los costos no se leen. |
-| `evm/reader_xml.py`, `evm/workcalendar.py` | Lectura del XML de MS Project (los costos no se leen) y calendario laboral con el que se reparte la duración de las tareas entre los meses. |
+| `evm/reader_com.py` | Lectura de `.mpp` con MS Project (COM): fechas, avance, holgura, tareas críticas y campos personalizados. Los costes no se leen. |
+| `evm/reader_xml.py`, `evm/workcalendar.py` | Lectura del XML de MS Project (los costes no se leen) y calendario laboral con el que se reparte la duración de las tareas entre los meses. |
 | `evm/fields.py` | Identificación de campos personalizados (Texto1..30, Número1..20 y alias). |
 | `evm/wbs.py` | Estructura EDT hasta el nivel máximo o el detalle que indique el campo `Visible` (o la lista EDT), % planificado de cada fila, combinación de varios archivos y horizonte. |
 | `evm/validation.py` | Controles del archivo de MS Project: códigos EDT, fechas y duración, pesos, método y empresas (hoja `Validación` y `validar`), avance a la fecha de estado y lógica del cronograma con los criterios DCMA (solo `validar`). |

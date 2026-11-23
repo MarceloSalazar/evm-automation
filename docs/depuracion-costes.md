@@ -433,11 +433,6 @@ Sobre `--migrar-desde` en la depuración:
 - Las líneas se leen de nuevo con los códigos EDT del libro nuevo, aunque la EDT haya cambiado.
 - Los recargos de la tabla `Recargos` pasan por el texto de su fila y por año, si el coeficiente sigue en
   `[depuracion_precio.recargos]`; los demás se informan en `Validación` ([DEP-025](codigos.md#dep-025)).
-- Si el libro anterior tiene el plan desde la celda A8 (versión 2.5 o anterior), pasa a la celda A12.
-- Si el libro anterior tiene la hoja sin la columna EAC (versión 2.4: meses desde la columna F), se
-  agrega con la suma de los meses de cada línea. Si tiene la hoja sin las columnas de EDT interna
-  (código, descripción, BAC y meses desde la columna D), el plan se pasa al formato actual: los
-  códigos numéricos quedan como EDT cliente y los demás (`XRF01`), como EDT interna.
 
 ---
 
@@ -448,12 +443,9 @@ Sobre `--migrar-desde` en la depuración:
 | `Depuración de costes de EmpresaA: se debe pegar la previsión...` (Info) | Recordatorio de la hoja que se depura y de generar el libro de entrega sin depuración. |
 | `... filas tienen código EDT no numérico ... no pueden recibir la previsión` (Advertencia) | Las filas con códigos como `INTERNO` o `A1` no se pueden leer: el plan solo se asocia por códigos numéricos. |
 | `códigos EDT repetidos en el libro ...` (Advertencia) | Un código está en dos filas: el plan se lee en la primera. |
-| `Se conservó el contenido de la hoja PV-depuración ...` (Info) | `--migrar-desde` trasladó el plan y los recargos de la tabla `Recargos` (y volvió a escribir las fórmulas de los cálculos, si las tenía). Si el plan empezaba en la celda A8 (versión 2.5 o anterior), lo indica: pasa a la celda A12. |
+| `Se conservó el contenido de la hoja PV-depuración ...` (Info) | `--migrar-desde` trasladó el plan y los recargos de la tabla `Recargos` (y volvió a escribir las fórmulas de los cálculos, si las tenía). |
 | `Los recargos de la tabla Recargos del libro anterior de ... no se trasladaron` (Advertencia) | Esos coeficientes no están en `[depuracion_precio.recargos]` de la configuración nueva (por ejemplo, porque cambió su texto). |
-| `La hoja PV-depuración del libro anterior tenía el formato sin EDT interna ...` (Info) | El plan trasladado se pasó al formato con las columnas de EDT interna. |
-| `La hoja PV-depuración del libro anterior no tenía la columna EAC ...` (Info) | El plan trasladado se pasó al formato con la columna EAC. |
 | `La hoja PV-depuración del libro anterior ... no se trasladó` (Info o Advertencia) | El libro nuevo no tiene depuración, o depura otra empresa. |
-| `... filas de la hoja % PV-EmpresaA tenían en el libro anterior el reparto del plan de costes ...` (Info) | El libro anterior se procesó con `procesar-costes` en una versión anterior a la 2.6.0: esas filas vuelven a tener el % planificado de MS Project. |
 
 `procesar-costes` informa en la consola las líneas de EDT cliente sin leer, los importes después del
 horizonte, las filas sin línea en el plan o sin importes, las EDT cliente repetidas, los importes

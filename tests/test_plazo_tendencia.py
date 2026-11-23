@@ -13,7 +13,7 @@ from evm.schedule import FINISHED, RowSchedule, ScheduleSummary, combine, row_sc
 from evm.update import indicators_for, read_book, run_analysis, run_update
 from evm.workbook import (COL_FINISH, COL_START, EV_DATES, HEADER_ROW, I_BL_FINISH, I_CRITICAL, I_SLACK, I_VARIANCE,
                           PLAN_DATES, ROW_BL_FINISH, ROW_CRITICAL, ROW_FINISH, ROW_LATE, ROW_PLAN_STATUS, ROW_VARIANCE,
-                          SHEET_IND, SHEET_META, SHEET_SUMMARY, ev_date_sheets, read_meta, write_meta, write_workbook)
+                          SHEET_IND, SHEET_SUMMARY, ev_date_sheets, read_meta, write_workbook)
 from evm.workcalendar import WorkCalendar
 from evm.wbs import build_report
 
@@ -142,8 +142,7 @@ def test_generar_writes_schedule_columns_summary_and_new_dashboard(tmp_path):
     assert res.cell(ROW_FINISH, 2).value == datetime(2026, 4, 1, 17)
     assert res.cell(ROW_VARIANCE, 2).value == 3
     assert (res.cell(ROW_CRITICAL, 2).value, res.cell(ROW_LATE, 2).value) == (1, 1)
-    meta = read_meta(wb)
-    assert meta["disposicion_cuadro_mando"] == dashboard.LAYOUT
+    assert read_meta(wb)["formato_libro"] == 1
     dash = wb[dashboard.SHEET_DASHBOARD]
     assert dash.cell(dashboard.ROW_TREND, 2).value.startswith("Tendencia")
     assert dash.cell(dashboard.ROW_PLAN, 2).value.startswith("Plazo")
@@ -151,20 +150,12 @@ def test_generar_writes_schedule_columns_summary_and_new_dashboard(tmp_path):
     assert [c.anchor._from.row for c in dash._charts] == [charts - 1, charts - 1, scatter - 1]
 
 
-def test_actualizar_refreshes_schedule_and_analysis_and_upgrades_old_books(tmp_path):
+def test_actualizar_refreshes_schedule_and_analysis(tmp_path):
     cfg = Config(max_level=2)
     tasks = schedule_tasks()
     book = tmp_path / "libro.xlsx"
     write_workbook(build_report(P(tasks), cfg), cfg, book)
     set_bac(book)
-    # Libro de una versión anterior: sin disposición del Cuadro de Mando ni columnas de plazo
-    wb = load_workbook(book)
-    meta = read_meta(wb)
-    meta.pop("disposicion_cuadro_mando")
-    write_meta(wb[SHEET_META], meta)
-    wb[SHEET_IND].delete_cols(I_BL_FINISH, 5)
-    wb.save(book)
-
     tasks[1].finish = datetime(2026, 4, 3, 17)          # el atraso crece a 5 días
     res = run_update(P(tasks, status_date=datetime(2026, 3, 31)), cfg, book, backup=False)
     assert res.schedule.total.variance == 5 and res.schedule.late_critical == 1
@@ -178,8 +169,7 @@ def test_actualizar_refreshes_schedule_and_analysis_and_upgrades_old_books(tmp_p
     entries = {e.code: e for e in analysis.read_entries(ws)}
     assert entries["1.1"].plan == (5, 0, "Sí")
     assert ws.cell(analysis.HEAD_ROW, analysis.A_TREND).value == "Tendencia"
-    # Libro anterior: los gráficos quedan en las filas de su disposición
-    charts, _end, scatter, _send = dashboard.chart_rows(1)
+    charts, _end, scatter, _send = dashboard.chart_rows()
     assert [c.anchor._from.row for c in wb[dashboard.SHEET_DASHBOARD]._charts] == [charts - 1, charts - 1,
                                                                                    scatter - 1]
     # 'analizar' conserva el plazo de la última lectura
@@ -252,36 +242,6 @@ def test_actualizar_refreshes_ev_dates_and_converts_old_books(tmp_path):
     # Plazo: el paquete terminado ya no tiene la holgura de la lectura anterior (0 al generar el libro)
     ind = wb[SHEET_IND]
     assert (ind.cell(rows["1.1"], I_SLACK).value, ind.cell(rows["1.1"], I_CRITICAL).value) == (None, FINISHED)
-
-
-def test_analysis_sheet_of_previous_versions_is_read_by_position(tmp_path):
-    """Hoja de la versión 2.2: 19 columnas, con la clave en la S."""
-    from openpyxl import Workbook
-    wb = Workbook()
-    ws = wb.active
-    ws.title = analysis.SHEET_ANALYSIS
-    ws.column_dimensions["S"].hidden = True
-    old = ["Mes", "Código EDT", "Actividad", "BAC", "PV acum.", "EV acum.", "AC acum.", "SV", "CV", "SPI", "CPI",
-           "Semáforo", "Antecedente", "Causa", "Impacto en plazo y costo", "Acción correctiva", "Responsable",
-           "Fecha compromiso", "clave"]
-    for c, text in enumerate(old, start=1):
-        ws.cell(analysis.HEAD_ROW, c, text)
-    ws.append([datetime(2027, 6, 1), "1.1.1", "A", "=x", None, None, None, None, None, None, None, None,
-               "Nuevo", "Lluvias", "2 semanas", "Turno extra", "JP", datetime(2027, 7, 15), "12"])
-    ws.append([datetime(2027, 6, 1), "9.9.9", "Agregada a mano", 5, None, None, None, None, None, None, None, None,
-               None, "Nota"])
-    entries = analysis.read_entries(ws)
-    assert entries[0].key == "12" and entries[0].texts[0] == "Lluvias" and entries[0].origin == "Nuevo"
-    assert entries[0].plan == (None, None, None)
-    raw = entries[1].raw
-    assert raw[analysis.A_BAC - 1] == 5 and raw[analysis.A_CAUSE - 1] == "Nota"
-    # Con los encabezados de la versión actual, por nombre
-    analysis.write_sheet(wb, entries[:1], {"12": 6}, 12, analysis.thresholds({}, Config()), 0, date(2027, 6, 1), 1)
-    again = analysis.read_entries(wb[analysis.SHEET_ANALYSIS])
-    assert again[0].texts[0] == "Lluvias" and again[0].key == "12"
-    sheet = wb[analysis.SHEET_ANALYSIS]
-    assert not sheet.column_dimensions["S"].hidden                      # ahora es la columna Antecedente
-    assert sheet.column_dimensions[get_column_letter(analysis.A_KEY)].hidden
 
 
 # ----------------------------------------------------------------------------

@@ -112,7 +112,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | Área | Nombre | Tema en la hoja Validación | Dónde aparecen | Códigos |
 |---|---|---|---|---|
 | [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 57 |
-| [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 17 |
+| [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 18 |
 | [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 21 |
 | [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 5 |
 | [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 14 |
@@ -123,10 +123,10 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [LOG](#410-log--lógica-del-cronograma) | Lógica del cronograma | Lógica del cronograma | validar | 13 |
 | [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) | 17 |
 | [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 20 |
-| [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 24 |
-| [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 51 |
+| [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 19 |
+| [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 52 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
-| [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 33 |
+| [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 34 |
 | [NUM](#417-num--numeración-edt-actualizar-edt) | Numeración EDT (actualizar-edt) | Estructura y códigos EDT | actualizar-edt | 17 |
 | [LBA](#418-lba--corrección-de-línea-base-corregir-linea-base) | Corrección de línea base (corregir-linea-base) | Fechas y duración | corregir-linea-base | 22 |
 | [SIS](#419-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
@@ -154,8 +154,7 @@ Archivo de configuración, opciones de la línea de comandos, horizonte y códig
 | [CFG-011](#cfg-011) | Error (detiene el programa) | Línea base fuera de rango |
 | [CFG-012](#cfg-012) | Error (detiene el programa) | Distribución no válida |
 | [CFG-013](#cfg-013) | Error (detiene el programa) | Decimales fuera de rango |
-| [CFG-014](#cfg-014) | Error (detiene el programa) | Umbrales del semáforo incoherentes |
-| [CFG-015](#cfg-015) | Error (detiene el programa) | Umbral del semáforo indicado dos veces |
+| [CFG-014](#cfg-014) | Error (detiene el programa) | Umbrales de los rangos admisibles incoherentes |
 | [CFG-016](#cfg-016) | Error (detiene el programa) | Umbral de `[validacion] fuera` de rango |
 | [CFG-017](#cfg-017) | Error (detiene el programa) | Feriados mal indicados |
 | [CFG-018](#cfg-018) | Error (detiene el programa) | Lista de métodos mal indicada |
@@ -198,6 +197,7 @@ Archivo de configuración, opciones de la línea de comandos, horizonte y códig
 | [CFG-055](#cfg-055) | Error (detiene el programa) | Cálculo del precio mal configurado |
 | [CFG-056](#cfg-056) | Advertencia | Fechas de estado distintas en los archivos |
 | [CFG-057](#cfg-057) | Info | Solo el archivo de `--origen` |
+| [CFG-058](#cfg-058) | Error (detiene el programa) | Sección `[semaforo] con` el nombre anterior |
 
 #### CFG-001
 
@@ -305,19 +305,11 @@ decimales no está entre 0 y 4.
 
 #### CFG-014
 
-**Umbrales del semáforo incoherentes** · Error (detiene el programa) · Todos los comandos · no se puede silenciar
+**Umbrales de los rangos admisibles incoherentes** · Error (detiene el programa) · Todos los comandos · no se puede silenciar
 
-Los umbrales de `[semaforo] no` cumplen 0 < rojo_inferior <= amarillo_inferior < amarillo_superior <= rojo_superior.
+Los umbrales de [rangos_admisibles] no cumplen 0 < rojo_inferior <= amarillo_inferior < amarillo_superior <= rojo_superior, o 0 < X_amarillo <= X_rojo en los de SV, CV y avance (sv, cv, avance).
 
 **Qué hacer:** Corregir los umbrales (por defecto 0,90 / 0,95 / 1,05 / 1,10).
-
-#### CFG-015
-
-**Umbral del semáforo indicado dos veces** · Error (detiene el programa) · Todos los comandos · no se puede silenciar
-
-En `[semaforo] se` indicó una clave y también su nombre anterior, que es la misma clave.
-
-**Qué hacer:** Dejar solo el nombre actual de la clave.
 
 #### CFG-016
 
@@ -655,6 +647,14 @@ La configuración tiene varios archivos (`[[proyectos]]`) y `--origen` indica un
 
 **Qué hacer:** Ninguna. Para leer todos los archivos se omite `--origen`; para reemplazar la ruta de uno solo, se indica `--origen` NOMBRE=RUTA.
 
+#### CFG-058
+
+**Sección `[semaforo] con` el nombre anterior** · Error (detiene el programa) · Todos los comandos · no se puede silenciar
+
+Desde la versión 2.7.1, los umbrales del SPI y el CPI están en la sección [rangos_admisibles], con las mismas claves (rojo_inferior, amarillo_inferior, amarillo_superior y rojo_superior). Los nombres anteriores rojo y amarillo ya no se admiten.
+
+**Qué hacer:** Cambiar `[semaforo] por` [rangos_admisibles] en la configuración.
+
 ---
 
 ### 4.2 LEC · Lectura de MS Project
@@ -680,6 +680,7 @@ Apertura del archivo .mpp o .xml y campos configurados que no se encuentran o es
 | [LEC-024](#lec-024) | Info | Líneas base guardadas |
 | [LEC-025](#lec-025) | Advertencia | Calendario del proyecto no leído |
 | [LEC-026](#lec-026) | Error (detiene el programa) | No se encontró el campo del cliente |
+| [LEC-027](#lec-027) | Error (detiene el programa) | MS Project no pudo guardar el archivo |
 
 #### LEC-001
 
@@ -816,6 +817,14 @@ Con un .mpp, MS Project no devolvió el calendario del proyecto (la jornada de c
 El campo de [cliente] campo no existe en el archivo de MS Project, ni con ese nombre ni como alias: no se puede saber qué tareas se muestran al cliente.
 
 **Qué hacer:** Revisar el nombre del campo en [cliente] campo (el alias, por ejemplo "Etiqueta Cliente", o el nombre, por ejemplo "Text15").
+
+#### LEC-027
+
+**MS Project no pudo guardar el archivo** · Error (detiene el programa) · generar-cliente, actualizar-edt y corregir-linea-base · no se puede silenciar
+
+MS Project no pudo guardar el .mpp: el archivo o su carpeta son de solo lectura o sin permiso de escritura, el archivo está abierto en otra instancia de MS Project o por otro usuario, el disco está lleno o MS Project mostró un diálogo. El mensaje incluye el error de MS Project.
+
+**Qué hacer:** Revisar los permisos y el espacio de la carpeta, cerrar el archivo en otras instancias de MS Project y volver a ejecutar el comando. Con actualizar-edt y corregir-linea-base, el archivo queda sin cambios: el respaldo se elimina.
 
 ---
 
@@ -1724,7 +1733,6 @@ Libro Excel: recordatorio del BAC y libros dañados, modificados o abiertos en E
 | [LIB-006](#lib-006) | Error (detiene el programa) | Falta un dato de la hoja `_meta` |
 | [LIB-007](#lib-007) | Error (detiene el programa) | Dato de la hoja `_meta` no válido |
 | [LIB-008](#lib-008) | Error (detiene el programa) | Hoja `_estructura` no válida |
-| [LIB-009](#lib-009) | Error (detiene el programa) | Libro de una versión anterior |
 | [LIB-010](#lib-010) | Error (detiene el programa) | Falta una hoja del libro |
 | [LIB-011](#lib-011) | Error (detiene el programa) | Filas del libro movidas |
 | [LIB-012](#lib-012) | Error (detiene el programa) | Fórmula sin valor calculado |
@@ -1733,6 +1741,7 @@ Libro Excel: recordatorio del BAC y libros dañados, modificados o abiertos en E
 | [LIB-015](#lib-015) | Error (detiene el programa) | No se puede guardar el archivo |
 | [LIB-016](#lib-016) | Info | % ganado cargado hasta la fecha de estado |
 | [LIB-017](#lib-017) | Advertencia | No se cargó el % ganado hasta la fecha de estado |
+| [LIB-018](#lib-018) | Error (detiene el programa) | Formato de libro no admitido |
 
 #### LIB-001
 
@@ -1798,14 +1807,6 @@ La hoja oculta `_estructura` fue modificada.
 
 **Qué hacer:** Recuperar el libro desde un respaldo (la hoja `_estructura` no se debe modificar).
 
-#### LIB-009
-
-**Libro de una versión anterior** · Error (detiene el programa) · actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
-
-El libro se generó con la versión 1.x, que calculaba el PV y el EV con los costos de MS Project.
-
-**Qué hacer:** Usar la versión 1.x para ese libro, o generar un libro nuevo.
-
 #### LIB-010
 
 **Falta una hoja del libro** · Error (detiene el programa) · actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
@@ -1869,6 +1870,14 @@ Con generar `--ev-rellenar` (o `[exportacion] ev_historico` = true) y un archivo
 El archivo de MS Project tiene avance, pero no tiene fecha de estado, los archivos de `[[proyectos]]` tienen fechas de estado distintas o la fecha de estado está fuera del horizonte del libro.
 
 **Qué hacer:** Definir la fecha de estado en MS Project (Proyecto > Fecha de estado), la misma en todos los archivos, o revisar mes_inicio y meses. Si no, el % ganado se carga con actualizar.
+
+#### LIB-018
+
+**Formato de libro no admitido** · Error (detiene el programa) · actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) · no se puede silenciar
+
+El libro se generó con una versión anterior a la 2.7.1 (la hoja oculta `_meta` no tiene formato_libro), que no se admite, o con una versión posterior que usa otro formato de libro.
+
+**Qué hacer:** Libro anterior a la 2.7.1: generar un libro nuevo con generar (sin `--migrar-desde`). Libro de una versión posterior: usar esa versión del programa (dato version de la hoja `_meta`).
 
 ---
 
@@ -2073,9 +2082,7 @@ Hoja PV-depuración, su traslado con `--migrar-desde` y la revisión del plan de
 | [DEP-004](#dep-004) | Info | Previsión no trasladada: libro sin depuración |
 | [DEP-005](#dep-005) | Advertencia | Previsión no trasladada: otra empresa |
 | [DEP-006](#dep-006) | Info | Previsión trasladada |
-| [DEP-007](#dep-007) | Info | Previsión pasada al formato con EDT interna |
 | [DEP-008](#dep-008) | Advertencia o Info | Meses de la previsión desplazados |
-| [DEP-009](#dep-009) | Info | Previsión pasada al formato con la columna EAC |
 | [DEP-012](#dep-012) | Error (detiene el programa) | Libro sin depuración de costes |
 | [DEP-013](#dep-013) | Error (detiene el programa) | Plan de costes sin líneas leídas |
 | [DEP-014](#dep-014) | Advertencia | Líneas de EDT cliente sin leer |
@@ -2084,11 +2091,8 @@ Hoja PV-depuración, su traslado con `--migrar-desde` y la revisión del plan de
 | [DEP-017](#dep-017) | Advertencia | Filas sin importes en el plan de costes |
 | [DEP-018](#dep-018) | Advertencia | Importes del plan de costes que no se leen |
 | [DEP-019](#dep-019) | Advertencia | EDT cliente repetida en el plan de costes |
-| [DEP-020](#dep-020) | Info | % planificado de MS Project recuperado |
-| [DEP-021](#dep-021) | Advertencia | Filas con el reparto del plan de costes |
 | [DEP-022](#dep-022) | Advertencia | Componentes de coste fuera del precio |
 | [DEP-023](#dep-023) | Advertencia | Tabla Recargos incompleta |
-| [DEP-024](#dep-024) | Error (detiene el programa) | Hoja PV-depuración de una versión anterior |
 | [DEP-025](#dep-025) | Advertencia | Recargos no trasladados |
 | [DEP-026](#dep-026) | Advertencia | Tabla Recargos sin cálculo del precio |
 
@@ -2140,14 +2144,6 @@ Se conservó el contenido de la hoja PV-depuración: el plan de costes y los rec
 
 **Qué hacer:** Ninguna.
 
-#### DEP-007
-
-**Previsión pasada al formato con EDT interna** · Info · generar con depuracion_costes (hoja Validación) · se puede silenciar
-
-La hoja PV-depuración del libro anterior no tenía las columnas de EDT interna: los códigos numéricos quedaron como EDT cliente y los demás, como EDT interna, y se agregó la columna EAC.
-
-**Qué hacer:** Revisar la hoja PV-depuración.
-
 #### DEP-008
 
 **Meses de la previsión desplazados** · Advertencia o Info · generar con depuracion_costes (hoja Validación) · se puede silenciar
@@ -2155,14 +2151,6 @@ La hoja PV-depuración del libro anterior no tenía las columnas de EDT interna:
 Cambió el mes 1 del horizonte: los meses de la hoja PV-depuración se desplazaron para conservar su fecha. Es una advertencia si quedaron importes fuera de las columnas.
 
 **Qué hacer:** Revisar los importes que quedaron fuera, si los hay.
-
-#### DEP-009
-
-**Previsión pasada al formato con la columna EAC** · Info · generar con depuracion_costes (hoja Validación) · se puede silenciar
-
-La hoja PV-depuración del libro anterior (versión 2.4) no tenía la columna EAC: se agregó con la suma de los meses de cada línea, y los meses empiezan en la columna G.
-
-**Qué hacer:** Ninguna.
 
 #### DEP-012
 
@@ -2228,22 +2216,6 @@ Dos o más líneas de EDT cliente tienen el mismo código: se suman sus importes
 
 **Qué hacer:** Revisar el plan de costes: cada EDT cliente debería tener una sola línea.
 
-#### DEP-020
-
-**% planificado de MS Project recuperado** · Info · generar `--migrar-desde` (hoja Validación) · se puede silenciar
-
-Filas que en el libro anterior tenían en la hoja % PV el reparto del plan de costes, escrito por procesar-costes en una versión anterior a la 2.6.0: en el libro nuevo, su % planificado vuelve a ser el de MS Project. El plan de costes se compara con el PV en las filas «(coste)».
-
-**Qué hacer:** Ninguna.
-
-#### DEP-021
-
-**Filas con el reparto del plan de costes** · Advertencia · actualizar y procesar-costes · se puede silenciar
-
-El libro tiene filas cuyo % planificado es el reparto del plan de costes, escrito por procesar-costes en una versión anterior a la 2.6.0: no es el de MS Project. actualizar no compara esas filas con la línea base ([ACT-047](#act-047)).
-
-**Qué hacer:** Generar un libro nuevo con `--migrar-desde`: vuelve a calcular su % planificado con MS Project y conserva el BAC, el % ganado y el AC.
-
 #### DEP-022
 
 **Componentes de coste fuera del precio** · Advertencia · procesar-costes · se puede silenciar
@@ -2259,14 +2231,6 @@ Con [depuracion_precio], líneas de componente de coste (solo la columna D) con 
 Con [depuracion_precio], a la tabla Recargos de la hoja PV-depuración le falta la fila de un coeficiente que usa calculo_precio, la columna de un año con importes o el valor de un coeficiente en un año con importes (o la tabla entera, que procesar-costes `--calculos` agrega vacía). En el precio, los coeficientes que faltan se toman como 0.
 
 **Qué hacer:** Completar la tabla Recargos (desde la celda D1): un % por coeficiente y año.
-
-#### DEP-024
-
-**Hoja PV-depuración de una versión anterior** · Error (detiene el programa) · procesar-costes · no se puede silenciar
-
-La hoja PV-depuración tiene el formato de la versión 2.5 o anterior, con el plan desde la celda A8. Desde la versión 2.6.0, el plan empieza en la celda A12, con la tabla Recargos arriba.
-
-**Qué hacer:** Generar un libro nuevo con `--migrar-desde`: pasa el plan a la celda A12 y conserva el BAC, el % ganado y el AC.
 
 #### DEP-025
 
@@ -2330,9 +2294,9 @@ Carga del % ganado del mes: fecha de corte, filas del libro, BAC y observaciones
 | [ACT-036](#act-036) | Advertencia o Info | Cambio de BAC |
 | [ACT-037](#act-037) | Advertencia | Valores de meses ya informados modificados |
 | [ACT-038](#act-038) | Info | Referencia del registro de cambios guardada |
-| [ACT-039](#act-039) | Advertencia | Avance sin costo |
-| [ACT-040](#act-040) | Advertencia | Costo sin avance |
-| [ACT-041](#act-041) | Advertencia | Costo después de terminar el paquete |
+| [ACT-039](#act-039) | Advertencia | Avance sin coste |
+| [ACT-040](#act-040) | Advertencia | Coste sin avance |
+| [ACT-041](#act-041) | Advertencia | Coste después de terminar el paquete |
 | [ACT-042](#act-042) | Info | AC del mes de corte sin cargar |
 | [ACT-043](#act-043) | Advertencia | Análisis del mes anterior incompleto |
 | [ACT-044](#act-044) | Advertencia | Desviaciones del mes anterior sin analizar |
@@ -2343,6 +2307,7 @@ Carga del % ganado del mes: fecha de corte, filas del libro, BAC y observaciones
 | [ACT-049](#act-049) | Advertencia | Mucho BAC en filas LOE |
 | [ACT-050](#act-050) | Advertencia | Ceros intermedios con otro criterio que el libro |
 | [ACT-051](#act-051) | Advertencia | Tareas nuevas que se suman en una fila |
+| [ACT-052](#act-052) | Advertencia | Configuración de cálculo distinta de la del libro |
 
 #### ACT-001
 
@@ -2548,7 +2513,7 @@ Celdas de ingreso con un número guardado como texto o con una fórmula se reemp
 
 **El AC se carga a mano** · Info · actualizar · se puede silenciar
 
-Recordatorio: los indicadores de costo usan el AC cargado en las hojas AC.
+Recordatorio: los indicadores de coste usan el AC cargado en las hojas AC.
 
 **Qué hacer:** Cargar el AC del mes.
 
@@ -2650,27 +2615,27 @@ Primera ejecución con el registro de cambios: se guardaron el BAC y los valores
 
 #### ACT-039
 
-**Avance sin costo** · Advertencia · actualizar y analizar · se puede silenciar
+**Avance sin coste** · Advertencia · actualizar y analizar · se puede silenciar
 
-La fila tiene EV acumulado y no tiene AC acumulado: el costo real no se cargó o se imputó a otro paquete, y el CPI no se puede calcular.
+La fila tiene EV acumulado y no tiene AC acumulado: el coste real no se cargó o se imputó a otro paquete, y el CPI no se puede calcular.
 
 **Qué hacer:** Cargar el AC del paquete en la hoja AC o revisar el avance informado.
 
 #### ACT-040
 
-**Costo sin avance** · Advertencia · actualizar y analizar · se puede silenciar
+**Coste sin avance** · Advertencia · actualizar y analizar · se puede silenciar
 
-La fila tiene AC acumulado y no tiene EV acumulado: costo sin trabajo medido. No se revisa en los paquetes con método 0/100 o «Hitos ponderados», en los que el EV llega al terminar o al cumplirse cada hito.
+La fila tiene AC acumulado y no tiene EV acumulado: coste sin trabajo medido. No se revisa en los paquetes con método 0/100 o «Hitos ponderados», en los que el EV llega al terminar o al cumplirse cada hito.
 
 **Qué hacer:** Revisar el avance en MS Project, el método de medición o la imputación del AC.
 
 #### ACT-041
 
-**Costo después de terminar el paquete** · Advertencia · actualizar y analizar · se puede silenciar
+**Coste después de terminar el paquete** · Advertencia · actualizar y analizar · se puede silenciar
 
 La fila tiene AC en meses posteriores al mes en que su % ganado llegó al 100 %.
 
-**Qué hacer:** Revisar si es un costo tardío del paquete (y explicarlo) o un costo de otro paquete.
+**Qué hacer:** Revisar si es un coste tardío del paquete (y explicarlo) o un coste de otro paquete.
 
 #### ACT-042
 
@@ -2684,9 +2649,9 @@ Los controles del EV y el AC se revisan hasta el último mes con AC cargado (o n
 
 **Análisis del mes anterior incompleto** · Advertencia · actualizar y analizar · se puede silenciar
 
-La fila del último análisis anterior al mes de corte tiene texto, pero no tiene Causa o no tiene Acción correctiva.
+La fila del último análisis anterior al mes de corte tiene texto, pero no tiene Causa o no tiene Acción (las filas con Estado Cerrada no se avisan).
 
-**Qué hacer:** Completar la causa y la acción correctiva en la hoja Análisis de desviaciones.
+**Qué hacer:** Completar la causa y la acción en la hoja Análisis de desviaciones.
 
 #### ACT-044
 
@@ -2700,9 +2665,9 @@ Paquetes que estaban fuera de umbral en el último análisis anterior al mes de 
 
 **Acción vencida con el paquete fuera de umbral** · Advertencia · actualizar y analizar · se puede silenciar
 
-El paquete sigue fuera de umbral en el mes de corte y la Fecha compromiso de su acción correctiva es anterior a la fecha de corte: la acción no se cumplió o no fue eficaz.
+El paquete sigue fuera de umbral en el mes de corte, la Fecha objetivo de su acción es anterior a la fecha de corte y su Estado no es Cerrada: la acción no se cumplió o no fue eficaz.
 
-**Qué hacer:** Revisar la acción correctiva y su fecha compromiso en la hoja Análisis de desviaciones.
+**Qué hacer:** Revisar la acción, su fecha objetivo y su estado en la hoja Análisis de desviaciones.
 
 #### ACT-046
 
@@ -2724,7 +2689,7 @@ El % planificado que resulta hoy de MS Project no coincide con el de las hojas %
 
 **EAC poco realista** · Advertencia · actualizar y analizar · se puede silenciar
 
-El TCPI(BAC) supera al CPI en más de 0,10, o el AC ya alcanzó el BAC con trabajo pendiente: terminar dentro del BAC exige una eficiencia de costo muy superior a la lograda. Se calcula con el proyecto (cada empresa en multi-empresa) en el último mes con AC cargado, desde el 20 % completado: antes, el CPI acumulado todavía no es representativo.
+El TCPI(BAC) supera al CPI en más de 0,10, o el AC ya alcanzó el BAC con trabajo pendiente: terminar dentro del BAC exige una eficiencia de coste muy superior a la lograda. Se calcula con el proyecto (cada empresa en multi-empresa) en el último mes con AC cargado, desde el 20 % completado: antes, el CPI acumulado todavía no es representativo.
 
 **Qué hacer:** Revisar el EAC y, si el desvío se confirma, evaluar una línea base por encima del objetivo (OTB) con el cliente.
 
@@ -2751,6 +2716,14 @@ ignorar_ceros_intermedios de la configuración no coincide con el del libro, y a
 Se agregaron tareas en MS Project después de generar el libro, con un código EDT (o en la lista EDT) que les daría fila propia, dentro de una fila de ingreso: su avance se suma en el % ganado de esa fila, pero su duración no forma parte del % planificado del libro (ver [ACT-047](#act-047)).
 
 **Qué hacer:** Para darles fila propia, con su % planificado, regenerar el libro con `--migrar-desde`.
+
+#### ACT-052
+
+**Configuración de cálculo distinta de la del libro** · Advertencia · actualizar · se puede silenciar
+
+Una clave de la configuración que interviene en el cálculo (linea_base, distribucion, feriados, incluir_inactivas, rellenar_edt o los campos edt, metodo y peso_hito) no tiene el valor con que se generó el libro, guardado en la hoja oculta `_meta`. El % ganado del mes se calcula con la configuración actual, de modo que puede no ser coherente con el % planificado del libro.
+
+**Qué hacer:** Si el cambio no es intencionado, volver a la configuración del libro. Si lo es, regenerar el libro con `--migrar-desde`.
 
 ---
 
@@ -2838,6 +2811,7 @@ Comando generar-cliente: tareas que se muestran al cliente, «Otras tareas», re
 | [CLI-031](#cli-031) | Advertencia | Tareas sin valor debajo de una tarea que se muestra |
 | [CLI-032](#cli-032) | Info | Calendarios y macros quitados del archivo del cliente |
 | [CLI-033](#cli-033) | Advertencia | Calendarios o macros que no se pudieron quitar |
+| [CLI-034](#cli-034) | Advertencia | Columna del campo del cliente que no se pudo quitar |
 
 #### CLI-001
 
@@ -2853,7 +2827,7 @@ generar-cliente parte de una tarea de primer nivel del esquema (la planificació
 
 Ninguna tarea de la planificación tiene Sí en el campo de [cliente] campo (en ella y en todas sus tareas superiores).
 
-**Qué hacer:** Revisar el campo configurado en [cliente] campo y marcar con Sí las tareas que debe ver el cliente, empezando por las de primer nivel de la planificación.
+**Qué hacer:** Revisar el campo configurado en [cliente] campo y marcar con Sí las tareas que debe ver el cliente, empezando por las de primer nivel de la planificación (también la del proyecto completo, si es la única de primer nivel).
 
 #### CLI-003
 
@@ -3102,6 +3076,14 @@ El archivo del cliente es una copia del .mpp. Se quitaron los calendarios que no
 MS Project no dejó quitar un calendario sin uso, o el archivo del cliente guardado todavía tiene módulos de macros (se comprueba leyendo el archivo). Las macros se quitan con el proyecto VBA o, si MS Project no da acceso a él (Centro de confianza), con el Organizador.
 
 **Qué hacer:** Quitarlos en el archivo del cliente con el Organizador de MS Project (Archivo > Información > Organizador), o permitir en el Centro de confianza de MS Project el acceso al modelo de objetos de proyectos de VBA y volver a generar el archivo.
+
+#### CLI-034
+
+**Columna del campo del cliente que no se pudo quitar** · Advertencia · generar-cliente · se puede silenciar
+
+El archivo del cliente conserva la columna del campo de [cliente] campo en alguna tabla de tareas (sin nombre, se ve como Texto15 o similar): MS Project no dejó quitarla. Sus valores sí se vaciaron.
+
+**Qué hacer:** Quitar la columna en el archivo del cliente (clic derecho en el encabezado > Ocultar columna) y guardarlo.
 
 ---
 
@@ -3518,6 +3500,7 @@ reemplazar por el código que lo informa ahora.
 
 | Código | Descripción | Retirado en | Se informa con | Motivo |
 |---|---|---|---|---|
+| <a id="cfg-015"></a>CFG-015 | Umbral del semáforo indicado dos veces | 2.7.1 | [CFG-058](#cfg-058) | En `[semaforo] se` indicó una clave y también su nombre anterior, que es la misma clave. |
 | <a id="lec-011"></a>LEC-011 | No se encontró el campo de método | 2.6.0 | [LEC-010](#lec-010) | Desde la versión 2.6.0, todo campo de la configuración que no se encuentra en el proyecto se informa con [LEC-010](#lec-010). |
 | <a id="lec-012"></a>LEC-012 | No se encontró el campo de peso de hitos | 2.6.0 | [LEC-010](#lec-010) | Desde la versión 2.6.0, todo campo de la configuración que no se encuentra en el proyecto se informa con [LEC-010](#lec-010). |
 | <a id="lec-013"></a>LEC-013 | No se encontró el campo Visible | 2.6.0 | [LEC-010](#lec-010) | Desde la versión 2.6.0, todo campo de la configuración que no se encuentra en el proyecto se informa con [LEC-010](#lec-010). |
@@ -3555,5 +3538,11 @@ reemplazar por el código que lo informa ahora.
 | <a id="log-012"></a>LOG-012 | Tarea con delimitación | 2.6.0 | [LOG-011](#log-011) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [LOG-011](#log-011). |
 | <a id="log-015"></a>LOG-015 | Tarea con holgura negativa | 2.6.0 | [LOG-014](#log-014) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [LOG-014](#log-014). |
 | <a id="log-019"></a>LOG-019 | Tarea vinculada con otra planificación | 2.6.0 | [LOG-018](#log-018) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [LOG-018](#log-018). |
+| <a id="lib-009"></a>LIB-009 | Libro de una versión anterior | 2.7.1 | [LIB-018](#lib-018) | El libro se generó con la versión 1.x, que calculaba el PV y el EV con los costes de MS Project. |
+| <a id="dep-007"></a>DEP-007 | Previsión pasada al formato con EDT interna | 2.7.1 | [LIB-018](#lib-018) | La hoja PV-depuración del libro anterior no tenía las columnas de EDT interna: los códigos numéricos quedaron como EDT cliente y los demás, como EDT interna, y se agregó la columna EAC. |
+| <a id="dep-009"></a>DEP-009 | Previsión pasada al formato con la columna EAC | 2.7.1 | [LIB-018](#lib-018) | La hoja PV-depuración del libro anterior (versión 2.4) no tenía la columna EAC: se agregó con la suma de los meses de cada línea, y los meses empiezan en la columna G. |
 | <a id="dep-010"></a>DEP-010 | Reparto del plan de costes conservado | 2.6.0 | - | Hasta la versión 2.5, `--migrar-desde` conservaba en el libro nuevo el % planificado de las filas procesadas con procesar-costes. Desde la versión 2.6.0, procesar-costes no modifica el % planificado y `--migrar-desde` lo vuelve a calcular con MS Project (ver [DEP-020](#dep-020)). |
 | <a id="dep-011"></a>DEP-011 | Reparto del plan de costes no combinado | 2.6.0 | - | Hasta la versión 2.5, se informaba la fila nueva que reunía varias filas procesadas con procesar-costes. Desde la versión 2.6.0, el % planificado de todas las filas se calcula con MS Project (ver [DEP-020](#dep-020)). |
+| <a id="dep-020"></a>DEP-020 | % planificado de MS Project recuperado | 2.7.1 | [LIB-018](#lib-018) | Filas que en el libro anterior tenían en la hoja % PV el reparto del plan de costes, escrito por procesar-costes en una versión anterior a la 2.6.0: en el libro nuevo, su % planificado vuelve a ser el de MS Project. El plan de costes se compara con el PV en las filas «(coste)». |
+| <a id="dep-021"></a>DEP-021 | Filas con el reparto del plan de costes | 2.7.1 | [LIB-018](#lib-018) | El libro tiene filas cuyo % planificado es el reparto del plan de costes, escrito por procesar-costes en una versión anterior a la 2.6.0: no es el de MS Project. actualizar no compara esas filas con la línea base ([ACT-047](#act-047)). |
+| <a id="dep-024"></a>DEP-024 | Hoja PV-depuración de una versión anterior | 2.7.1 | [LIB-018](#lib-018) | La hoja PV-depuración tiene el formato de la versión 2.5 o anterior, con el plan desde la celda A8. Desde la versión 2.6.0, el plan empieza en la celda A12, con la tabla Recargos arriba. |

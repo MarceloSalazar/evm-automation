@@ -1,11 +1,11 @@
 """Controles de coherencia del libro en el cierre mensual (norma EIA-748-E).
 
-- EV y AC del mismo período (guías 14 y 15): paquetes con avance y sin costo, con costo y sin avance, o con costo
+- EV y AC del mismo período (guías 14 y 15): paquetes con avance y sin coste, con coste y sin avance, o con coste
   después de llegar al 100 %. Se revisan los valores acumulados hasta el último mes con AC cargado: después de
   'actualizar', el AC del mes de corte se suele cargar a mano y revisar con 'analizar'.
 - Meses sin informe (guía 17): meses sin % ganado entre dos meses cargados.
 - EAC poco realista (guías 20, 23 y 27): TCPI(BAC) muy por encima del CPI, o AC que ya alcanzó el BAC. Se compara
-  desde el 20 % completado: antes, el TCPI está cerca de 1 y el aviso solo repetiría el semáforo del CPI.
+  desde el 20 % completado: antes, el TCPI está cerca de 1 y el aviso solo repetiría el rango admisible del CPI.
 - Peso del LOE en el BAC (guía 10): % del BAC en filas con método LOE, frente a [validacion] loe_maximo.
 
 Los usan 'actualizar' (con el % ganado que acaba de calcular) y 'analizar', con los valores que quedan en el libro.
@@ -157,7 +157,7 @@ def eac_realism(book, idx: int) -> list[Issue]:
         if tcpi - cpi > TCPI_MARGIN + EPS:
             out.append(Issue("ACT-048", message=sentence(
                 prefix, f"TCPI {fmt_number(tcpi)} frente a CPI {fmt_number(cpi)} a {month:%m/%Y} ({done}): "
-                        f"terminar dentro del BAC exige una eficiencia de costo de {fmt_number(tcpi)} en el trabajo "
+                        f"terminar dentro del BAC exige una eficiencia de coste de {fmt_number(tcpi)} en el trabajo "
                         f"que queda, frente a {fmt_number(cpi)} lograda hasta ahora. Se debe revisar el EAC ({eac}) "
                         "y, si el desvío se confirma, evaluar una línea base por encima del objetivo (OTB).")))
     return out

@@ -1,7 +1,7 @@
 """Lector de archivos XML de MS Project (Archivo > Guardar como > XML).
 
 No requiere MS Project instalado. Formato: esquema MSPDI
-(http://schemas.microsoft.com/project). Los costos del XML no se leen: el BAC se
+(http://schemas.microsoft.com/project). Los costes del XML no se leen: el BAC se
 ingresa en el libro.
 """
 from __future__ import annotations
@@ -25,6 +25,9 @@ log = logging.getLogger(__name__)
 # Prefijo de FieldID de los campos de tarea (los de recurso usan 0x0C40xxxx y los de asignación
 # 0x0F40xxxx); <ExtendedAttributes> define los campos personalizados de todas esas entidades.
 _TASK_FIELD_PREFIX = 0x0B400000
+# Tipo de un campo empresarial según el CFType de su definición en el XML: coste y número son numéricos (0 = vacío),
+# texto es de texto; los demás tipos (o sin CFType) se deciden con los valores leídos
+_CF_NUMERIC = {"0": True, "5": True, "7": False}
 
 
 class XmlFormatError(EvmError, ValueError):
@@ -145,6 +148,7 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True, client: bool = F
 
     # Definiciones de campos personalizados: FieldID -> (FieldName, Alias)
     defs: dict[int, tuple[str, str]] = {}
+    cf_types: dict[int, str] = {}       # CFType de los campos empresariales (0 coste, 5 número, 7 texto...)
     ext_parent = root.find(r.q("ExtendedAttributes"))
     if ext_parent is not None:
         for ea in ext_parent.findall(r.q("ExtendedAttribute")):
@@ -154,6 +158,7 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True, client: bool = F
                 continue
             if (fid & 0xFFFF0000) == _TASK_FIELD_PREFIX:     # solo campos de tarea, como con COM
                 defs[fid] = (r.text(ea, "FieldName"), r.text(ea, "Alias"))
+                cf_types[fid] = r.text(ea, "CFType")
 
     wbs_ref = _resolve(cfg.wbs_field, defs) or ("elem", "WBS")
     if cfg.wbs_field and _resolve(cfg.wbs_field, defs) is None:
@@ -172,7 +177,8 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True, client: bool = F
     weight_numeric: bool | None = False
     if weight_ref is not None and weight_ref[0] == "ext":
         weight_numeric = (True if weight_ref[1] in TASK_NUMBER_IDS.values() else
-                          False if weight_ref[1] in TASK_TEXT_IDS.values() else None)
+                          False if weight_ref[1] in TASK_TEXT_IDS.values() else
+                          _CF_NUMERIC.get(cf_types.get(weight_ref[1], "")))
     raw_weights: list[tuple[Task, str]] = []
     if cfg.milestone_weight_field and weight_ref is None:
         warnings.append(missing_field("peso_hito", cfg.milestone_weight_field, "el XML", cfg))
@@ -327,7 +333,7 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True, client: bool = F
             raw_weights.append((task, raw_weight))
 
     if weight_numeric is None and raw_weights:
-        # Como con COM: todos los valores escritos son números y al menos la mitad de las tareas tienen 0
+        # Sin CFType en la definición del campo. Como con COM: todos los valores escritos son números y al menos la mitad de las tareas tienen 0
         written = [w for _t, w in raw_weights if w.strip()]
         numbers = [parse_number(w) for w in written]
         if written and all(n is not None for n in numbers) and sum(1 for n in numbers if n == 0) * 2 >= len(raw_weights):

@@ -45,7 +45,7 @@ flowchart LR
         C1["Nueva línea base<br/>en MS Project"] --> C2["generar<br/>--migrar-desde"]
     end
     INI --> MES
-    MES -- "cambio de alcance,<br/>plazo o costo" --> CAMBIO
+    MES -- "cambio de alcance,<br/>plazo o coste" --> CAMBIO
     CAMBIO --> MES
 ```
 
@@ -66,11 +66,11 @@ gráficos) para que el tiempo del cierre se dedique a analizar las desviaciones 
 | **Jefe de Proyecto / Jefe de Programa** | Dueño del informe. Aprueba la línea base y los métodos de medición, ejecuta o supervisa `actualizar`, analiza las desviaciones y propone acciones y EAC. |
 | **Responsables de paquete** (cuentas de control) | Confirman el método y definen el criterio de medición de sus paquetes, informan el avance físico con evidencia objetiva (entregables, hitos, cantidades) y explican las desviaciones que superan los umbrales. |
 | **Planificador / Control de proyectos (PMO)** | Propone el método de medición de cada paquete. Mantiene el cronograma en MS Project: carga los métodos aprobados, fija la fecha de estado, registra el avance, guarda las líneas base aprobadas, ejecuta `validar` y verifica la hoja `Validación`. |
-| **Finanzas / Administración** | Entrega el presupuesto (BAC) de cada paquete al comienzo y el costo real devengado del período (ERP), con la misma fecha de corte y en la misma base que el BAC, y las estimaciones de costos devengados no facturados. |
+| **Finanzas / Administración** | Entrega el presupuesto (BAC) de cada paquete al comienzo y el coste real devengado del período (ERP), con la misma fecha de corte y en la misma base que el BAC, y las estimaciones de costes devengados no facturados. |
 | **Dirección / Cliente** | Recibe el informe, aprueba los cambios de línea base y las acciones correctivas. |
 
 En proyectos pequeños varios roles los cumple la misma persona; lo importante es que el avance, el
-costo real y el análisis tengan un responsable claro.
+coste real y el análisis tengan un responsable claro.
 
 ---
 
@@ -108,7 +108,7 @@ costo real y el análisis tengan un responsable claro.
 ```mermaid
 flowchart TD
     S(["Fin de mes"]) --> R1["Responsables de paquete:<br/>avance físico con evidencia"]
-    S --> R2["Finanzas: costo real<br/>devengado del mes"]
+    S --> R2["Finanzas: coste real<br/>devengado del mes"]
     R1 --> P0["MS Project: fecha de estado =<br/>último día del mes"]
     P0 --> P1["MS Project: registrar avance<br/>(% completado, % físico,<br/>fechas reales, hitos cumplidos)"]
     P1 --> P2["validar"]
@@ -139,7 +139,7 @@ gantt
     section Datos
     Avance físico de los paquetes         :a1, 2026-02-01, 2d
     Avance en MS Project y validar        :a2, after a1, 1d
-    Costo real devengado (ERP)            :a3, 2026-02-01, 3d
+    Coste real devengado (ERP)            :a3, 2026-02-01, 3d
     section Cálculo
     actualizar --simular y revisión       :b1, after a2, 1d
     actualizar y carga del AC             :b2, after a3, 1d
@@ -163,10 +163,10 @@ gantt
    ([Validaciones](validaciones-y-problemas.md#12-avance-a-la-fecha-de-estado-validar)).
 5. Ejecutar **`actualizar --simular`** y revisar las observaciones por fila: métodos no definidos,
    valores del mes negativos, tareas con código EDT sin fila en el libro y filas sin BAC.
-6. Ejecutar **`actualizar`**, cargar en la hoja `AC` (o en las de cada empresa) el costo real devengado
+6. Ejecutar **`actualizar`**, cargar en la hoja `AC` (o en las de cada empresa) el coste real devengado
    del mes que entrega Finanzas (ERP o contabilidad) y ejecutar **`analizar`** para completar la lista de
    paquetes fuera de umbral ([Análisis de desviaciones](analisis-desviaciones.md#3-cierre-mensual)).
-   Revisar sus avisos: paquetes con avance y sin costo, con costo y sin avance o con costo después de
+   Revisar sus avisos: paquetes con avance y sin coste, con coste y sin avance o con coste después de
    terminar ([ACT-039](codigos.md#act-039) a [ACT-041](codigos.md#act-041)), análisis del mes anterior
    incompleto y acciones vencidas ([ACT-043](codigos.md#act-043) a [ACT-045](codigos.md#act-045)), EAC
    poco realista ([ACT-048](codigos.md#act-048)), y cambios del BAC o de meses ya informados, que se
@@ -177,7 +177,7 @@ gantt
 7. **Abrir el libro** y revisar el `Cuadro de Mando` (mes de reporte = mes de corte) e `Indicadores EDT`:
    la tendencia de los últimos 3 meses y la variación respecto del mes anterior, y el plazo según el
    cronograma de MS Project (desvío de fin y paquetes críticos atrasados).
-8. **Analizar las desviaciones** de los paquetes fuera de umbral: causa, impacto en plazo y costo (las
+8. **Analizar las desviaciones** de los paquetes fuera de umbral: causa, impacto en alcance, plazo y coste (las
    columnas de tendencia, desvío de fin, holgura y crítica ayudan a priorizar), y acción correctiva con
    responsable y fecha, en la hoja
    [Análisis de desviaciones](analisis-desviaciones.md), que los lista y conserva el texto de cada mes.
@@ -202,7 +202,7 @@ Qué guarda cada línea base, cuál usa el PV, buenas prácticas y cómo corregi
 
 ```mermaid
 flowchart TD
-    A["Solicitud de cambio"] --> B["Análisis de impacto<br/>(alcance, plazo, costo)"]
+    A["Solicitud de cambio"] --> B["Análisis de impacto<br/>(alcance, plazo, coste)"]
     B --> C{"¿Aprobado?"}
     C -- "No" --> Z["Se mantiene la línea base<br/>(la desviación se informa)"]
     C -- "Sí" --> D["MS Project: copiar la línea base<br/>vigente en Línea base N (historial)"]
@@ -238,8 +238,8 @@ flowchart TD
 
 - Al terminar todos los paquetes, el EV acumulado debe ser igual al BAC: si no lo es, revisar paquetes
   no marcados al 100 % o hitos pendientes.
-- El AC final debe conciliarse con contabilidad (costos devengados tardíos).
-- El CPI final y la diferencia entre el BAC y el costo final (VAC real) son la base de las lecciones
+- El AC final debe conciliarse con contabilidad (costes devengados tardíos).
+- El CPI final y la diferencia entre el BAC y el coste final (VAC real) son la base de las lecciones
   aprendidas y de las estimaciones de proyectos futuros.
 
 ---
@@ -263,15 +263,15 @@ flowchart TD
   pequeña del BAC.
 - Paquetes de duración acotada: idealmente no más de 2 o 3 períodos de informe por paquete o por hito.
 
-**Costo real**
+**Coste real**
 
-- Costo **devengado** del período (no pagos ni compromisos), con la misma fecha de corte que el avance.
+- Coste **devengado** del período (no pagos ni compromisos), con la misma fecha de corte que el avance.
 - Estructura de cuentas del ERP alineada con la EDT (por paquete o al menos por elemento de nivel 2),
-  para poder asignar el costo real a cada fila.
+  para poder asignar el coste real a cada fila.
 
 **Análisis e informe**
 
-- Umbrales de variación acordados (por ejemplo, los del `[semaforo]`) y explicación de causas para los
+- Umbrales de variación acordados (por ejemplo, los de `[rangos_admisibles]`) y explicación de causas para los
   paquetes fuera de umbral.
 - Analizar tendencias (últimos 3 meses), no solo el valor acumulado: el `Cuadro de Mando` y el `Resumen`
   muestran el CPI y el SPI de los últimos 3 meses, y el análisis de desviaciones, la tendencia de cada
@@ -288,7 +288,7 @@ flowchart TD
 - [ ] Hitos cumplidos marcados al 100 %; hitos no cumplidos reprogramados.
 - [ ] Trabajo pendiente reprogramado después de la fecha de estado.
 - [ ] `validar` sin errores y sin trabajo pendiente antes de la fecha de estado.
-- [ ] Costo real devengado del mes recibido de Finanzas (ERP o contabilidad).
+- [ ] Coste real devengado del mes recibido de Finanzas (ERP o contabilidad).
 - [ ] `actualizar --simular` revisado: sin métodos `Por definir`, sin valores del mes negativos sin
       explicar, sin tareas con código EDT sin fila en el libro ni filas sin BAC.
 - [ ] `actualizar` ejecutado; AC del mes cargado en la hoja `AC` y `analizar` ejecutado, sin avisos de

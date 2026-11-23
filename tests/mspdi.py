@@ -120,10 +120,10 @@ def task_xml(uid: int, level: int | None, name: str = "Tarea", *, tid: int | Non
              ext: dict[int, str] | None = None, extra: str = "") -> str:
     """<Task>.
 
-    level None omite <OutlineLevel>. baselines: tuplas (número, inicio, fin, costo) con
+    level None omite <OutlineLevel>. baselines: tuplas (número, inicio, fin, coste) con
     inicio/fin None si no existen, y opcionalmente la duración (p. ej. "PT80H0M0S") como quinto
     elemento. timephased: tuplas (tipo, inicio, fin, monto) de
-    <TimephasedData> (tipo 10 = costo de línea base; 19 + 6 * (N - 1) = línea base N).
+    <TimephasedData> (tipo 10 = coste de línea base; 19 + 6 * (N - 1) = línea base N).
     ext: {FieldID: valor} de campos personalizados. extra: XML agregado tal cual.
     """
     parts = [f"<Task><UID>{uid}</UID><ID>{uid if tid is None else tid}</ID>{_el('Name', name)}",
@@ -149,13 +149,15 @@ def project_xml(tasks: list[str] | None, *, title: str | None = "Prueba", header
 
     tasks None omite <Tasks>. header: elementos de proyecto agregados tal cual (p. ej.
     <BaselineForEarnedValue>). definitions: tuplas (FieldID, FieldName, alias) de
-    <ExtendedAttributes>; alias "" o None si el campo no tiene alias.
+    <ExtendedAttributes>; alias "" o None si el campo no tiene alias. Un cuarto valor
+    opcional es el CFType del campo (campo empresarial: "5" número, "7" texto).
     """
     defs = ""
     if definitions:
-        defs = "<ExtendedAttributes>" + "".join(
-            f"<ExtendedAttribute><FieldID>{fid}</FieldID>{_el('FieldName', fname)}{_el('Alias', alias or None)}"
-            "</ExtendedAttribute>" for fid, fname, alias in definitions) + "</ExtendedAttributes>"
+        defs = ("<ExtendedAttributes>" + "".join(
+            f"<ExtendedAttribute><FieldID>{d[0]}</FieldID>{_el('FieldName', d[1])}{_el('Alias', d[2] or None)}"
+            f"{_el('CFType', d[3] if len(d) > 3 else None)}</ExtendedAttribute>" for d in definitions)
+                + "</ExtendedAttributes>")
     cals = f"<Calendars>{''.join(calendars)}</Calendars>" if calendars else ""
     body = "" if tasks is None else f"<Tasks>{''.join(tasks)}</Tasks>"
     return (f'<?xml version="1.0" encoding="UTF-8"?>\n<Project xmlns="{NS}">{_el("Title", title)}'

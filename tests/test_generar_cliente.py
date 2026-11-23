@@ -119,6 +119,19 @@ def test_without_plan_the_whole_project_is_used():
     assert plan.shown == {1} and plan.root is None and plan.new_name == "" and plan.outside == []
 
 
+WHOLE = Config(client_field="Etiqueta Cliente")
+
+
+@pytest.mark.parametrize("mark", ["", "No"])
+def test_without_plan_the_project_task_also_needs_yes(mark):
+    """Un solo resumen de primer nivel (el proyecto) sin Sí: no se muestra nada, y CLI-002 dice qué tarea superior
+    no tiene Sí y cuántas tareas lo tienen."""
+    with pytest.raises(EvmError) as exc:
+        plan_of([task(1, 1, "Programa", mark), task(2, 2, "A"), task(3, 2, "B"), task(4, 3, "B1")], WHOLE)
+    assert exc.value.id == "CLI-002"
+    assert "3 tareas tienen Sí, pero una tarea superior no lo tiene (por ejemplo 1 (UID 1))" in str(exc.value)
+
+
 def test_plan_must_be_a_top_level_task():
     tasks = [task(1, 1, "Programa", ""), task(2, 2, "INTERNO", "", wbs=""), task(3, 3, "A")]
     with pytest.raises(EvmError) as exc:

@@ -160,13 +160,3 @@ def test_summary_parameters(book, example_files):
         assert wb[name]["A2"].value == (f"Proyecto: Programa de ejemplo EVM  |  Origen: base.xml  |  Línea base  |  "
                                         f"Generado: {generated:%d/%m/%Y}")
     assert wb["Cuadro de Mando"]["B3"].value == "Línea base"
-
-
-def test_previous_method_name_keeps_its_description():
-    """«Avance lineal (LOE)», el nombre del método hasta la versión 2.5, puede seguir en [metodos] lista: tiene la
-    descripción de «Avance lineal» en la hoja Listas."""
-    from openpyxl import Workbook
-    from evm.workbook import METHOD_HELP, _write_lists
-    ws = Workbook().active
-    _write_lists(ws, ["Avance lineal", "Avance lineal (LOE)"])
-    assert ws.cell(2, 2).value == ws.cell(3, 2).value == METHOD_HELP["Avance lineal"]

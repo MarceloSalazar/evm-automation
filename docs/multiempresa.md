@@ -40,7 +40,7 @@ El cálculo de cada fila, con un ejemplo, se detalla en
   una** (CPI y SPI por empresa) además del total.
 - Hay paquetes compartidos en los que cada empresa ejecuta una parte acordada del trabajo (por
   ejemplo, la gestión del programa 60/40).
-- Cada empresa registra sus **costos reales en su propio sistema** (ERP) y el AC del proyecto es la suma
+- Cada empresa registra sus **costes reales en su propio sistema** (ERP) y el AC del proyecto es la suma
   de ambos.
 - Cada empresa conoce el **presupuesto de su parte** de cada paquete, que no se carga en el cronograma
   compartido.
@@ -277,7 +277,7 @@ sequenceDiagram
 ```
 
 Se recomienda acordar con ambas empresas la **misma fecha de corte**, la misma base para el BAC y el AC
-(por ejemplo, ambos a precio de contrato) y el mismo criterio de costo real (devengado), y que cada una
+(por ejemplo, ambos a precio de contrato) y el mismo criterio de coste real (devengado), y que cada una
 revise su EV antes de emitir el informe. El BAC de cada empresa se ingresa una vez, después de
 `generar`, y se cambia solo con los cambios aprobados.
 

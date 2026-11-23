@@ -19,7 +19,7 @@ El BAC de cada fila se ingresa en la hoja `PV`, el PV y el EV son el BAC × el %
 3. [Reglas de uso](#3-reglas-de-uso)
 4. [Cambios de línea base o de EDT (`--migrar-desde`)](#4-cambios-de-línea-base-o-de-edt---migrar-desde)
 5. [Hojas de cálculo y control](#5-hojas-de-cálculo-y-control)
-6. [Libros de versiones anteriores](#6-libros-de-versiones-anteriores)
+6. [Formato del libro y versiones anteriores](#6-formato-del-libro-y-versiones-anteriores)
 
 ---
 
@@ -27,13 +27,13 @@ El BAC de cada fila se ingresa en la hoja `PV`, el PV y el EV son el BAC × el %
 
 | Hoja | Contenido |
 |---|---|
-| **Cuadro de Mando** | Tablero del mes de reporte: valores acumulados, desviaciones, índices con semáforo, pronósticos y tres gráficos. Ver [Cuadro de Mando e indicadores](cuadro-de-mando.md). |
+| **Cuadro de Mando** | Tablero del mes de reporte: valores acumulados, desviaciones, índices con sus rangos admisibles, pronósticos y tres gráficos. Ver [Cuadro de Mando e indicadores](cuadro-de-mando.md). |
 | **Resumen** | Fecha de corte (celda amarilla `B5`, con nombre `FechaCorte`), parámetros de la exportación e indicadores del proyecto a la fecha de corte, incluidos el Earned Schedule, la tendencia (últimos 3 meses y mes anterior) y el plazo según el cronograma de MS Project. |
 | **PV** | Valor planificado: columnas A–F con la EDT y el BAC, y una columna por mes. El BAC se ingresa en la columna D (celdas amarillas) y cada mes es el BAC × el % planificado. |
 | **% PV** | % planificado de cada mes, que calcula `generar` desde MS Project. |
 | **EV** | Valor ganado de cada mes: el BAC × el % ganado. |
 | **% EV** | % ganado de cada mes, que calcula `actualizar`. Con `generar --ev-rellenar` (o `[exportacion] ev_historico = true`; desactivado por defecto), si el archivo de MS Project ya tiene avance y fecha de estado, `generar` carga el de los meses hasta la fecha de estado ([Cálculo del PV y el EV](calculo-pv-ev.md#7-del--acumulado-al--del-mes)). |
-| **AC** | Costo real de cada mes (celdas amarillas), que se ingresa a mano. |
+| **AC** | Coste real de cada mes (celdas amarillas), que se ingresa a mano. |
 | **PV-EmpresaA**, **% PV-EmpresaA**, **EV-EmpresaA**, **% EV-EmpresaA**, **AC-EmpresaA** y las de EmpresaB | Solo en multi-empresa: valores de cada empresa, en lugar de las hojas `% PV` y `% EV`. Las hojas `PV`, `EV` y `AC` son la suma de las dos ([Multi-empresa](multiempresa.md)). |
 | **Evolución mensual** | Tabla mensual del proyecto (datos de la curva S). |
 | **Indicadores EDT** | Indicadores de cada elemento de la EDT a la fecha de corte y su plazo según el cronograma de MS Project (fin previsto, desvío de fin, holgura y camino crítico). |
@@ -49,7 +49,9 @@ El BAC de cada fila se ingresa en la hoja `PV`, el PV y el EV son el BAC × el %
 
 ## 2. Hojas PV, EV y AC
 
-Las tres hojas tienen la misma estructura:
+Las tres hojas tienen la misma estructura. El título de la hoja `PV` (y de `PV-EmpresaA` y `PV-EmpresaB`)
+indica **Línea base (PMB - Performance Measurement Baseline)**: el PV mensual es la línea base de medida
+del rendimiento contra la que se compara el EV.
 
 | Columna | Contenido |
 |---|---|
@@ -65,8 +67,7 @@ Las tres hojas tienen la misma estructura:
 Las fechas de las columnas E y F de las hojas `EV`, `% EV` y `AC` se leen de MS Project en cada `generar`
 y `actualizar` (las de la última lectura): el inicio pasa de previsto a real cuando comienza el trabajo y
 el fin es el previsto hasta que terminan todas las tareas de la fila. La hoja `EV` tiene los valores; las hojas `% EV` y `AC` (y las
-de cada empresa) los toman de ella. En los libros generados con versiones anteriores a la 2.7.0, esas
-hojas repetían las fechas del plan de la hoja `PV`: `actualizar` las reemplaza.
+de cada empresa) los toman de ella.
 
 ![Hoja PV del proyecto de ejemplo](img/excel/pv.png)
 
@@ -97,6 +98,12 @@ Los valores mensuales son el **valor del mes**, no el acumulado.
   detalle, también otras) son **subtotales** (fórmulas `SUM` de sus hijos). Los valores se ingresan solo
   en las filas sin subelementos: paquetes de trabajo y filas `-D`.
 - Las filas se pueden **contraer por nivel** con los botones de esquema (1, 2, 3) a la izquierda.
+- Las hojas de resultados y de datos (`Cuadro de Mando`, `Resumen`, `PV`, `EV`, `AC`, `% PV`, `Indicadores EDT`,
+  `Evolución mensual` y las ocultas) están **protegidas sin contraseña**: solo se pueden editar las celdas de
+  ingreso (amarillas o con lista desplegable). Se pueden filtrar, ordenar y cambiar el ancho de columnas. Para
+  usar los botones de esquema o corregir otra celda, se desprotege la hoja (Revisar > Desproteger hoja) y se
+  vuelve a proteger al terminar. `[exportacion] proteger_hojas = false` genera el libro sin protección
+  ([Configuración](configuracion.md)).
 - **No se deben insertar, eliminar ni ordenar filas o columnas** en `PV`, `% PV`, `EV`, `% EV`, `AC` ni
   en las hojas de cada empresa: `actualizar` ubica cada fila por su posición. Si los códigos EDT de la columna A no
   coinciden con los del libro generado, o si falta una hoja o se modificaron las hojas ocultas,
@@ -163,14 +170,12 @@ Qué se traslada:
 - Con depuración de costes, el contenido de la hoja `PV-depuración` (el plan de costes y los recargos de
   la tabla `Recargos`), si el libro nuevo también depura la misma empresa
   ([Depuración de costes](depuracion-costes.md#9-ciclo-de-ajuste)).
-- El % planificado no se traslada: el libro nuevo lo calcula con MS Project. Las filas que en el libro
-  anterior tenían el reparto del plan de costes (`procesar-costes` antes de la versión 2.6.0) vuelven a
-  tener el de MS Project ([DEP-020](codigos.md#dep-020)).
+- El % planificado no se traslada: el libro nuevo lo calcula con MS Project.
 
 Lo que no se puede trasladar se informa como **Error** en `Validación` para cargarlo a mano: filas que
 se dividieron en varias y tareas eliminadas. Tampoco se admite migrar entre un libro de una sola empresa
-y uno multi-empresa, ni desde un libro de versiones anteriores
-([sección 6](#6-libros-de-versiones-anteriores)).
+y uno multi-empresa, ni desde un libro anterior a la versión 2.7.1
+([sección 6](#6-formato-del-libro-y-versiones-anteriores)).
 
 Con varios archivos de MS Project, cada fila se asocia por el nombre del archivo y el *Id. único* de la
 tarea; al agregar o quitar archivos, o al pasar de un solo archivo a varios, se aplica lo indicado en
@@ -197,7 +202,7 @@ corte; fuera de ese tramo aparecen como `#N/A` para que los gráficos no dibujen
 ### Indicadores EDT
 
 Para cada fila de la EDT, a la fecha de corte: BAC, PV, EV y AC acumulados, SV, CV, SPI, CPI, EAC, VAC
-y porcentajes planificado, completado y gastado, con semáforo en SPI y CPI. Permite identificar qué
+y porcentajes planificado, completado y gastado, con los colores de los rangos admisibles en SPI y CPI. Permite identificar qué
 paquetes explican la desviación del proyecto. El EAC de cada fila es BAC / CPI; si la fila no tiene CPI
 (sin AC cargado), es AC + (BAC − EV). No depende del método EAC elegido en el `Cuadro de Mando`.
 
@@ -296,21 +301,18 @@ Métodos de medición del desplegable de la columna C y su regla de cálculo.
 
 ---
 
-## 6. Libros de versiones anteriores
+## 6. Formato del libro y versiones anteriores
 
-Los libros generados con las versiones 2.0 a 2.2 se siguen actualizando: `actualizar` agrega las columnas
-de plazo de `Indicadores EDT`, las secciones de tendencia y de plazo del `Resumen` y las columnas nuevas
-del `Análisis de desviaciones`. Las secciones de tendencia y de plazo del `Cuadro de Mando` requieren
-regenerar el libro con `--migrar-desde`.
+La hoja oculta `_meta` guarda el **formato del libro** (`formato_libro`): la estructura de sus hojas,
+columnas y datos. La versión 2.7.1 introduce el formato 1. Desde entonces, una versión que cambie el
+formato debe poder actualizar y migrar los libros de los formatos anteriores: las pruebas del programa
+actualizan, analizan y migran un libro de referencia de cada formato
+([Desarrollo](desarrollo.md#1-pruebas-automáticas)). `_meta` guarda también la configuración de cálculo con que se
+generó el libro (`config.*`): `actualizar` avisa si cambió ([ACT-052](codigos.md#act-052)).
 
-Los libros generados con versiones anteriores a la 2.4.0 reciben la hoja `Registro de cambios` en la primera
-ejecución de `actualizar` o `analizar`, que solo guarda la referencia ([ACT-038](codigos.md#act-038)). Las hojas
-`Validación` y `Validación detalle` las escribe `generar`: un libro anterior a la 2.5.0 conserva su hoja
-`Validación` (sin el resumen, el alcance ni la fila del libro, y antes de la 2.4.0 sin la columna `Código`) hasta
-regenerarlo con `--migrar-desde`.
-
-Los libros generados con versiones 1.x del programa, que calculaban el PV y el EV con los costos
-de MS Project, no se pueden usar: `actualizar`, `analizar` y `--migrar-desde` se detienen sin
-modificarlos. Se debe generar un libro nuevo, ingresar el BAC y cargar a mano el historial que se
-necesite: el % ganado de cada mes en la hoja `% EV` y el AC en la hoja `AC`
-([Cálculo del PV y el EV](calculo-pv-ev.md#7-del--acumulado-al--del-mes)).
+Los libros generados con versiones anteriores a la 2.7.1 (sin `formato_libro`) **no se admiten**:
+`actualizar`, `analizar`, `procesar-costes` y `--migrar-desde` se detienen sin modificarlos
+([LIB-018](codigos.md#lib-018)). Se debe generar un libro nuevo con `generar`, ingresar el BAC y cargar a mano
+el historial que se necesite: el % ganado de cada mes en la hoja `% EV` y el AC en la hoja `AC`
+([Cálculo del PV y el EV](calculo-pv-ev.md#7-del--acumulado-al--del-mes)). Un libro de una versión posterior,
+con otro formato, tampoco se admite: se debe usar esa versión del programa.

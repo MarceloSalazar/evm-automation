@@ -319,6 +319,11 @@ def test_client_field_is_emptied(generated):
     assert not with_value, f"Tareas con valor en el campo del cliente (UID): {with_value[:LIMIT]}"
     assert not found, ("El campo del cliente sigue teniendo su nombre en el archivo generado (CLI-017): ver el "
                        "registro de diagnóstico.")
+    # La columna del campo se quita de las tablas de tareas (sin nombre se vería «Texto15»)
+    assert "CLI-034" not in generated["output"], "No se pudo quitar la columna del campo del cliente (CLI-034)"
+    line = next(x for x in generated["report"].read_text(encoding="utf-8").splitlines()
+                if x.startswith("| Columnas del campo del cliente quitadas"))
+    print(line)
 
 
 def test_every_task_keeps_its_data(anonymous):

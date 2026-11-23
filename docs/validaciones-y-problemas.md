@@ -219,7 +219,7 @@ tareas de detalle y el calendario del proyecto, pero sí a lo que muestra MS Pro
 | `No se pudo guardar ...` | Si el libro está abierto en Excel, se debe cerrar y repetir el comando. |
 | `Hay valores cargados en meses posteriores a la fecha de corte` | Se deben borrar esos meses en la hoja `% EV` (o en las de cada empresa) o usar `--forzar` (y luego revisar o volver a cargar los meses posteriores que se indican). |
 | `... tareas con código EDT no tienen fila en el libro (se agregaron después de generarlo)` | Su avance no se incluye en el % ganado. Se debe regenerar el libro con `--migrar-desde` (se conservan el BAC, el % ganado y el AC) e ingresar el BAC de las filas nuevas ([El libro Excel](libro-excel.md#4-cambios-de-línea-base-o-de-edt---migrar-desde)). |
-| `El libro se generó con una versión anterior del programa, que calculaba el PV y el EV con los costos de MS Project ...` | Se debe generar un libro nuevo ([El libro Excel](libro-excel.md#6-libros-de-versiones-anteriores)). |
+| `El libro se generó con una versión anterior del programa, que calculaba el PV y el EV con los costes de MS Project ...` | Se debe generar un libro nuevo ([El libro Excel](libro-excel.md#6-libros-de-versiones-anteriores)). |
 | `La hoja ... no tiene las filas con las que se generó el libro` | Se insertaron, eliminaron u ordenaron filas: se deben deshacer esos cambios o recuperar el libro desde un respaldo. Para cambiar la EDT, se modifica MS Project y se regenera con `--migrar-desde`. |
 | `Falta la hoja ...` o `El dato ... de la hoja oculta _meta no es válido` | Se debe restaurar el nombre original de la hoja o recuperar el libro desde un respaldo. |
 | `Hay celdas sin la fórmula del libro` | Se deben restaurar las fórmulas indicadas (por ejemplo, copiándolas de una celda vecina de la misma fila). |
@@ -236,7 +236,7 @@ tareas de detalle y el calendario del proyecto, pero sí a lo que muestra MS Pro
 | El EV de una fila con `Hitos ponderados` no avanza | Los hitos deben ser subtareas de la fila con duración 0 y marcarse al 100 % al cumplirse ([Métodos de medición](metodos-de-medicion.md#33-hitos-ponderados)). |
 | El PV y el EV de una fila están en 0 | Falta el BAC de la fila en la columna D de la hoja `PV` (o de cada empresa). |
 | `Ninguna fila tiene BAC` o `filas tienen % ganado pero no tienen BAC` | Ingresar el BAC en la columna D de la hoja `PV` (o de cada empresa): el PV y el EV se calculan solos. |
-| Los indicadores de costo (CV, CPI, EAC...) están vacíos o el CPI es muy alto | Falta cargar el AC del mes en la hoja `AC` (o en las de cada empresa): `actualizar` solo calcula el % ganado. |
+| Los indicadores de coste (CV, CPI, EAC...) están vacíos o el CPI es muy alto | Falta cargar el AC del mes en la hoja `AC` (o en las de cada empresa): `actualizar` solo calcula el % ganado. |
 | `--migrar-desde no se admite entre un libro de una sola empresa y uno multi-empresa` | Se debe generar el libro nuevo sin `--migrar-desde` y cargar a mano el historial que se necesite. |
 | `No se encontró el campo de empresa ...` | Se debe revisar `campo_empresa` en `[multiempresa]`: nombre del campo (`Text3`) o su alias en MS Project. |
 | `No se encontró el campo de descripción ...` | Se debe revisar `descripcion` en `[campos]`: `"Notas"` para las notas de la tarea, o el nombre del campo (`Text20`) o su alias en MS Project. Las fichas se crean sin descripción. |

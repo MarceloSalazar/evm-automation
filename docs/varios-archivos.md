@@ -103,7 +103,7 @@ personalizado de texto (por ejemplo `Item EDT`), que permite escribir el código
 
 Cada archivo se indica en una sección `[[proyectos]]` (con **dos corchetes**) del archivo de
 configuración. El resto de la configuración (`[campos]`, `[horizonte]`, `[exportacion]`, `[metodos]`,
-`[semaforo]`, `[validacion]` y `[multiempresa]`) es común a todos los archivos.
+`[rangos_admisibles]`, `[validacion]` y `[multiempresa]`) es común a todos los archivos.
 
 ```toml
 [campos]
@@ -159,7 +159,7 @@ python evm_export.py generar --config config.toml --salida EVM_Programa.xlsx
 Ejemplo de salida con los dos archivos de ejemplo:
 
 ```text
-Exportador EVM 2.7.0
+Exportador EVM 2.7.1
 Leyendo P1: ...\ejemplos\programa_ejemplo.xml ...
 Leyendo P2: ...\ejemplos\proyecto2_ejemplo.xml ...
 Informe: Programa de ejemplo con dos proyectos

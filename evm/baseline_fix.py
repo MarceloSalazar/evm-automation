@@ -7,7 +7,7 @@ Guía: docs/lineas-base.md. Reglas:
   costo previstos) a la línea base M y deja la N vacía (NA; ND en MS Project en español). Borrar (--borrar N): la
   deja vacía. Una tarea sin línea base N no cambia (LBA-016).
 - Establecer (--establecer N): copia a la línea base N los valores actuales de cada tarea (comienzo, fin, duración,
-  trabajo y costo), como «Establecer línea base» de MS Project, solo en las tareas que no la tienen: las que ya la
+  trabajo y coste), como «Establecer línea base» de MS Project, solo en las tareas que no la tienen: las que ya la
   tienen conservan sus valores (LBA-016). Si una tarea resumen de encima era un bloque en la línea base N, deja de
   serlo (LBA-021).
 - --tarea sin --rama: solo esa tarea; una tarea resumen sin --rama es un error (se movería sin sus subtareas).
@@ -67,7 +67,7 @@ def _code(t: Task) -> str:
 # ----------------------------------------------------------------------------
 @dataclass(frozen=True)
 class Values:
-    """Campos de una línea base de una tarea: fechas, duración y trabajo (en minutos) y costo."""
+    """Campos de una línea base de una tarea: fechas, duración y trabajo (en minutos) y coste."""
 
     start: datetime | None = None
     finish: datetime | None = None
@@ -110,7 +110,7 @@ def _days(minutes: float, per_day: float) -> str:
 
 
 def same(a: Values, b: Values, numbers: bool = True) -> bool:
-    """Mismos valores (las fechas al minuto; la duración, el trabajo y el costo con dos decimales)."""
+    """Mismos valores (las fechas al minuto; la duración, el trabajo y el coste con dos decimales)."""
     def d(x, y) -> bool:
         return (x is None) == (y is None) and (x is None or abs((x - y).total_seconds()) < 60)
 
@@ -194,7 +194,7 @@ class XmlStore:
         def values(el) -> Values:
             return Values(date(el, "Start"), date(el, "Finish"), duration_minutes(text(el, "Duration")) or 0.0,
                           duration_minutes(text(el, "Work")) or 0.0,
-                          number(text(el, "Cost")) / 100)       # el costo del MSPDI va en centésimas
+                          number(text(el, "Cost")) / 100)       # el coste del MSPDI va en centésimas
 
         self.data: dict[int, dict[int, Values]] = {}
         self._current: dict[int, Values] = {}
@@ -219,7 +219,7 @@ class XmlStore:
         return self.data.get(uid, {}).get(k, EMPTY)
 
     def current(self, uid: int) -> Values:
-        """Valores actuales de la tarea (comienzo, fin, duración, trabajo y costo): los que copia --establecer."""
+        """Valores actuales de la tarea (comienzo, fin, duración, trabajo y coste): los que copia --establecer."""
         return self._current.get(uid, EMPTY)
 
     def notes(self, uid: int) -> str:
@@ -722,7 +722,7 @@ class ComWriter:
             date("Start", None)
             date("Finish", None)
             # Sin fechas, los números se dejan como estaban en esos valores (0 al borrar; al restaurar, los
-            # anteriores, p. ej. una línea base con solo el costo)
+            # anteriores, p. ej. una línea base con solo el coste)
             for name, value in (("Duration", v.duration), ("Work", v.work), ("Cost", v.cost)):
                 try:
                     setattr(com, _prop(k, name), value or 0)
@@ -743,7 +743,7 @@ class ComWriter:
 
     def write_values(self, items: list[tuple[Task, int, Values]]) -> None:
         """Escribe y comprueba. Si un valor no coincide al volver a leerlo (MS Project recalcula algún campo al
-        escribir otro), se escribe otra vez. Las fechas y la duración deben coincidir (LBA-010); el trabajo y el costo
+        escribir otro), se escribe otra vez. Las fechas y la duración deben coincidir (LBA-010); el trabajo y el coste
         distintos se informan (LBA-020)."""
         from evm.client_writer import com_error_text
         current = None

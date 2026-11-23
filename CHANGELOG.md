@@ -30,6 +30,113 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 - Ninguna.
 
+<a id="v2.7.1"></a>
+
+## [2.7.1] - 2026-11-24 · Rangos admisibles, seguimiento de las desviaciones y formato estable del libro
+
+### Resumen
+
+**Nuevas funciones**
+
+- **Rangos admisibles de SV %, CV % y desviación del avance técnico,** además de SPI y CPI, en el Cuadro de
+  Mando, el Resumen, Indicadores EDT y el Análisis de desviaciones ([Configuración](docs/configuracion.md)).
+- **Análisis de desviaciones con seguimiento hasta el cierre:** impacto en alcance, plazo y coste, código de
+  acción, fecha objetivo, criterio de cierre y estado (`Abierta`, `En curso`, `Cerrada`)
+  ([Análisis de desviaciones](docs/analisis-desviaciones.md#2-columnas)).
+- **Libro protegido y con formato estable:** solo se editan las celdas de ingreso; el libro guarda su formato y
+  la configuración de cálculo, y avisa si esta cambia
+  ([El libro Excel](docs/libro-excel.md#6-formato-del-libro-y-versiones-anteriores)).
+
+**Correcciones**
+
+- **`generar-cliente`:** quita la columna del campo del cliente, que quedaba sin nombre (*Texto15*), y explica qué
+  tarea superior no tiene `Sí` cuando no se muestra ninguna
+  ([Planificación para el cliente](docs/generar-cliente.md#2-qué-tareas-ve-el-cliente)).
+- **Errores al guardar con MS Project** con un mensaje claro, y lectura correcta de un campo de peso
+  empresarial desde el XML ([Configuración](docs/configuracion.md)).
+
+**Otros**
+
+- Terminología: «coste», «sobrecoste», «Rangos admisibles» y la línea base (PMB) en la hoja `PV`. La sección
+  `[semaforo]` de la configuración pasa a llamarse `[rangos_admisibles]` ([Configuración](docs/configuracion.md)).
+- **Los libros anteriores a la 2.7.1 no se admiten:** se debe generar un libro nuevo con `generar`. Desde esta
+  versión, los libros se seguirán actualizando en las versiones siguientes
+  ([El libro Excel](docs/libro-excel.md#6-formato-del-libro-y-versiones-anteriores)).
+- Instalador de Windows adjunto a la publicación.
+
+### Nuevas funciones
+
+- **Análisis de desviaciones con seguimiento hasta el cierre:** las columnas que se completan a mano son
+  *Causa*, *Impacto en alcance, plazo y coste*, *Acción*, *Responsable*, *Fecha objetivo* (antes *Fecha
+  compromiso*), *Criterio de cierre* (nueva) y *Estado* (nueva, con la lista `Abierta`, `En curso` y
+  `Cerrada`). Una fila `Cerrada` no se avisa en el cierre siguiente (`ACT-043`, `ACT-045`) y, si el paquete
+  vuelve a quedar fuera de umbral, su texto no se copia al mes nuevo (antecedente `Nuevo (cerrada en
+  MM/AAAA)`) ([Análisis de desviaciones](docs/analisis-desviaciones.md#2-columnas)).
+- **Rangos admisibles de SV %, CV % y desviación del avance técnico:** además de SPI y CPI, el SV % (SV / PV),
+  el CV % (CV / EV) y la desviación del avance técnico (% completado − % planificado, en puntos del BAC) tienen
+  rangos verde, amarillo y rojo (por defecto ±5 % y ±10 %: `sv_amarillo`, `sv_rojo`, `cv_amarillo`, `cv_rojo`,
+  `avance_amarillo` y `avance_rojo` en `[rangos_admisibles]`). Colorean esos valores en el `Cuadro de Mando`, el
+  `Resumen`, `Indicadores EDT` y el `Análisis de desviaciones`, que lista también los paquetes fuera de su
+  verde y tiene la columna nueva *Desv. avance* ([Configuración](docs/configuracion.md)).
+- **Código de acción** en el `Análisis de desviaciones`: el de la acción en el registro de acciones del
+  programa, para su trazabilidad ([Análisis de desviaciones](docs/analisis-desviaciones.md#2-columnas)).
+- **Configuración de cálculo guardada en el libro:** `_meta` guarda `linea_base`, `distribucion`, `feriados`,
+  `incluir_inactivas`, `rellenar_edt` y los campos `edt`, `metodo` y `peso_hito` con que se generó el libro;
+  `actualizar` avisa si alguna cambió (`ACT-052`, nuevo) ([Configuración](docs/configuracion.md)).
+- **Hojas protegidas** sin contraseña: en las hojas de resultados y de datos solo se editan las celdas de
+  ingreso (`[exportacion] proteger_hojas`, `true` por defecto)
+  ([El libro Excel](docs/libro-excel.md#3-reglas-de-uso)).
+- **Formato del libro:** la hoja oculta `_meta` guarda `formato_libro = 1`. Desde la 2.7.1, cada cambio de
+  la estructura del libro aumenta ese número y la versión que lo introduce migra los libros anteriores; un
+  libro de otro formato se rechaza (`LIB-018`, nuevo)
+  ([El libro Excel](docs/libro-excel.md#6-formato-del-libro-y-versiones-anteriores)).
+
+### Correcciones
+
+- `generar-cliente`, `actualizar-edt` y `corregir-linea-base`: si MS Project no podía guardar el archivo (de solo
+  lectura, abierto en otra instancia, sin espacio), el programa terminaba con un error inesperado (código de
+  salida 3). Ahora informa `LEC-027` (nuevo), con el error de MS Project y qué revisar, y sale con el código 2
+  ([Códigos de errores y advertencias](docs/codigos.md#lec-027)).
+- `generar-cliente`: el archivo del cliente conservaba la columna del campo de `[cliente] campo` en las tablas de
+  tareas, sin nombre (se veía como *Texto15*). Ahora se quita de todas las tablas; si MS Project no lo permite,
+  se avisa (`CLI-034`, nuevo) ([Planificación para el cliente](docs/generar-cliente.md)).
+- `generar-cliente`: cuando no se muestra ninguna tarea porque una tarea superior no tiene `Sí` (por
+  ejemplo, la única tarea de primer nivel, la del proyecto completo, sin valor), `CLI-002` decía solo que
+  ninguna tarea tenía `Sí`. Ahora indica cuántas tareas lo tienen y qué tarea superior no lo tiene, para
+  poner `Sí` también en ella
+  ([Planificación para el cliente](docs/generar-cliente.md#2-qué-tareas-ve-el-cliente)).
+- Campo de peso empresarial de Project Online leído de un XML: el tipo (número, coste o texto) se toma de
+  la definición del campo en el XML. Antes se decidía por los valores y, como el XML omite los 0 de un
+  campo numérico, un 0 escrito en pocas tareas se tomaba como Peso = 0
+  ([Configuración](docs/configuracion.md)).
+
+### Otros
+
+- **Terminología:**
+  - «coste» y «sobrecoste» en lugar de «costo» y «sobrecosto» en el libro, la consola, los mensajes, la
+    documentación y la presentación (los nombres de MS Project en español, como *Costo previsto*, no
+    cambian);
+  - «Rangos admisibles» en lugar de «Semáforo»: fila *Rangos admisibles CPI y SPI* del `Cuadro de Mando`
+    y columna *Rango admisible* del `Análisis de desviaciones`. La sección de la configuración pasa de
+    `[semaforo]` a `[rangos_admisibles]`, con las mismas claves; con el nombre anterior el programa se
+    detiene (`CFG-058`, nuevo) y ya no se admiten los nombres `rojo` y `amarillo` (`CFG-015` retirado)
+    ([Configuración](docs/configuracion.md));
+  - el título de la hoja `PV` indica **Línea base (PMB - Performance Measurement Baseline)**.
+- **Libros anteriores a la 2.7.1:** no se admiten. `actualizar`, `analizar`, `procesar-costes` y
+  `--migrar-desde` se detienen con `LIB-018`; se debe generar un libro nuevo. Se quita el código que solo
+  servía para libros de versiones anteriores: hoja `Curva S`, Cuadro de Mando anterior a la 2.3.0, hoja
+  `Análisis de desviaciones` leída por posición, hojas y columnas que `actualizar` agregaba a los libros
+  antiguos, valores por defecto de `_meta`, formatos anteriores de la hoja `PV-depuración`, reparto del
+  plan de costes en `% PV` (anterior a la 2.6.0) y el nombre de método `Avance lineal (LOE)` en
+  `[metodos] lista`. Se retiran `LIB-009`, `DEP-007`, `DEP-009`, `DEP-020`, `DEP-021` y `DEP-024`.
+- Pruebas: libro de referencia del formato 1 (`tests/libros/formato_1.xlsx`), que cada versión debe seguir
+  actualizando, analizando y migrando, y revisión opcional de libros reales con `EVM_LIBROS`
+  ([Desarrollo](docs/desarrollo.md#1-pruebas-automáticas)).
+- Guía de convenios en MS Project: campo `Etiqueta Cliente` (qué ve el cliente, incluida la tarea de primer
+  nivel), cómo explicar las desviaciones y seguir sus acciones, rangos admisibles y el nombre `Hitos
+  ponderados` ([Guía de convenios](docs/guia-convenios-ms-project.md)).
+- Capturas del libro regeneradas y presentación con la terminología nueva.
+
 <a id="v2.7.0"></a>
 
 ## [2.7.0] - 2026-11-23 · Pesos por tarea resumen, método Ponderado y corrección de líneas base
@@ -1570,7 +1677,8 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.7.0...desarrollo
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.7.1...desarrollo
+[2.7.1]: https://github.com/MarceloSalazar/evm-automation/compare/v2.7.0...v2.7.1
 [2.7.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.4.1...v2.5.0

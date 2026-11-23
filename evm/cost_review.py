@@ -58,8 +58,6 @@ P_MONTHNUM_ROW, P_HEADER_ROW, P_FIRST = 10, 11, 12
 P_LINES = 2000
 P_LAST = P_FIRST + P_LINES - 1
 P_CODE, P_DESC, P_INT_CODE, P_INT_DESC, P_BAC, P_EAC, P_FIRST_MONTH = 1, 2, 3, 4, 5, 6, 7
-# Hasta la versión 2.5, el plan empezaba en la celda A8 (encabezados en la fila 7): --migrar-desde lo pasa a la A12
-OLD_HEADER_ROW, OLD_FIRST = 7, 8
 # Tabla Recargos ([depuracion_precio.recargos]): D1 y los años desde E1; un coeficiente por fila desde D2
 R_HEAD_ROW, R_FIRST, R_LABEL, R_FIRST_YEAR = 1, 2, P_INT_DESC, P_BAC
 R_LAST = R_FIRST + MAX_RATES - 1
@@ -68,11 +66,6 @@ R_YEARS = 60                            # columnas de años que se leen (hasta 6
 FMT_RATE = "0.00%"
 PASTE_MONTHS = 120                      # meses del plan de costes de la empresa (al menos los del horizonte)
 EAC_HEADER = "EAC"
-# Formatos de la hoja en libros anteriores, que --migrar-desde pasa al actual: sin la columna EAC (meses desde F,
-# versión 2.4) y sin las columnas de EDT interna (código, descripción, BAC con este encabezado y meses desde D)
-FORMAT_CURRENT, FORMAT_NO_EAC, FORMAT_LEGACY = "actual", "sin EAC", "sin EDT interna"
-LEGACY_BAC_HEADER = "BAC (total)"
-FIRST_MONTH_OF = {FORMAT_CURRENT: P_FIRST_MONTH, FORMAT_NO_EAC: 6, FORMAT_LEGACY: 4}
 
 # Hoja _depuracion: columnas por línea pegada (filas P_FIRST a P_LAST, alineadas con PV-depuración)
 (H_TEXT, H_NUM, H_NORM, H_CLIENT, H_TOTAL, H_HORIZON, H_MATCH, H_ROW, H_ABOVE, H_BELOW, H_REPEAT,
@@ -830,27 +823,9 @@ def add_chart(wb, months: int, chart_months: int, currency: str) -> None:
     ws.add_chart(line, "I4")
 
 
-def paste_first_row(ws) -> int:
-    """Primera fila del plan de costes en la hoja PV-depuración: P_FIRST (A12), u OLD_FIRST (A8) en una hoja de la
-    versión 2.5 o anterior."""
-    return P_FIRST if ws.cell(row=P_HEADER_ROW, column=P_EAC).value == EAC_HEADER else OLD_FIRST
-
-
-def paste_format(ws) -> str:
-    """Formato de las columnas de la hoja PV-depuración: FORMAT_CURRENT, FORMAT_NO_EAC (versión 2.4) o FORMAT_LEGACY
-    (sin EDT interna)."""
-    head = paste_first_row(ws) - 1
-    if ws.cell(row=head, column=P_INT_CODE).value == LEGACY_BAC_HEADER:
-        return FORMAT_LEGACY
-    if ws.cell(row=head, column=P_EAC).value == EAC_HEADER:
-        return FORMAT_CURRENT
-    return FORMAT_NO_EAC
-
-
 def last_paste_month(ws, months: int) -> int:
     """Último mes (N°, dentro del horizonte) con algún importe pegado en la hoja PV-depuración."""
-    first = FIRST_MONTH_OF[paste_format(ws)]
-    start = paste_first_row(ws)
+    first, start = P_FIRST_MONTH, P_FIRST
     last = 0
     for values in ws.iter_rows(min_row=start, max_row=min(ws.max_row, start + P_LINES - 1), min_col=first,
                                max_col=first + months - 1, values_only=True):
@@ -860,25 +835,15 @@ def last_paste_month(ws, months: int) -> int:
     return last
 
 
-def read_paste(ws, months: int) -> tuple[list[list], str]:
-    """Líneas pegadas en la hoja PV-depuración (columnas A a la del último mes, desde paste_first_row), sin las filas
-    vacías del final, y el formato de la hoja. Las líneas de un formato anterior se devuelven en el actual: sin las
-    columnas de EDT interna, un código numérico y su descripción quedan como EDT cliente y actividad, y un código no
-    numérico (XRF01) y su descripción, como EDT interna y actividad interna; sin la columna EAC, se agrega con la suma
-    de los meses."""
-    fmt = paste_format(ws)
-    start = paste_first_row(ws)
-    n = FIRST_MONTH_OF[fmt] + paste_months(months) - 1
-    rows = [list(v) for v in ws.iter_rows(min_row=start, max_row=min(ws.max_row, start + P_LINES - 1), max_col=n,
+def read_paste(ws, months: int) -> list[list]:
+    """Líneas pegadas en la hoja PV-depuración (columnas A a la del último mes, desde P_FIRST), sin las filas vacías
+    del final."""
+    n = P_FIRST_MONTH + paste_months(months) - 1
+    rows = [list(v) for v in ws.iter_rows(min_row=P_FIRST, max_row=min(ws.max_row, P_FIRST + P_LINES - 1), max_col=n,
                                           values_only=True)]
     while rows and all(v is None or v == "" for v in rows[-1]):
         rows.pop()
-    if fmt == FORMAT_LEGACY:
-        rows = [([code, desc, None, None] if norm_code(code) is not None else [None, None, code, desc]) + rest
-                for code, desc, *rest in rows]
-    if fmt != FORMAT_CURRENT:
-        rows = [values[:P_EAC - 1] + [_months_total(values[P_EAC - 1:])] + values[P_EAC - 1:] for values in rows]
-    return rows, fmt
+    return rows
 
 
 # ----------------------------------------------------------------------------
@@ -917,8 +882,7 @@ def _year(value) -> int | None:
 
 
 def read_rates(ws) -> RatesTable:
-    """Tabla Recargos (filas R_HEAD_ROW a R_LAST, desde la columna D): años de la fila 1 y textos de la columna D.
-    Solo en una hoja con el plan desde A12 (paste_first_row)."""
+    """Tabla Recargos (filas R_HEAD_ROW a R_LAST, desde la columna D): años de la fila 1 y textos de la columna D."""
     table = RatesTable()
     width = R_FIRST_YEAR + R_YEARS - R_LABEL
     for r, values in enumerate(ws.iter_rows(min_row=R_HEAD_ROW, max_row=R_LAST, min_col=R_LABEL,
@@ -1002,7 +966,7 @@ def resolve_formulas(path, rows: list[list], months: int) -> tuple[list[list], i
     from openpyxl import load_workbook
     wv = load_workbook(path, data_only=True, read_only=True)
     try:
-        cached, _fmt = read_paste(wv[SHEET_PASTE], months)
+        cached = read_paste(wv[SHEET_PASTE], months)
     finally:
         wv.close()
     missing = []
@@ -1012,11 +976,6 @@ def resolve_formulas(path, rows: list[list], months: int) -> tuple[list[list], i
             missing.append((k, c))
         rows[k][c] = value
     return rows, len(cells), missing
-
-
-def _months_total(values: list) -> float | None:
-    amounts = [v for v in values if is_amount(v)]
-    return sum(amounts) if amounts else None
 
 
 def shift_rows(rows: list[list], offset: int, n_paste: int) -> tuple[list[list], float]:

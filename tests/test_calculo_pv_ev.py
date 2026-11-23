@@ -5,7 +5,7 @@ import pytest
 from openpyxl import load_workbook
 
 from evm.cli import main
-from evm.config import DEFAULT_METHODS, MODE_PERCENT, Config, load_config
+from evm.config import DEFAULT_METHODS, Config, load_config
 from evm.methods import parse_method
 from evm.migrate import plan_migration, prior_from_book
 from evm.percent import earned_fraction, leaf_times
@@ -218,7 +218,7 @@ def test_book_sheets_formulas_and_input_cells(tmp_path):
     assert ac_a.cell(row=r, column=7).fill.fgColor.rgb.endswith("FFF2CC")
     assert pct_a.cell(row=r, column=7).value == pytest.approx(0.625)
     meta = {k: v for k, v in wb["_meta"].iter_rows(min_row=2, values_only=True)}
-    assert meta["modo"] == MODE_PERCENT
+    assert meta["formato_libro"] == 1 and "modo" not in meta
     methods = [c.value for c in wb["Listas"]["A"][1:] if c.value]
     assert not any("CPTR" in m for m in methods)
 
@@ -350,19 +350,18 @@ def test_migration_keeps_bac_and_earned_percent(tmp_path):
     assert issues_with(rep, "Se conservó el BAC")
 
 
-def test_books_of_version_1_are_rejected(tmp_path):
-    """Un libro de la versión 1.x (PV y EV con los costos de MS Project) no se actualiza ni se migra."""
+def test_books_before_2_7_1_are_rejected(tmp_path):
+    """Un libro anterior a la 2.7.1 (sin formato_libro en _meta) no se actualiza ni se migra (LIB-018)."""
     old = tmp_path / "old.xlsx"
     make_book(old, excavation_tasks(), config())
     wb = load_workbook(old)
     ws = wb["_meta"]
-    r = next(r for r in range(1, ws.max_row + 1) if ws.cell(r, 1).value == "modo")
-    ws.cell(r, 2).value = "costo"
+    ws.delete_rows(next(r for r in range(1, ws.max_row + 1) if ws.cell(r, 1).value == "formato_libro"))
     wb.save(old)
-    with pytest.raises(WorkbookFormatError, match="versión 1.x"):
-        read_book(old)
-    with pytest.raises(WorkbookFormatError, match="versión 1.x"):
-        prior_from_book(old, "Programa")
+    for read in (read_book, lambda p: prior_from_book(p, "Programa")):
+        with pytest.raises(WorkbookFormatError, match="anterior a la 2.7.1") as exc:
+            read(old)
+        assert exc.value.id == "LIB-018"
 
 
 # ----------------------------------------------------------------------------

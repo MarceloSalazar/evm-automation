@@ -52,6 +52,10 @@ hasta que se marca.
 | Valor no reconocido (por ejemplo `Sí, revisar` o `X`) | No se muestra | `CLI-003` |
 | `Sí` debajo de una tarea sin `Sí` | No se muestra | `CLI-004` |
 
+Cuando se usa todo el proyecto (sin `[exportacion] planificacion`), las tareas de primer nivel también se
+marcan: si el archivo tiene una sola, la que resume el proyecto completo, lleva `Sí`. Si no lo tiene, no se
+muestra ninguna tarea (`CLI-002`, que indica cuántas tareas tienen `Sí` y qué tarea superior no lo tiene).
+
 Una tarea vacía debajo de una que se muestra suele ser una tarea nueva que nadie marcó: el cliente deja de
 verla sin que nadie lo haya decidido. `CLI-031` la avisa en cada ejecución, también con `--simular`, con la
 tarea de más arriba de cada rama (las inactivas no cuentan). Si el cliente no la debe ver, se le pone
@@ -81,7 +85,7 @@ tareas que no se muestran se conservan, pero sin lo que dice qué son:
 | El código EDT | Líneas base 0 a 10 |
 | Notas, hipervínculo y contacto | % completado, % físico completado, comienzo y fin reales |
 | Los campos de texto y los códigos de esquema que no usa el libro EVM | Vínculos, y los campos de texto calculados con una fórmula (`CLI-030`): MS Project calcula su valor con los datos que se conservan |
-| El valor del campo del cliente (en todas las tareas) | Los campos del libro EVM: método, Visible, peso, empresa y reparto |
+| El valor del campo del cliente (en todas las tareas), su nombre y su columna en las tablas de tareas ([CLI-034](codigos.md#cli-034) si MS Project no deja quitarla) | Los campos del libro EVM: método, Visible, peso, empresa y reparto |
 | Las tareas inactivas que no se muestran (no cuentan en ningún cálculo) | Recursos asignados y calendario de la tarea |
 
 El cliente sabe que existen esas tareas y cuándo ocurren, pero no qué son. El % completado de cada tarea,

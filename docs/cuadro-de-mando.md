@@ -8,7 +8,7 @@ del mes de reporte con gráficos), **Resumen** (indicadores del proyecto a la fe
 cambiar la fecha de corte o el mes de reporte.
 
 Las imágenes de este documento corresponden al [proyecto de ejemplo](ejemplo-paso-a-paso.md) con
-24 meses de avance simulado (atraso y sobrecosto).
+24 meses de avance simulado (atraso y sobrecoste).
 
 ---
 
@@ -34,7 +34,7 @@ Las imágenes de este documento corresponden al [proyecto de ejemplo](ejemplo-pa
 | 1 | **Mes de reporte** | Celda amarilla `E5`: mes cuyos valores acumulados se muestran. |
 | 2 | **Método EAC** | Celda amarilla `R5`: fórmula de la estimación a la conclusión. |
 | 3 | **Valores acumulados** | BAC, PV, EV y AC acumulados hasta el final del mes de reporte, con su % del BAC. |
-| 4 | **Desviaciones e índices** | CV y SV (con su %), CPI y SPI con semáforo, y la escala del semáforo con los umbrales del libro. |
+| 4 | **Desviaciones e índices** | CV y SV (con su %), CPI y SPI, cada uno con el color de su rango admisible (CV y SV por su %), y la escala de los rangos admisibles de CPI y SPI del libro. El % completado de la tarjeta EV lleva el color de la desviación del avance técnico (% completado − % planificado). |
 | 5 | **Pronósticos** | ETC, EAC, VAC, TCPI (BAC) y TCPI (EAC). |
 | 6 | **Tendencia** | CPI y SPI de los últimos 3 meses y variación del CPI, el SPI y el EAC respecto del mes anterior ([sección 4](#4-tendencia-y-plazo)). |
 | 7 | **Plazo** | Fin de línea base y fin previsto según MS Project, desvío de fin, paquetes críticos y término estimado con el SPI(t). |
@@ -63,7 +63,7 @@ cayó a 0,76 y el SPI se mantuvo en 0,84.*
 
 | Método | Supuesto | Cuándo usarlo |
 |---|---|---|
-| `BAC / CPI` (por defecto) | El trabajo restante tendrá la misma eficiencia de costo que hasta ahora. | Desempeño estable; es el pronóstico más usado. |
+| `BAC / CPI` (por defecto) | El trabajo restante tendrá la misma eficiencia de coste que hasta ahora. | Desempeño estable; es el pronóstico más usado. |
 | `AC + (BAC - EV)` | El trabajo restante se ejecutará según presupuesto: la desviación fue puntual. | Desviaciones atípicas ya resueltas y justificadas. |
 | `AC + (BAC - EV) / (CPI × SPI)` | El atraso también encarece el trabajo restante. | Proyectos atrasados con fecha de fin exigida; suele ser el más pesimista. |
 
@@ -81,19 +81,19 @@ las diferencias en el informe.
 
 | Indicador | Fórmula | Lectura |
 |---|---|---|
-| CV, CV % | EV − AC; CV / EV | < 0: sobrecosto. |
+| CV, CV % | EV − AC; CV / EV | < 0: sobrecoste. |
 | SV, SV % | EV − PV; SV / PV | < 0: atraso (en valor, no en tiempo). |
 | CPI | EV / AC | < 1: cada euro gastado produce menos de un euro de valor ganado (trabajo realizado, valorado a precio de presupuesto). |
 | SPI | EV / PV | < 1: se realizó menos trabajo que el planificado. |
-| ETC | EAC − AC | Costo estimado para terminar. |
-| EAC | Según el método elegido | Costo estimado a la conclusión. |
+| ETC | EAC − AC | Coste estimado para terminar. |
+| EAC | Según el método elegido | Coste estimado a la conclusión. |
 | VAC | BAC − EAC | < 0: se espera terminar por encima del presupuesto. |
 | TCPI (BAC) | (BAC − EV) / (BAC − AC) | Eficiencia necesaria en el trabajo restante para terminar dentro del BAC. Desde el 20 % completado, `actualizar` y `analizar` avisan si supera al CPI en más de 0,10: terminar dentro del BAC no es realista ([ACT-048](codigos.md#act-048)). |
 | TCPI (EAC) | (BAC − EV) / (EAC − AC) | Eficiencia necesaria para terminar dentro del EAC. Con el método `BAC / CPI` es igual al CPI. |
 
-**Semáforos.** Los umbrales son comunes para el CPI y el SPI, con un límite **inferior** y otro
-**superior** para el amarillo y para el rojo (sección `[semaforo]` de la
-[configuración](configuracion.md)). Debajo de las tarjetas de índices, la fila **Semáforo CPI y SPI**
+**Rangos admisibles.** Los umbrales son comunes para el CPI y el SPI, con un límite **inferior** y otro
+**superior** para el amarillo y para el rojo (sección `[rangos_admisibles]` de la
+[configuración](configuracion.md)). Debajo de las tarjetas de índices, la fila **Rangos admisibles CPI y SPI**
 muestra los umbrales con que se generó el libro:
 
 | Indicador | Verde | Amarillo | Rojo |
@@ -104,13 +104,13 @@ muestra los umbrales con que se generó el libro:
 - En los umbrales exactos se aplica el color más favorable: con los valores por defecto, 0,95 y 1,05
   son verdes, y 0,90 y 1,10, amarillos.
 - Un índice **por encima** del rango verde también es una alerta. Un CPI alto puede indicar un AC
-  incompleto (costos devengados aún no registrados) o un presupuesto holgado. Un SPI alto puede indicar
+  incompleto (costes devengados aún no registrados) o un presupuesto holgado. Un SPI alto puede indicar
   un avance informado de más o una línea base poco exigente. En ambos casos conviene confirmar los datos
   antes de informar un buen desempeño.
 - El TCPI usa solo los umbrales inferiores: un TCPI menor que 1 indica que alcanza con una eficiencia
   menor que la lograda hasta ahora, y no es una alerta.
 
-Mientras no hay AC cargado (el AC se ingresa a mano en la hoja `AC`), los indicadores de costo del
+Mientras no hay AC cargado (el AC se ingresa a mano en la hoja `AC`), los indicadores de coste del
 `Cuadro de Mando` (CV, CPI, ETC, EAC, VAC y TCPI) quedan vacíos.
 
 ![Cabecera e indicadores del Cuadro de Mando](img/excel/cdm-indicadores.png)
@@ -135,7 +135,7 @@ desempeño reciente es mejor o peor que el acumulado, y si el atraso afecta la f
   el del informe anterior. Los **últimos 3 meses** empiezan en el último mes con datos hasta 3 meses
   antes; con informes bimestrales abarcan 4 meses.
 - Las tarjetas quedan vacías mientras no hay un mes anterior con datos (por ejemplo, en el primer
-  `actualizar`), y las de costo, mientras no hay AC cargado.
+  `actualizar`), y las de coste, mientras no hay AC cargado.
 - La hoja `Resumen` tiene los mismos indicadores a la fecha de corte, y `actualizar` los muestra en
   pantalla.
 
@@ -161,9 +161,6 @@ El detalle por elemento EDT está en las columnas Q a U de la hoja
 [Indicadores EDT](libro-excel.md#indicadores-edt) y en el
 [Análisis de desviaciones](analisis-desviaciones.md#2-columnas).
 
-> Los libros de versiones anteriores a la 2.3.0 conservan su Cuadro de Mando, sin estas tarjetas: se
-> agregan al regenerar el libro con `--migrar-desde`.
-
 ---
 
 ## 5. Gráficos
@@ -176,14 +173,14 @@ o el mes de reporte.
 
 | Gráfico | Contenido | Qué observar |
 |---|---|---|
-| **Evolución EVM** | PV, EV y AC acumulados y BAC. El PV abarca hasta el fin del plan (o hasta la fecha de corte, si es posterior); EV y AC, hasta el mes de reporte, marcado con una línea vertical. | La distancia vertical entre EV y PV es el SV; entre EV y AC, el CV. Si la curva AC queda por encima de EV, hay sobrecosto. |
-| **Evolución de CPI y SPI** | CPI y SPI acumulados mes a mes hasta el mes de reporte (el eje abarca hasta la fecha de corte), sobre las zonas del semáforo (de abajo hacia arriba: roja, amarilla, verde, amarilla y roja) y la línea objetivo 1,00. | Tendencia más que valor puntual. En los primeros meses los índices acumulados oscilan mucho porque los montos son pequeños (en el ejemplo, de enero a agosto de 2026). |
+| **Evolución EVM** | PV, EV y AC acumulados y BAC. El PV abarca hasta el fin del plan (o hasta la fecha de corte, si es posterior); EV y AC, hasta el mes de reporte, marcado con una línea vertical. | La distancia vertical entre EV y PV es el SV; entre EV y AC, el CV. Si la curva AC queda por encima de EV, hay sobrecoste. |
+| **Evolución de CPI y SPI** | CPI y SPI acumulados mes a mes hasta el mes de reporte (el eje abarca hasta la fecha de corte), sobre las zonas de los rangos admisibles (de abajo hacia arriba: roja, amarilla, verde, amarilla y roja) y la línea objetivo 1,00. | Tendencia más que valor puntual. En los primeros meses los índices acumulados oscilan mucho porque los montos son pequeños (en el ejemplo, de enero a agosto de 2026). |
 
 ![Desempeño por elemento EDT](img/excel/cdm-cpi-spi-edt.png)
 
 | Gráfico | Contenido | Qué observar |
 |---|---|---|
-| **CPI vs SPI por elemento EDT** | Un punto por cada elemento EDT de nivel 1 (rombo) y 2 (círculo) en el mes de reporte. Eje X: CPI; eje Y: SPI; el centro es (1, 1). | Arriba a la derecha: adelantado y con ahorro. Abajo a la izquierda: atrasado y con sobrecosto. Los elementos alejados del centro son los que explican la desviación del proyecto. |
+| **CPI vs SPI por elemento EDT** | Un punto por cada elemento EDT de nivel 1 (rombo) y 2 (círculo) en el mes de reporte. Eje X: CPI; eje Y: SPI; el centro es (1, 1). | Arriba a la derecha: adelantado y con ahorro. Abajo a la izquierda: atrasado y con sobrecoste. Los elementos alejados del centro son los que explican la desviación del proyecto. |
 
 Junto al gráfico, una tabla muestra el CPI, el SPI y el % completado de cada elemento. Como en las
 hojas del libro, los elementos de nivel 1 del código EDT tienen fondo y las filas resumen van en negrita.
@@ -192,7 +189,7 @@ Los gráficos de índices usan una escala fija de 0,5 a 1,5, igual en todos los 
 compararlos. Los valores fuera de escala se dibujan en el límite y su valor exacto está en la tabla.
 
 > En el ejemplo, `3.2.0 Montaje electromecánico` no aparece en el gráfico: el paquete `3.2.1 Suministro
-> de equipos` (método `Hitos ponderados`, con pesos que suman 100) tiene costo real, pero su PV está en
+> de equipos` (método `Hitos ponderados`, con pesos que suman 100) tiene coste real, pero su PV está en
 > los meses de sus hitos, en 2028, y aún no cumplió ninguno. Su SPI no tiene valor y su CPI es 0. Es el
 > comportamiento esperado del método; la tabla y la hoja `Indicadores EDT` muestran los valores.
 
@@ -251,15 +248,15 @@ las duraciones quedan vacíos en la hoja Resumen y se muestran como «-» en la 
 
 | Situación | Lectura habitual | Acción sugerida |
 |---|---|---|
-| CPI < 0,90 sostenido | El sobrecosto no es puntual. Los estudios sobre grandes contratos muestran que, superado el 20 % de avance, el CPI acumulado rara vez mejora de forma significativa. | Revisar el EAC y las causas por paquete (hojas `Indicadores EDT` y [`Análisis de desviaciones`](analisis-desviaciones.md)); plan de acción de costo. |
+| CPI < 0,90 sostenido | El sobrecoste no es puntual. Los estudios sobre grandes contratos muestran que, superado el 20 % de avance, el CPI acumulado rara vez mejora de forma significativa. | Revisar el EAC y las causas por paquete (hojas `Indicadores EDT` y [`Análisis de desviaciones`](analisis-desviaciones.md)); plan de acción de coste. |
 | SPI < 0,90 y SV(t) creciente | Atraso que se acumula. | El SPI no indica si el atraso afecta la fecha de fin: revisar el desvío de fin y los paquetes críticos (tarjetas de plazo y columnas Q a U de `Indicadores EDT`). |
-| CPI de los últimos 3 meses menor que el acumulado | El desempeño de costo empeora: el acumulado todavía no lo refleja. | Revisar las causas recientes por paquete (`Tendencia` en `Análisis de desviaciones`) y el EAC. |
+| CPI de los últimos 3 meses menor que el acumulado | El desempeño de coste empeora: el acumulado todavía no lo refleja. | Revisar las causas recientes por paquete (`Tendencia` en `Análisis de desviaciones`) y el EAC. |
 | Paquete con SPI bajo y crítico con fin atrasado | El atraso afecta la fecha de fin del proyecto. | Acción correctiva prioritaria; informar el desvío de fin. |
 | SPI ≈ 1 al final con SV(t) < 0 | El SPI convergió a 1, pero el proyecto sigue atrasado. | Informar SV(t) y SPI(t). |
 | TCPI (BAC) mucho mayor que el CPI | Terminar dentro del BAC exige una eficiencia muy superior a la histórica. Una regla práctica habitual: si la diferencia supera 0,05–0,10, el BAC es poco realista. | Informar el EAC y evaluar un cambio de línea base o de alcance. |
-| CPI y SPI > 1 | Adelanto y ahorro. | Verificar que no se deba a métodos subjetivos o a un AC incompleto (costos no registrados). |
-| CPI o SPI por encima del rango verde (> 1,05) | Desempeño mejor que el planificado, que el semáforo marca en amarillo o rojo para que se confirme. | Revisar el AC devengado, el avance informado y si el presupuesto o la línea base del paquete son demasiado holgados; explicarlo en `Análisis de desviaciones`. |
-| EV > 0 con AC = 0 en una fila | Costo real aún no registrado (facturas pendientes o AC del mes sin cargar en la hoja `AC`). | Completar el AC devengado del mes. |
+| CPI y SPI > 1 | Adelanto y ahorro. | Verificar que no se deba a métodos subjetivos o a un AC incompleto (costes no registrados). |
+| CPI o SPI por encima del rango verde (> 1,05) | Desempeño mejor que el planificado, que los rangos admisibles marcan en amarillo o rojo para que se confirme. | Revisar el AC devengado, el avance informado y si el presupuesto o la línea base del paquete son demasiado holgados; explicarlo en `Análisis de desviaciones`. |
+| EV > 0 con AC = 0 en una fila | Coste real aún no registrado (facturas pendientes o AC del mes sin cargar en la hoja `AC`). | Completar el AC devengado del mes. |
 | Mucho LOE en el BAC | El LOE no genera variación de cronograma y "diluye" el SPI. | Revisar los métodos ([Métodos de medición](metodos-de-medicion.md#4-guía-para-elegir-el-método)). |
 
 Los indicadores acumulados reflejan toda la historia del proyecto. Para detectar cambios recientes

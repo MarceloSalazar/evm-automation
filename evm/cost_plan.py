@@ -9,13 +9,10 @@ Con --calculos ([exportacion] depuracion_calculos) escribe en la hoja PV-depurac
 plan (cost_review.calc_plan y write_calcs): las sumas de los componentes en su EDT interna y de las EDT interna en su
 EDT cliente, el EAC y el BAC de la EDT cliente. Con [depuracion_precio], los meses de cada EDT interna con componentes
 son su precio, con los recargos de la tabla Recargos (evm/cost_price.py); si la hoja no tiene la tabla, la agrega
-vacía. Sin --calculos, usa los importes que tiene la hoja y no modifica el libro. Una hoja con el plan desde la celda
-A8 (versión 2.5 o anterior) se debe pasar al formato actual con --migrar-desde (DEP-024).
+vacía. Sin --calculos, usa los importes que tiene la hoja y no modifica el libro.
 
 No modifica el % planificado: el PV de todas las filas es el de MS Project, y el plan de costes se compara con él en las
-filas «(coste)» y en la hoja 'Depuración costes'. Antes de la versión 2.6.0, procesar-costes escribía el reparto del
-plan en la hoja '% PV' y marcaba esas filas en la hoja _estructura: en esos libros se avisa (DEP-021) y --migrar-desde
-les devuelve el % de MS Project (DEP-020).
+filas «(coste)» y en la hoja 'Depuración costes'.
 """
 from __future__ import annotations
 
@@ -28,8 +25,7 @@ from evm import cost_review as cr
 from evm import progress
 from evm.config import Config
 from evm.messages import InputError, Issue
-from evm.update import (BookData, _refresh_charts, _save, _write_fixable, check_sheets, fixable_warning,
-                        plan_rows_warning, read_book)
+from evm.update import (BookData, _refresh_charts, _save, _write_fixable, check_sheets, fixable_warning, read_book)
 from evm.wbs import fmt_money, plural
 from evm.workbook import SHEET_PV, company_sheet
 
@@ -91,12 +87,7 @@ def run_cost_plan(cfg: Config, book_path: str | Path, backup: bool = True, dry_r
 
     progress.stage("procesar", "Plan de costes")
     ws_paste = wb[cr.SHEET_PASTE]
-    if cr.paste_first_row(ws_paste) != cr.P_FIRST:
-        raise InputError("DEP-024", f"La hoja {cr.SHEET_PASTE} tiene el formato de una versión anterior, con el "
-                                    f"plan desde la celda A{cr.OLD_FIRST}: se debe generar un libro nuevo con "
-                                    f"--migrar-desde, que pasa el plan a la celda A{cr.P_FIRST} y conserva el BAC, "
-                                    "el % ganado y el AC.")
-    rows, _fmt = cr.read_paste(ws_paste, months)
+    rows = cr.read_paste(ws_paste, months)
     rows, _formulas, missing_cells = cr.resolve_formulas(book_path, rows, months)
     n_paste = cr.paste_months(months)
     table, added = cr.read_rates(ws_paste), False
@@ -150,7 +141,6 @@ def run_cost_plan(cfg: Config, book_path: str | Path, backup: bool = True, dry_r
             f"La hoja {cr.SHEET_PASTE} tiene la tabla Recargos, pero la configuración no tiene [depuracion_precio]: "
             f"las EDT interna {sums} sus componentes (a coste). Se debe indicar --config con la configuración de la "
             "depuración.")))
-    warnings += plan_rows_warning(book)
 
     backup_path = None
     if save:

@@ -176,6 +176,9 @@ class WriteResult:
     removed_links: list[tuple[int, int]] = field(default_factory=list)  # creados por MS Project al borrar tareas
     restore_problems: list[tuple[Task, str]] = field(default_factory=list)  # resúmenes convertidos sin restaurar
     field_name_removed: bool = True                             # se quitó el nombre (alias) del campo del cliente
+    # Columnas del campo del cliente quitadas de las tablas de tareas (tabla -> columnas) y tablas en que no se pudo
+    columns_removed: dict[str, int] = field(default_factory=dict)
+    columns_kept: list[str] = field(default_factory=list)
     rounds: int = 0                                             # cálculos de MS Project hasta fijar las fechas
     summary_percent: dict[int, float] = field(default_factory=dict)  # % de cada resumen según MS Project (UID)
     progress_tasks: list[ProgressChange] = field(default_factory=list)  # tareas que no conservan su % completado
@@ -211,6 +214,11 @@ class WriteResult:
         if not self.field_name_removed:
             out.append(Issue("CLI-017", message=f"No se pudo quitar el nombre del campo '{plan.field_name}' en el "
                                                 "archivo del cliente (sus valores sí se vaciaron)."))
+        if self.columns_kept:
+            out.append(Issue("CLI-034", message=f"No se pudo quitar la columna del campo '{plan.field_name}' de "
+                                                f"{plural(len(self.columns_kept), 'la tabla', 'las tablas')} "
+                                                f"{', '.join(self.columns_kept)} del archivo del cliente (sus valores "
+                                                "sí se vaciaron)."))
         if self.fixed:
             what = plural(len(self.fixed), "tarea", "tareas")
             out.append(Issue("CLI-013", message=f"{what} con el comienzo fijado con «No comenzar antes del», para que "
@@ -592,8 +600,14 @@ def build_client_plan(project: ProjectData, cfg: Config) -> ClientPlan:
     tasks = plan.tasks
     in_scope = {t.uid for t in tasks}
     if not plan.shown:
+        hint = ""
+        if plan.orphans:
+            what = plural(plan.orphan_count, "tarea tiene", "tareas tienen")
+            where = ", ".join(list(dict.fromkeys(plan.ref(t.parent) for t in plan.orphans if t.parent is not None))[:3])
+            hint = (f" {what} Sí, pero una tarea superior no lo tiene"
+                    + (f" (por ejemplo {where})" if where else "") + ": se debe poner Sí también en ella.")
         raise EvmError("CLI-002", f"Ninguna tarea de la planificación tiene Sí en '{cfg.client_field}' (también en sus "
-                                  "tareas superiores): no hay nada que mostrar al cliente.")
+                                  f"tareas superiores): no hay nada que mostrar al cliente.{hint}")
     if cfg.client_internal_activity:
         _internal_activity(plan, cfg, in_scope)
         return plan
@@ -1026,6 +1040,10 @@ def _outcome_lines(plan: ClientPlan, out: WriteResult, per_day: float) -> list[s
     """Secciones de la escritura con MS Project."""
     source_open = "Sí: se usó la versión guardada" if out.source_open else "No"
     field_name = "Quitado" if out.field_name_removed else "No se pudo quitar"
+    removed = sum(out.columns_removed.values())
+    columns = (f"{removed} (tablas: {', '.join(_cell(t) for t in out.columns_removed)})" if removed else "Ninguna")
+    if out.columns_kept:
+        columns += f"; no se pudo en {', '.join(_cell(t) for t in out.columns_kept)}"
     lines = ["## Escritura con MS Project", "",
              "| Dato | Resultado |", "|---|---|",
              f"| Archivo del cliente | {_cell(Path(out.path).name)} (de solo lectura) |",
@@ -1044,7 +1062,8 @@ def _outcome_lines(plan: ClientPlan, out: WriteResult, per_day: float) -> list[s
         lines += [f"| Tareas con fechas distintas de la planificación interna | {len(out.differences)} |",
                   f"| Vínculos nuevos que MS Project no aceptó | {len(out.rejected)} |"]
     lines += [f"| Vínculos que MS Project creó al borrar tareas (se quitaron) | {len(out.removed_links)} |",
-              f"| Nombre del campo del cliente | {field_name} (valores vaciados) |"]
+              f"| Nombre del campo del cliente | {field_name} (valores vaciados) |",
+              f"| Columnas del campo del cliente quitadas | {columns} |"]
     c = out.content
     if c.checked:
         lines += [f"| Calendarios | {len(c.calendars)} se conservan, {len(c.removed_calendars)} sin uso quitados"

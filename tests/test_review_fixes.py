@@ -470,7 +470,7 @@ def test_analysis_sheet_is_written_without_the_old_filter():
                       12, Thresholds.from_config(Config()), 0)
     assert wb.sheetnames.index(SHEET_ANALYSIS) == 1
     assert not new.auto_filter.filterColumn and not new.merged_cells.ranges and not new.row_dimensions[6].hidden
-    assert new.auto_filter.ref == "A4:Y6"
+    assert new.auto_filter.ref == "A4:AC6"
 
 
 def test_missing_output_folder_and_bad_books_are_reported_with_their_code(tmp_path, capsys):

@@ -555,14 +555,13 @@ def fill_book(book_path: Path, status: date | None = None, projects: dict[str, i
     from evm.config import Config
     from evm.reader_xml import read_xml
     from evm.timeline import Horizon
-    from evm.update import _refresh_charts, _save, apply_book_settings, check_version, read_book
+    from evm.update import _refresh_charts, _save, apply_book_settings, read_book
     from evm.wbs import build_part, build_tree, select_scope
     from evm.workbook import (book_sources, company_sheet, read_meta, read_structure, row_key, source_meta,
                               split_key)
 
     wb = load_workbook(book_path)
     meta = read_meta(wb)
-    check_version(meta)
     if not projects:
         names = book_sources(meta)
         projects = {"": single} if names == [""] else {n: i + 1 for i, n in enumerate(names[:2])}
