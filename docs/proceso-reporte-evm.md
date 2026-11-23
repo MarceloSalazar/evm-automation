@@ -49,7 +49,7 @@ flowchart LR
     CAMBIO --> MES
 ```
 
-MS Project aporta las fechas de la línea base, el peso de los hitos y el avance; el BAC de cada paquete
+MS Project aporta las fechas de la línea base, el peso de las tareas y el avance; el BAC de cada paquete
 y el AC de cada mes se ingresan en el libro
 ([Cálculo del PV y el EV](calculo-pv-ev.md#12-puesta-en-marcha-y-cierre-mensual)).
 

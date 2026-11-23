@@ -91,7 +91,7 @@ no admiten decimales.
 ## Ejemplos
 
 **Configuración mínima** para un proyecto con el código EDT en el campo *EDT* de MS Project y los
-campos de método y peso de hito con alias:
+campos de método y peso con alias:
 
 ```toml
 [campos]

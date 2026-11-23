@@ -428,7 +428,7 @@ Con pesos 40 y 60 (suman 100), los hitos se reparten todo el BAC: 400.000 en el 
 en el de la llegada a obra, y la fabricación y el transporte no tienen PV.
 
 Para comparar la curva planificada de cada paquete con la previsión mensual del plan de costes de una
-empresa, y ajustar con ella las tareas y el peso de los hitos, se usa la
+empresa, y ajustar con ella las tareas y sus pesos, se usa la
 [depuración de costes](depuracion-costes.md).
 
 ![Hoja % PV del proyecto de ejemplo](img/excel/pct-pv.png)
@@ -765,7 +765,7 @@ sequenceDiagram
     participant JP as Jefe de Proyecto
     participant MSP as MS Project
     participant XL as Libro EVM
-    JP->>MSP: Línea base guardada (fechas y pesos de hitos)
+    JP->>MSP: Línea base guardada (fechas y pesos de las tareas)
     JP->>XL: generar (% planificado)
     JP->>XL: BAC de cada fila (y de cada empresa)
     loop Cada mes

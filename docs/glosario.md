@@ -55,7 +55,7 @@ BAC que se ingresa en el libro × el % planificado y el % ganado, y el AC se car
 | Método de valor acumulado | Earned Value Method | Cómo calcula MS Project su valor acumulado (CPTR). El programa no lo usa. |
 | Comienzo real, Fin real | Actual Start, Actual Finish | Comienzo y fin de los paquetes. |
 | EDT, Número de esquema | WBS, Outline Number | Código EDT de cada tarea. |
-| Texto1..30, Número1..20 | Text1..30, Number1..20 | Campos personalizados (método, peso de los hitos, empresa, % de reparto, visible y descripción de las fichas). |
+| Texto1..30, Número1..20 | Text1..30, Number1..20 | Campos personalizados (método, peso de las tareas, empresa, % de reparto, visible y descripción de las fichas). |
 | Hito | Milestone | Su peso es un % de la parte de su tarea resumen; método `Hitos ponderados`. |
 | Activo / Desactivar | Active / Inactivate | Tareas inactivas excluidas. |
 | Duración (estimada, con `?`) | Duration (Estimated) | `validar`: hitos con duración, tareas con duración 0 y duraciones estimadas. |

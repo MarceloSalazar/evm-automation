@@ -2,7 +2,7 @@
 
 - Datos que forman el libro: se informan en la hoja Validación de 'generar' y en el comando 'validar'. Son los
   códigos EDT (dependencia entre tareas superiores y subtareas, formato, orden y duplicados), las fechas y la
-  duración, los pesos de los hitos, el método de medición y el reparto entre empresas.
+  duración, los pesos de las tareas, el método de medición y el reparto entre empresas.
 - Cronograma: solo en 'validar'. Son el avance a la fecha de estado y la lógica del cronograma (vínculos,
   delimitaciones, holgura y duración), con los criterios de la evaluación DCMA de 14 puntos
   (docs/evaluacion-dcma.md).

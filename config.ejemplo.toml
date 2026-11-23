@@ -64,8 +64,8 @@ meses = 120
 
 [exportacion]
 # Cálculo del PV y del EV (ver docs/calculo-pv-ev.md): el programa calcula con
-# los datos de MS Project el % planificado (duración de la línea base de las
-# tareas y peso de los hitos) y el % ganado (método de medición y avance) de cada
+# los datos de MS Project el % planificado (duración de la línea base y peso
+# de las tareas) y el % ganado (método de medición y avance) de cada
 # fila. El BAC de cada fila se ingresa en el libro
 # (columna D de la hoja PV, o de PV-EmpresaA y PV-EmpresaB) y el PV y el EV son
 # el BAC × el %. El AC se carga a mano.

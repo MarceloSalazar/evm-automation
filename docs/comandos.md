@@ -71,7 +71,7 @@ errores y, en cada severidad, las observaciones generales, las de las filas EDT 
   duplicados;
 - las fechas y la duración: tareas sin línea base, fechas invertidas, hitos con duración, tareas con
   duración 0 que no son hitos, duraciones estimadas y tareas programadas manualmente;
-- los pesos de los hitos, el campo `Visible`, el método de medición (también frente a la duración del
+- los pesos de las tareas, el campo `Visible`, el método de medición (también frente a la duración del
   paquete) y las empresas.
 
 Además, revisa aspectos del cronograma que no afectan al libro:
@@ -304,11 +304,11 @@ Exportador EVM 2.6.0
 Leyendo ejemplos/programa_ejemplo.xml ...
 Proyecto: Programa de ejemplo EVM
   Planificación: INTERNO
-  Línea base  |  PV: % planificado de MS Project (duración de la línea base de las tareas y peso de los hitos) × BAC ingresado en el libro
+  Línea base  |  PV: % planificado de MS Project (duración de la línea base y peso de las tareas) × BAC ingresado en el libro
   Filas EDT: 36 (24 de ingreso)  |  Nivel máximo: 3
   Horizonte: 01/2026 a 12/2035 (120 meses)
   BAC: se debe ingresar el BAC de cada fila en la columna D de PV (celdas amarillas).
-  [i] LIB-001 El PV y el EV de cada fila son el BAC × el % planificado y el % ganado (hojas % PV y % EV), que se calculan con la duración de la línea base de las tareas y el peso de los hitos. Se debe ingresar el BAC de cada fila en las celdas amarillas de la columna D de la hoja PV.
+  [i] LIB-001 El PV y el EV de cada fila son el BAC × el % planificado y el % ganado (hojas % PV y % EV), que se calculan con la duración de la línea base y el peso de las tareas. Se debe ingresar el BAC de cada fila en las celdas amarillas de la columna D de la hoja PV.
   [i] EDT-017 Planificación 'INTERNO' («Planificación interna»): se exportan las 51 tareas que dependen de ella.
   [i] EDT-020 Se omitió 1 tarea sin código EDT que no depende de ningún elemento EDT: no forma parte de ninguna fila del libro.
   [i] EDT-022 14 tareas sin código EDT o de nivel EDT mayor a 3 se agregaron en su elemento EDT superior.

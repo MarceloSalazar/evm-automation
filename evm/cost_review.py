@@ -731,7 +731,7 @@ def write_chart_sheet(ws, report: Report, cfg: Config, lay: _Layout) -> None:
         f"Se elige el elemento EDT en la celda {G_SELECT} (TOTAL o un código de la hoja {rs}). PV planificado: BAC × "
         f"% planificado. Previsión: fila «(coste)», con los meses y el EAC de la EDT cliente en la hoja {SHEET_PASTE}. "
         "El objetivo es que el EAC coincida con el BAC y que las curvas se parezcan: se ajusta el plan de costes, o en "
-        "MS Project las tareas, sus fechas y el peso de los hitos (y se regenera el libro con --migrar-desde)."
+        "MS Project las tareas, sus fechas y el peso de cada tarea (y se regenera el libro con --migrar-desde)."
         )).font = FONT_NOTE
     ws.cell(row=2, column=1).alignment = Alignment(wrap_text=True, vertical="top")
     ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=8)

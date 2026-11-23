@@ -99,7 +99,7 @@ def test_missing_fields_produce_warnings(read):
                  multi_enabled=True)
     p = read(project_xml(tasks), cfg)
     assert p.tasks[0].wbs == "1.1"                          # se usa el campo EDT (WBS) de MS Project
-    for text in ("campo EDT 'Código cliente'", "campo de método 'Método EVM'", "peso de hitos 'Peso'",
+    for text in ("campo EDT 'Código cliente'", "campo de método 'Método EVM'", "de peso 'Peso'",
                  "campo de empresa 'Empresa'", "campo de reparto '% Reparto'"):
         assert any(text in w.message for w in p.warnings), text
 

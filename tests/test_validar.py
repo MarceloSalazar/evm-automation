@@ -1271,7 +1271,7 @@ def test_config_field_not_found_and_empty_are_one_code_each(tmp_path):
     assert [(w.id, w.message) for w in p.warnings] == [
         ("LEC-010", "No se encontró el campo de método 'No existe' ([campos] metodo) en el XML: todas las filas "
                     "tienen el método por defecto ('Por definir')."),
-        ("LEC-010", "No se encontró el campo de peso de hitos 'Tampoco' ([campos] peso_hito) en el XML: los hitos no "
+        ("LEC-010", "No se encontró el campo de peso 'Tampoco' ([campos] peso_hito) en el XML: los hitos no "
                     "tienen peso.")]
     assert "MET-005" not in {i.id for i in build_report(p, cfg).issues}         # ya lo dice LEC-010
     tasks = tree('''

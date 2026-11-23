@@ -188,7 +188,7 @@ AREAS = {a.prefix: a for a in [
     Area("FEC", "Fechas y duración", TOPIC_DATES, W_GV,
          "Fechas de la línea base y del programa actual, hitos y duración de las tareas."),
     Area("HIT", "Hitos y pesos", TOPIC_WEIGHTS, W_GV,
-         "Peso de los hitos, método «Hitos ponderados» y filas sin % planificado."),
+         "Peso de las tareas, método «Hitos ponderados» y filas sin % planificado."),
     Area("MET", "Método de medición", TOPIC_METHOD, W_GV,
          "Método de medición del EV de cada fila."),
     Area("EMP", "Empresas", TOPIC_COMPANY, W_GV,
@@ -842,7 +842,7 @@ _CODES = [
           "Indicar el peso de esos hitos, si deben sumar."),
     _code("HIT-005", W, "Fila sin % planificado",
           "Ninguna tarea de la fila tiene fechas ni es un hito con peso: su BAC no se puede repartir en el tiempo.",
-          "Indicar fechas o duración a sus tareas, o el peso de sus hitos."),
+          "Indicar fechas o duración a sus tareas, o su peso."),
     _code("HIT-006", W, "Tareas con peso negativo",
           "Algunas tareas de la fila tienen peso negativo: se toman como si no tuvieran peso (reciben parte del resto "
           "según su duración; un hito, nada).",
