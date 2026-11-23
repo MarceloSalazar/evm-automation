@@ -35,7 +35,8 @@ MS Project **no necesita costos ni recursos**: el BAC de cada fila se ingresa en
 
 **Una vez, antes del primer `generar`:**
 
-- [ ] Todas las tareas de detalle tienen código EDT o dependen de una tarea con código EDT.
+- [ ] Todas las tareas de detalle, incluidos los hitos, tienen código EDT, de un nivel más que su tarea
+      superior.
 - [ ] Los paquetes de trabajo (nivel 3) agrupan las tareas de detalle.
 - [ ] La duración de las tareas de detalle representa su trabajo (define su peso en el paquete).
 - [ ] Cada paquete tiene su **método de medición** (`Método EVM`) y, si usa hitos, sus hitos con
@@ -77,7 +78,11 @@ Recomendaciones:
 
 - Los paquetes de trabajo (nivel 3) son la unidad de medición del EV: cada uno con un responsable, un
   presupuesto y un método.
-- Las actividades de detalle y los hitos de un paquete **no necesitan** código EDT.
+- Las actividades de detalle y los hitos de un paquete también llevan código EDT, de un nivel más que
+  el paquete (`1.2.3.1`, `1.2.3.2`... bajo `1.2.3`). No tienen fila propia (se suman en el paquete),
+  pero el código los identifica en la jerarquía y permite comprobar su numeración: `validar` y la hoja
+  `Validación` informan las tareas sin código que dependen de un elemento EDT
+  ([EDT-023](codigos.md#edt-023)).
 - Las tareas que no dependen de ningún elemento EDT (por ejemplo, una reunión de arranque bajo la
   planificación) no forman parte del cálculo: se omiten y se informan en `Validación`.
 - El código de cada tarea empieza por el de su tarea superior y tiene un nivel más: bajo `1.2.0` van
@@ -103,10 +108,10 @@ encabezado de una columna > **Campos personalizados** (o *Proyecto > Campos pers
 |---|---|---|---|---|
 | *Texto2* | Texto | `Item EDT` | Código EDT (`1.0.0`, `1.1.0`, `1.1.1`) | `[campos] edt` |
 | *Texto10* | Texto | `Método EVM` | Lista de búsqueda con los métodos | `[campos] metodo` |
-| *Número1* | Número | `Peso hito` | Peso de cada hito: % del BAC del paquete | `[campos] peso_hito` |
+| *Número1* | Número | `Peso hito` | Peso de cada tarea o hito: % de la parte de su tarea resumen. Un campo numérico sirve si no se usa el 0, que lee como vacío: para `Peso` = 0 (la tarea no cuenta en el libro) hace falta un campo de **texto**, por ejemplo *Texto7* con alias `Peso` | `[campos] peso_hito` |
 | *Texto3* | Texto | `Empresa` | Lista: `EmpresaA`, `EmpresaB`, `Ambas` | `[multiempresa] campo_empresa` |
 | *Número2* | Número | `% Reparto` | % de la empresa A en tareas `Ambas` | `[multiempresa] campo_reparto` |
-| *Texto5* | Texto | `Visible` | Lista: `Sí`, `No` (vacío = según el nivel máximo) | `[campos] visible` |
+| *Texto5* | Texto | `Visible` | Lista: `Sí`, `No`. Si alguna tarea tiene `Sí`, solo esas son filas; si no, vacío = según el nivel máximo y `No` = sin fila propia | `[campos] visible` |
 | *Texto20* | Texto | `Descripción` | Texto de la ficha de cada tarea de `generar-fichas` (opcional; también se pueden usar las *Notas*) | `[campos] descripcion` |
 
 Pasos para cada campo:
@@ -137,7 +142,7 @@ español (`Texto10`, `Número1`) o por su alias (`Método EVM`).
 ## 4. Presupuesto (BAC)
 
 No se cargan costos ni recursos en MS Project. El % planificado de cada fila sale de la duración de
-línea base de sus tareas y del `Peso hito` de sus hitos
+línea base de sus tareas y de sus pesos (`Peso hito`: % de su tarea resumen)
 ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)), y el **BAC** de cada
 fila se ingresa a mano en la columna D de la hoja `PV` del libro (en multi-empresa, en `PV-EmpresaA` y
 `PV-EmpresaB`). Si el proyecto tiene recursos o costos cargados, no se usan.
@@ -148,8 +153,11 @@ fila se ingresa a mano en la columna D de la hoja `PV` del libro (en multi-empre
 
 - Campo `Método EVM` con lista de búsqueda, completado en los paquetes de nivel 3.
 - Para `Hitos ponderados`: hitos (duración 0) como subtareas del paquete, con su peso en `Peso hito`. El
-  peso es el % del BAC del paquete que se planifica en el mes del hito y que se gana al cumplirlo: para
+  peso es el % de la parte de su tarea resumen (del paquete, si es una subtarea directa) que se planifica
+  en el mes del hito y que se gana al cumplirlo: para
   un paquete medido solo con hitos, los pesos deben sumar 100.
+- Para `Ponderado`: cada tarea del paquete con su peso en `Peso hito` y su propio método en `Método EVM`
+  ([Método Ponderado](calculo-pv-ev.md#método-ponderado)).
 
 El método de cada paquete se elige con la
 [guía](metodos-de-medicion.md#4-guía-para-elegir-el-método) y se aprueba con la línea base
@@ -165,16 +173,22 @@ Detalle y ejemplos en [Métodos de medición](metodos-de-medicion.md).
 2. Tareas nuevas aprobadas: **Tareas seleccionadas** y **Resumir líneas base: Para todas las tareas de
    resumen**. Sin esa opción, las tareas resumen conservan una línea base que no corresponde a su
    detalle: `validar` las informa.
-3. Copia de cada línea base aprobada en *Línea base 1..10* (*Establecer plan provisional*, *Copiar:
+3. Retrabajo o trabajo no previsto (sin cambio de alcance): la subtarea se agrega **sin línea base**. No
+   cambia el PV de su fila, ni al regenerar el libro, pero cuenta en el % ganado y en la fecha de fin
+   ([Tareas sin línea base](calculo-pv-ev.md#tareas-sin-línea-base-retrabajo-y-trabajo-no-previsto)).
+4. Copia de cada línea base aprobada en *Línea base 1..10* (*Establecer plan provisional*, *Copiar:
    Línea base*, *En: Línea base N*).
+5. Tareas guardadas por error en una línea base (por ejemplo, tareas nuevas sin aprobación del cliente):
+   se mueven a otra línea base o se borra la suya con `corregir-linea-base`, que deja el motivo en las
+   Notas. Conceptos, buenas prácticas y el comando: [Líneas base](lineas-base.md).
 
 ![Esquema del cuadro Establecer línea base](img/ms-project/establecer-linea-base.svg)
 
 Las **fechas** de la línea base de cada tarea (*Comienzo previsto* y *Fin previsto*) definen el %
 planificado. Por defecto se usa la línea base que el proyecto tiene configurada para el valor acumulado
 (*Archivo > Opciones > Avanzadas*); se puede elegir otra con `linea_base` o `--linea-base N`. Sin línea
-base guardada se usan las fechas actuales de las tareas y se advierte
-([Proyecto sin línea base](calculo-pv-ev.md#5-horizonte-de-meses-y-proyecto-sin-línea-base)).
+base guardada se usan las fechas actuales de las tareas y se informa con un error
+([FEC-009](codigos.md#fec-009); [Proyecto sin línea base](calculo-pv-ev.md#5-horizonte-de-meses-y-proyecto-sin-línea-base)).
 
 ---
 

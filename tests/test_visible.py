@@ -111,52 +111,43 @@ def test_when_all_subtasks_are_hidden_the_parent_is_the_work_package():
     assert "1.1.1" not in rows and "1.1.2" not in rows
     assert rows["1.1.0"].kind == KIND_LEAF and not [r for r in rows if r.endswith("-D")]
     assert leaves(rows["1.1.0"]) == ["PMO", "Control"]          # la fila es el paquete, con toda su rama
-    assert issues_with(rep, "Todas sus subtareas tienen Visible = No: la fila es el paquete de trabajo", SEV_INFO)
+    assert issues_with(rep, "2 tareas tienen Visible = No (1.1.1, 1.1.2): no tienen fila propia y cuentan en su fila "
+                            "superior", SEV_INFO)
 
 
-def test_hidden_task_with_visible_siblings_is_left_out_without_other_tasks_row():
+def test_no_counts_in_the_row_above():
+    """Visible = No (desde la 2.7.0): sin fila propia, pero cuenta en su fila superior (no queda fuera del cálculo)."""
     rep = report(tasks(Obras="NO"))
     rows = rows_by_code(rep)
     assert "1.2.2" not in rows and rows["1.2.0"].kind == KIND_SUMMARY
-    assert not [r for r in rows if r.endswith("-D")] and "Obras" not in all_leaves(rep)
-    assert issues_with(rep, "1 tarea con Visible = No (con sus subtareas) queda fuera del PV, el EV y el AC (1.2.2): "
-                            "no forma parte del % planificado ni del % ganado; el BAC y el AC que se ingresan en el "
-                            "libro no la deben incluir")
-
-
-def test_hidden_task_is_left_out_of_the_planned_percent():
+    assert leaves(rows["1.2.0-D"]) == ["Obras"]                  # tarea suelta bajo la fila resumen: fila -D
     rep = report(tasks(Obras="No", Pliegos="No"))
     rows = rows_by_code(rep)
-    assert not [r for r in rows if r.endswith("-D")] and "1.2.2" not in rows
-    assert [t.name for t in rows["1.2.1"].leaves] == ["Adjudicación"]      # dentro del paquete, también fuera
-    assert issues_with(rep, "no forman parte del % planificado ni del % ganado")
+    assert leaves(rows["1.2.1"]) == ["Pliegos", "Adjudicación"]  # dentro del paquete, también cuenta
+    assert "Obras" in all_leaves(rep)
 
 
-def test_yes_shows_tasks_below_the_maximum_level():
-    rep = report(tasks(Pliegos="Sí"))
+def test_yes_decides_the_rows_like_a_wbs_list():
+    """Con alguna tarea con Sí, solo las tareas con Sí tienen fila; las demás se suman en su fila superior con Sí."""
+    rep = report(tasks(Gestión="Sí", Dirección="si", Licitación="Sí", Pliegos="Sí", Ingeniería="Sí"))
     rows = rows_by_code(rep)
-    assert rows["1.2.1"].kind == KIND_SUMMARY
-    assert rows["1.2.1.1"].kind == KIND_LEAF and leaves(rows["1.2.1.1"]) == ["Pliegos"]
-    assert rows["1.2.1.1"].level == 4
-    assert leaves(rows["1.2.1-D"]) == ["Adjudicación"]    # la tarea hermana sin Sí: fila de otras tareas
-    assert issues_with(rep, "1 tarea tiene Visible = Sí y fila propia por debajo del nivel máximo (3)", SEV_INFO)
-    both = rows_by_code(report(tasks(Pliegos="Sí", Adjudicación="si")))
-    assert leaves(both["1.2.1.2"]) == ["Adjudicación"] and "1.2.1-D" not in both
+    assert codes(rep) == ["1.0.0", "1.1.0", "1.2.1", "1.2.1.1", "1.2.1-D", "1.0.0-D", "2.0.0"]
+    assert rows["1.1.0"].kind == KIND_LEAF and leaves(rows["1.1.0"]) == ["PMO", "Control"]
+    assert leaves(rows["1.2.1.1"]) == ["Pliegos"] and leaves(rows["1.2.1-D"]) == ["Adjudicación"]
+    assert leaves(rows["1.0.0-D"]) == ["Obras"]                  # Contratos (sin Sí): su tarea suelta, en Gestión
+    assert rows["2.0.0"].kind == KIND_LEAF and leaves(rows["2.0.0"]) == ["Básica"]
+    assert issues_with(rep, "Filas del libro según el campo Visible: 5 tareas con Sí tienen fila propia", SEV_INFO)
 
 
-def test_no_prevails_over_yes_in_its_branch():
-    rep = report(tasks(Contratos="No", Pliegos="Sí"))
+def test_yes_below_a_no_has_its_row():
+    rep = report(tasks(Gestión="Sí", Contratos="No", Pliegos="Sí", Ingeniería="Sí"))
     rows = rows_by_code(rep)
-    assert not [c for c in rows if c.startswith("1.2")] and "1.0.0-D" not in rows
-    assert all_leaves(rep) == {"PMO", "Control", "Básica"}
-    assert issues_with(rep, "depende de 1.2.0 «Contratos», con Visible = No: queda fuera del cálculo", SEV_WARN)
+    assert leaves(rows["1.2.1.1"]) == ["Pliegos"]
+    assert {"PMO", "Control", "Adjudicación", "Obras"} <= set(leaves(rows["1.0.0-D"]))
+    assert not any(i.id in ("VIS-002", "VIS-003") for i in rep.issues)
 
 
-def test_level_one_elements_and_other_problems():
-    rep = report(tasks(Gestión="No"))
-    assert codes(rep) == ["2.0.0", "2.1.0"] and all_leaves(rep) == {"Básica"}
-    both = report(tasks(Gestión="No", Ingeniería="No"))            # todos: se ignora (el libro no tendría filas)
-    assert "1.0.0" in rows_by_code(both) and issues_with(both, "Todos los elementos de nivel superior", SEV_WARN)
+def test_other_problems():
     task_list = tasks(Básica="Quizás")
     task_list.append(tree("- Suelta 0")[0])
     task_list[-1].uid = task_list[-1].id = 99
@@ -185,7 +176,7 @@ def bac(path, values: dict[str, float]) -> dict[str, int]:
     return rows
 
 
-def test_update_leaves_hidden_tasks_out_and_warns_when_the_field_changes(tmp_path):
+def test_update_counts_hidden_tasks_and_warns_when_the_field_changes(tmp_path):
     path = tmp_path / "libro.xlsx"
     cfg = Config()
     write_workbook(build_report(P(tasks(Pliegos="No")), cfg), cfg, path)
@@ -193,16 +184,16 @@ def test_update_leaves_hidden_tasks_out_and_warns_when_the_field_changes(tmp_pat
     meta = {k: v for k, v in load_workbook(path)["_meta"].iter_rows(min_row=2, values_only=True)}
     assert meta["campo_visible"] == "Visible"
     progress = tasks(Pliegos="No")
-    by_name(progress)["Pliegos"].percent_complete = 100                    # fuera del cálculo: no cuenta
+    by_name(progress)["Pliegos"].percent_complete = 100                    # Visible = No: cuenta en su fila
     by_name(progress)["Adjudicación"].percent_complete = 50
     res = run_update(P(progress), Config(), path, date(2026, 3, 31), backup=False)
     book = read_book(path)
-    assert sum(v or 0 for v in book.ev[rows["1.2.1"]]) == pytest.approx(500)
+    assert sum(v or 0 for v in book.ev[rows["1.2.1"]]) == pytest.approx(750)
     assert not [w for w in res.warnings if "campo Visible" in w.message]
 
-    changed = tasks(Pliegos="Sí")
+    changed = tasks(Pliegos="No", PMO="No")                                 # PMO pierde su fila
     res = run_update(P(changed), Config(), path, date(2026, 3, 31), backup=False, dry_run=True)
-    assert [w for w in res.warnings if "campo Visible de 1 tarea (1.2.1.1)" in w.message and "--migrar-desde" in w.message]
+    assert [w for w in res.warnings if "campo Visible de 1 tarea (1.1.1)" in w.message and "--migrar-desde" in w.message]
 
 
 def test_migration_sums_the_history_of_rows_that_are_now_hidden(tmp_path):
@@ -225,3 +216,12 @@ def test_migration_sums_the_history_of_rows_that_are_now_hidden(tmp_path):
         sum(v or 0 for r in ("1.1.1", "1.1.2") for v in a.ev[ra[r]])) == pytest.approx(150)
     assert b.bac[rb["1.1.0"]] == 300
     assert issues_with(rep, "Se sumó el historial")
+
+
+def test_no_on_a_top_task_keeps_its_row_so_its_branch_counts():
+    """Visible = No en una tarea de nivel 1, sin fila superior en la que sumarse: conserva su fila (VIS-012) y su
+    rama sigue en el libro."""
+    rep = report(tasks(**{"Gestión": "No"}), max_level=2)
+    assert "1" in {code.split(".")[0] for code in codes(rep)}
+    assert {"PMO", "Control", "Pliegos", "Adjudicación", "Obras"} <= all_leaves(rep)
+    assert any(i.id == "VIS-012" and "conserva su fila" in i.message for i in rep.issues)

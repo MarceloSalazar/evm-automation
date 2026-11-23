@@ -7,12 +7,17 @@
     python evm_export.py generar-fichas --origen proyecto.mpp --salida Fichas.md
     python evm_export.py procesar-costes --libro EVM_Depuracion.xlsx
     python evm_export.py generar-cliente --origen interno.mpp --simular
+    python evm_export.py actualizar-edt --origen activo --desde 2.7.1
+    python evm_export.py corregir-linea-base --origen activo --tarea 3.4.5 --rama --de 2 --a 10 --motivo "..."
+    python evm_export.py corregir-linea-base --origen activo --tarea 1.1.0.1 --establecer 0 --interactivo
+    python evm_export.py corregir-linea-base --origen activo --todas --borrar 2 --motivo "..." --interactivo
 """
 from __future__ import annotations
 
 import argparse
 import copy
 import logging
+import os
 import platform
 import sys
 import time
@@ -109,7 +114,32 @@ def _computing(name: str, text: str) -> None:
     progress.stage(f"calcular:{name}", f"{text} ({name})" if name else text)
 
 
+def _single_origin(cfg: Config, args) -> Config:
+    """Con [[proyectos]] y un solo --origen con una ruta (no NOMBRE=RUTA), manda la línea de comandos: se lee solo ese
+    archivo, como sin [[proyectos]], con la planificación y la línea base de su sección si la ruta es la de una
+    sección, o las generales si no (CFG-057). actualizar-edt con --proyecto elige la sección (la ruta la reemplaza)."""
+    given = getattr(args, "origen", None) or []
+    if not cfg.projects or len(given) != 1 or getattr(args, "proyecto", None):
+        return cfg
+    if getattr(args, "comando", "") in ("actualizar-edt", "corregir-linea-base"):
+        return cfg                      # trabajan con un archivo: la sección la elige _edt_source (--origen = su ruta)
+    item = given[0].strip()
+    name, sep, _path = (x.strip() for x in item.partition("="))
+    if sep and name and not any(c in name for c in "\\/:."):
+        return cfg                      # NOMBRE=RUTA: reemplaza la ruta de una sección
+    def key(path: str) -> str:
+        return os.path.normcase(os.path.abspath(path))
+    spec = next((p for p in cfg.projects if item.lower() != "activo" and key(p.origin) == key(item)), None)
+    single = cfg.project_config(spec.name) if spec is not None else cfg
+    which = (f"es el de la sección '{spec.name}', con su planificación y su línea base" if spec is not None else
+             "no es el de ninguna sección: con la planificación y la línea base generales")
+    print(_issue_line(Issue("CFG-057", message=f"Se lee solo el archivo de --origen ({which}), no los "
+                                               f"{len(cfg.projects)} archivos de [[proyectos]].")))
+    return replace(single, projects=[])
+
+
 def _apply_overrides(cfg: Config, args) -> Config:
+    cfg = _single_origin(cfg, args)
     # Opciones indicadas explícitamente (aunque valgan 0 o ""): se validan, no se ignoran
     if getattr(args, "mes_inicio", None) is not None:
         cfg.start_month = parse_month(args.mes_inicio)
@@ -121,6 +151,10 @@ def _apply_overrides(cfg: Config, args) -> Config:
         cfg.max_level = args.nivel_max
     if getattr(args, "planificacion", None) is not None:
         cfg.plan = args.planificacion.strip()
+    if getattr(args, "ev_rellenar", False):
+        cfg.ev_history = True
+    if getattr(args, "pv_fechas_actuales", False):
+        cfg.pv_current_dates = True
     _add_silence(cfg, args)
     cfg.validate()
     return cfg
@@ -271,6 +305,11 @@ def cmd_generar(args) -> int:
             progress.stage("migrar", "Lectura del libro anterior")
             prior = prior_from_book(args.migrar_desde, report.project.name)
             report.issues.extend(plan_migration(report, prior, cfg.max_level, cfg.ignore_interior_zeros))
+        history = None
+        if prior is None and cfg.ev_history:    # % ganado hasta la fecha de estado (con --migrar-desde, el anterior)
+            from evm.history import earned_history
+            history = earned_history(report, cfg)
+            report.issues.extend(history.issues)
         silence = _silence(cfg)
         unmatched = []
         if prior is not None and prior.unmatched:
@@ -280,7 +319,7 @@ def cmd_generar(args) -> int:
                                                                  f"trasladar (EV {fmt_money(lost_ev)}, AC "
                                                                  f"{fmt_money(lost_ac)}). Ver hoja 'Validación'.")])
         report.issues = silence.apply(report.issues)
-        write_workbook(report, cfg, salida, prior)
+        write_workbook(report, cfg, salida, prior, history=history)
 
     leaves = sum(1 for r in report.rows if r.is_input)
     if report.multi_file:
@@ -298,6 +337,10 @@ def cmd_generar(args) -> int:
     print(f"  Horizonte: {report.horizon.start:%m/%Y} a {report.horizon.end:%m/%Y} ({report.horizon.months} meses)")
     sheets = (f"PV-{report.company_a} y PV-{report.company_b}" if report.multi else "PV")
     print(f"  BAC: se debe ingresar el BAC de cada fila en la columna D de {sheets} (celdas amarillas).")
+    if history is not None and history.loaded:
+        first = report.horizon.month_start(0)
+        print(f"  % ganado: cargado de {first:%m/%Y} a {history.status:%m/%Y} (fecha de estado "
+              f"{history.status:%d/%m/%Y}, fecha de corte del Resumen).")
     issues = located(report.rows, report.issues)
     _print_issues(issues)
     if any(i.severity != SEV_INFO for i in issues):
@@ -817,6 +860,396 @@ def _pct(value: float | None) -> str:
     return "—" if value is None else f"{fmt_number(round(value, 1), trim=True)} %"
 
 
+def _edt_report_path(args, origen: str, kind: str = "edt", command: str = "actualizar-edt") -> Path:
+    """Informe de actualizar-edt o corregir-linea-base (--informe; por defecto <origen>_<kind>-AAAAMMDD-HHMMSS.md,
+    que no reemplaza otro)."""
+    if args.informe:
+        path = Path(args.informe)
+        if path.suffix.lower() != ".md":
+            raise ConfigError("CFG-041", f"El informe de {command} se guarda en un archivo .md (Markdown).")
+        if path.exists() and not args.sobrescribir:
+            raise ConfigError("CFG-042", f"'{path}' ya existe. Para reemplazarlo se debe usar --sobrescribir.")
+        return path
+    from datetime import datetime
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    if origen.lower() == "activo":
+        return Path(f"{kind.upper()}-{stamp}.md")
+    return Path(origen).with_name(f"{Path(origen).stem}_{kind}-{stamp}.md")
+
+
+def _edt_source(cfg: Config, args, command: str = "actualizar-edt") -> tuple[str, str, Config]:
+    """El archivo de actualizar-edt o corregir-linea-base: (nombre, ruta, configuración). Sin [[proyectos]], el de
+    --origen. Con [[proyectos]], el de --proyecto NOMBRE (no hace falta si hay una sola sección, o si --origen
+    NOMBRE=RUTA lo indica), con su planificación y su línea base; --origen RUTA (o activo) reemplaza la ruta de la
+    sección."""
+    def which(message: str) -> ConfigError:
+        """Archivo sin indicar: NUM-006 (actualizar-edt) o LBA-006 (corregir-linea-base)."""
+        return ConfigError("LBA-006", message) if command == "corregir-linea-base" else ConfigError("NUM-006", message)
+
+    if not cfg.projects:
+        if args.proyecto:
+            raise which("--proyecto solo se usa con varios archivos ([[proyectos]] en la configuración). Con un "
+                        "solo archivo se indica con --origen.")
+        return _sources(cfg, args)[0]
+    if args.planificacion is not None or args.linea_base is not None:
+        raise ConfigError("CFG-038",
+                          "Con varios archivos ([[proyectos]]), la planificación y la línea base se indican en la "
+                          "sección [[proyectos]] de cada archivo, no con --planificacion ni --linea-base.")
+    from evm.fields import same_name
+    names = [p.name for p in cfg.projects]
+    given = args.origen or []
+    if len(given) > 1:
+        raise ConfigError("CFG-037", f"{command} trabaja con un archivo: --origen se indica una vez.")
+    path = given[0].strip() if given else None
+    wanted = args.proyecto
+    if path is not None:
+        name, sep, rest = (x.strip() for x in path.partition("="))
+        if sep and any(same_name(name, n) for n in names):
+            if wanted and not same_name(wanted, name):
+                raise which(f"--proyecto {wanted} y --origen {path} indican archivos distintos.")
+            wanted, path = name, rest
+    if wanted is None and path:
+        def key(p: str) -> str:
+            return os.path.normcase(os.path.abspath(p))
+        match = next((p for p in cfg.projects if path.lower() != "activo" and key(p.origin) == key(path)), None)
+        if match is not None:
+            wanted = match.name                 # la ruta de una sección: esa sección
+        elif len(names) > 1:
+            # Una ruta (o activo) que no es la de ninguna de varias secciones: solo ese archivo, con la planificación y
+            # la línea base generales (CFG-057), como en los demás comandos
+            print(_issue_line(Issue("CFG-057", message=f"Se lee solo el archivo de --origen (no es el de ninguna "
+                                                       f"sección: con la planificación y la línea base generales), no "
+                                                       f"los {len(names)} archivos de [[proyectos]]. Para usar los de "
+                                                       "una sección, se indica --proyecto NOMBRE.")))
+            return "", path, replace(cfg, projects=[])
+    if wanted is None and len(names) == 1:
+        wanted = names[0]
+    spec = next((p for p in cfg.projects if wanted is not None and same_name(p.name, wanted)), None)
+    if spec is None:
+        cause = f"'{wanted}' no es ninguno de" if wanted else "Se debe indicar con --proyecto NOMBRE cuál de"
+        raise which(f"{command} trabaja con un archivo de MS Project. {cause} los archivos de [[proyectos]]: "
+                    f"{', '.join(names)}.")
+    if not path:
+        path = spec.origin
+    return spec.name, path, cfg.project_config(spec.name)
+
+
+def cmd_actualizar_edt(args) -> int:
+    cfg = _apply_overrides(load_config(args.config), args)
+    _one_plan(cfg)
+    from evm.edt_renumber import (WriteOutcome, backup_path, check_field, plan_renumber, ref, write_codes,
+                                  write_report)
+    name, origen, cfg = _edt_source(cfg, args)
+    files = [(name, origen, cfg)]
+    engine = _engine_for(origen, args.motor)
+    simulate = args.simular
+    if not simulate and engine != "com":
+        raise ConfigError("NUM-007", "Los códigos solo se escriben en un archivo .mpp o en el proyecto abierto en MS "
+                                     "Project (--origen activo). Con un XML solo se puede simular (--simular).")
+    if origen.lower() != "activo" and not Path(origen).is_file():
+        raise MissingFileError("LEC-001", f"No existe el archivo de origen: {origen}")
+    informe = _edt_report_path(args, origen)
+    _check_folder(informe)
+    outcome: WriteOutcome | None = None
+    stages = _stages(files, args.motor, compute=0.5, after={"escribir": 2.0, "comprobar": 1.0, "guardar": 1.0,
+                                                            "informe": 0.1})
+    with progress.tracking(stages):
+        progress.say(_reading(name, origen))
+        if simulate:
+            with open_project(origen, cfg, args.motor, args.visible, links=False) as project:
+                check_field(project, cfg)
+                _computing("", "Cálculo de los códigos EDT")
+                plan = plan_renumber(project, cfg, args.desde)
+        else:
+            from evm.reader_com import ComSession
+            backup, backup_error = None, None
+            if origen.lower() != "activo" and not args.sin_respaldo:
+                # Antes de abrirlo: si ya estaba abierto en MS Project, no se guarda y la copia se borra al final
+                import shutil
+                backup = backup_path(Path(origen))
+                try:
+                    shutil.copyfile(origen, backup)
+                except OSError as exc:
+                    backup, backup_error = None, exc
+            outcome = WriteOutcome(backup=backup)
+            try:
+                progress.stage("abrir:", "Apertura en MS Project")
+                with ComSession(origen, visible=args.visible, read_only=False) as session:
+                    outcome.was_open = not session.opened_by_us
+                    progress.stage("leer:", "Lectura de MS Project")
+                    project = session.read_project(cfg, links=False)
+                    check_field(project, cfg)
+                    _computing("", "Cálculo de los códigos EDT")
+                    plan = plan_renumber(project, cfg, args.desde)
+                    if plan.changes and not plan.errors:
+                        if not outcome.was_open and backup_error is not None:
+                            raise backup_error
+                        written = write_codes(session, plan, cfg)
+                        outcome.written, outcome.undo_grouped = written.written, written.undo_grouped
+                        outcome.issues = written.issues
+                        if not outcome.was_open:
+                            progress.stage("guardar", "Guardado del archivo")
+                            session.save()
+                            outcome.saved = True
+            finally:
+                if outcome.backup is not None and not outcome.saved:
+                    outcome.backup.unlink(missing_ok=True)
+                    outcome.backup = None
+        progress.stage("informe", "Escritura del informe")
+        silence = _silence(cfg)
+        notices = silence.apply(project.warnings + plan.issues + (outcome.issues if outcome else []))
+        # Los errores del plan impiden escribir aunque estén silenciados: se cuentan igual
+        errors = [i for i in notices if i.severity == SEV_ERROR] or list(plan.errors)
+        if errors:
+            result = f"No se escribió ningún código: hay {plural(len(errors), 'error', 'errores')}."
+        elif not plan.changes:
+            result = "Los códigos ya están actualizados: no hay cambios."
+        elif simulate:
+            result = "Simulación: no se escribió ningún código."
+        elif outcome.saved:
+            result = f"Códigos escritos y archivo guardado ({outcome.written} tareas)."
+        else:
+            undo = " Se deshacen todos con un Ctrl+Z." if outcome.undo_grouped else ""
+            result = (f"Códigos escritos en MS Project ({outcome.written} tareas), sin guardar: se deben revisar y "
+                      f"guardar el archivo, o cerrarlo sin guardar para descartarlos.{undo}")
+        write_report(informe, plan, cfg, origen=origen, version=version_label(), result=result, notices=notices,
+                     outcome=outcome)
+
+    print(f"Proyecto: {project.name}")
+    if plan.scope.prefix:
+        print(f"  Planificación: {plan.scope.prefix}")
+    print(f"  Desde: {', '.join(ref(s) for s in plan.starts)}  |  Subtareas: {plan.tasks}  |  Protegidas: "
+          f"{len(plan.kept)}  |  Códigos que cambian: {len(plan.changes)} (sin código antes: {plan.added})")
+    limit = 40
+    for c in plan.changes[:limit]:
+        print(f"    Id {c.task.id:>5}  {c.old or '(sin código)':>14} -> {c.new:<14} {c.task.name}")
+    if len(plan.changes) > limit:
+        print(f"    ... y {len(plan.changes) - limit} cambios más (en el informe).")
+    _print_notices(notices, limit=50)
+    if outcome is not None and outcome.backup is not None:
+        print(f"Copia de respaldo: {outcome.backup.resolve()}")
+    print(result)
+    print(f"Informe: {informe.resolve()}")
+    return 1 if errors else 0
+
+
+def cmd_corregir_linea_base(args) -> int:
+    cfg = _apply_overrides(load_config(args.config), args)
+    _one_plan(cfg)
+    from datetime import datetime
+
+    from evm import baseline_fix as bf
+    from evm.edt_renumber import backup_path
+    from evm.wbs import build_tree, select_scope
+    action = bf.parse_action(args.de, args.a, args.borrar, args.establecer)
+    if bool(args.tarea) == bool(args.todas):
+        raise ConfigError("LBA-022", "Se indican las tareas con --tarea CODIGO (se puede repetir) o todas las de la "
+                                     "planificación con --todas, no las dos.")
+    branch = args.rama or args.todas
+    notes_on = args.notas or not args.todas     # con --todas, el motivo solo va a las Notas con --notas
+    name, origen, cfg = _edt_source(cfg, args, command="corregir-linea-base")
+    files = [(name, origen, cfg)]
+    engine = _engine_for(origen, args.motor)
+    simulate, interactive = args.simular, args.interactivo
+    if interactive and simulate:
+        raise ConfigError("LBA-009", "--interactivo escribe en MS Project un cambio cada vez: no se combina con "
+                                     "--simular.")
+    if not simulate and engine != "com":
+        raise ConfigError("LBA-007", "La línea base solo se escribe en un archivo .mpp o en el proyecto abierto en MS "
+                                     "Project (--origen activo). Con un XML solo se puede simular (--simular).")
+    if interactive and not bf.console_available():
+        raise ConfigError("LBA-009", "--interactivo necesita una consola en la que responder a las preguntas.")
+    motivo = (args.motivo or "").strip()
+    if not simulate and not interactive and not motivo:
+        raise ConfigError("LBA-008", "Se debe indicar el motivo de la corrección con --motivo \"texto\": queda en el "
+                                     "informe y se agrega a las Notas de cada tarea que cambia (con --todas, solo con "
+                                     "--notas).")
+    if origen.lower() != "activo" and not Path(origen).is_file():
+        raise MissingFileError("LEC-001", f"No existe el archivo de origen: {origen}")
+    informe = _edt_report_path(args, origen, kind="linea-base", command="corregir-linea-base")
+    _check_folder(informe)
+    silence = _silence(cfg)
+    console = bf.Console(out=print)
+    when = datetime.now()
+    mode = ("interactivo (--interactivo)" if interactive else "simulación (--simular)" if simulate else
+            "con --continuar" if args.continuar else "directo")
+
+    def keep(issues: list[Issue]) -> list[Issue]:
+        return [i for i in issues if i.id in bf.CONFIRM or not silence.matches(i)]
+
+    cases: list = []
+    notices: list[Issue] = []
+    project = ctx = scope = session = backup = None
+    saved = was_open = grouped = False
+    result = ""
+    rc = 0
+
+    def report() -> None:
+        if project is None or ctx is None:
+            return
+        bf.write_report(informe, project, ctx, cases, origen=origen, version=version_label(), action=action,
+                        motivo=motivo, mode=mode, result=result, notices=keep(notices) + [
+                            i for c in cases for i in c.issues], backup=backup,
+                        scope_prefix=scope.prefix if scope is not None else "", notes_on=notes_on,
+                        targets="todas las ramas de la planificación (--todas)" if args.todas else
+                        ", ".join(args.tarea) + (" (con su rama)" if args.rama else ""))
+
+    stages = _stages(files, args.motor, compute=0.5)
+    try:
+        with progress.tracking(stages):
+            progress.say(_reading(name, origen))
+            if engine == "xml":
+                from evm.reader_xml import read_xml
+                progress.stage(f"leer:{name}", "Lectura del XML")
+                project = read_xml(origen, cfg, links=False)
+                store = bf.XmlStore(origen)
+            else:
+                from evm.reader_com import ComSession
+                if not simulate and not interactive and origen.lower() != "activo" and not args.sin_respaldo:
+                    # Antes de abrirlo: si ya estaba abierto en MS Project, no se guarda y la copia se borra al final
+                    import shutil
+                    backup = backup_path(Path(origen))
+                    shutil.copyfile(origen, backup)
+                progress.stage(f"abrir:{name}", "Apertura en MS Project")
+                opened = ComSession(origen, visible=args.visible or interactive, read_only=simulate)
+                opened.__enter__()
+                session = opened
+                was_open = not session.opened_by_us
+                progress.stage(f"leer:{name}", "Lectura de MS Project")
+                project = session.read_project(cfg, links=False, review=True)
+                store = bf.ComStore(session)
+            _computing(name, "Cálculo de los cambios")
+            scope = select_scope(build_tree(project.tasks), cfg.plan)
+            state = bf.State(project, store, {t.uid for t in scope.tasks()})
+            targets = (bf.all_targets(scope, state, action) if args.todas else
+                       bf.find_targets(scope, args.tarea, args.rama))
+            ctx = bf.Context(project, cfg, project.baseline_number, args.aprobada)
+        print(f"Proyecto: {project.name}")
+        if scope.prefix:
+            print(f"  Planificación: {scope.prefix}")
+        print("Líneas base del proyecto:")
+        for line in bf.baseline_lines(project, ctx):
+            print(line)
+        if args.todas:
+            print(f"--todas: {plural(len(targets), 'rama', 'ramas')} de la planificación a las que afecta la acción "
+                  f"({action.text()}); el motivo {'se agrega a las Notas' if notes_on else 'queda solo en el informe'}.")
+        if interactive:
+            session.hand_over()
+            if ctx.approved is None:
+                ctx.approved = console.number("¿Cuál es la línea base aprobada? [0-10]", list(range(11)),
+                                              default=ctx.pv)
+            wrong = bf.approved_issue(ctx)
+            if wrong is not None:
+                notices.append(wrong)
+                print(_issue_line(wrong))
+                if console.choose("¿Seguir?", [("c", "continuar igualmente"), ("x", "salir")]) == "x":
+                    raise bf.Stop
+            if not motivo:
+                motivo = console.text("Motivo de la corrección (" + (
+                    "se agrega a las Notas de cada tarea que cambia)" if notes_on else "queda en el informe)"))
+            writer = bf.ComWriter(session, store)
+            run = bf.Session(console, ctx, state, writer, motivo, when, keep, cases, notes=notes_on)
+            try:
+                bf.run_interactive(run, targets, branch, action)
+            finally:
+                notices += writer.warnings
+            written = len({t.uid for c in cases if c.result.startswith("escrito en") for t in c.tasks})
+            result = (f"Interactivo: {plural(written, 'tarea cambiada', 'tareas cambiadas')} en MS Project, sin "
+                      "guardar: se deben revisar y guardar el archivo, o cerrarlo sin guardar para descartar los "
+                      "cambios." if written else "Interactivo: no se escribió ningún cambio.")
+        else:
+            wrong = bf.approved_issue(ctx)
+            if wrong is not None:
+                notices.append(wrong)
+                print(_issue_line(wrong))
+            for n, top in enumerate(targets, start=1):
+                case = bf.plan_branch(state, top, branch, action)
+                bf.check_case(case, state, ctx)
+                case.issues = keep(case.issues)
+                bf.show_case(console, case, f"{n} de {len(targets)}", project.minutes_per_day, state=state,
+                             pv=ctx.pv)
+                state.apply(case.changes)
+                cases.append(case)
+            for case in reversed(cases):
+                state.revert(case.changes)
+            confirm = [i for i in notices if i.id in bf.CONFIRM] + [i for c in cases for i in c.confirm]
+            changes = sum(len(c.changes) for c in cases)
+            if simulate:
+                need = (f" Para escribir hará falta confirmar {plural(len(confirm), 'aviso', 'avisos')} (--continuar) "
+                        "o decidir caso a caso con --interactivo." if confirm else "")
+                result = "Simulación: no se escribió nada." + need
+                for c in cases:
+                    c.result = "simulación" if c.changes else "sin cambios"
+            elif not changes:
+                result = ("No hay cambios: todas las tareas indicadas ya tienen la línea base." if action.establish else
+                          "No hay cambios: ninguna tarea indicada tiene la línea base de origen.")
+            elif confirm and not args.continuar:
+                result = (f"No se escribió nada: hay {plural(len(confirm), 'aviso que pide', 'avisos que piden')} "
+                          "confirmación. Se vuelve a ejecutar con la opción elegida (--continuar, o --interactivo para "
+                          "decidir caso a caso).")
+                for c in cases:
+                    c.result = "no escrito (avisos sin confirmar)" if c.changes else "sin cambios"
+                rc = 1
+            else:
+                with progress.tracking({"escribir": 1.0, "guardar": 1.0 if not was_open else 0.0}):
+                    progress.stage("escribir", "Escritura de la línea base")
+                    writer = bf.ComWriter(session, store)
+                    try:
+                        grouped = bf.write_cases(writer, [c for c in cases if c.changes], state, motivo, when,
+                                                 notes_on=notes_on)
+                    finally:
+                        notices += writer.warnings
+                    if not was_open:
+                        progress.stage("guardar", "Guardado del archivo")
+                        session.save()
+                        saved = True
+                for c in cases:
+                    c.result = ("sin cambios" if not c.changes else "escrito y guardado" if saved else
+                                "escrito en MS Project, sin guardar")
+                tasks = sum(len(c.tasks) for c in cases)
+                if saved:
+                    result = f"Línea base corregida y archivo guardado ({plural(tasks, 'tarea', 'tareas')})."
+                else:
+                    undo = " Se deshacen todos con un Ctrl+Z." if grouped else ""
+                    result = (f"Línea base corregida en MS Project ({plural(tasks, 'tarea', 'tareas')}), sin guardar: "
+                              "se deben revisar y guardar el archivo, o cerrarlo sin guardar para descartar los "
+                              f"cambios.{undo}")
+            if confirm and (rc == 1 or simulate):
+                print("Opciones de los avisos que piden confirmación:")
+                for id_ in dict.fromkeys(i.id for i in confirm):
+                    print(f"  {id_}: {bf.options_text(next(i for i in confirm if i.id == id_))}")
+    except bf.Stop:
+        result = "Salida a petición del usuario: no se escribió ningún cambio."
+    except KeyboardInterrupt:
+        if interactive and project is not None and ctx is not None:
+            result = "Cancelado (Ctrl+C): los cambios ya escritos se conservan, sin guardar."
+            report()
+        raise
+    except EvmError as exc:
+        if project is not None and ctx is not None:
+            result = f"Error {exc.id}: {exc}"
+            if backup is not None and not saved:
+                backup.unlink(missing_ok=True)
+                backup = None
+            report()
+        raise
+    finally:
+        if backup is not None and not saved:
+            backup.unlink(missing_ok=True)
+            backup = None
+        if session is not None:
+            session.__exit__(None, None, None)
+    shown = [i for i in keep(notices) if i.id != "LBA-011"]        # ya se mostró con las líneas base
+    if shown:
+        _print_notices(shown, limit=50)
+    report()
+    if backup is not None:
+        print(f"Copia de respaldo: {backup.resolve()}")
+    print(result)
+    print(f"Informe: {informe.resolve()}")
+    return rc
+
+
 def cmd_generar_cliente(args) -> int:
     cfg = _apply_overrides(load_config(args.config), args)
     _one_plan(cfg)
@@ -927,8 +1360,8 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--origen", action="append",
                         help="archivo .mpp (requiere MS Project instalado), .xml exportado de MS Project, "
                              "o 'activo' para usar el proyecto abierto en MS Project. Con varios archivos "
-                             "([[proyectos]] en la configuración) se omite, o se indica NOMBRE=RUTA para reemplazar "
-                             "la ruta de un archivo (se puede repetir)")
+                             "([[proyectos]] en la configuración) se omite, se indica NOMBRE=RUTA para reemplazar "
+                             "la ruta de un archivo (se puede repetir), o una ruta para leer solo ese archivo")
         sp.add_argument("--config", help="archivo de configuración TOML (ver config.ejemplo.toml)")
         sp.add_argument("--motor", choices=["auto", "com", "xml"], default="auto",
                         help="forma de lectura (por defecto según la extensión)")
@@ -956,6 +1389,13 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--meses", type=int, help="cantidad de meses (por defecto, meses de la configuración: 120)")
     g.add_argument("--migrar-desde", help="libro anterior del que se copian el BAC, el %% ganado y el AC ya cargados")
     g.add_argument("--sobrescribir", action="store_true", help="reemplaza el libro de salida si existe")
+    g.add_argument("--ev-rellenar", action="store_true",
+                   help="si el archivo ya tiene avance y fecha de estado, carga el %% ganado de cada mes hasta la fecha "
+                        "de estado (los meses anteriores se reconstruyen con las fechas reales). Por defecto el %% "
+                        "ganado se carga con actualizar")
+    g.add_argument("--pv-fechas-actuales", action="store_true",
+                   help="las tareas sin línea base forman el %% planificado con sus fechas actuales (criterio anterior "
+                        "a la 2.7.0). Por defecto quedan fuera del PV y solo cuentan en el %% ganado")
     g.set_defaults(func=cmd_generar)
 
     a = sub.add_parser("actualizar", help="calcula el %% ganado a la fecha de corte y lo carga en el mes correspondiente (el AC se carga a mano)")
@@ -1032,6 +1472,70 @@ def build_parser() -> argparse.ArgumentParser:
                                                                "control si existen")
     k.set_defaults(func=cmd_generar_cliente)
 
+    e = sub.add_parser("actualizar-edt", help="numera los códigos EDT de las subtareas de una tarea según la "
+                                              "jerarquía de MS Project, sin cambiar los de nivel 1 a nivel_maximo, "
+                                              "los de Visible = Sí ni los de la lista EDT")
+    common_source(e)
+    e.add_argument("--proyecto", metavar="NOMBRE",
+                   help="con varios archivos ([[proyectos]] en la configuración): el archivo que se numera, por su "
+                        "nombre en [[proyectos]] (no hace falta si hay uno solo). --origen RUTA o activo reemplaza "
+                        "su ruta")
+    e.add_argument("--desde", action="append", required=True, metavar="CODIGO",
+                   help="código EDT de la tarea cuyas subtareas se numeran (p. ej. 2.7.1); su código no cambia. Se "
+                        "puede repetir")
+    e.add_argument("--simular", action="store_true", help="muestra los cambios y escribe el informe sin escribir los "
+                                                          "códigos (admite el XML)")
+    e.add_argument("--sin-respaldo", action="store_true", help="no crea la copia de respaldo del .mpp antes de "
+                                                               "guardarlo")
+    e.add_argument("--informe", metavar="RUTA", help="informe en Markdown con los cambios (por defecto "
+                                                     "<origen>_edt-AAAAMMDD-HHMMSS.md)")
+    e.add_argument("--sobrescribir", action="store_true", help="reemplaza el informe de --informe si existe")
+    e.set_defaults(func=cmd_actualizar_edt)
+
+    b = sub.add_parser("corregir-linea-base", help="mueve, borra o establece la línea base de tareas indicadas por su "
+                                                   "código EDT (con --rama, con todas sus subtareas), para corregir "
+                                                   "erratas; agrega el motivo a las Notas. Ver docs/lineas-base.md")
+    common_source(b)
+    b.add_argument("--proyecto", metavar="NOMBRE",
+                   help="con varios archivos ([[proyectos]] en la configuración): el archivo que se corrige, por su "
+                        "nombre en [[proyectos]] (no hace falta si hay uno solo). --origen RUTA o activo reemplaza "
+                        "su ruta")
+    b.add_argument("--tarea", action="append", metavar="CODIGO",
+                   help="código EDT de la tarea que se corrige (p. ej. 3.4.5). Se puede repetir. O bien --todas")
+    b.add_argument("--todas", action="store_true",
+                   help="todas las tareas de la planificación a las que afecta la acción, rama a rama (cada rama es "
+                        "un caso, como en el informe de validar); el motivo queda en el informe y solo se agrega a las "
+                        "Notas con --notas")
+    b.add_argument("--notas", action="store_true", help="con --todas, agrega también el motivo a las Notas de cada "
+                                                        "tarea que cambia")
+    b.add_argument("--rama", action="store_true", help="corrige también todas las subtareas de cada --tarea (una "
+                                                       "tarea resumen solo se corrige con su rama)")
+    b.add_argument("--de", type=int, choices=range(0, 11), metavar="N", help="mover desde la línea base N (0 a 10)")
+    b.add_argument("--a", type=int, choices=range(0, 11), metavar="M", help="mover a la línea base M (0 a 10)")
+    b.add_argument("--borrar", type=int, choices=range(0, 11), metavar="N",
+                   help="borrar la línea base N (queda vacía: NA, o ND en MS Project en español)")
+    b.add_argument("--establecer", type=int, choices=range(0, 11), metavar="N",
+                   help="establecer la línea base N con los valores actuales (comienzo, fin, duración, trabajo y "
+                        "costo) en las tareas que no la tienen, como «Establecer línea base» de MS Project; las que "
+                        "ya la tienen no cambian")
+    b.add_argument("--motivo", metavar="TEXTO", help="motivo de la corrección: se agrega al final de las Notas de "
+                                                     "cada tarea que cambia (obligatorio al escribir)")
+    b.add_argument("--aprobada", type=int, choices=range(0, 11), metavar="N",
+                   help="línea base aprobada por el cliente: si no es la del PV, se avisa; con --interactivo, si no "
+                        "se indica, se pregunta")
+    b.add_argument("--interactivo", action="store_true",
+                   help="decide caso a caso: pregunta qué hacer con cada --tarea y con cada tarea resumen de encima "
+                        "afectada, escribe un cambio cada vez en MS Project (sin guardar) y permite deshacerlo")
+    b.add_argument("--continuar", action="store_true", help="escribe aunque haya avisos que piden confirmación")
+    b.add_argument("--simular", action="store_true", help="muestra los cambios y escribe el informe sin escribir en "
+                                                          "MS Project (admite el XML)")
+    b.add_argument("--sin-respaldo", action="store_true", help="no crea la copia de respaldo del .mpp antes de "
+                                                               "guardarlo")
+    b.add_argument("--informe", metavar="RUTA", help="informe en Markdown con los cambios (por defecto "
+                                                     "<origen>_linea-base-AAAAMMDD-HHMMSS.md)")
+    b.add_argument("--sobrescribir", action="store_true", help="reemplaza el informe de --informe si existe")
+    b.set_defaults(func=cmd_corregir_linea_base)
+
     return p
 
 
@@ -1071,8 +1575,9 @@ def _log_detail(args, text: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Códigos de salida: 0 correcto; 1 'validar' encontró errores; 2 error previsto (configuración, archivos,
-    opciones); 3 error inesperado del programa; 130 cancelado."""
+    """Códigos de salida: 0 correcto; 1 'validar' encontró errores (o 'actualizar-edt' no escribió por errores, o
+    'corregir-linea-base' por avisos sin confirmar); 2
+    error previsto (configuración, archivos, opciones); 3 error inesperado del programa; 130 cancelado."""
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(errors="replace")

@@ -34,7 +34,9 @@ cómo **silenciar** las observaciones que ya se revisaron y no se quieren volver
    14. [Actualizar y analizar](#414-act--actualizar-y-analizar)
    15. [Fichas de tareas](#415-fic--fichas-de-tareas)
    16. [Planificación para el cliente](#416-cli--planificación-para-el-cliente)
-   17. [Errores del sistema](#417-sis--errores-del-sistema)
+   17. [Numeración EDT (actualizar-edt)](#417-num--numeración-edt-actualizar-edt)
+   18. [Corrección de línea base (corregir-linea-base)](#418-lba--corrección-de-línea-base-corregir-linea-base)
+   19. [Errores del sistema](#419-sis--errores-del-sistema)
 5. [Códigos retirados](#5-códigos-retirados)
 
 ---
@@ -109,23 +111,25 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 
 | Área | Nombre | Tema en la hoja Validación | Dónde aparecen | Códigos |
 |---|---|---|---|---|
-| [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 56 |
+| [CFG](#41-cfg--configuración-y-opciones) | Configuración y opciones | Lectura y configuración | Todos los comandos | 57 |
 | [LEC](#42-lec--lectura-de-ms-project) | Lectura de MS Project | Lectura y configuración | generar, actualizar, validar y generar-fichas (lectura de MS Project) | 17 |
-| [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 20 |
-| [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 9 |
-| [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 13 |
-| [HIT](#46-hit--hitos-y-pesos) | Hitos y pesos | Hitos y pesos | generar (hoja Validación) y validar | 9 |
+| [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 21 |
+| [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 5 |
+| [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 14 |
+| [HIT](#46-hit--hitos-y-pesos) | Hitos y pesos | Hitos y pesos | generar (hoja Validación) y validar | 15 |
 | [MET](#47-met--método-de-medición) | Método de medición | Método de medición | generar (hoja Validación) y validar | 5 |
 | [EMP](#48-emp--empresas) | Empresas | Empresas | generar (hoja Validación) y validar | 5 |
 | [AVA](#49-ava--avance-a-la-fecha-de-estado) | Avance a la fecha de estado | Avance a la fecha de estado | validar | 13 |
 | [LOG](#410-log--lógica-del-cronograma) | Lógica del cronograma | Lógica del cronograma | validar | 13 |
-| [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) | 15 |
+| [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) | 17 |
 | [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 20 |
 | [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 24 |
 | [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 51 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
 | [CLI](#416-cli--planificación-para-el-cliente) | Planificación para el cliente | Libro | generar-cliente | 33 |
-| [SIS](#417-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
+| [NUM](#417-num--numeración-edt-actualizar-edt) | Numeración EDT (actualizar-edt) | Estructura y códigos EDT | actualizar-edt | 17 |
+| [LBA](#418-lba--corrección-de-línea-base-corregir-linea-base) | Corrección de línea base (corregir-linea-base) | Fechas y duración | corregir-linea-base | 22 |
+| [SIS](#419-sis--errores-del-sistema) | Errores del sistema | Libro | Todos los comandos | 3 |
 
 ---
 
@@ -193,6 +197,7 @@ Archivo de configuración, opciones de la línea de comandos, horizonte y códig
 | [CFG-054](#cfg-054) | Error (detiene el programa) | Falta el campo del cliente |
 | [CFG-055](#cfg-055) | Error (detiene el programa) | Cálculo del precio mal configurado |
 | [CFG-056](#cfg-056) | Advertencia | Fechas de estado distintas en los archivos |
+| [CFG-057](#cfg-057) | Info | Solo el archivo de `--origen` |
 
 #### CFG-001
 
@@ -502,7 +507,7 @@ Con varios archivos, la planificación y la línea base son de cada archivo.
 
 **`--origen` no válido con varios archivos** · Error (detiene el programa) · generar, actualizar, validar y generar-fichas · no se puede silenciar
 
-Con `[[proyectos]]`, `--origen` debe ser NOMBRE=RUTA, con el nombre de uno de los archivos.
+Con `[[proyectos]]`, `--origen` NOMBRE=RUTA debe usar el nombre de uno de los archivos, y si se indica varias veces, todas deben ser NOMBRE=RUTA (una sola ruta, sin NOMBRE=, lee solo ese archivo: [CFG-057](#cfg-057)).
 
 **Qué hacer:** Indicar `--origen` P1=C:\ruta\archivo.mpp, con un nombre de `[[proyectos]]`.
 
@@ -641,6 +646,14 @@ La sección [depuracion_precio] (precio de las EDT interna en la depuración de 
 Con varios archivos (`[[proyectos]]`), los proyectos tienen fechas de estado distintas, o alguno no tiene: el avance de cada archivo corresponde a otro día y actualizar se detiene ([ACT-005](#act-005) o [ACT-004](#act-004)) si no se indica `--fecha-corte`. La consola de generar muestra siempre este aviso, antes que los demás.
 
 **Qué hacer:** Registrar el avance de todos los archivos a la misma fecha (el último día del mes informado o su último día laborable) y fijar esa fecha de estado en cada uno (Proyecto > Fecha de estado).
+
+#### CFG-057
+
+**Solo el archivo de `--origen`** · Info · generar, actualizar, validar y generar-fichas · se puede silenciar
+
+La configuración tiene varios archivos (`[[proyectos]]`) y `--origen` indica una ruta (sin NOMBRE=): se lee solo ese archivo, como si la configuración no tuviera `[[proyectos]]`. Si la ruta es la de una sección, se usan su planificación y su línea base; si no, las generales (o las de `--planificacion` y `--linea-base`).
+
+**Qué hacer:** Ninguna. Para leer todos los archivos se omite `--origen`; para reemplazar la ruta de uno solo, se indica `--origen` NOMBRE=RUTA.
 
 ---
 
@@ -832,6 +845,7 @@ Formato, dependencia, orden y duplicados de los códigos EDT, planificación, li
 | [EDT-020](#edt-020) | Advertencia o Info | Tareas sin código EDT omitidas |
 | [EDT-021](#edt-021) | Advertencia | Ninguna tarea tiene código EDT |
 | [EDT-022](#edt-022) | Info | Tareas agregadas en su elemento superior |
+| [EDT-023](#edt-023) | Advertencia | Tareas sin código EDT dentro de un elemento EDT |
 
 #### EDT-001
 
@@ -993,6 +1007,14 @@ Las tareas sin código EDT o de nivel mayor al máximo (o fuera de la lista EDT)
 
 **Qué hacer:** Ninguna.
 
+#### EDT-023
+
+**Tareas sin código EDT dentro de un elemento EDT** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+Algunas tareas (hitos, actividades o tareas resumen) dependen de un elemento EDT y no tienen código EDT: se suman en la fila de su elemento, pero sin código no se identifican en la jerarquía ni se puede comprobar su numeración. Un resumen con la cantidad y una línea por tarea.
+
+**Qué hacer:** Asignar a cada tarea un código de un nivel más que su tarea superior (p. ej. 1.2.1.1 bajo 1.2.1), en el orden de las tareas.
+
 ---
 
 ### 4.4 VIS · Campo Visible
@@ -1002,38 +1024,18 @@ Valores del campo Visible y ramas que quedan fuera del cálculo.
 | Código | Severidad | Descripción |
 |---|---|---|
 | [VIS-001](#vis-001) | Advertencia | Valor de Visible no reconocido |
-| [VIS-002](#vis-002) | Advertencia | Visible = Sí dentro de una rama excluida |
-| [VIS-003](#vis-003) | Advertencia | Visible = Sí bajo una tarea que representa a sus subtareas |
 | [VIS-004](#vis-004) | Advertencia | Visible = Sí en una tarea sin código EDT |
-| [VIS-005](#vis-005) | Advertencia | Todos los elementos de nivel superior con Visible = No |
 | [VIS-006](#vis-006) | Info | Campo Visible sin usar con lista EDT |
-| [VIS-007](#vis-007) | Info | Tareas con Visible = No |
-| [VIS-009](#vis-009) | Info | Todas las subtareas con Visible = No |
-| [VIS-010](#vis-010) | Info | Visible = Sí por debajo del nivel máximo |
+| [VIS-011](#vis-011) | Info | Filas según el campo Visible |
+| [VIS-012](#vis-012) | Info | Tareas con Visible = No |
 
 #### VIS-001
 
 **Valor de Visible no reconocido** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-El campo Visible tiene un valor distinto de Sí o No: se usa el nivel máximo.
+El campo Visible tiene un valor distinto de Sí o No: se trata como vacío (sin fila propia si alguna tarea tiene Sí; si no, según el nivel máximo).
 
 **Qué hacer:** Escribir Sí, No o dejarlo vacío.
-
-#### VIS-002
-
-**Visible = Sí dentro de una rama excluida** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
-
-La tarea tiene Visible = Sí, pero depende de una tarea con Visible = No: queda fuera del cálculo con esa rama.
-
-**Qué hacer:** Quitar el No de la tarea superior o el Sí de la tarea.
-
-#### VIS-003
-
-**Visible = Sí bajo una tarea que representa a sus subtareas** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
-
-La tarea tiene Visible = Sí, pero depende de una tarea con Visible = No cuyas hermanas también lo tienen: se suma con su rama.
-
-**Qué hacer:** Revisar los valores de Visible de esa rama.
 
 #### VIS-004
 
@@ -1043,14 +1045,6 @@ Una tarea sin código EDT no puede tener fila propia: se suma en su fila superio
 
 **Qué hacer:** Asignarle código EDT o quitar el Sí.
 
-#### VIS-005
-
-**Todos los elementos de nivel superior con Visible = No** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
-
-Si se aplicara, el libro no tendría filas: se ignora en esos elementos.
-
-**Qué hacer:** Revisar el campo Visible de los elementos de nivel superior.
-
 #### VIS-006
 
 **Campo Visible sin usar con lista EDT** · Info · generar (hoja Validación) y validar · se puede silenciar
@@ -1059,29 +1053,21 @@ Con lista_edt, las filas del libro las decide la lista y el campo Visible no se 
 
 **Qué hacer:** Ninguna.
 
-#### VIS-007
+#### VIS-011
+
+**Filas según el campo Visible** · Info · generar (hoja Validación) y validar · se puede silenciar
+
+Alguna tarea tiene Visible = Sí: tiene fila propia cada tarea con Sí y código EDT, y las demás (vacío o No) se suman en su fila superior con Sí, como con una lista EDT. El nivel máximo solo completa los códigos con ceros.
+
+**Qué hacer:** Ninguna, si es lo esperado. Las tareas que no dependen de ninguna con Sí quedan fuera del libro ([EDT-019](#edt-019)).
+
+#### VIS-012
 
 **Tareas con Visible = No** · Info · generar (hoja Validación) y validar · se puede silenciar
 
-Esas tareas (con su rama) no forman parte del % planificado ni del % ganado. Un resumen con la cantidad y una línea por tarea.
+Desde la versión 2.7.0, una tarea con Visible = No no tiene fila propia y cuenta en su fila superior (antes quedaba fuera del cálculo, con su rama).
 
-**Qué hacer:** El BAC y el AC que se ingresan en el libro no las deben incluir.
-
-#### VIS-009
-
-**Todas las subtareas con Visible = No** · Info · generar (hoja Validación) y validar · se puede silenciar
-
-La tarea representa a sus subtareas: su fila es el paquete de trabajo, con toda su rama (o se suman en su fila superior).
-
-**Qué hacer:** Ninguna, si es lo esperado.
-
-#### VIS-010
-
-**Visible = Sí por debajo del nivel máximo** · Info · generar (hoja Validación) y validar · se puede silenciar
-
-Esas tareas tienen fila propia aunque su código sea más detallado que el nivel máximo.
-
-**Qué hacer:** Ninguna.
+**Qué hacer:** Para excluir una tarea del cálculo, inactivarla en MS Project. Los libros generados antes con tareas con No se deben regenerar con `--migrar-desde`.
 
 ---
 
@@ -1094,16 +1080,17 @@ Fechas de la línea base y del programa actual, hitos y duración de las tareas.
 | [FEC-001](#fec-001) | Error | Fin anterior al comienzo |
 | [FEC-003](#fec-003) | Advertencia | Tarea sin Comienzo o sin Fin |
 | [FEC-004](#fec-004) | Advertencia | Hito con duración |
-| [FEC-005](#fec-005) | Advertencia | Duración 0 sin marca de hito |
+| [FEC-005](#fec-005) | Error | Duración 0 sin marca de hito |
 | [FEC-006](#fec-006) | Advertencia | Duración estimada |
 | [FEC-008](#fec-008) | Advertencia | Tareas programadas manualmente |
-| [FEC-009](#fec-009) | Advertencia | El proyecto no tiene la línea base seleccionada |
+| [FEC-009](#fec-009) | Error | El proyecto no tiene la línea base seleccionada |
 | [FEC-010](#fec-010) | Advertencia | Tareas sin fechas de línea base |
 | [FEC-012](#fec-012) | Advertencia | Tarea sin fechas |
 | [FEC-013](#fec-013) | Advertencia | Línea base de tareas resumen distinta de la de su detalle |
 | [FEC-015](#fec-015) | Advertencia | Línea base incompleta |
 | [FEC-017](#fec-017) | Advertencia | Tareas con calendario propio |
 | [FEC-018](#fec-018) | Advertencia | Tarea con la línea base de un día |
+| [FEC-019](#fec-019) | Advertencia | Tareas sin línea base fuera del % planificado |
 
 #### FEC-001
 
@@ -1131,11 +1118,11 @@ La tarea está marcada como hito y tiene duración en el programa actual o en la
 
 #### FEC-005
 
-**Duración 0 sin marca de hito** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+**Duración 0 sin marca de hito** · Error · generar (hoja Validación) y validar · se puede silenciar
 
-La tarea dura 0 y no es un hito: no pesa en el % planificado de su fila.
+La tarea dura 0 y no es un hito (error desde la versión 2.7.0): sin peso no recibe parte del % planificado de su fila; con peso, cuenta entera en un mes, como un hito.
 
-**Qué hacer:** Si es un hito, marcarla como hito (y, si corresponde, indicar su peso).
+**Qué hacer:** Si es un hito, marcarla como hito (y, si corresponde, indicar su peso); si no, indicar su duración.
 
 #### FEC-006
 
@@ -1155,9 +1142,9 @@ MS Project no recalcula las fechas de esas tareas cuando cambian sus predecesora
 
 #### FEC-009
 
-**El proyecto no tiene la línea base seleccionada** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+**El proyecto no tiene la línea base seleccionada** · Error · generar (hoja Validación) y validar · se puede silenciar
 
-El % planificado se calculó con las fechas actuales de las tareas: el PV sigue al programa actual y no muestra el atraso respecto del plan aprobado. Si el proyecto tiene otras líneas base guardadas (con un XML; con un .mpp, solo en validar), el mensaje las indica, con la cantidad de tareas de cada una. La consola de generar muestra siempre este aviso, antes que los demás.
+Ninguna tarea tiene guardada la línea base que usa el % planificado (error desde la versión 2.7.0). El % planificado se calculó con las fechas actuales de las tareas: el PV sigue al programa actual y no muestra el atraso respecto del plan aprobado. Si el proyecto tiene otras líneas base guardadas (con un XML; con un .mpp, solo en validar), el mensaje las indica, con la cantidad de tareas de cada una. La consola de generar muestra siempre este aviso, antes que los demás.
 
 **Qué hacer:** Guardar la línea base en MS Project (Proyecto > Establecer línea base) y volver a exportar; o, si otra línea base guardada es la aprobada y está completa, indicarla con linea_base (en `[[proyectos]]`, la del archivo) o `--linea-base`.
 
@@ -1165,7 +1152,7 @@ El % planificado se calculó con las fechas actuales de las tareas: el PV sigue 
 
 **Tareas sin fechas de línea base** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-Algunas tareas no tienen fechas de línea base (p. ej. se agregaron después de guardarla): su % planificado se calculó con sus fechas actuales. Un resumen con la cantidad y una línea por tarea.
+Con generar `--pv-fechas-actuales`, algunas tareas no tienen fechas de línea base (p. ej. se agregaron después de guardarla): su % planificado se calculó con sus fechas actuales (sin esa opción quedan fuera del PV: [FEC-019](#fec-019)). Un resumen con la cantidad y una línea por tarea.
 
 **Qué hacer:** Si corresponde, actualizar la línea base de esas tareas.
 
@@ -1209,31 +1196,45 @@ La tarea dura al menos 5 días laborables en el programa actual, y en la línea 
 
 **Qué hacer:** Guardar de nuevo la línea base de la tarea (Establecer línea base > Tareas seleccionadas), como parte de un cambio de línea base aprobado.
 
+#### FEC-019
+
+**Tareas sin línea base fuera del % planificado** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+Algunas tareas de detalle no tienen línea base y su fila tiene otras tareas con línea base (p. ej. un retrabajo o trabajo no previsto, agregado después de guardar la línea base): no forman parte del % planificado, que es el de la línea base aprobada, pero cuentan en el % ganado y en la fecha de fin. Si una tarea con línea base se desglosó después en subtareas sin línea base, el PV usa la línea base de esa tarea. Un resumen con la cantidad y una línea por tarea.
+
+**Qué hacer:** Ninguna, si es un retrabajo o trabajo no previsto. Si es trabajo aprobado, guardar su línea base (Establecer línea base > Tareas seleccionadas y Resumir líneas base). Para el criterio anterior a la 2.7.0 (en el PV con sus fechas actuales): generar `--pv-fechas-actuales`.
+
 ---
 
 ### 4.6 HIT · Hitos y pesos
 
-Peso de los hitos, método «Hitos ponderados» y filas sin % planificado.
+Peso de las tareas, método «Hitos ponderados» y filas sin % planificado.
 
 | Código | Severidad | Descripción |
 |---|---|---|
-| [HIT-001](#hit-001) | Advertencia | Peso en una tarea que no es un hito de detalle |
+| [HIT-001](#hit-001) | Advertencia | Peso que no se usa |
 | [HIT-002](#hit-002) | Advertencia | «Hitos ponderados» sin hitos |
-| [HIT-003](#hit-003) | Info | «Hitos ponderados» con hitos sin peso |
+| [HIT-003](#hit-003) | Advertencia | «Hitos ponderados» sin pesos |
 | [HIT-004](#hit-004) | Info | «Hitos ponderados» con algunos hitos sin peso |
 | [HIT-005](#hit-005) | Advertencia | Fila sin % planificado |
-| [HIT-006](#hit-006) | Advertencia | Hitos con peso negativo |
-| [HIT-007](#hit-007) | Advertencia | Los pesos de los hitos suman más de 100 % |
-| [HIT-008](#hit-008) | Advertencia | Pesos de hitos menores a 100 % sin tareas con duración |
-| [HIT-009](#hit-009) | Advertencia | Tareas sin duración ni hitos con peso |
+| [HIT-006](#hit-006) | Advertencia | Tareas con peso negativo |
+| [HIT-009](#hit-009) | Advertencia | Tareas sin duración ni peso |
+| [HIT-010](#hit-010) | Error | Hito sin peso en una fila «Ponderado» |
+| [HIT-011](#hit-011) | Advertencia | Tarea sin peso que no cuenta |
+| [HIT-012](#hit-012) | Advertencia | «Ponderado» sin pesos |
+| [HIT-013](#hit-013) | Error o Advertencia | Pesos que no suman 100 |
+| [HIT-014](#hit-014) | Error o Advertencia | Pesos que no se usan |
+| [HIT-015](#hit-015) | Info | Tareas con Peso = 0 que no cuentan en el libro |
+| [HIT-016](#hit-016) | Advertencia | Fila del libro con Peso = 0 |
+| [HIT-017](#hit-017) | Advertencia | Tarea sin parte del % planificado |
 
 #### HIT-001
 
-**Peso en una tarea que no es un hito de detalle** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+**Peso que no se usa** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-La tarea tiene peso de hito, pero no es un hito o es una tarea resumen: el peso no se usa (las tareas pesan por su duración).
+La tarea tiene peso, pero es la tarea de una fila del libro (su BAC se ingresa en el libro) o no forma parte de ninguna fila: el peso no se usa. El peso de las demás tareas cuenta en todos los métodos (desde la 2.7.0): es un % de su tarea resumen.
 
-**Qué hacer:** Quitar el peso, o marcar la tarea como hito.
+**Qué hacer:** Quitar el peso, o indicarlo en las subtareas de la fila.
 
 #### HIT-002
 
@@ -1245,17 +1246,17 @@ La fila usa el método «Hitos ponderados» y no tiene hitos: actualizar calcula
 
 #### HIT-003
 
-**«Hitos ponderados» con hitos sin peso** · Info · generar (hoja Validación) y validar · se puede silenciar
+**«Hitos ponderados» sin pesos** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-Ningún hito de la fila tiene peso: los hitos se ponderan por igual.
+Ninguna tarea de la fila tiene peso: el % planificado y el % ganado se reparten por igual entre los hitos (cada uno en el mes de su fecha) y las tareas sin hito no cuentan.
 
-**Qué hacer:** Indicar el peso de los hitos, si no deben pesar igual.
+**Qué hacer:** Indicar el peso de los hitos, si no deben pesar igual, o cambiar el método si las tareas deben contar.
 
 #### HIT-004
 
 **«Hitos ponderados» con algunos hitos sin peso** · Info · generar (hoja Validación) y validar · se puede silenciar
 
-Los hitos sin peso no suman % ganado al cumplirse.
+Los hitos sin peso no reciben parte de la fila: no forman parte del % planificado ni suman % ganado al cumplirse.
 
 **Qué hacer:** Indicar el peso de esos hitos, si deben sumar.
 
@@ -1265,39 +1266,87 @@ Los hitos sin peso no suman % ganado al cumplirse.
 
 Ninguna tarea de la fila tiene fechas ni es un hito con peso: su BAC no se puede repartir en el tiempo.
 
-**Qué hacer:** Indicar fechas o duración a sus tareas, o el peso de sus hitos.
+**Qué hacer:** Indicar fechas o duración a sus tareas, o su peso.
 
 #### HIT-006
 
-**Hitos con peso negativo** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+**Tareas con peso negativo** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-Algunos hitos tienen peso negativo: se toma como 0.
+Algunas tareas de la fila tienen peso negativo: se toman como si no tuvieran peso (reciben parte del resto según su duración; un hito, nada).
 
-**Qué hacer:** Corregir el peso de esos hitos.
-
-#### HIT-007
-
-**Los pesos de los hitos suman más de 100 %** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
-
-Los pesos se escalaron a 100 % y las tareas sin hito de la fila no reciben % planificado.
-
-**Qué hacer:** Corregir los pesos para que sumen como máximo 100 %.
-
-#### HIT-008
-
-**Pesos de hitos menores a 100 % sin tareas con duración** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
-
-La fila solo tiene hitos y sus pesos suman menos de 100 %: se escalaron a 100 %.
-
-**Qué hacer:** Corregir los pesos para que sumen 100 %.
+**Qué hacer:** Corregir el peso de esas tareas.
 
 #### HIT-009
 
-**Tareas sin duración ni hitos con peso** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+**Tareas sin duración ni peso** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-Ninguna tarea de la fila tiene duración ni es un hito con peso: todas pesan igual.
+En la fila o en una de sus tareas resumen, ninguna subtarea tiene peso y todas duran 0 (p. ej. tareas resumen que solo tienen hitos), o alguna dura 0 pero contiene tareas con peso: todas reciben la misma parte, en lugar de repartirse por duración.
 
-**Qué hacer:** Indicar la duración de las tareas o el peso de los hitos.
+**Qué hacer:** Indicar el peso de esas subtareas, si no deben pesar igual.
+
+#### HIT-010
+
+**Hito sin peso en una fila «Ponderado»** · Error · generar (hoja Validación) y validar · se puede silenciar
+
+En una fila con el método «Ponderado», un hito (0 días) sin peso no forma parte del % planificado ni del % ganado: suele ser un olvido (un peso vacío significa sin definir; para que no cuente se escribe 0).
+
+**Qué hacer:** Indicar el peso del hito. Si sus tareas hermanas suman menos de 100, un hito sin peso no recibe nada del resto, que se reparte por duración.
+
+#### HIT-011
+
+**Tarea sin peso que no cuenta** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+La tarea sin peso (con sus subtareas, si es una tarea resumen) no forma parte del % planificado ni del % ganado: las tareas con peso de la misma tarea resumen suman 100 o más o, en una fila «Ponderado», el resto se reparte por duración y la suya es 0 (p. ej. sin fechas). No se informa en las filas «Hitos ponderados», en las que las tareas sin peso no cuentan cuando los hitos suman 100. Es lo esperado si su trabajo no tiene valor propio. Si los pesos suman menos de 100, el resto se reparte entre las tareas sin peso según su duración y no se informa. Si la tarea resumen contiene tareas con peso, se informa con [HIT-014](#hit-014).
+
+**Qué hacer:** Si debe pesar, indicar su peso y ajustar los de sus tareas hermanas; si es intencionado, escribir 0 (no cuenta en el libro y no se informa).
+
+#### HIT-012
+
+**«Ponderado» sin pesos** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+La fila usa el método «Ponderado» y ninguna de sus tareas tiene peso: el % planificado se reparte por la duración de las tareas y el % ganado se calcula con el método de cada tarea.
+
+**Qué hacer:** Indicar el peso de las tareas de la fila (campo de `[campos] peso_hito`) o cambiar el método.
+
+#### HIT-013
+
+**Pesos que no suman 100** · Error o Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+En la fila o en una de sus tareas resumen, los pesos de las subtareas directas son % de la tarea resumen. Error si suman más de 100: se escalan a 100 y las subtareas sin peso no cuentan. Advertencia si suman menos de 100 y no hay subtareas sin peso que reciban el resto: se escalan a 100.
+
+**Qué hacer:** Corregir los pesos de las subtareas para que sumen 100 (o menos, si el resto es para las subtareas sin peso).
+
+#### HIT-014
+
+**Pesos que no se usan** · Error o Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+Error: una tarea resumen sin peso no recibe parte de la fila (sus tareas hermanas con peso suman 100 o más, o reparten el resto por duración y la suya es 0, p. ej. solo tiene hitos; si ninguna hermana tiene peso, todas pesan igual: [HIT-009](#hit-009)). Advertencia: la tarea tiene Peso = 0 (o está dentro de una que lo tiene) y no cuenta en el libro. En los dos casos, las subtareas con peso que contiene no forman parte del % planificado ni del % ganado.
+
+**Qué hacer:** Indicar el peso de la tarea resumen (y ajustar los de sus tareas hermanas para que sumen como máximo 100), o, si el Peso = 0 es intencionado, quitar los pesos de sus subtareas.
+
+#### HIT-015
+
+**Tareas con Peso = 0 que no cuentan en el libro** · Info · generar (hoja Validación) y validar · se puede silenciar
+
+Un 0 escrito en el campo de peso (de texto) indica que la tarea se hace pero no cuenta en el reporte EVM: la tarea y su rama quedan fuera del PV, el EV y el AC, no reciben parte del peso de su tarea superior y no forman filas -D. Un campo de peso vacío, en cambio, significa sin definir (depende de sus tareas hermanas). En un campo numérico el 0 no se distingue del vacío y se lee como vacío.
+
+**Qué hacer:** Ninguna, si es intencionado. Para que la tarea cuente, se debe borrar el 0 (o escribir su peso).
+
+#### HIT-016
+
+**Fila del libro con Peso = 0** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+Una tarea con fila propia (código de nivel no mayor al máximo, Visible = Sí o de la lista EDT) tiene Peso = 0: la fila se conserva, porque su código es una fila del libro, pero sus tareas sin fila propia no cuentan y su PV y su EV son 0. Sus filas inferiores conservan su valor.
+
+**Qué hacer:** Revisar el peso de la tarea: si debe contar, borrar el 0; si no, se puede dejar (la fila queda en 0).
+
+#### HIT-017
+
+**Tarea sin parte del % planificado** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+La tarea (o tarea resumen) no tiene peso y sus tareas con línea base no tienen duración (p. ej. un hito con línea base y tareas agregadas después, sin línea base): el resto de su tarea superior se reparte por la duración planificada y no recibe parte del % planificado, aunque sí del % ganado.
+
+**Qué hacer:** Indicar el peso de la tarea (y ajustar los de sus tareas hermanas).
 
 ---
 
@@ -1364,14 +1413,14 @@ Multi-empresa: empresa y % de reparto de cada tarea.
 | [EMP-001](#emp-001) | Info | % de reparto en una tarea que no es compartida |
 | [EMP-002](#emp-002) | Info | Empresa sin tareas en la fila |
 | [EMP-003](#emp-003) | Advertencia | Tareas sin empresa |
-| [EMP-005](#emp-005) | Advertencia | Empresa no reconocida |
+| [EMP-005](#emp-005) | Error | Empresa no reconocida |
 | [EMP-006](#emp-006) | Advertencia | % de reparto fuera de rango |
 
 #### EMP-001
 
 **% de reparto en una tarea que no es compartida** · Info · generar (hoja Validación) y validar · se puede silenciar
 
-La tarea tiene % de reparto, pero su empresa no es la de las tareas compartidas (ambas): el reparto no se usa.
+La tarea tiene % de reparto, pero su empresa no es la de las tareas compartidas (ambas): el reparto no se usa. El % de reparto solo se usa cuando la empresa de la propia tarea es ambas; una tarea con la empresa vacía hereda la parte de su tarea superior (con el % de reparto de esa tarea).
 
 **Qué hacer:** Quitar el reparto o cambiar la empresa de la tarea.
 
@@ -1393,9 +1442,9 @@ Algunas tareas no tienen empresa (ni la heredan de sus tareas superiores): se tr
 
 #### EMP-005
 
-**Empresa no reconocida** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+**Empresa no reconocida** · Error · generar (hoja Validación) y validar · se puede silenciar
 
-El valor del campo de empresa no es empresa_a, empresa_b ni ambas: la tarea se trata como compartida.
+El valor del campo de empresa no es empresa_a, empresa_b ni ambas (error desde la versión 2.7.0): la tarea se trata como compartida.
 
 **Qué hacer:** Corregir el valor en MS Project.
 
@@ -1682,6 +1731,8 @@ Libro Excel: recordatorio del BAC y libros dañados, modificados o abiertos en E
 | [LIB-013](#lib-013) | Error (detiene el programa) | Valor no numérico |
 | [LIB-014](#lib-014) | Error (detiene el programa) | Número guardado como texto |
 | [LIB-015](#lib-015) | Error (detiene el programa) | No se puede guardar el archivo |
+| [LIB-016](#lib-016) | Info | % ganado cargado hasta la fecha de estado |
+| [LIB-017](#lib-017) | Advertencia | No se cargó el % ganado hasta la fecha de estado |
 
 #### LIB-001
 
@@ -1802,6 +1853,22 @@ Una celda tiene un número guardado como texto: Excel no lo suma.
 El libro (o el archivo de salida) está abierto en Excel o en otro programa, o no hay permiso para escribirlo.
 
 **Qué hacer:** Cerrar el archivo y volver a ejecutar el comando.
+
+#### LIB-016
+
+**% ganado cargado hasta la fecha de estado** · Info · generar (hoja Validación) · se puede silenciar
+
+Con generar `--ev-rellenar` (o `[exportacion] ev_historico` = true) y un archivo de MS Project con avance y fecha de estado, generar carga el % ganado de cada mes hasta la fecha de estado y la usa como fecha de corte del Resumen. El acumulado a la fecha de estado es el de MS Project; el de cada mes anterior se reconstruye con las fechas reales (exacto en las fórmulas fijas, los hitos ponderados y el avance lineal; en línea recta desde el comienzo real en el % completado y el % físico completado). No se carga con `--migrar-desde`, que conserva el del libro anterior.
+
+**Qué hacer:** Ingresar el BAC y el AC de esos meses. Los meses siguientes se cargan con actualizar.
+
+#### LIB-017
+
+**No se cargó el % ganado hasta la fecha de estado** · Advertencia · generar (hoja Validación) · se puede silenciar
+
+El archivo de MS Project tiene avance, pero no tiene fecha de estado, los archivos de `[[proyectos]]` tienen fechas de estado distintas o la fecha de estado está fuera del horizonte del libro.
+
+**Qué hacer:** Definir la fecha de estado en MS Project (Proyecto > Fecha de estado), la misma en todos los archivos, o revisar mes_inicio y meses. Si no, el % ganado se carga con actualizar.
 
 ---
 
@@ -2255,7 +2322,7 @@ Carga del % ganado del mes: fecha de corte, filas del libro, BAC y observaciones
 | [ACT-028](#act-028) | Info | La empresa no participa en las tareas de la fila |
 | [ACT-029](#act-029) | Info | Hitos con pesos negativos ponderados por igual |
 | [ACT-030](#act-030) | Info | Hitos sin peso ponderados por igual |
-| [ACT-031](#act-031) | Info | Hitos con peso negativo tomados con peso 0 |
+| [ACT-031](#act-031) | Info | Hitos con peso negativo tomados sin peso |
 | [ACT-032](#act-032) | Info | Sin hitos: % físico completado |
 | [ACT-033](#act-033) | Info | Sin hitos ni % físico: % completado |
 | [ACT-034](#act-034) | Info | Método no definido: % completado |
@@ -2519,9 +2586,9 @@ Método «Hitos ponderados»: ningún hito tiene peso: se ponderaron por igual.
 
 #### ACT-031
 
-**Hitos con peso negativo tomados con peso 0** · Info · actualizar (observaciones por fila) · se puede silenciar
+**Hitos con peso negativo tomados sin peso** · Info · actualizar (observaciones por fila) · se puede silenciar
 
-Método «Hitos ponderados»: algunos hitos tienen peso negativo.
+Método «Hitos ponderados»: algunos hitos tienen peso negativo: se tomaron como si no tuvieran peso.
 
 **Qué hacer:** Corregir el peso de esos hitos.
 
@@ -3038,7 +3105,376 @@ MS Project no dejó quitar un calendario sin uso, o el archivo del cliente guard
 
 ---
 
-### 4.17 SIS · Errores del sistema
+### 4.17 NUM · Numeración EDT (actualizar-edt)
+
+Comando actualizar-edt: tarea de `--desde`, tareas protegidas, orden y saltos de sus códigos, y escritura en MS Project.
+
+| Código | Severidad | Descripción |
+|---|---|---|
+| [NUM-001](#num-001) | Error (detiene el programa) | No se encontró la tarea de `--desde` |
+| [NUM-002](#num-002) | Error (detiene el programa) | Código de `--desde` repetido |
+| [NUM-003](#num-003) | Error (detiene el programa) | `--desde` no es un código EDT numérico |
+| [NUM-004](#num-004) | Error (detiene el programa) | Ramas de `--desde` superpuestas |
+| [NUM-005](#num-005) | Error (detiene el programa) | El campo EDT no se puede escribir |
+| [NUM-006](#num-006) | Error (detiene el programa) | Archivo de actualizar-edt sin indicar |
+| [NUM-007](#num-007) | Error (detiene el programa) | La escritura necesita MS Project |
+| [NUM-008](#num-008) | Error | Tarea protegida después de una tarea que se renumera |
+| [NUM-009](#num-009) | Error | Códigos protegidos con saltos o desordenados |
+| [NUM-010](#num-010) | Error | Código protegido que no cuelga de su tarea superior |
+| [NUM-011](#num-011) | Error | Tarea sin código EDT con tareas protegidas |
+| [NUM-012](#num-012) | Error | Visible = Sí en una tarea sin código EDT |
+| [NUM-013](#num-013) | Advertencia | Tarea que no se puede numerar |
+| [NUM-014](#num-014) | Advertencia | Código nuevo repetido fuera de las ramas |
+| [NUM-015](#num-015) | Error (detiene el programa) | Error de MS Project al escribir los códigos |
+| [NUM-016](#num-016) | Error (detiene el programa) | Códigos distintos después de escribir |
+| [NUM-017](#num-017) | Advertencia | Los cambios no se pueden deshacer de una vez |
+
+#### NUM-001
+
+**No se encontró la tarea de `--desde`** · Error (detiene el programa) · actualizar-edt · no se puede silenciar
+
+Ninguna tarea de la planificación tiene el código EDT indicado en `--desde`. Los ceros finales no cuentan: 2.7.1 es también la tarea 2.7.1.0.
+
+**Qué hacer:** Revisar el código y la planificación elegida (`[exportacion] planificacion` o `--planificacion`).
+
+#### NUM-002
+
+**Código de `--desde` repetido** · Error (detiene el programa) · actualizar-edt · no se puede silenciar
+
+Varias tareas de la planificación tienen el código EDT de `--desde`: no se sabe qué rama actualizar.
+
+**Qué hacer:** Si el archivo tiene varias planificaciones (p. ej. INTERNO y CLIENTE), elegir una con `--planificacion`; si no, corregir el código duplicado (validar lo informa con [EDT-009](#edt-009)).
+
+#### NUM-003
+
+**`--desde` no es un código EDT numérico** · Error (detiene el programa) · actualizar-edt · no se puede silenciar
+
+Solo se actualizan ramas cuya tarea superior tiene un código numérico (p. ej. 2.7.1): una planificación (INTERNO) o un código con letras no sirven de punto de partida.
+
+**Qué hacer:** Indicar en `--desde` el código numérico de la tarea desde la que se numeran sus subtareas.
+
+#### NUM-004
+
+**Ramas de `--desde` superpuestas** · Error (detiene el programa) · actualizar-edt · no se puede silenciar
+
+Un código de `--desde` está dentro de la rama de otro (o se repite): su rama ya se numera con la del otro.
+
+**Qué hacer:** Indicar solo el código de la tarea superior, o ramas separadas.
+
+#### NUM-005
+
+**El campo EDT no se puede escribir** · Error (detiene el programa) · actualizar-edt · no se puede silenciar
+
+El código EDT se lee del campo EDT o del número de esquema de MS Project (o el campo configurado no existe), o el campo personalizado tiene una fórmula: actualizar-edt solo escribe en un campo personalizado de texto sin fórmula, como «Item EDT».
+
+**Qué hacer:** Indicar en `[campos] edt` el campo personalizado de texto con los códigos EDT. Para el campo EDT de MS Project se usa su función Renumerar (Proyecto > EDT > Renumerar).
+
+#### NUM-006
+
+**Archivo de actualizar-edt sin indicar** · Error (detiene el programa) · actualizar-edt · no se puede silenciar
+
+actualizar-edt trabaja con un archivo de MS Project. La configuración tiene varias secciones `[[proyectos]]` y no se indicó cuál (o el nombre no existe), o se usó `--proyecto` sin `[[proyectos]]`.
+
+**Qué hacer:** Indicar el archivo con `--proyecto` NOMBRE, con uno de los nombres de `[[proyectos]]`. Sin `[[proyectos]]`, indicarlo con `--origen`.
+
+#### NUM-007
+
+**La escritura necesita MS Project** · Error (detiene el programa) · actualizar-edt · no se puede silenciar
+
+Los códigos solo se escriben en un archivo .mpp o en el proyecto abierto en MS Project (activo). Con un XML solo se puede simular.
+
+**Qué hacer:** Indicar el archivo .mpp o activo, o usar `--simular` para ver los cambios.
+
+#### NUM-008
+
+**Tarea protegida después de una tarea que se renumera** · Error · actualizar-edt · se puede silenciar
+
+Dentro de cada tarea, las subtareas protegidas (de nivel 1 a nivel_maximo, con Visible = Sí o de la lista EDT) deben ir primero: sus códigos no cambian y el cliente no debe ver saltos. Hay una tarea que se renumera delante de una protegida. No se escribe ningún código.
+
+**Qué hacer:** Mover en MS Project las tareas protegidas al principio de su tarea superior, o la otra tarea después de ellas.
+
+#### NUM-009
+
+**Códigos protegidos con saltos o desordenados** · Error · actualizar-edt · se puede silenciar
+
+Los códigos de las subtareas protegidas de una tarea deben ser correlativos desde 1 (2.7.1.1, 2.7.1.2...) y en el orden del esquema: un salto o un desorden es una errata en códigos que ve el cliente. No se escribe ningún código.
+
+**Qué hacer:** Corregir a mano los códigos protegidos (o el orden de sus tareas) en MS Project.
+
+#### NUM-010
+
+**Código protegido que no cuelga de su tarea superior** · Error · actualizar-edt · se puede silenciar
+
+El código de una tarea protegida no empieza por el de su tarea superior, o salta un nivel: no se puede numerar a sus hermanas sin repetir códigos. No se escribe ningún código.
+
+**Qué hacer:** Corregir el código de la tarea o su posición en el esquema de MS Project.
+
+#### NUM-011
+
+**Tarea sin código EDT con tareas protegidas** · Error · actualizar-edt · se puede silenciar
+
+Una tarea sin código EDT contiene tareas protegidas: su código debe ser el prefijo de los de ellas y no se puede calcular. No se escribe ningún código.
+
+**Qué hacer:** Poner a mano el código de la tarea en MS Project.
+
+#### NUM-012
+
+**Visible = Sí en una tarea sin código EDT** · Error · actualizar-edt · se puede silenciar
+
+La tarea tendría fila propia en el libro (Visible = Sí): su código lo decide el jefe de proyecto, no se asigna automáticamente. No se escribe ningún código.
+
+**Qué hacer:** Poner a mano el código de la tarea en MS Project, o quitar el Sí del campo Visible.
+
+#### NUM-013
+
+**Tarea que no se puede numerar** · Advertencia · actualizar-edt · se puede silenciar
+
+Con ignorar_ceros_intermedios = true, el código que le correspondería (p. ej. 2.7.0.1 bajo 2.7.0) es de nivel no mayor que nivel_maximo: sería una fila nueva del libro. La tarea y su rama no se numeran.
+
+**Qué hacer:** Poner a mano el código de la tarea en MS Project y volver a ejecutar actualizar-edt.
+
+#### NUM-014
+
+**Código nuevo repetido fuera de las ramas** · Advertencia · actualizar-edt · se puede silenciar
+
+Un código nuevo ya lo tiene una tarea de la planificación que no está en las ramas que se actualizan. Los códigos de la rama se actualizan igualmente.
+
+**Qué hacer:** Revisar el código de la otra tarea (validar informa los duplicados con [EDT-009](#edt-009)).
+
+#### NUM-015
+
+**Error de MS Project al escribir los códigos** · Error (detiene el programa) · actualizar-edt · no se puede silenciar
+
+MS Project devolvió un error al escribir un código EDT. Si el programa abrió el archivo, lo cierra sin guardar; si estaba abierto, los códigos ya escritos quedan en MS Project sin guardar.
+
+**Qué hacer:** Si el archivo estaba abierto, deshacer los cambios (Ctrl+Z) o cerrarlo sin guardar. Volver a ejecutar con -v para ver el detalle.
+
+#### NUM-016
+
+**Códigos distintos después de escribir** · Error (detiene el programa) · actualizar-edt · no se puede silenciar
+
+Al volver a leer los códigos escritos, alguno no coincide con el previsto. Si el programa abrió el archivo, lo cierra sin guardar; si estaba abierto, los cambios quedan en MS Project sin guardar.
+
+**Qué hacer:** Si el archivo estaba abierto, deshacer los cambios (Ctrl+Z) o cerrarlo sin guardar, e informar el problema.
+
+#### NUM-017
+
+**Los cambios no se pueden deshacer de una vez** · Advertencia · actualizar-edt · se puede silenciar
+
+MS Project no permitió agrupar los cambios en una sola acción de deshacer (OpenUndoTransaction): cada código escrito es una acción.
+
+**Qué hacer:** Revisar los cambios y guardar el archivo, o cerrarlo sin guardar para descartarlos.
+
+---
+
+### 4.18 LBA · Corrección de línea base (corregir-linea-base)
+
+Comando corregir-linea-base: tareas indicadas, avisos que piden confirmación antes de mover, borrar o establecer la línea base, y escritura en MS Project.
+
+| Código | Severidad | Descripción |
+|---|---|---|
+| [LBA-001](#lba-001) | Error (detiene el programa) | No se encontró la tarea de `--tarea` |
+| [LBA-002](#lba-002) | Error (detiene el programa) | Código de `--tarea` repetido |
+| [LBA-003](#lba-003) | Error (detiene el programa) | Tareas de `--tarea` superpuestas |
+| [LBA-004](#lba-004) | Error (detiene el programa) | Tarea resumen sin `--rama` |
+| [LBA-005](#lba-005) | Error (detiene el programa) | Acción no indicada o no válida |
+| [LBA-006](#lba-006) | Error (detiene el programa) | Archivo de corregir-linea-base sin indicar |
+| [LBA-007](#lba-007) | Error (detiene el programa) | La escritura necesita MS Project |
+| [LBA-008](#lba-008) | Error (detiene el programa) | Falta el motivo |
+| [LBA-009](#lba-009) | Error (detiene el programa) | `--interactivo` no se puede usar |
+| [LBA-010](#lba-010) | Error (detiene el programa) | Error al escribir la línea base en MS Project |
+| [LBA-011](#lba-011) | Advertencia | La línea base aprobada no es la del PV |
+| [LBA-012](#lba-012) | Advertencia | La línea base de destino ya tiene valores |
+| [LBA-013](#lba-013) | Advertencia | La línea base de destino es la del PV |
+| [LBA-014](#lba-014) | Advertencia | Fila del libro que se queda sin PV |
+| [LBA-015](#lba-015) | Advertencia | Tarea resumen de encima que quedaría como un bloque |
+| [LBA-016](#lba-016) | Info | Tareas de la rama que no cambian |
+| [LBA-017](#lba-017) | Info | Tarea resumen de encima que no coincide con sus subtareas |
+| [LBA-018](#lba-018) | Info | Filas del libro cuyo PV cambia |
+| [LBA-019](#lba-019) | Advertencia | Los cambios no se pueden deshacer de una vez |
+| [LBA-020](#lba-020) | Advertencia | Duración, trabajo o costo previstos recalculados |
+| [LBA-021](#lba-021) | Advertencia | Tarea resumen de encima que deja de ser un bloque |
+| [LBA-022](#lba-022) | Error (detiene el programa) | Tareas de corregir-linea-base sin indicar |
+
+#### LBA-001
+
+**No se encontró la tarea de `--tarea`** · Error (detiene el programa) · corregir-linea-base · no se puede silenciar
+
+Ninguna tarea de la planificación tiene el código EDT indicado en `--tarea`. Los ceros finales no cuentan: 3.4 es también la tarea 3.4.0.
+
+**Qué hacer:** Revisar el código y la planificación elegida (`[exportacion] planificacion` o `--planificacion`).
+
+#### LBA-002
+
+**Código de `--tarea` repetido** · Error (detiene el programa) · corregir-linea-base · no se puede silenciar
+
+Varias tareas de la planificación tienen el código EDT de `--tarea`: no se sabe cuál corregir.
+
+**Qué hacer:** Elegir la planificación con `--planificacion` o corregir el código duplicado (validar lo informa con [EDT-009](#edt-009)).
+
+#### LBA-003
+
+**Tareas de `--tarea` superpuestas** · Error (detiene el programa) · corregir-linea-base · no se puede silenciar
+
+Una tarea de `--tarea` está dentro de la rama de otra (o se repite): ya se corrige con la otra.
+
+**Qué hacer:** Indicar solo la tarea superior, o ramas separadas.
+
+#### LBA-004
+
+**Tarea resumen sin `--rama`** · Error (detiene el programa) · corregir-linea-base · no se puede silenciar
+
+La tarea indicada es una tarea resumen: sin `--rama` se movería o borraría su línea base sin la de sus subtareas.
+
+**Qué hacer:** Agregar `--rama` para corregir la tarea con todas sus subtareas, o indicar las subtareas una a una.
+
+#### LBA-005
+
+**Acción no indicada o no válida** · Error (detiene el programa) · corregir-linea-base · no se puede silenciar
+
+Falta la acción (`--de` N `--a` M para mover, `--borrar` N o `--establecer` N), se indicó más de una, o `--de` y `--a` son la misma línea base.
+
+**Qué hacer:** Indicar `--de` y `--a` con dos líneas base distintas (0 a 10), o solo `--borrar`, o solo `--establecer`.
+
+#### LBA-006
+
+**Archivo de corregir-linea-base sin indicar** · Error (detiene el programa) · corregir-linea-base · no se puede silenciar
+
+corregir-linea-base trabaja con un archivo de MS Project. La configuración tiene varias secciones `[[proyectos]]` y no se indicó cuál (o el nombre no existe), o se usó `--proyecto` sin `[[proyectos]]`.
+
+**Qué hacer:** Indicar el archivo con `--proyecto` NOMBRE, con uno de los nombres de `[[proyectos]]`. Sin `[[proyectos]]`, indicarlo con `--origen`.
+
+#### LBA-007
+
+**La escritura necesita MS Project** · Error (detiene el programa) · corregir-linea-base · no se puede silenciar
+
+La línea base solo se escribe en un archivo .mpp o en el proyecto abierto en MS Project (activo). Con un XML solo se puede simular.
+
+**Qué hacer:** Indicar el archivo .mpp o activo, o usar `--simular` para ver los cambios.
+
+#### LBA-008
+
+**Falta el motivo** · Error (detiene el programa) · corregir-linea-base · no se puede silenciar
+
+Al escribir, el motivo de la corrección es obligatorio: queda en el informe y se agrega al final de las Notas de cada tarea que cambia, para que quede constancia en el archivo (con `--todas`, solo con `--notas`).
+
+**Qué hacer:** Indicar `--motivo` "texto" (con `--interactivo`, si no se indica, se pregunta).
+
+#### LBA-009
+
+**`--interactivo` no se puede usar** · Error (detiene el programa) · corregir-linea-base · no se puede silenciar
+
+`--interactivo` pregunta en la consola y escribe en MS Project un cambio cada vez: necesita una consola en la que responder y no se combina con `--simular`.
+
+**Qué hacer:** Ejecutar el comando en una consola (PowerShell o símbolo del sistema), sin `--simular`. Para ver los cambios sin escribirlos, usar `--simular` sin `--interactivo`.
+
+#### LBA-010
+
+**Error al escribir la línea base en MS Project** · Error (detiene el programa) · corregir-linea-base · no se puede silenciar
+
+MS Project devolvió un error al escribir un campo de la línea base o las Notas, no aceptó dejar vacía una fecha (NA o ND), o un valor no coincide con el previsto al volver a leerlo. El programa vuelve a escribir los valores anteriores de las tareas del cambio.
+
+**Qué hacer:** Revisar las tareas en MS Project (o cerrar el archivo sin guardar) y ejecutar con -v para ver el detalle. Si se repite, corregir la línea base a mano en MS Project.
+
+#### LBA-011
+
+**La línea base aprobada no es la del PV** · Advertencia · corregir-linea-base · no se puede silenciar
+
+La línea base aprobada (`--aprobada` o la respuesta de `--interactivo`) no es la que usa el PV: linea_base de la configuración o, si no se indica, la línea base del valor acumulado de MS Project. El PV no sería el aprobado. No se escribe nada sin confirmarlo.
+
+**Qué hacer:** Indicar linea_base con la aprobada en la configuración, o elegirla para el valor acumulado en MS Project (Archivo > Opciones > Avanzado). Para seguir igualmente, `--continuar` (o continuar en `--interactivo`).
+
+#### LBA-012
+
+**La línea base de destino ya tiene valores** · Advertencia · corregir-linea-base · no se puede silenciar
+
+Al mover, la línea base de destino de alguna tarea ya tiene fechas: se reemplazan por las de origen (los valores anteriores quedan en el informe). No se escribe nada sin confirmarlo.
+
+**Qué hacer:** Revisar las tareas; para reemplazar los valores, `--continuar` (o aplicar en `--interactivo`).
+
+#### LBA-013
+
+**La línea base de destino es la del PV** · Advertencia · corregir-linea-base · no se puede silenciar
+
+Las tareas se mueven a la línea base que usa el PV: entran en el PV, lo que equivale a aprobar el cambio. No se escribe nada sin confirmarlo.
+
+**Qué hacer:** Confirmar con `--continuar` (o aplicar en `--interactivo`) solo si el cliente aprobó el cambio.
+
+#### LBA-014
+
+**Fila del libro que se queda sin PV** · Advertencia · corregir-linea-base · no se puede silenciar
+
+Después del cambio, ninguna tarea de la fila tiene la línea base del PV: la fila no tendrá % planificado y su BAC debe ser 0 hasta que el trabajo se apruebe. No se escribe nada sin confirmarlo.
+
+**Qué hacer:** Si el trabajo no está aprobado, confirmar con `--continuar` y poner el BAC de la fila en 0; o ubicar las tareas en MS Project dentro de una fila existente, como trabajo no previsto de ese paquete; o no corregir si el trabajo sí estaba aprobado.
+
+#### LBA-015
+
+**Tarea resumen de encima que quedaría como un bloque** · Advertencia · corregir-linea-base · no se puede silenciar
+
+Una tarea resumen por encima de las tareas corregidas conserva la línea base de origen y ninguna de sus subtareas la tendrá: el PV la cuenta como un bloque con sus fechas. Es lo correcto si su línea base está aprobada (la tarea se desglosó después en subtareas); si también es nueva, seguiría en el PV por error. El programa no la modifica sin decidirlo. No se escribe nada sin confirmarlo.
+
+**Qué hacer:** Si su línea base está aprobada, `--continuar` la conserva. Si también es nueva, incluirla con `--tarea` CODIGO `--rama`, o decidir con `--interactivo` (moverla a la línea base aprobada, borrarla, moverla a otra u omitirla).
+
+#### LBA-016
+
+**Tareas de la rama que no cambian** · Info · corregir-linea-base · se puede silenciar
+
+Al mover o borrar, algunas tareas de la rama no tienen la línea base de origen: no cambian (ni en la de destino). Con `--establecer`, algunas ya tienen la línea base: conservan sus valores.
+
+**Qué hacer:** Ninguna: es informativo. Para reemplazar la línea base de una tarea que ya la tiene, se establece en MS Project (Establecer línea base, Tareas seleccionadas).
+
+#### LBA-017
+
+**Tarea resumen de encima que no coincide con sus subtareas** · Info · corregir-linea-base · se puede silenciar
+
+Las fechas de la línea base de una tarea resumen por encima de las corregidas ya no coinciden con las de sus subtareas (por ejemplo, abarca tareas que se sacaron). El programa no la modifica. No cambia el PV: una tarea resumen con subtareas con línea base no forma parte del PV.
+
+**Qué hacer:** Si se quiere, corregirla en MS Project: seleccionar las subtareas, Establecer línea base con «Resumir líneas base» en la tarea superior.
+
+#### LBA-018
+
+**Filas del libro cuyo PV cambia** · Info · corregir-linea-base · se puede silenciar
+
+Las tareas corregidas forman parte del PV de esas filas: su PV cambia (y el BAC repartido en el tiempo).
+
+**Qué hacer:** Ninguna: es informativo. El libro se genera después de la corrección.
+
+#### LBA-019
+
+**Los cambios no se pueden deshacer de una vez** · Advertencia · corregir-linea-base · se puede silenciar
+
+MS Project no permitió agrupar los cambios en una sola acción de deshacer (OpenUndoTransaction): cada valor escrito es una acción.
+
+**Qué hacer:** Revisar los cambios y guardar el archivo, o cerrarlo sin guardar para descartarlos.
+
+#### LBA-020
+
+**Duración, trabajo o costo previstos recalculados** · Advertencia · corregir-linea-base · se puede silenciar
+
+Al escribir la línea base, MS Project recalculó la duración, el trabajo o el costo previstos de alguna tarea (por ejemplo, el trabajo de una tarea con recursos asignados): no coinciden con los copiados. Las fechas sí son las copiadas.
+
+**Qué hacer:** Revisar esas tareas en MS Project. Las fechas son las que usa el PV; el trabajo y el costo previstos no se usan en el libro.
+
+#### LBA-021
+
+**Tarea resumen de encima que deja de ser un bloque** · Advertencia · corregir-linea-base · se puede silenciar
+
+Con `--establecer`, una tarea resumen por encima tenía la línea base y ninguna de sus subtareas la tenía (el PV la contaba como un bloque con sus fechas). Al establecerla en alguna subtarea, el PV cuenta solo las subtareas con línea base: las que siguen sin ella quedan fuera.
+
+**Qué hacer:** Si esas subtareas también forman parte de la errata, incluirlas: `--tarea` con la tarea resumen y `--rama`.
+
+#### LBA-022
+
+**Tareas de corregir-linea-base sin indicar** · Error (detiene el programa) · corregir-linea-base · no se puede silenciar
+
+Falta indicar las tareas que se corrigen, o se indicaron de las dos formas: `--tarea` CODIGO (una o varias) o `--todas` (todas las ramas de la planificación a las que afecta la acción).
+
+**Qué hacer:** Indicar `--tarea` o `--todas`, no las dos.
+
+---
+
+### 4.19 SIS · Errores del sistema
 
 Errores de archivos del sistema y errores inesperados del programa.
 
@@ -3093,12 +3529,20 @@ reemplazar por el código que lo informa ahora.
 | <a id="lec-023"></a>LEC-023 | Campo de reparto vacío | 2.6.0 | - | Hasta la versión 2.5, en multi-empresa, se avisaba cuando el campo de reparto existía, pero estaba vacío en todas las tareas. Desde la versión 2.6.0 no se avisa: una tarea compartida (ambas) sin reparto se reparte con reparto_por_defecto, como está previsto. |
 | <a id="edt-004"></a>EDT-004 | Mismo código EDT que la tarea superior | 2.6.0 | [EDT-005](#edt-005) | Desde la versión 2.6.0, un código EDT igual al de la tarea superior se informa con [EDT-005](#edt-005): tampoco depende del de la tarea superior. |
 | <a id="edt-014"></a>EDT-014 | Código de la lista EDT sin tarea | 2.6.0 | [EDT-013](#edt-013) | Desde la versión 2.6.0, el resumen y cada código de la lista se informan con [EDT-013](#edt-013). |
-| <a id="vis-008"></a>VIS-008 | Tarea con Visible = No | 2.6.0 | [VIS-007](#vis-007) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [VIS-007](#vis-007). |
+| <a id="vis-002"></a>VIS-002 | Visible = Sí dentro de una rama excluida | 2.7.0 | [VIS-011](#vis-011) | Desde la versión 2.7.0, Visible = No no excluye tareas del cálculo: cada tarea con Sí tiene fila propia. |
+| <a id="vis-003"></a>VIS-003 | Visible = Sí bajo una tarea que representa a sus subtareas | 2.7.0 | [VIS-011](#vis-011) | Desde la versión 2.7.0, cada tarea con Visible = Sí tiene fila propia, aunque dependa de una tarea con No. |
+| <a id="vis-005"></a>VIS-005 | Todos los elementos de nivel superior con Visible = No | 2.7.0 | [VIS-012](#vis-012) | Desde la versión 2.7.0, Visible = No no excluye tareas del cálculo. |
+| <a id="vis-007"></a>VIS-007 | Tareas con Visible = No | 2.7.0 | [VIS-012](#vis-012) | Desde la versión 2.7.0, las tareas con Visible = No no tienen fila propia y cuentan en su fila superior: se informan con [VIS-012](#vis-012). |
+| <a id="vis-008"></a>VIS-008 | Tarea con Visible = No | 2.6.0 | [VIS-012](#vis-012) | Desde la versión 2.6.0, el resumen y cada tarea se informaban con [VIS-007](#vis-007); desde la 2.7.0, con [VIS-012](#vis-012). |
+| <a id="vis-009"></a>VIS-009 | Todas las subtareas con Visible = No | 2.7.0 | [VIS-012](#vis-012) | Desde la versión 2.7.0, las tareas con Visible = No siempre se suman en su fila superior. |
+| <a id="vis-010"></a>VIS-010 | Visible = Sí por debajo del nivel máximo | 2.7.0 | [VIS-011](#vis-011) | Desde la versión 2.7.0, si alguna tarea tiene Visible = Sí, las filas las decide el campo Visible. |
 | <a id="fec-002"></a>FEC-002 | Fin anterior al comienzo | 2.6.0 | [FEC-001](#fec-001) | Desde la versión 2.6.0, el fin anterior al comienzo, en la línea base o en el programa actual, se informa con [FEC-001](#fec-001). |
 | <a id="fec-007"></a>FEC-007 | Duración estimada | 2.6.0 | [FEC-006](#fec-006) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [FEC-006](#fec-006). |
 | <a id="fec-011"></a>FEC-011 | Tarea sin fechas de línea base | 2.6.0 | [FEC-010](#fec-010) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [FEC-010](#fec-010). |
 | <a id="fec-014"></a>FEC-014 | Tarea resumen con la línea base sin resumir | 2.6.0 | [FEC-013](#fec-013) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [FEC-013](#fec-013). |
 | <a id="fec-016"></a>FEC-016 | Líneas base incompletas | 2.6.0 | [FEC-015](#fec-015) | Desde la versión 2.6.0, el resumen de las líneas base incompletas y cada tarea se informan con [FEC-015](#fec-015). |
+| <a id="hit-007"></a>HIT-007 | Los pesos de los hitos suman más de 100 % | 2.7.0 | [HIT-013](#hit-013) | Los pesos se escalaron a 100 % y las tareas sin hito de la fila no reciben % planificado. |
+| <a id="hit-008"></a>HIT-008 | Pesos de hitos menores a 100 % sin tareas con duración | 2.7.0 | [HIT-013](#hit-013) | La fila solo tiene hitos y sus pesos suman menos de 100 %: se escalaron a 100 %. |
 | <a id="emp-004"></a>EMP-004 | Tarea sin empresa | 2.6.0 | [EMP-003](#emp-003) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [EMP-003](#emp-003). |
 | <a id="ava-009"></a>AVA-009 | Tarea atrasada sin terminar | 2.6.0 | [AVA-011](#ava-011) | Desde la versión 2.6.0, cada tarea con trabajo pendiente antes de la fecha de estado se informa con [AVA-011](#ava-011), como su resumen. |
 | <a id="ava-010"></a>AVA-010 | Tarea sin comenzar con Comienzo pasado | 2.6.0 | [AVA-011](#ava-011) | Desde la versión 2.6.0, cada tarea con trabajo pendiente antes de la fecha de estado se informa con [AVA-011](#ava-011), como su resumen. |

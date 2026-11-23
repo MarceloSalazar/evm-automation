@@ -15,7 +15,7 @@ except ModuleNotFoundError:  # pragma: no cover
 
 
 # Cálculo del PV y del EV: MS Project da el % planificado y el % ganado de cada fila (por la duración de la línea
-# base de sus tareas y el peso de sus hitos); el importe es el BAC que se ingresa en el libro multiplicado por el %.
+# base y el peso de sus tareas); el importe es el BAC que se ingresa en el libro multiplicado por el %.
 # Libros de versiones anteriores calculados con los costos de MS Project: _meta modo = "costo" (no se admiten).
 MODE_PERCENT = "porcentaje"
 
@@ -27,6 +27,7 @@ DEFAULT_METHODS = [
     "25/75",
     "20/80",
     "Hitos ponderados",
+    "Ponderado",
     "% Completado",
     "% Físico completado",
     "Unidades completadas",
@@ -88,7 +89,7 @@ class Config:
     # [campos] -- campos de MS Project a leer
     wbs_field: str = "WBS"                # WBS | OutlineNumber | Text1..Text30 | alias
     method_field: str = ""                # campo con el método de medición (p.ej. Text10)
-    milestone_weight_field: str = ""      # campo numérico con el peso de cada hito (p.ej. Number1)
+    milestone_weight_field: str = ""      # campo con el peso de cada tarea (p.ej. Text7 o Number1)
     # Campo de texto "Visible": Sí = fila propia (también por debajo del nivel máximo); No = la tarea y su rama
     # quedan fuera del PV, el EV y el AC (si todas las subtareas tienen No, las representa su tarea superior);
     # vacío = según el nivel máximo. "" = no se lee
@@ -120,6 +121,12 @@ class Config:
     currency: str = "EUR"                 # "" = código de moneda del proyecto en MS Project
     decimals: int = 0
     fast_save: bool = True                # guardado_rapido: las celdas se escriben como texto al guardar el libro
+    # ev_historico (o generar --ev-rellenar): 'generar' carga el % ganado de cada mes hasta la fecha de estado si el
+    # archivo ya tiene avance. Desactivado por defecto
+    ev_history: bool = False
+    # generar --pv-fechas-actuales: las tareas sin línea base forman el % planificado con sus fechas actuales (criterio
+    # anterior a la 2.7.0); por defecto quedan fuera del PV (wbs.pv_selection)
+    pv_current_dates: bool = False
     # Depuración de costes: filas «(coste)» con la previsión de una empresa, pegada
     # en la hoja PV-depuración, para alinear las tareas e hitos de MS Project con esa previsión
     cost_review: bool = False             # depuracion_costes
@@ -461,6 +468,7 @@ def load_config(path: str | Path | None) -> Config:
     cfg.currency = _get(exp, "moneda", cfg.currency, str).strip()
     cfg.decimals = _get(exp, "decimales", cfg.decimals, int)
     cfg.fast_save = _get(exp, "guardado_rapido", cfg.fast_save, bool)
+    cfg.ev_history = _get(exp, "ev_historico", cfg.ev_history, bool)
     cfg.title = _get(exp, "titulo", cfg.title, str).strip()
     cfg.cost_review = _get(exp, "depuracion_costes", cfg.cost_review, bool)
     cfg.cost_review_company = _get(exp, "depuracion_empresa", cfg.cost_review_company, str).strip()

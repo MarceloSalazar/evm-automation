@@ -85,7 +85,7 @@ Cada archivo se prepara como un proyecto individual
 | Condición | Motivo |
 |---|---|
 | **Códigos EDT distintos** en cada archivo: un mismo código no puede estar en dos archivos. | Las hojas identifican cada fila por su código EDT. Si un código se repite, `generar` se detiene sin crear el libro. |
-| Los **mismos campos personalizados** (EDT, método de medición, peso de hito y, si se usan, `Visible`, descripción y empresa) con el mismo nombre o alias en todos los archivos. | La sección `[campos]` de la configuración es común a todos los archivos. |
+| Los **mismos campos personalizados** (EDT, método de medición, peso y, si se usan, `Visible`, descripción y empresa) con el mismo nombre o alias en todos los archivos. | La sección `[campos]` de la configuración es común a todos los archivos. |
 | **Línea base** guardada en cada archivo. | El % planificado de las filas de cada archivo sale de las fechas de su línea base. El BAC de cada fila se ingresa en el libro. |
 | Cada mes, la **misma fecha de estado** en todos los archivos. | El informe tiene una sola fecha de corte. |
 | La **misma moneda** en todos los archivos. | El libro muestra una sola moneda. |
@@ -159,12 +159,12 @@ python evm_export.py generar --config config.toml --salida EVM_Programa.xlsx
 Ejemplo de salida con los dos archivos de ejemplo:
 
 ```text
-Exportador EVM 2.6.0
+Exportador EVM 2.7.0
 Leyendo P1: ...\ejemplos\programa_ejemplo.xml ...
 Leyendo P2: ...\ejemplos\proyecto2_ejemplo.xml ...
 Informe: Programa de ejemplo con dos proyectos
-  P1: Programa de ejemplo EVM  |  Planificación: INTERNO  |  Línea base  |  PV: % planificado de MS Project (duración de la línea base de las tareas y peso de los hitos) × BAC ingresado en el libro
-  P2: Accesos y servicios (proyecto 2 de ejemplo)  |  Línea base  |  PV: % planificado de MS Project (duración de la línea base de las tareas y peso de los hitos) × BAC ingresado en el libro
+  P1: Programa de ejemplo EVM  |  Planificación: INTERNO  |  Línea base  |  PV: % planificado de MS Project (duración de la línea base y peso de las tareas) × BAC ingresado en el libro
+  P2: Accesos y servicios (proyecto 2 de ejemplo)  |  Línea base  |  PV: % planificado de MS Project (duración de la línea base y peso de las tareas) × BAC ingresado en el libro
   Filas EDT: 44 (29 de ingreso)  |  Nivel máximo: 3
   Horizonte: 01/2026 a 12/2035 (120 meses)
   BAC: se debe ingresar el BAC de cada fila en la columna D de PV (celdas amarillas).
@@ -213,6 +213,10 @@ python evm_export.py actualizar --config config.toml --libro EVM_Programa.xlsx
 - **Todos los archivos del libro.** La configuración debe tener los mismos archivos (con los mismos
   nombres) con que se generó el libro; si falta uno o sobra otro, `actualizar` se detiene sin modificar
   el libro.
+- **Un solo archivo.** Con `--origen RUTA` (sin `NOMBRE=`) se lee solo ese archivo, aunque la
+  configuración tenga `[[proyectos]]`: la línea de comandos tiene prioridad. Si la ruta es la de una
+  sección, se usan su planificación y su línea base (`CFG-057`). Sirve, por ejemplo, para `validar` un
+  archivo sin tocar la configuración.
 - **Otro archivo para un proyecto.** Con `--origen NOMBRE=RUTA` se reemplaza la ruta de un archivo
   solo para ese comando, por ejemplo para usar el XML exportado al cierre del mes. Se puede repetir:
 

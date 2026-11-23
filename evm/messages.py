@@ -42,7 +42,7 @@ ID_PATTERN = re.compile(r"[A-Z]{3}-\d{3}")
 TARGET_GENERAL = "General"          # sin tarea: el proyecto, la configuración o el libro
 TARGET_ROW = "Fila EDT"             # una fila de las hojas PV, EV y AC (paquete de trabajo o tarea resumen)
 TARGET_DETAIL = "Detalle"           # tarea que se suma en una fila (nivel mayor, fuera de la lista EDT o sin código)
-TARGET_OUT = "Fuera del libro"      # tarea que no está en ninguna fila (omitida, inactiva o con Visible = No)
+TARGET_OUT = "Fuera del libro"      # tarea que no está en ninguna fila (omitida, inactiva, con Peso = 0 o de otra planificación)
 TARGETS = [TARGET_GENERAL, TARGET_ROW, TARGET_DETAIL, TARGET_OUT]
 SEVERITIES = [SEV_ERROR, SEV_WARN, SEV_INFO]
 
@@ -158,6 +158,8 @@ W_MIG = "generar --migrar-desde (hoja Validación)"
 W_REVIEW = "generar con depuracion_costes (hoja Validación)"
 W_PROC = "procesar-costes"
 W_ACT = "actualizar"
+W_NUM = "actualizar-edt"
+W_LBA = "corregir-linea-base"
 W_AN = "actualizar y analizar"
 W_ROW = "actualizar (observaciones por fila)"
 W_FIC = "generar-fichas"
@@ -186,7 +188,7 @@ AREAS = {a.prefix: a for a in [
     Area("FEC", "Fechas y duración", TOPIC_DATES, W_GV,
          "Fechas de la línea base y del programa actual, hitos y duración de las tareas."),
     Area("HIT", "Hitos y pesos", TOPIC_WEIGHTS, W_GV,
-         "Peso de los hitos, método «Hitos ponderados» y filas sin % planificado."),
+         "Peso de las tareas, método «Hitos ponderados» y filas sin % planificado."),
     Area("MET", "Método de medición", TOPIC_METHOD, W_GV,
          "Método de medición del EV de cada fila."),
     Area("EMP", "Empresas", TOPIC_COMPANY, W_GV,
@@ -210,6 +212,12 @@ AREAS = {a.prefix: a for a in [
     Area("CLI", "Planificación para el cliente", TOPIC_BOOK, W_CLI,
          "Comando generar-cliente: tareas que se muestran al cliente, «Otras tareas», resúmenes convertidos, "
          "vínculos nuevos y comparación con la planificación interna."),
+    Area("NUM", "Numeración EDT (actualizar-edt)", TOPIC_WBS, W_NUM,
+         "Comando actualizar-edt: tarea de --desde, tareas protegidas, orden y saltos de sus códigos, y escritura "
+         "en MS Project."),
+    Area("LBA", "Corrección de línea base (corregir-linea-base)", TOPIC_DATES, W_LBA,
+         "Comando corregir-linea-base: tareas indicadas, avisos que piden confirmación antes de mover, borrar o "
+         "establecer la línea base, y escritura en MS Project."),
     Area("SIS", "Errores del sistema", TOPIC_BOOK, W_ALL,
          "Errores de archivos del sistema y errores inesperados del programa."),
 ]}
@@ -377,7 +385,8 @@ _CODES = [
           "Con varios archivos, la planificación y la línea base son de cada archivo.",
           "Indicarlas en la sección [[proyectos]] de cada archivo.", W_SOURCE),
     _code("CFG-039", F, "--origen no válido con varios archivos",
-          "Con [[proyectos]], --origen debe ser NOMBRE=RUTA, con el nombre de uno de los archivos.",
+          "Con [[proyectos]], --origen NOMBRE=RUTA debe usar el nombre de uno de los archivos, y si se indica "
+          "varias veces, todas deben ser NOMBRE=RUTA (una sola ruta, sin NOMBRE=, lee solo ese archivo: CFG-057).",
           "Indicar --origen P1=C:\\ruta\\archivo.mpp, con un nombre de [[proyectos]].", W_SOURCE),
     _code("CFG-040", F, "Falta --salida con varios archivos",
           "Con varios archivos no hay un nombre de salida por defecto.",
@@ -452,6 +461,12 @@ _CODES = [
           "indica --fecha-corte. La consola de generar muestra siempre este aviso, antes que los demás.",
           "Registrar el avance de todos los archivos a la misma fecha (el último día del mes informado o su último "
           "día laborable) y fijar esa fecha de estado en cada uno (Proyecto > Fecha de estado).", W_GV),
+    _code("CFG-057", I, "Solo el archivo de --origen",
+          "La configuración tiene varios archivos ([[proyectos]]) y --origen indica una ruta (sin NOMBRE=): se lee solo "
+          "ese archivo, como si la configuración no tuviera [[proyectos]]. Si la ruta es la de una sección, se usan "
+          "su planificación y su línea base; si no, las generales (o las de --planificacion y --linea-base).",
+          "Ninguna. Para leer todos los archivos se omite --origen; para reemplazar la ruta de uno solo, se indica "
+          "--origen NOMBRE=RUTA.", W_SOURCE),
 
     # --- LEC: lectura de MS Project -----------------------------------------------------------------------------
     _code("LEC-001", F, "No existe el archivo de origen",
@@ -654,42 +669,56 @@ _CODES = [
           "Las tareas sin código EDT o de nivel mayor al máximo (o fuera de la lista EDT) se suman en la fila de su "
           "elemento EDT superior.",
           "Ninguna."),
+    _code("EDT-023", W, "Tareas sin código EDT dentro de un elemento EDT",
+          "Algunas tareas (hitos, actividades o tareas resumen) dependen de un elemento EDT y no tienen código EDT: se "
+          "suman en la fila de su elemento, pero sin código no se identifican en la jerarquía ni se puede comprobar su "
+          "numeración. Un resumen con la cantidad y una línea por tarea.",
+          "Asignar a cada tarea un código de un nivel más que su tarea superior (p. ej. 1.2.1.1 bajo 1.2.1), en el "
+          "orden de las tareas."),
 
     # --- VIS: campo Visible -------------------------------------------------------------------------------------
     _code("VIS-001", W, "Valor de Visible no reconocido",
-          "El campo Visible tiene un valor distinto de Sí o No: se usa el nivel máximo.",
+          "El campo Visible tiene un valor distinto de Sí o No: se trata como vacío (sin fila propia si alguna tarea "
+          "tiene Sí; si no, según el nivel máximo).",
           "Escribir Sí, No o dejarlo vacío."),
     _code("VIS-002", W, "Visible = Sí dentro de una rama excluida",
-          "La tarea tiene Visible = Sí, pero depende de una tarea con Visible = No: queda fuera del cálculo con esa "
-          "rama.",
-          "Quitar el No de la tarea superior o el Sí de la tarea."),
+          "Desde la versión 2.7.0, Visible = No no excluye tareas del cálculo: cada tarea con Sí tiene fila propia.",
+          "Ninguna.", retired="2.7.0", by="VIS-011"),
     _code("VIS-003", W, "Visible = Sí bajo una tarea que representa a sus subtareas",
-          "La tarea tiene Visible = Sí, pero depende de una tarea con Visible = No cuyas hermanas también lo tienen: "
-          "se suma con su rama.",
-          "Revisar los valores de Visible de esa rama."),
+          "Desde la versión 2.7.0, cada tarea con Visible = Sí tiene fila propia, aunque dependa de una tarea con No.",
+          "Ninguna.", retired="2.7.0", by="VIS-011"),
     _code("VIS-004", W, "Visible = Sí en una tarea sin código EDT",
           "Una tarea sin código EDT no puede tener fila propia: se suma en su fila superior.",
           "Asignarle código EDT o quitar el Sí."),
     _code("VIS-005", W, "Todos los elementos de nivel superior con Visible = No",
-          "Si se aplicara, el libro no tendría filas: se ignora en esos elementos.",
-          "Revisar el campo Visible de los elementos de nivel superior."),
+          "Desde la versión 2.7.0, Visible = No no excluye tareas del cálculo.",
+          "Ninguna.", retired="2.7.0", by="VIS-012"),
     _code("VIS-006", I, "Campo Visible sin usar con lista EDT",
           "Con lista_edt, las filas del libro las decide la lista y el campo Visible no se usa.",
           "Ninguna."),
     _code("VIS-007", I, "Tareas con Visible = No",
-          "Esas tareas (con su rama) no forman parte del % planificado ni del % ganado. Un resumen con la cantidad "
-          "y una línea por tarea.",
-          "El BAC y el AC que se ingresan en el libro no las deben incluir."),
+          "Desde la versión 2.7.0, las tareas con Visible = No no tienen fila propia y cuentan en su fila superior: se "
+          "informan con VIS-012.",
+          "Ninguna.", retired="2.7.0", by="VIS-012"),
     _code("VIS-008", I, "Tarea con Visible = No",
-          "Desde la versión 2.6.0, el resumen y cada tarea se informan con VIS-007.",
-          "Ninguna.", retired="2.6.0", by="VIS-007"),
+          "Desde la versión 2.6.0, el resumen y cada tarea se informaban con VIS-007; desde la 2.7.0, con VIS-012.",
+          "Ninguna.", retired="2.6.0", by="VIS-012"),
     _code("VIS-009", I, "Todas las subtareas con Visible = No",
-          "La tarea representa a sus subtareas: su fila es el paquete de trabajo, con toda su rama (o se suman en su "
-          "fila superior).",
-          "Ninguna, si es lo esperado."),
+          "Desde la versión 2.7.0, las tareas con Visible = No siempre se suman en su fila superior.",
+          "Ninguna.", retired="2.7.0", by="VIS-012"),
     _code("VIS-010", I, "Visible = Sí por debajo del nivel máximo",
-          "Esas tareas tienen fila propia aunque su código sea más detallado que el nivel máximo.",
-          "Ninguna."),
+          "Desde la versión 2.7.0, si alguna tarea tiene Visible = Sí, las filas las decide el campo Visible.",
+          "Ninguna.", retired="2.7.0", by="VIS-011"),
+    _code("VIS-011", I, "Filas según el campo Visible",
+          "Alguna tarea tiene Visible = Sí: tiene fila propia cada tarea con Sí y código EDT, y las demás (vacío o No) "
+          "se suman en su fila superior con Sí, como con una lista EDT. El nivel máximo solo completa los códigos con "
+          "ceros.",
+          "Ninguna, si es lo esperado. Las tareas que no dependen de ninguna con Sí quedan fuera del libro (EDT-019)."),
+    _code("VIS-012", I, "Tareas con Visible = No",
+          "Desde la versión 2.7.0, una tarea con Visible = No no tiene fila propia y cuenta en su fila superior "
+          "(antes quedaba fuera del cálculo, con su rama).",
+          "Para excluir una tarea del cálculo, inactivarla en MS Project. Los libros generados antes con tareas con No "
+          "se deben regenerar con --migrar-desde."),
 
     # --- FEC: fechas y duración ---------------------------------------------------------------------------------
     _code("FEC-001", E, "Fin anterior al comienzo",
@@ -712,9 +741,10 @@ _CODES = [
           "Si no es un hito, quitar la marca de hito (Información de la tarea > Avanzado). Si lo es y la duración "
           "está en la línea base, guardar de nuevo su línea base (Establecer línea base > Tareas seleccionadas), "
           "como parte de un cambio de línea base aprobado."),
-    _code("FEC-005", W, "Duración 0 sin marca de hito",
-          "La tarea dura 0 y no es un hito: no pesa en el % planificado de su fila.",
-          "Si es un hito, marcarla como hito (y, si corresponde, indicar su peso)."),
+    _code("FEC-005", E, "Duración 0 sin marca de hito",
+          "La tarea dura 0 y no es un hito (error desde la versión 2.7.0): sin peso no recibe parte del % "
+          "planificado de su fila; con peso, cuenta entera en un mes, como un hito.",
+          "Si es un hito, marcarla como hito (y, si corresponde, indicar su peso); si no, indicar su duración."),
     _code("FEC-006", W, "Duración estimada",
           "Algunas tareas tienen duración estimada (con «?», p. ej. «5 días?»): la duración define el % planificado. "
           "Un resumen con la cantidad y una línea por tarea.",
@@ -727,8 +757,9 @@ _CODES = [
           "del cronograma deja de funcionar en ese punto. En un cronograma integrado no debería haber ninguna.",
           "Programarlas automáticamente. Si es intencional (p. ej. fechas impuestas por terceros), silenciar "
           "FEC-008."),
-    _code("FEC-009", W, "El proyecto no tiene la línea base seleccionada",
-          "El % planificado se calculó con las fechas actuales de las tareas: el PV sigue al programa actual y no "
+    _code("FEC-009", E, "El proyecto no tiene la línea base seleccionada",
+          "Ninguna tarea tiene guardada la línea base que usa el % planificado (error desde la versión 2.7.0). El % "
+          "planificado se calculó con las fechas actuales de las tareas: el PV sigue al programa actual y no "
           "muestra el atraso respecto del plan aprobado. Si el proyecto tiene otras líneas base guardadas (con un XML; "
           "con un .mpp, solo en validar), el mensaje las indica, con la cantidad de tareas de cada una. La consola de "
           "generar muestra siempre este aviso, antes que los demás.",
@@ -736,8 +767,9 @@ _CODES = [
           "línea base guardada es la aprobada y está completa, indicarla con linea_base (en [[proyectos]], la del "
           "archivo) o --linea-base."),
     _code("FEC-010", W, "Tareas sin fechas de línea base",
-          "Algunas tareas no tienen fechas de línea base (p. ej. se agregaron después de guardarla): su % "
-          "planificado se calculó con sus fechas actuales. Un resumen con la cantidad y una línea por tarea.",
+          "Con generar --pv-fechas-actuales, algunas tareas no tienen fechas de línea base (p. ej. se agregaron "
+          "después de guardarla): su % planificado se calculó con sus fechas actuales (sin esa opción quedan fuera "
+          "del PV: FEC-019). Un resumen con la cantidad y una línea por tarea.",
           "Si corresponde, actualizar la línea base de esas tareas."),
     _code("FEC-011", W, "Tarea sin fechas de línea base",
           "Desde la versión 2.6.0, el resumen y cada tarea se informan con FEC-010.",
@@ -780,37 +812,101 @@ _CODES = [
           "la tarea (p. ej. cuando era un hito o una tarea de un día).",
           "Guardar de nuevo la línea base de la tarea (Establecer línea base > Tareas seleccionadas), como parte de un "
           "cambio de línea base aprobado."),
+    _code("FEC-019", W, "Tareas sin línea base fuera del % planificado",
+          "Algunas tareas de detalle no tienen línea base y su fila tiene otras tareas con línea base (p. ej. un "
+          "retrabajo o trabajo no previsto, agregado después de guardar la línea base): no forman parte del % "
+          "planificado, que es el de la línea base aprobada, pero cuentan en el % ganado y en la fecha de fin. Si una "
+          "tarea con línea base se desglosó después en subtareas sin línea base, el PV usa la línea base de esa "
+          "tarea. Un resumen con la cantidad y una línea por tarea.",
+          "Ninguna, si es un retrabajo o trabajo no previsto. Si es trabajo aprobado, guardar su línea base "
+          "(Establecer línea base > Tareas seleccionadas y Resumir líneas base). Para el criterio anterior a la "
+          "2.7.0 (en el PV con sus fechas actuales): generar --pv-fechas-actuales."),
 
     # --- HIT: hitos y pesos -------------------------------------------------------------------------------------
-    _code("HIT-001", W, "Peso en una tarea que no es un hito de detalle",
-          "La tarea tiene peso de hito, pero no es un hito o es una tarea resumen: el peso no se usa (las tareas "
-          "pesan por su duración).",
-          "Quitar el peso, o marcar la tarea como hito."),
+    _code("HIT-001", W, "Peso que no se usa",
+          "La tarea tiene peso, pero es la tarea de una fila del libro (su BAC se ingresa en el libro) o no forma "
+          "parte de ninguna fila: el peso no se usa. El peso de las demás tareas cuenta en todos los métodos (desde "
+          "la 2.7.0): es un % de su tarea resumen.",
+          "Quitar el peso, o indicarlo en las subtareas de la fila."),
     _code("HIT-002", W, "«Hitos ponderados» sin hitos",
           "La fila usa el método «Hitos ponderados» y no tiene hitos: actualizar calculará el % ganado con el % "
           "físico completado (o el % completado).",
           "Agregar los hitos del paquete o cambiar el método."),
-    _code("HIT-003", I, "«Hitos ponderados» con hitos sin peso",
-          "Ningún hito de la fila tiene peso: los hitos se ponderan por igual.",
-          "Indicar el peso de los hitos, si no deben pesar igual."),
+    _code("HIT-003", W, "«Hitos ponderados» sin pesos",
+          "Ninguna tarea de la fila tiene peso: el % planificado y el % ganado se reparten por igual entre los hitos "
+          "(cada uno en el mes de su fecha) y las tareas sin hito no cuentan.",
+          "Indicar el peso de los hitos, si no deben pesar igual, o cambiar el método si las tareas deben contar."),
     _code("HIT-004", I, "«Hitos ponderados» con algunos hitos sin peso",
-          "Los hitos sin peso no suman % ganado al cumplirse.",
+          "Los hitos sin peso no reciben parte de la fila: no forman parte del % planificado ni suman % ganado al "
+          "cumplirse.",
           "Indicar el peso de esos hitos, si deben sumar."),
     _code("HIT-005", W, "Fila sin % planificado",
           "Ninguna tarea de la fila tiene fechas ni es un hito con peso: su BAC no se puede repartir en el tiempo.",
-          "Indicar fechas o duración a sus tareas, o el peso de sus hitos."),
-    _code("HIT-006", W, "Hitos con peso negativo",
-          "Algunos hitos tienen peso negativo: se toma como 0.",
-          "Corregir el peso de esos hitos."),
+          "Indicar fechas o duración a sus tareas, o su peso."),
+    _code("HIT-006", W, "Tareas con peso negativo",
+          "Algunas tareas de la fila tienen peso negativo: se toman como si no tuvieran peso (reciben parte del resto "
+          "según su duración; un hito, nada).",
+          "Corregir el peso de esas tareas."),
     _code("HIT-007", W, "Los pesos de los hitos suman más de 100 %",
           "Los pesos se escalaron a 100 % y las tareas sin hito de la fila no reciben % planificado.",
-          "Corregir los pesos para que sumen como máximo 100 %."),
+          "Ninguna.", retired="2.7.0", by="HIT-013"),
     _code("HIT-008", W, "Pesos de hitos menores a 100 % sin tareas con duración",
           "La fila solo tiene hitos y sus pesos suman menos de 100 %: se escalaron a 100 %.",
-          "Corregir los pesos para que sumen 100 %."),
-    _code("HIT-009", W, "Tareas sin duración ni hitos con peso",
-          "Ninguna tarea de la fila tiene duración ni es un hito con peso: todas pesan igual.",
-          "Indicar la duración de las tareas o el peso de los hitos."),
+          "Ninguna.", retired="2.7.0", by="HIT-013"),
+    _code("HIT-009", W, "Tareas sin duración ni peso",
+          "En la fila o en una de sus tareas resumen, ninguna subtarea tiene peso y todas duran 0 (p. ej. tareas "
+          "resumen que solo tienen hitos), o alguna dura 0 pero contiene tareas con peso: todas reciben la misma "
+          "parte, en lugar de repartirse por duración.",
+          "Indicar el peso de esas subtareas, si no deben pesar igual."),
+    _code("HIT-010", E, "Hito sin peso en una fila «Ponderado»",
+          "En una fila con el método «Ponderado», un hito (0 días) sin peso no forma parte del % planificado ni del % "
+          "ganado: suele ser un olvido (un peso vacío significa sin definir; para que no cuente se escribe 0).",
+          "Indicar el peso del hito. Si sus tareas hermanas suman menos de 100, un hito sin peso no recibe nada del "
+          "resto, que se reparte por duración."),
+    _code("HIT-011", W, "Tarea sin peso que no cuenta",
+          "La tarea sin peso (con sus subtareas, si es una tarea resumen) no forma parte del % planificado ni del % "
+          "ganado: las tareas con peso de la misma tarea resumen suman 100 o más o, en una fila «Ponderado», el resto "
+          "se reparte por duración y la suya es 0 (p. ej. sin fechas). No se informa en las filas «Hitos "
+          "ponderados», en las que las tareas sin peso no cuentan cuando los hitos suman 100. Es lo esperado si su "
+          "trabajo no tiene valor propio. Si los pesos suman menos de 100, el resto se reparte entre las tareas sin "
+          "peso según su duración y no se informa. Si la tarea resumen contiene tareas con peso, se informa con "
+          "HIT-014.",
+          "Si debe pesar, indicar su peso y ajustar los de sus tareas hermanas; si es intencionado, escribir 0 (no "
+          "cuenta en el libro y no se informa)."),
+    _code("HIT-012", W, "«Ponderado» sin pesos",
+          "La fila usa el método «Ponderado» y ninguna de sus tareas tiene peso: el % planificado se reparte por la "
+          "duración de las tareas y el % ganado se calcula con el método de cada tarea.",
+          "Indicar el peso de las tareas de la fila (campo de [campos] peso_hito) o cambiar el método."),
+    _code("HIT-013", (E, W), "Pesos que no suman 100",
+          "En la fila o en una de sus tareas resumen, los pesos de las subtareas directas son % de la tarea resumen. "
+          "Error si suman más de 100: se escalan a 100 y las subtareas sin peso no cuentan. Advertencia si suman "
+          "menos de 100 y no hay subtareas sin peso que reciban el resto: se escalan a 100.",
+          "Corregir los pesos de las subtareas para que sumen 100 (o menos, si el resto es para las subtareas sin "
+          "peso)."),
+    _code("HIT-014", (E, W), "Pesos que no se usan",
+          "Error: una tarea resumen sin peso no recibe parte de la fila (sus tareas hermanas "
+          "con peso suman 100 o más, o reparten el resto por duración y la suya es 0, p. ej. solo tiene hitos; si "
+          "ninguna hermana tiene peso, todas pesan igual: HIT-009). "
+          "Advertencia: la tarea tiene Peso = 0 (o está dentro de una que lo tiene) y no cuenta en el libro. En los "
+          "dos casos, las subtareas con peso que contiene no forman parte del % planificado ni del % ganado.",
+          "Indicar el peso de la tarea resumen (y ajustar los de sus tareas hermanas para que sumen como máximo 100), "
+          "o, si el Peso = 0 es intencionado, quitar los pesos de sus subtareas."),
+    _code("HIT-015", I, "Tareas con Peso = 0 que no cuentan en el libro",
+          "Un 0 escrito en el campo de peso (de texto) indica que la tarea se hace pero no cuenta en el reporte EVM: "
+          "la tarea y su rama quedan fuera del PV, el EV y el AC, no reciben parte del peso de su tarea superior y no "
+          "forman filas -D. Un campo de peso vacío, en cambio, significa sin definir (depende de sus tareas hermanas). "
+          "En un campo numérico el 0 no se distingue del vacío y se lee como vacío.",
+          "Ninguna, si es intencionado. Para que la tarea cuente, se debe borrar el 0 (o escribir su peso)."),
+    _code("HIT-016", W, "Fila del libro con Peso = 0",
+          "Una tarea con fila propia (código de nivel no mayor al máximo, Visible = Sí o de la lista EDT) tiene Peso = "
+          "0: la fila se conserva, porque su código es una fila del libro, pero sus tareas sin fila propia no cuentan "
+          "y su PV y su EV son 0. Sus filas inferiores conservan su valor.",
+          "Revisar el peso de la tarea: si debe contar, borrar el 0; si no, se puede dejar (la fila queda en 0)."),
+    _code("HIT-017", W, "Tarea sin parte del % planificado",
+          "La tarea (o tarea resumen) no tiene peso y sus tareas con línea base no tienen duración (p. ej. un hito "
+          "con línea base y tareas agregadas después, sin línea base): el resto de su tarea superior se reparte por "
+          "la duración planificada y no recibe parte del % planificado, aunque sí del % ganado.",
+          "Indicar el peso de la tarea (y ajustar los de sus tareas hermanas)."),
 
     # --- MET: método de medición --------------------------------------------------------------------------------
     _code("MET-001", W, "Método no reconocido",
@@ -836,7 +932,8 @@ _CODES = [
     # --- EMP: empresas ------------------------------------------------------------------------------------------
     _code("EMP-001", I, "% de reparto en una tarea que no es compartida",
           "La tarea tiene % de reparto, pero su empresa no es la de las tareas compartidas (ambas): el reparto no se "
-          "usa.",
+          "usa. El % de reparto solo se usa cuando la empresa de la propia tarea es ambas; una tarea con la empresa "
+          "vacía hereda la parte de su tarea superior (con el % de reparto de esa tarea).",
           "Quitar el reparto o cambiar la empresa de la tarea."),
     _code("EMP-002", I, "Empresa sin tareas en la fila",
           "La empresa no participa en las tareas de algunas filas: si se le asigna BAC, su PV se reparte con el % "
@@ -851,8 +948,9 @@ _CODES = [
     _code("EMP-004", W, "Tarea sin empresa",
           "Desde la versión 2.6.0, el resumen y cada tarea se informan con EMP-003.",
           "Ninguna.", retired="2.6.0", by="EMP-003"),
-    _code("EMP-005", W, "Empresa no reconocida",
-          "El valor del campo de empresa no es empresa_a, empresa_b ni ambas: la tarea se trata como compartida.",
+    _code("EMP-005", E, "Empresa no reconocida",
+          "El valor del campo de empresa no es empresa_a, empresa_b ni ambas (error desde la versión 2.7.0): la tarea "
+          "se trata como compartida.",
           "Corregir el valor en MS Project."),
     _code("EMP-006", W, "% de reparto fuera de rango",
           "El % de reparto de la tarea no es mayor que 0 y como máximo 100: se usa el reparto por defecto.",
@@ -1075,6 +1173,20 @@ _CODES = [
           "El libro (o el archivo de salida) está abierto en Excel o en otro programa, o no hay permiso para "
           "escribirlo.",
           "Cerrar el archivo y volver a ejecutar el comando.", "generar, actualizar y analizar"),
+    _code("LIB-016", I, "% ganado cargado hasta la fecha de estado",
+          "Con generar --ev-rellenar (o [exportacion] ev_historico = true) y un archivo de MS Project con avance y "
+          "fecha de estado, generar carga el % ganado de cada mes hasta la "
+          "fecha de estado y la usa como fecha de corte del Resumen. El acumulado a la fecha de estado es el de MS "
+          "Project; el de cada mes anterior se reconstruye con las fechas reales (exacto en las fórmulas fijas, los "
+          "hitos ponderados y el avance lineal; en línea recta desde el comienzo real en el % completado y el % "
+          "físico completado). No se carga con --migrar-desde, que conserva el del libro anterior.",
+          "Ingresar el BAC y el AC de esos meses. Los meses siguientes se cargan con actualizar.",
+          "generar (hoja Validación)"),
+    _code("LIB-017", W, "No se cargó el % ganado hasta la fecha de estado",
+          "El archivo de MS Project tiene avance, pero no tiene fecha de estado, los archivos de [[proyectos]] tienen "
+          "fechas de estado distintas o la fecha de estado está fuera del horizonte del libro.",
+          "Definir la fecha de estado en MS Project (Proyecto > Fecha de estado), la misma en todos los archivos, o "
+          "revisar mes_inicio y meses. Si no, el % ganado se carga con actualizar.", "generar (hoja Validación)"),
 
     # --- MIG: --migrar-desde ------------------------------------------------------------------------------------
     _code("MIG-001", F, "Migración entre una y dos empresas",
@@ -1360,8 +1472,8 @@ _CODES = [
     _code("ACT-030", I, "Hitos sin peso ponderados por igual",
           "Método «Hitos ponderados»: ningún hito tiene peso: se ponderaron por igual.",
           "Indicar el peso de los hitos, si no deben pesar igual.", W_ROW),
-    _code("ACT-031", I, "Hitos con peso negativo tomados con peso 0",
-          "Método «Hitos ponderados»: algunos hitos tienen peso negativo.",
+    _code("ACT-031", I, "Hitos con peso negativo tomados sin peso",
+          "Método «Hitos ponderados»: algunos hitos tienen peso negativo: se tomaron como si no tuvieran peso.",
           "Corregir el peso de esos hitos.", W_ROW),
     _code("ACT-032", I, "Sin hitos: % físico completado",
           "Método «Hitos ponderados» sin hitos: se usó el % físico completado.",
@@ -1632,6 +1744,189 @@ _CODES = [
           "Organizador), o permitir en el Centro de confianza de MS Project el acceso al modelo de objetos de "
           "proyectos de VBA y volver a generar el archivo."),
 
+    # --- NUM: numeración EDT (actualizar-edt) -------------------------------------------------------------------
+    _code("NUM-001", F, "No se encontró la tarea de --desde",
+          "Ninguna tarea de la planificación tiene el código EDT indicado en --desde. Los ceros finales no cuentan: "
+          "2.7.1 es también la tarea 2.7.1.0.",
+          "Revisar el código y la planificación elegida ([exportacion] planificacion o --planificacion)."),
+    _code("NUM-002", F, "Código de --desde repetido",
+          "Varias tareas de la planificación tienen el código EDT de --desde: no se sabe qué rama actualizar.",
+          "Si el archivo tiene varias planificaciones (p. ej. INTERNO y CLIENTE), elegir una con --planificacion; si "
+          "no, corregir el código duplicado (validar lo informa con EDT-009)."),
+    _code("NUM-003", F, "--desde no es un código EDT numérico",
+          "Solo se actualizan ramas cuya tarea superior tiene un código numérico (p. ej. 2.7.1): una planificación "
+          "(INTERNO) o un código con letras no sirven de punto de partida.",
+          "Indicar en --desde el código numérico de la tarea desde la que se numeran sus subtareas."),
+    _code("NUM-004", F, "Ramas de --desde superpuestas",
+          "Un código de --desde está dentro de la rama de otro (o se repite): su rama ya se numera con la del otro.",
+          "Indicar solo el código de la tarea superior, o ramas separadas."),
+    _code("NUM-005", F, "El campo EDT no se puede escribir",
+          "El código EDT se lee del campo EDT o del número de esquema de MS Project (o el campo configurado no "
+          "existe), o el campo personalizado tiene una fórmula: actualizar-edt solo escribe en un campo "
+          "personalizado de texto sin fórmula, como «Item EDT».",
+          "Indicar en [campos] edt el campo personalizado de texto con los códigos EDT. Para el campo EDT de MS "
+          "Project se usa su función Renumerar (Proyecto > EDT > Renumerar)."),
+    _code("NUM-006", F, "Archivo de actualizar-edt sin indicar",
+          "actualizar-edt trabaja con un archivo de MS Project. La configuración tiene varias secciones "
+          "[[proyectos]] y no se indicó cuál (o el nombre no existe), o se usó --proyecto sin [[proyectos]].",
+          "Indicar el archivo con --proyecto NOMBRE, con uno de los nombres de [[proyectos]]. Sin [[proyectos]], "
+          "indicarlo con --origen."),
+    _code("NUM-007", F, "La escritura necesita MS Project",
+          "Los códigos solo se escriben en un archivo .mpp o en el proyecto abierto en MS Project (activo). Con un "
+          "XML solo se puede simular.",
+          "Indicar el archivo .mpp o activo, o usar --simular para ver los cambios."),
+    _code("NUM-008", E, "Tarea protegida después de una tarea que se renumera",
+          "Dentro de cada tarea, las subtareas protegidas (de nivel 1 a nivel_maximo, con Visible = Sí o de la "
+          "lista EDT) deben ir primero: sus códigos no cambian y el cliente no debe ver saltos. Hay una tarea que "
+          "se renumera delante de una protegida. No se escribe ningún código.",
+          "Mover en MS Project las tareas protegidas al principio de su tarea superior, o la otra tarea después de "
+          "ellas."),
+    _code("NUM-009", E, "Códigos protegidos con saltos o desordenados",
+          "Los códigos de las subtareas protegidas de una tarea deben ser correlativos desde 1 (2.7.1.1, 2.7.1.2...) "
+          "y en el orden del esquema: un salto o un desorden es una errata en códigos que ve el cliente. No se "
+          "escribe ningún código.",
+          "Corregir a mano los códigos protegidos (o el orden de sus tareas) en MS Project."),
+    _code("NUM-010", E, "Código protegido que no cuelga de su tarea superior",
+          "El código de una tarea protegida no empieza por el de su tarea superior, o salta un nivel: no se puede "
+          "numerar a sus hermanas sin repetir códigos. No se escribe ningún código.",
+          "Corregir el código de la tarea o su posición en el esquema de MS Project."),
+    _code("NUM-011", E, "Tarea sin código EDT con tareas protegidas",
+          "Una tarea sin código EDT contiene tareas protegidas: su código debe ser el prefijo de los de ellas y no "
+          "se puede calcular. No se escribe ningún código.",
+          "Poner a mano el código de la tarea en MS Project."),
+    _code("NUM-012", E, "Visible = Sí en una tarea sin código EDT",
+          "La tarea tendría fila propia en el libro (Visible = Sí): su código lo decide el jefe de proyecto, no se "
+          "asigna automáticamente. No se escribe ningún código.",
+          "Poner a mano el código de la tarea en MS Project, o quitar el Sí del campo Visible."),
+    _code("NUM-013", W, "Tarea que no se puede numerar",
+          "Con ignorar_ceros_intermedios = true, el código que le correspondería (p. ej. 2.7.0.1 bajo 2.7.0) es de "
+          "nivel no mayor que nivel_maximo: sería una fila nueva del libro. La tarea y su rama no se numeran.",
+          "Poner a mano el código de la tarea en MS Project y volver a ejecutar actualizar-edt."),
+    _code("NUM-014", W, "Código nuevo repetido fuera de las ramas",
+          "Un código nuevo ya lo tiene una tarea de la planificación que no está en las ramas que se actualizan. "
+          "Los códigos de la rama se actualizan igualmente.",
+          "Revisar el código de la otra tarea (validar informa los duplicados con EDT-009)."),
+    _code("NUM-015", F, "Error de MS Project al escribir los códigos",
+          "MS Project devolvió un error al escribir un código EDT. Si el programa abrió el archivo, lo cierra sin "
+          "guardar; si estaba abierto, los códigos ya escritos quedan en MS Project sin guardar.",
+          "Si el archivo estaba abierto, deshacer los cambios (Ctrl+Z) o cerrarlo sin guardar. Volver a ejecutar con "
+          "-v para ver el detalle."),
+    _code("NUM-016", F, "Códigos distintos después de escribir",
+          "Al volver a leer los códigos escritos, alguno no coincide con el previsto. Si el programa abrió el "
+          "archivo, lo cierra sin guardar; si estaba abierto, los cambios quedan en MS Project sin guardar.",
+          "Si el archivo estaba abierto, deshacer los cambios (Ctrl+Z) o cerrarlo sin guardar, e informar el "
+          "problema."),
+    _code("NUM-017", W, "Los cambios no se pueden deshacer de una vez",
+          "MS Project no permitió agrupar los cambios en una sola acción de deshacer (OpenUndoTransaction): cada "
+          "código escrito es una acción.",
+          "Revisar los cambios y guardar el archivo, o cerrarlo sin guardar para descartarlos."),
+
+    # --- LBA: corrección de línea base (corregir-linea-base) ----------------------------------------------------
+    _code("LBA-001", F, "No se encontró la tarea de --tarea",
+          "Ninguna tarea de la planificación tiene el código EDT indicado en --tarea. Los ceros finales no cuentan: "
+          "3.4 es también la tarea 3.4.0.",
+          "Revisar el código y la planificación elegida ([exportacion] planificacion o --planificacion)."),
+    _code("LBA-002", F, "Código de --tarea repetido",
+          "Varias tareas de la planificación tienen el código EDT de --tarea: no se sabe cuál corregir.",
+          "Elegir la planificación con --planificacion o corregir el código duplicado (validar lo informa con "
+          "EDT-009)."),
+    _code("LBA-003", F, "Tareas de --tarea superpuestas",
+          "Una tarea de --tarea está dentro de la rama de otra (o se repite): ya se corrige con la otra.",
+          "Indicar solo la tarea superior, o ramas separadas."),
+    _code("LBA-004", F, "Tarea resumen sin --rama",
+          "La tarea indicada es una tarea resumen: sin --rama se movería o borraría su línea base sin la de sus "
+          "subtareas.",
+          "Agregar --rama para corregir la tarea con todas sus subtareas, o indicar las subtareas una a una."),
+    _code("LBA-005", F, "Acción no indicada o no válida",
+          "Falta la acción (--de N --a M para mover, --borrar N o --establecer N), se indicó más de una, o --de y --a "
+          "son la misma línea base.",
+          "Indicar --de y --a con dos líneas base distintas (0 a 10), o solo --borrar, o solo --establecer."),
+    _code("LBA-006", F, "Archivo de corregir-linea-base sin indicar",
+          "corregir-linea-base trabaja con un archivo de MS Project. La configuración tiene varias secciones "
+          "[[proyectos]] y no se indicó cuál (o el nombre no existe), o se usó --proyecto sin [[proyectos]].",
+          "Indicar el archivo con --proyecto NOMBRE, con uno de los nombres de [[proyectos]]. Sin [[proyectos]], "
+          "indicarlo con --origen."),
+    _code("LBA-007", F, "La escritura necesita MS Project",
+          "La línea base solo se escribe en un archivo .mpp o en el proyecto abierto en MS Project (activo). Con un "
+          "XML solo se puede simular.",
+          "Indicar el archivo .mpp o activo, o usar --simular para ver los cambios."),
+    _code("LBA-008", F, "Falta el motivo",
+          "Al escribir, el motivo de la corrección es obligatorio: queda en el informe y se agrega al final de las "
+          "Notas de cada tarea que cambia, para que quede constancia en el archivo (con --todas, solo con --notas).",
+          "Indicar --motivo \"texto\" (con --interactivo, si no se indica, se pregunta)."),
+    _code("LBA-009", F, "--interactivo no se puede usar",
+          "--interactivo pregunta en la consola y escribe en MS Project un cambio cada vez: necesita una consola "
+          "en la que responder y no se combina con --simular.",
+          "Ejecutar el comando en una consola (PowerShell o símbolo del sistema), sin --simular. Para ver los "
+          "cambios sin escribirlos, usar --simular sin --interactivo."),
+    _code("LBA-010", F, "Error al escribir la línea base en MS Project",
+          "MS Project devolvió un error al escribir un campo de la línea base o las Notas, no aceptó dejar vacía "
+          "una fecha (NA o ND), o un valor no coincide con el previsto al volver a leerlo. El programa vuelve a "
+          "escribir los valores anteriores de las tareas del cambio.",
+          "Revisar las tareas en MS Project (o cerrar el archivo sin guardar) y ejecutar con -v para ver el detalle. "
+          "Si se repite, corregir la línea base a mano en MS Project."),
+    _code("LBA-011", W, "La línea base aprobada no es la del PV",
+          "La línea base aprobada (--aprobada o la respuesta de --interactivo) no es la que usa el PV: linea_base "
+          "de la configuración o, si no se indica, la línea base del valor acumulado de MS Project. El PV no sería "
+          "el aprobado. No se escribe nada sin confirmarlo.",
+          "Indicar linea_base con la aprobada en la configuración, o elegirla para el valor acumulado en MS Project "
+          "(Archivo > Opciones > Avanzado). Para seguir igualmente, --continuar (o continuar en --interactivo)."),
+    _code("LBA-012", W, "La línea base de destino ya tiene valores",
+          "Al mover, la línea base de destino de alguna tarea ya tiene fechas: se reemplazan por las de origen (los "
+          "valores anteriores quedan en el informe). No se escribe nada sin confirmarlo.",
+          "Revisar las tareas; para reemplazar los valores, --continuar (o aplicar en --interactivo)."),
+    _code("LBA-013", W, "La línea base de destino es la del PV",
+          "Las tareas se mueven a la línea base que usa el PV: entran en el PV, lo que equivale a aprobar el "
+          "cambio. No se escribe nada sin confirmarlo.",
+          "Confirmar con --continuar (o aplicar en --interactivo) solo si el cliente aprobó el cambio."),
+    _code("LBA-014", W, "Fila del libro que se queda sin PV",
+          "Después del cambio, ninguna tarea de la fila tiene la línea base del PV: la fila no tendrá % planificado "
+          "y su BAC debe ser 0 hasta que el trabajo se apruebe. No se escribe nada sin confirmarlo.",
+          "Si el trabajo no está aprobado, confirmar con --continuar y poner el BAC de la fila en 0; o ubicar las "
+          "tareas en MS Project dentro de una fila existente, como trabajo no previsto de ese paquete; o no corregir "
+          "si el trabajo sí estaba aprobado."),
+    _code("LBA-015", W, "Tarea resumen de encima que quedaría como un bloque",
+          "Una tarea resumen por encima de las tareas corregidas conserva la línea base de origen y ninguna de sus "
+          "subtareas la tendrá: el PV la cuenta como un bloque con sus fechas. Es lo correcto si su línea base está "
+          "aprobada (la tarea se desglosó después en subtareas); si también es nueva, seguiría en el PV por error. "
+          "El programa no la modifica sin decidirlo. No se escribe nada sin confirmarlo.",
+          "Si su línea base está aprobada, --continuar la conserva. Si también es nueva, incluirla con --tarea "
+          "CODIGO --rama, o decidir con --interactivo (moverla a la línea base aprobada, borrarla, moverla a otra "
+          "u omitirla)."),
+    _code("LBA-016", I, "Tareas de la rama que no cambian",
+          "Al mover o borrar, algunas tareas de la rama no tienen la línea base de origen: no cambian (ni en la de "
+          "destino). Con --establecer, algunas ya tienen la línea base: conservan sus valores.",
+          "Ninguna: es informativo. Para reemplazar la línea base de una tarea que ya la tiene, se establece en MS "
+          "Project (Establecer línea base, Tareas seleccionadas)."),
+    _code("LBA-017", I, "Tarea resumen de encima que no coincide con sus subtareas",
+          "Las fechas de la línea base de una tarea resumen por encima de las corregidas ya no coinciden con las de "
+          "sus subtareas (por ejemplo, abarca tareas que se sacaron). El programa no la modifica. No cambia el PV: "
+          "una tarea resumen con subtareas con línea base no forma parte del PV.",
+          "Si se quiere, corregirla en MS Project: seleccionar las subtareas, Establecer línea base con «Resumir "
+          "líneas base» en la tarea superior."),
+    _code("LBA-018", I, "Filas del libro cuyo PV cambia",
+          "Las tareas corregidas forman parte del PV de esas filas: su PV cambia (y el BAC repartido en el tiempo).",
+          "Ninguna: es informativo. El libro se genera después de la corrección."),
+    _code("LBA-019", W, "Los cambios no se pueden deshacer de una vez",
+          "MS Project no permitió agrupar los cambios en una sola acción de deshacer (OpenUndoTransaction): cada "
+          "valor escrito es una acción.",
+          "Revisar los cambios y guardar el archivo, o cerrarlo sin guardar para descartarlos."),
+    _code("LBA-020", W, "Duración, trabajo o costo previstos recalculados",
+          "Al escribir la línea base, MS Project recalculó la duración, el trabajo o el costo previstos de alguna "
+          "tarea (por ejemplo, el trabajo de una tarea con recursos asignados): no coinciden con los copiados. Las "
+          "fechas sí son las copiadas.",
+          "Revisar esas tareas en MS Project. Las fechas son las que usa el PV; el trabajo y el costo previstos no "
+          "se usan en el libro."),
+    _code("LBA-021", W, "Tarea resumen de encima que deja de ser un bloque",
+          "Con --establecer, una tarea resumen por encima tenía la línea base y ninguna de sus subtareas la tenía (el "
+          "PV la contaba como un bloque con sus fechas). Al establecerla en alguna subtarea, el PV cuenta solo las "
+          "subtareas con línea base: las que siguen sin ella quedan fuera.",
+          "Si esas subtareas también forman parte de la errata, incluirlas: --tarea con la tarea resumen y --rama."),
+    _code("LBA-022", F, "Tareas de corregir-linea-base sin indicar",
+          "Falta indicar las tareas que se corrigen, o se indicaron de las dos formas: --tarea CODIGO (una o varias) "
+          "o --todas (todas las ramas de la planificación a las que afecta la acción).",
+          "Indicar --tarea o --todas, no las dos."),
+
     # --- SIS: errores del sistema -------------------------------------------------------------------------------
     _code("SIS-001", F, "Error inesperado",
           "Un error no previsto del programa (código de salida 3).",
@@ -1648,7 +1943,8 @@ del F, E, W, I
 
 CATALOG: dict[str, Code] = {c.id: c for c in _CODES}
 # El resumen de las observaciones silenciadas y los avisos del registro de diagnóstico (no son observaciones)
-UNSILENCEABLE = {"CFG-049", "LEC-022"}
+# Los avisos de corregir-linea-base que piden confirmación no se silencian: impiden escribir
+UNSILENCEABLE = {"CFG-049", "LEC-022", "LBA-011", "LBA-012", "LBA-013", "LBA-014", "LBA-015"}
 SUMMARY_ID = "CFG-049"
 
 

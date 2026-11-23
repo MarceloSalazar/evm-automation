@@ -42,7 +42,7 @@ python -m pytest -m "not libreoffice"     # sin las que recalculan con LibreOffi
 | `test_ceros_intermedios.py` | Ceros del código EDT. Intermedios (`ignorar_ceros_intermedios`): nivel del código, filas del libro y fila `-D`, controles de los códigos, criterio guardado en el libro y usado por `actualizar`, `--migrar-desde` y línea de comandos. Finales (`1.2` = `1.2.0` = `1.2.0.0`): duplicados y asociación por código en `actualizar` y `--migrar-desde`. |
 | `test_progreso.py` | Versión en pantalla y barra de progreso (etapas, % de la etapa y del total, tiempo transcurrido, ETA que no sube en una etapa lenta y cuenta hacia atrás en una sin conteo, refresco, tiempo total, consola no interactiva). |
 | `test_registro_cambios.py` | Controles del cierre mensual de la norma EIA-748-E: registro de cambios del BAC y de los meses ya informados (referencia, detección, hoja `Registro de cambios`, `--simular` y `--migrar-desde`), coherencia del EV y el AC, análisis de desviaciones incompleto, acciones vencidas, meses sin informe, línea base de MS Project distinta de la del libro, EAC poco realista (TCPI frente al CPI) y peso del LOE en el BAC. |
-| `test_informe_mejoras.py` | `validar` como revisión de mejoras: informe de mejoras (`--informe`) sin nombres de tareas, de empresas ni de calendarios, prioridad de cada observación, evaluación DCMA de 14 puntos, varias planificaciones y su comparación, y controles del fin previsto fuera del horizonte, las líneas base incompletas y las tareas con calendario propio. |
+| `test_informe_mejoras.py` | `validar` como revisión de mejoras: informe de mejoras (`--informe`) sin nombres de tareas, de empresas ni de calendarios, prioridad de cada observación, evaluación DCMA de 14 puntos, análisis de las líneas base, varias planificaciones y su comparación, y controles del fin previsto fuera del horizonte, las líneas base incompletas y las tareas con calendario propio. |
 | `test_validacion_alcance.py` | Alcance de las observaciones (fila EDT, tarea de detalle, fuera del libro o general) y su fila del libro, por UniqueID o por código EDT; orden por prioridad, agrupación de las de detalle, hojas `Validación` y `Validación detalle` y consola de `generar` y `validar` (con y sin `--todas`). |
 | `test_color_filas.py` | Color de fondo de las filas según el nivel del código EDT (hojas mensuales, `Indicadores EDT` y tabla del `Cuadro de Mando`), con la lista EDT y con una planificación. |
 | `test_codigos.py` | Códigos de errores y advertencias: formato y numeración del catálogo, todo mensaje con un código del catálogo, todo código usado, `docs/codigos.md` al día y silenciar (configuración, `--silenciar`, hoja `Validación` y código de salida de `validar`). |
@@ -122,6 +122,21 @@ de un día laborable, por eso se admite una pequeña diferencia. Los mensajes de
 códigos EDT, UniqueID, fechas y porcentajes (con multi-empresa, «empresa A» y «empresa B»), y los datos
 del proyecto no aparecen si una prueba falla.
 
+`test_msproject_edt.py` y `test_msproject_linea_base.py` (misma marca) prueban la escritura de
+`actualizar-edt` y de `corregir-linea-base` en copias del `.mpp` de `EVM_MPP`: en un archivo cerrado (copia
+de respaldo y guardado) y en uno abierto (sin guardar, con una sola acción de deshacer que un Ctrl+Z
+quita). La de `corregir-linea-base` mueve la línea base del PV de una tarea a una línea base libre y la
+devuelve, comprueba que los valores vuelven a ser los originales y que el motivo quedó en las Notas,
+muestra el texto de NA que acepta MS Project («NA» en inglés, «ND» en español) y escribe la línea base de
+una tarea resumen. Opcionales: `EVM_EDT_DESDE` (rama de `actualizar-edt`), `EVM_LB_TAREA` (tarea de
+`corregir-linea-base`; por defecto, la primera de detalle con la línea base del PV) y `EVM_LB_LIBRE`
+(línea base libre; por defecto, la última sin tareas). Se recomienda ejecutarlas también con MS Project en
+español:
+
+```powershell
+python -m pytest tests/test_msproject_edt.py tests/test_msproject_linea_base.py -m msproject -v -s
+```
+
 El proyecto de ejemplo (`ejemplos/programa_ejemplo.xml`) y su generador se describen en el
 [tutorial](ejemplo-paso-a-paso.md). El segundo proyecto de ejemplo (`ejemplos/proyecto2_ejemplo.xml`,
 para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyecto 2`.
@@ -142,8 +157,9 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/fields.py` | Identificación de campos personalizados (Texto1..30, Número1..20 y alias). |
 | `evm/wbs.py` | Estructura EDT hasta el nivel máximo o el detalle que indique el campo `Visible` (o la lista EDT), % planificado de cada fila, combinación de varios archivos y horizonte. |
 | `evm/validation.py` | Controles del archivo de MS Project: códigos EDT, fechas y duración, pesos, método y empresas (hoja `Validación` y `validar`), avance a la fecha de estado y lógica del cronograma con los criterios DCMA (solo `validar`). |
-| `evm/percent.py` | Peso de cada tarea (duración de la línea base y `Peso hito`), % planificado y % ganado de cada fila y de cada empresa. |
+| `evm/percent.py` | Reparto de cada fila entre sus tareas (`RowTree`: pesos por tarea resumen y duración de la línea base, el mismo en todos los métodos), % planificado y % ganado de cada fila y de cada empresa. |
 | `evm/cost_review.py` | Depuración de costes: hojas `PV-depuración`, `Depuración costes` y `_depuracion` (asignación con fórmulas de la previsión pegada, y la misma asignación en Python) e indicador de alineamiento. |
+| `evm/cost_price.py` | Depuración de costes: precio de las EDT interna con los recargos de la tabla `Recargos` (`[depuracion_precio]`), que `procesar-costes --calculos` escribe como fórmulas. |
 | `evm/cost_plan.py` | Comando `procesar-costes`: revisión del plan de costes de la hoja `PV-depuración` y, con `--calculos`, sus cálculos. No modifica el % planificado. |
 | `evm/companies.py` | Multi-empresa: parte de cada empresa en cada tarea (columnas `Empresa` y `% Reparto`, con herencia de la tarea superior). |
 | `evm/timeline.py` | Horizonte mensual y utilidades de meses. |
@@ -155,12 +171,20 @@ para varios archivos) se genera con `python ejemplos\generar_ejemplo.py --proyec
 | `evm/changes.py` | Registro de cambios: referencia de la última ejecución (hoja oculta `_registro`), cambios del BAC y de los meses ya informados y hoja `Registro de cambios`. |
 | `evm/consistency.py` | Controles del libro en el cierre mensual: coherencia del EV y el AC, meses sin informe, EAC poco realista y peso del LOE en el BAC. |
 | `evm/update.py` | Comandos `actualizar` (% ganado del mes) y `analizar`, y lectura y verificación del libro. |
+| `evm/history.py` | % ganado de los meses hasta la fecha de estado al generar el libro (`generar --ev-rellenar` o `ev_historico`): reconstruye el estado de cada tarea al cierre de cada mes con sus fechas reales y calcula el % ganado como `actualizar`. |
 | `evm/migrate.py` | Traslado del BAC, el % ganado, el AC y los métodos al regenerar el libro (`--migrar-desde`). |
 | `evm/indicators.py` | Indicadores que se muestran en pantalla (mismos cálculos que la hoja `Resumen`), incluida la tendencia. |
 | `evm/schedule.py` | Plazo según el cronograma de MS Project: fin previsto, desvío de fin, holgura y camino crítico de cada fila y del proyecto. |
 | `evm/progress.py` | Barra de progreso de la consola (etapas de cada comando, %, tiempo transcurrido y ETA, refresco cada medio segundo). |
-| `evm/review.py` | Informe de mejoras de `validar` (`--informe`): observaciones por prioridad con la causa y qué hacer del catálogo, sin nombres; datos de cada revisión, evaluación DCMA y comparación de planificaciones (también en la consola). |
+| `evm/review.py` | Informe de mejoras de `validar` (`--informe`): observaciones por prioridad con la causa y qué hacer del catálogo, sin nombres; datos de cada revisión, evaluación DCMA, análisis de las líneas base y comparación de planificaciones (la DCMA y la comparación también en la consola). |
+| `evm/edt_renumber.py` | Comando `actualizar-edt`: códigos nuevos de las subtareas de una rama (tareas protegidas, orden y saltos), escritura en MS Project en una sola acción de deshacer, comprobación e informe. |
+| `evm/baseline_fix.py` | Comando `corregir-linea-base`: cambios de la línea base de cada tarea de una rama, avisos que piden confirmación (filas sin PV, tareas resumen que quedarían como un bloque), escritura en MS Project con NA o ND según el idioma, motivo en las Notas, modo interactivo con deshacer, e informe. |
+| `evm/client_plan.py` | Comando `generar-cliente`: qué tareas de la planificación interna recibe el cliente y cómo queda la lógica del cronograma sin las demás («Otras tareas» o borradas, con vínculos puente). No usa MS Project. |
+| `evm/client_writer.py` | Comando `generar-cliente`: escritura del `.mpp` del cliente con MS Project, sobre una copia del archivo de origen, y comprobación del archivo guardado. |
+| `evm/client_check.py` | Comando `generar-cliente`: comparación de la planificación del cliente con la interna (% completado del proyecto, libro EVM fila a fila y datos de cada tarea). |
+| `evm/mpp_macros.py` | Módulos de macros (VBA) de un `.mpp`, leídos sin MS Project: `generar-cliente` comprueba que el archivo del cliente no tiene ninguno. |
 | `evm/task_cards.py` | Comando `generar-fichas`: ficha de cada elemento EDT del libro (fechas y duración de la línea base, predecesoras y sucesoras) y documento Markdown. |
+| `evm/version.py` | Versión que muestran la consola, el registro, el libro y el informe de mejoras: la publicada o, en una copia de desarrollo, la última publicada y el commit (`2.5.0 + desarrollo (b513fbb)`). |
 | `instalador/` | Instalador de Windows: `construir.py`, especificación de PyInstaller, script de Inno Setup y consola ([3.2](#32-instalador-de-windows)). |
 
 ```mermaid

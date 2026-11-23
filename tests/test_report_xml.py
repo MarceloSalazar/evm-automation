@@ -88,13 +88,18 @@ def test_inactive_tasks_excluded():
 
 
 def test_task_without_baseline_dates_uses_current_dates():
+    """Fila nueva sin línea base: sin % planificado (FEC-019); con --pv-fechas-actuales, con sus fechas actuales."""
     s, f = datetime(2026, 1, 5, 8), datetime(2026, 1, 30, 17)
     t_new = _t(2, 1, "Nueva", None, None, wbs="2")
     t_new.start, t_new.finish = datetime(2026, 2, 2, 8), datetime(2026, 2, 27, 17)
-    rep = build_report(_project([_t(1, 1, "A", s, f, wbs="1"), t_new]), Config())
-    assert any("fechas de línea base" in i.message for i in rep.issues)
+    tasks = [_t(1, 1, "A", s, f, wbs="1"), t_new]
+    rep = build_report(_project(tasks), Config())
+    assert any(i.id == "FEC-019" and "ninguna tarea con línea base (2.0.0)" in i.message for i in rep.issues)
     new_row = next(r for r in rep.rows if r.name == "Nueva")
-    assert new_row.pct[""] == {(2026, 2): pytest.approx(1.0)}
+    assert not new_row.pct[""] and (new_row.start, new_row.finish) == (None, None)
+    old = build_report(_project(tasks), Config(pv_current_dates=True))
+    assert any("fechas de línea base" in i.message for i in old.issues)
+    assert next(r for r in old.rows if r.name == "Nueva").pct[""] == {(2026, 2): pytest.approx(1.0)}
 
 
 def test_xml_without_baseline_uses_current_schedule(tmp_path):

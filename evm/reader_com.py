@@ -34,6 +34,7 @@ log = logging.getLogger(__name__)
 PJ_DO_NOT_SAVE = 0                            # pjDoNotSave
 PJ_POOL_READ_ONLY = 1                         # pjPoolReadOnly (no pregunta; abre subproyectos)
 MSO_AUTOMATION_SECURITY_FORCE_DISABLE = 3     # sin macros
+MSO_AUTOMATION_SECURITY_BY_UI = 2             # la de la configuración de seguridad de MS Project (uso normal)
 
 PROGID = "MSProject.Application"
 # Espera máxima (segundos) a que responda MS Project: una instancia que se está cerrando (p. ej. la que
@@ -47,6 +48,27 @@ def _dt(v) -> datetime | None:
         if not 1984 <= v.year <= 2149:
             return None
         return datetime(v.year, v.month, v.day, v.hour, v.minute, v.second)
+    return None
+
+
+# Texto del valor vacío de un campo de fecha: «NA» en MS Project en inglés, «ND» en español (el valor depende del
+# idioma de MS Project; al leer, cualquier valor que no es una fecha se toma como vacío)
+NA_TEXTS = ("NA", "ND")
+
+
+def set_na(obj, prop: str, first: str | None = None) -> str | None:
+    """Deja vacío el campo de fecha prop de obj: prueba «NA» y «ND» (primero first, el que funcionó antes) y vuelve a
+    leer el campo. Devuelve el texto aceptado, o None si MS Project no aceptó ninguno."""
+    for text in dict.fromkeys(([first] if first else []) + list(NA_TEXTS)):
+        try:
+            setattr(obj, prop, text)
+        except Exception:
+            continue
+        try:
+            if _dt(getattr(obj, prop)) is None:
+                return text
+        except Exception:
+            continue
     return None
 
 
@@ -80,6 +102,39 @@ def _get(obj, name: str, default=None):
         return getattr(obj, name)
     except Exception:  # propiedad inexistente en esta versión de Project, etc.
         return default
+
+
+def _weight(value, numeric: bool) -> float | None:
+    """Peso de la tarea: None si está vacío o, en un campo numérico, si es 0 (no se distingue del vacío); en un campo
+    de texto, un 0 escrito es Peso = 0 (la tarea no cuenta en el libro)."""
+    if value in (None, ""):
+        return None
+    weight = parse_number(value)
+    return None if numeric and weight == 0 else weight
+
+
+def weight_kind(ref) -> bool | None:
+    """Tipo del campo de peso: True si es Número1..20, False si es Texto1..30 u otro campo de MS Project (con su
+    nombre), None si se lee por su constante y no es uno de ellos (p. ej. un campo empresarial de Project Online)."""
+    if ref is None:
+        return False
+    kind, value = ref
+    if kind == "attr":
+        return str(value).startswith("Number")
+    if value in TASK_NUMBER_IDS.values():
+        return True
+    if value in TASK_TEXT_IDS.values():
+        return False
+    return None
+
+
+def _is_number(value) -> bool:
+    if isinstance(value, bool):
+        return False
+    try:
+        return parse_number(value) is not None
+    except (TypeError, ValueError):
+        return False
 
 
 def _number(v) -> float | None:
@@ -324,6 +379,28 @@ class ComSession:
         self.opened_by_us = True
         self._opened_names = (self._open_project_names() or set()) - before
 
+    def hand_over(self) -> None:
+        """Deja MS Project y el proyecto en manos del usuario (corregir-linea-base --interactivo): visible, con sus
+        avisos (al cerrar sin guardar pregunta) y sin cerrarlo al terminar. Si el programa inició MS Project, los
+        avisos y la seguridad de macros vuelven a sus valores habituales."""
+        app = self.app
+        props = (self._saved_app_props if not self.started_by_us else
+                 {"DisplayAlerts": True, "AutomationSecurity": MSO_AUTOMATION_SECURITY_BY_UI})
+        for prop, value in props.items():
+            if value is not None:
+                try:
+                    setattr(app, prop, value)
+                except Exception:
+                    pass
+        self._saved_app_props = {}
+        for prop in ("Visible", "UserControl"):
+            try:
+                setattr(app, prop, True)
+            except Exception:
+                pass
+        self.opened_by_us = self.started_by_us = False
+        self._prev_active = None            # el proyecto corregido queda como proyecto activo
+
     def save(self) -> None:
         """Guarda el proyecto en su archivo (solo la copia que escribe generar-cliente, abierta con read_only=False)."""
         if self.read_only:
@@ -349,10 +426,13 @@ class ComSession:
     def _cleanup(self) -> None:
         try:
             if self.project is not None and self._status_changed and not self.opened_by_us:
-                try:
-                    self.project.StatusDate = self._orig_status if self._orig_status is not None else "NA"
-                except Exception:
-                    pass
+                if _dt(self._orig_status) is not None:
+                    try:
+                        self.project.StatusDate = self._orig_status
+                    except Exception:
+                        pass
+                else:
+                    set_na(self.project, "StatusDate")
             if self.project is not None and self.opened_by_us:
                 try:
                     self.project.Activate()
@@ -489,16 +569,21 @@ class ComSession:
         sfx = "" if n == 0 else str(n)
 
         wbs_ref = self._resolve_field(cfg.wbs_field)
+        found: dict[str, str] = {}
         if wbs_ref is None:
             warnings.append(missing_field("edt", cfg.wbs_field, "MS Project", cfg))
             wbs_ref = ("attr", "WBS")
-        found: dict[str, str] = {}
+        else:
+            found["edt"] = str(wbs_ref[1])         # campo del código EDT: 'WBS', 'Text5'... (actualizar-edt)
         method_ref = self._resolve_field(cfg.method_field) if cfg.method_field else None
         if cfg.method_field and method_ref is None:
             warnings.append(missing_field("metodo", cfg.method_field, "MS Project", cfg))
         elif method_ref is not None:
             found["metodo"] = cfg.method_field
         weight_ref = self._resolve_field(cfg.milestone_weight_field) if cfg.milestone_weight_field else None
+        # Tipo del campo de peso: True numérico (0 = vacío), False texto (0 = Peso 0), None desconocido (un campo
+        # empresarial de Project Online u otro campo que se lee por su constante): se decide con los valores leídos
+        weight_numeric = weight_kind(weight_ref)
         if cfg.milestone_weight_field and weight_ref is None:
             warnings.append(missing_field("peso_hito", cfg.milestone_weight_field, "MS Project", cfg))
         elif weight_ref is not None:
@@ -526,6 +611,7 @@ class ComSession:
                 found["campo_reparto"] = cfg.split_field
 
         tasks: list[Task] = []
+        raw_weights: list[tuple[Task, object]] = []     # peso leído de cada tarea (campo de tipo desconocido)
         any_baseline = False
         skipped_external = 0
         count = int(_number(_get(p.Tasks, "Count", 0)) or 0)
@@ -543,10 +629,18 @@ class ComSession:
             has_bl = bl_start is not None or bl_finish is not None
             any_baseline = any_baseline or has_bl
             saved: tuple[int, ...] = ()
+            dates: dict[int, tuple] = {}
             own_calendar = ""
             if review:                  # el comienzo de cada línea base ('NA' si la tarea no la tiene), como en el XML
-                saved = tuple(k for k in range(11) if (bl_start if k == n else
-                                                       _dt(_get(t, f"Baseline{'' if k == 0 else k}Start"))) is not None)
+                for k in range(11):
+                    if k == n:
+                        if has_bl:
+                            dates[k] = (bl_start, bl_finish)
+                        continue
+                    k_start = _dt(_get(t, f"Baseline{'' if k == 0 else k}Start"))
+                    if k_start is not None:     # el fin, solo de las líneas base con comienzo (pocas)
+                        dates[k] = (k_start, _dt(_get(t, f"Baseline{'' if k == 0 else k}Finish")))
+                saved = tuple(k for k in sorted(dates) if dates[k][0] is not None)
                 # Calendario de la tarea (Nothing si no tiene): solo cuenta si es distinto del del proyecto
                 own_calendar = str(_get(_get(t, "CalendarObject"), "Name", "") or "")
                 own_calendar = "" if own_calendar == project_calendar else own_calendar
@@ -578,9 +672,10 @@ class ComSession:
                 constraint_date=_dt(_get(t, "ConstraintDate")) if links else None,
                 predecessors=_predecessors(t, uid, lag_format=client or review) if links else [], baselines=saved,
                 incomplete_baselines=(n,) if (bl_start is None) != (bl_finish is None) else (),
+                baseline_dates=dict(sorted(dates.items())),
                 calendar=own_calendar,
                 method=str(self._field_value(t, method_ref) or "").strip(),
-                milestone_weight=None if weight in (None, "") else parse_number(weight),
+                milestone_weight=_weight(weight, bool(weight_numeric)),
                 company=str(company or "").strip(),
                 split_a=None if split in (None, "") else parse_number(split),
                 visible="" if visible is None else str(visible).strip(),
@@ -588,6 +683,16 @@ class ComSession:
                 client_mark="" if mark is None else str(mark).strip(),
             )
             tasks.append(task)
+            raw_weights.append((task, weight))
+        if weight_numeric is None and raw_weights:
+            # Un campo numérico devuelve «0» en las tareas sin valor; uno de texto, vacío (y un 0 solo en las pocas
+            # tareas que no deben contar). Si todos los valores escritos son números y al menos la mitad de las
+            # tareas tienen 0, es numérico y el 0 se lee como vacío
+            written = [w for _t, w in raw_weights if w not in (None, "")]
+            zeros = sum(1 for w in written if _is_number(w) and parse_number(w) == 0)
+            if written and all(_is_number(w) for w in written) and zeros * 2 >= len(raw_weights):
+                for t, w in raw_weights:
+                    t.milestone_weight = _weight(w, True)
         if skipped_external:
             warnings.append(Issue("LEC-017", message=f"Se omitieron {skipped_external} tareas externas (vínculos "
                                                      "entre proyectos)."))
@@ -600,6 +705,15 @@ class ComSession:
             except Exception:
                 continue
         any_baseline = any_baseline or saved_date is not None
+        saved_dates: dict[int, datetime] = {}
+        if review:                      # fecha de guardado de cada línea base ('NA' si no se guardó)
+            for k in range(11):
+                try:
+                    when = saved_date if k == n else _dt(p.BaselineSavedDate(k))
+                except Exception:
+                    continue
+                if when is not None:
+                    saved_dates[k] = when
 
         # Calendario del proyecto, en el período de las tareas (como el del XML), con los feriados de la configuración
         dates = [d for t in tasks for d in (t.baseline_start, t.baseline_finish, t.start, t.finish) if d is not None]
@@ -631,7 +745,8 @@ class ComSession:
             warnings=warnings, fields_found=found, calendar=calendar,
             minutes_per_day=hours * 60 if hours and hours > 0 else 480.0,
             multiple_critical_paths=bool(critical_paths) if isinstance(critical_paths, (bool, int)) else None,
-            baseline_number=n,
+            baseline_number=n, baseline_saved=saved_dates,
+            ev_baseline=ev_baseline if 0 <= ev_baseline <= 10 else None,
         )
         if not any_baseline:
             use_current_schedule(project)

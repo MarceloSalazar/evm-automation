@@ -75,6 +75,9 @@ class Task:
     baselines: tuple[int, ...] = ()
     # Líneas base con solo el comienzo o solo el fin (con COM, solo se lee la que usa el % planificado)
     incomplete_baselines: tuple[int, ...] = ()
+    # Fechas de cada línea base guardada en la tarea: número -> (comienzo, fin), para el análisis de las líneas base
+    # del informe de mejoras; siempre con XML; con COM, solo en validar
+    baseline_dates: dict[int, tuple[datetime | None, datetime | None]] = field(default_factory=dict)
     # Calendario de la tarea, si es distinto del calendario del proyecto ("" = sin calendario propio); con COM, solo
     # en validar
     calendar: str = ""
@@ -121,6 +124,10 @@ class ProjectData:
     # Línea base que usa el % planificado (0 = "Línea base", 1..10 = "Línea base N"); las líneas base de cada tarea
     # están en Task.baselines
     baseline_number: int = 0
+    # Fecha en que se guardó cada línea base (número -> fecha); solo con COM, en validar (el XML no la incluye)
+    baseline_saved: dict[int, datetime] = field(default_factory=dict)
+    # Línea base del valor acumulado configurada en MS Project (Opciones > Avanzado; None = no se leyó o no es válida)
+    ev_baseline: int | None = None
 
 
 def use_current_schedule(project: ProjectData) -> None:

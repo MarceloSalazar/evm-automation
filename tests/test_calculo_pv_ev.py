@@ -8,13 +8,13 @@ from evm.cli import main
 from evm.config import DEFAULT_METHODS, MODE_PERCENT, Config, load_config
 from evm.methods import parse_method
 from evm.migrate import plan_migration, prior_from_book
-from evm.percent import earned_fraction, full_weights, leaf_times, row_weights
+from evm.percent import earned_fraction, leaf_times
 from evm.update import indicators_for, read_book, run_update
 from evm.wbs import KIND_RESIDUAL, build_report, build_tree
 from evm.workbook import FILL_INPUT, WorkbookFormatError, read_structure, write_workbook
 from evm.workcalendar import WorkCalendar
 
-from builders import P, T, issues_with, rows_by_code
+from builders import P, T, issues_with, row_tree, rows_by_code
 
 
 CAL = WorkCalendar()
@@ -111,48 +111,49 @@ def test_tasks_weigh_by_baseline_duration_and_shares():
     build_tree(tasks)
     times = leaf_times(tasks[3:], CAL)
     assert [round(t.minutes / 480) for t in times] == [20, 30]
-    a = row_weights(times, lambda t: {4: 1.0, 5: 0.4}[t.uid], "EmpresaA")
-    b = row_weights(times, lambda t: {4: 0.0, 5: 0.6}[t.uid], "EmpresaB")
+    tree = row_tree(tasks[3:], calendar=CAL)
+    a, _pv = tree.company(lambda t: {4: 1.0, 5: 0.4}[t.uid])
+    b, _pv = tree.company(lambda t: {4: 0.0, 5: 0.6}[t.uid])
     assert a.weights == pytest.approx({4: 20 / 32, 5: 12 / 32})
     assert b.weights == pytest.approx({5: 1.0})
-    assert row_weights(times, lambda t: 0.0) is None              # la empresa no participa
+    assert tree.company(lambda t: 0.0)[0].fallback                # la empresa no participa: la fila completa
 
 
 def test_milestone_weight_is_a_share_of_the_bac():
     times = leaf_times(supply_tasks()[3:], CAL)
-    rw = full_weights(times)
+    tree = row_tree(supply_tasks()[3:], calendar=CAL)
+    rw = tree.full()[0]
     fab, tra = (round(t.minutes / 480) for t in (times[0], times[2]))
     assert rw.weights[5] == pytest.approx(0.10) and rw.weights[7] == pytest.approx(0.20)
     assert rw.weights[4] == pytest.approx(0.70 * fab / (fab + tra))
     assert rw.weights[6] == pytest.approx(0.70 * tra / (fab + tra))
-    assert not rw.notes
+    assert not tree.groups
 
 
-@pytest.mark.parametrize("fat, site, expected, note", [
-    (40, 60, {5: 0.4, 7: 0.6}, ""),                                  # suman 100: las tareas no reciben peso
-    (80, 70, {5: 80 / 150, 7: 70 / 150}, "suman 150"),               # más de 100: se escalan
-    (-10, 20, None, "negativo"),
+@pytest.mark.parametrize("fat, site, expected, total, negative", [
+    (40, 60, {5: 0.4, 7: 0.6}, None, False),                         # suman 100: las tareas no reciben peso
+    (80, 70, {5: 80 / 150, 7: 70 / 150}, 150, False),                # más de 100: se escalan
+    (-10, 20, None, None, True),                                     # negativo: sin peso
 ])
-def test_milestone_weight_limits(fat, site, expected, note):
-    rw = full_weights(leaf_times(supply_tasks(fat, site)[3:], CAL))
+def test_milestone_weight_limits(fat, site, expected, total, negative):
+    tree = row_tree(supply_tasks(fat, site)[3:], calendar=CAL)
+    rw = tree.full()[0]
     if expected is not None:
         assert rw.weights == pytest.approx(expected)
-    if note:
-        assert any(note in n.message for n in rw.notes)
-    else:
-        assert not rw.notes
+    assert [g.total for g in tree.groups] == ([total] if total else [])
+    assert bool(tree.negative) == negative
     assert sum(rw.weights.values()) == pytest.approx(1.0)
 
 
 def test_milestones_only_and_no_weights():
     ms = [T(1, 1, "", "H1", bs=FAB[1], bf=FAB[1], milestone=True, milestone_weight=30),
           T(2, 1, "", "H2", bs=TRA[1], bf=TRA[1], milestone=True, milestone_weight=30)]
-    rw = full_weights(leaf_times(ms, CAL))
-    assert rw.weights == pytest.approx({1: 0.5, 2: 0.5}) and "duración" in rw.notes[0].message
+    tree = row_tree(ms, calendar=CAL)
+    assert tree.full()[0].weights == pytest.approx({1: 0.5, 2: 0.5}) and [g.total for g in tree.groups] == [60]
     for m in ms:
         m.milestone_weight = None
-    rw = full_weights(leaf_times(ms, CAL))
-    assert rw.weights == pytest.approx({1: 0.5, 2: 0.5}) and "pesan igual" in rw.notes[0].message
+    tree = row_tree(ms, calendar=CAL)
+    assert tree.full()[0].weights == pytest.approx({1: 0.5, 2: 0.5}) and tree.equal == [None]
 
 
 def test_planned_curve_per_company_and_horizon():
@@ -166,14 +167,23 @@ def test_planned_curve_per_company_and_horizon():
 
 
 def test_tasks_without_baseline_dates_are_warned():
+    """Tarea sin línea base en una fila con otras tareas con línea base: por defecto queda fuera del PV (FEC-019) y
+    cuenta en el % ganado; con --pv-fechas-actuales forma el PV con sus fechas actuales (FEC-010)."""
     tasks = excavation_tasks()
     tasks[4].baseline_start = tasks[4].baseline_finish = None
     tasks[4].has_baseline = False
     rep = build_report(P(tasks), config())
-    assert issues_with(rep, "1 tarea no tiene fechas de línea base", "Advertencia")
+    assert issues_with(rep, "1 tarea sin línea base no forma parte del % planificado de su fila (3.1.1)", "Advertencia")
     # Tarea sin código EDT: con su Id, para encontrarla en MS Project
-    assert any(i.name == f"Estructura (Id {tasks[4].id})" and "fechas actuales" in i.message for i in rep.issues)
-    assert sum(rows_by_code(rep)["3.1.1"].pct_vec[""]) == pytest.approx(1.0)
+    assert any(i.id == "FEC-019" and i.name == f"Estructura (Id {tasks[4].id})" for i in rep.issues)
+    row = rows_by_code(rep)["3.1.1"]
+    assert sum(row.pct_vec[""]) == pytest.approx(1.0)
+    assert (row.start, row.finish) == (FEB[0], FEB[1])                  # PV: solo la excavación (febrero)
+    assert [tt.task.name for tt in row.weights[""].members] == ["Excavación", "Estructura"]    # % ganado: las dos
+    old = build_report(P(tasks), config(pv_current_dates=True))
+    assert issues_with(old, "1 tarea no tiene fechas de línea base", "Advertencia")
+    assert any(i.name == f"Estructura (Id {tasks[4].id})" and "fechas actuales" in i.message for i in old.issues)
+    assert rows_by_code(old)["3.1.1"].start == tasks[4].start                    # con sus fechas actuales
 
 
 def test_loose_tasks_form_an_other_tasks_row():
@@ -321,7 +331,7 @@ def test_old_bcwp_method_is_measured_as_percent_complete():
     tasks = excavation_tasks()
     tasks[3].percent_complete = 100
     text = "CPTR de MS Project"
-    frac, note = earned_fraction(parse_method(text), full_weights(leaf_times(tasks[3:], CAL)), 0.0)
+    frac, note = earned_fraction(parse_method(text), row_tree(tasks[3:], calendar=CAL).full()[0], 0.0)
     assert frac == pytest.approx(0.4) and "no reconocido" in note.message and "% completado" in note.message
 
 

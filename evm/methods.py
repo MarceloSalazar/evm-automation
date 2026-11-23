@@ -12,6 +12,7 @@ PCT = "pct_completado"        # % completado
 PHYSICAL = "pct_fisico"       # % completado físico
 UNITS = "unidades"            # unidades completadas (se registra como % completado físico)
 MILESTONES = "hitos"          # hitos ponderados
+WEIGHTED = "ponderado"        # ponderado: cada subtarea con su peso y su propio método (desde la 2.7.0)
 LOE = "loe"                   # avance lineal / nivel de esfuerzo: EV = PV
 UNDEFINED = "por_definir"
 UNKNOWN = "desconocido"
@@ -49,6 +50,8 @@ def parse_method(text: str) -> Method:
         return Method(UNKNOWN, text=raw)
     if "hito" in t or "milestone" in t:
         return Method(MILESTONES, text=raw)
+    if "ponderad" in t or "weighted" in t:
+        return Method(WEIGHTED, text=raw)
     if "fisic" in t or "physical" in t:
         return Method(PHYSICAL, text=raw)
     if "unidad" in t or "unit" in t:

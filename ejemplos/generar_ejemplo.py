@@ -107,9 +107,9 @@ def work_package(start: date, factor: float = 1.0):
         if acts:
             cur = s
             for (aname, adur, acost, *rest) in acts:
-                if adur == 0:  # hito (sin código EDT)
+                if adur == 0:  # hito, con su código EDT de nivel 4 como las actividades
                     t.children.append(T(aname, 4, cur, cur, acost * factor, milestone=True,
-                                        weight=rest[0] if rest else None, code=""))
+                                        weight=rest[0] if rest else None))
                 else:
                     f = add_wd(cur, adur)
                     t.children.append(T(aname, 4, cur, f, acost * factor))

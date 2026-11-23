@@ -55,8 +55,8 @@ def test_each_issue_has_its_target_and_book_row():
         "Actividad a": (TARGET_DETAIL, "1.1.1"), "Actividad b": (TARGET_DETAIL, "1.1.1"),
         "Sin código (Id 6)": (TARGET_DETAIL, "1.1.1"), "Paquete dos": (TARGET_ROW, "1.1.2"),
         "Suelta (Id 8)": (TARGET_DETAIL, "1.0.0-D"), "Fuera (Id 12)": (TARGET_OUT, "")}
-    assert where(issues, "VIS-007") == {"Oculta": (TARGET_OUT, "")}
-    assert where(issues, "EDT-018") == {"Fase": (TARGET_ROW, "1.0.0")}
+    assert any(i.id == "VIS-012" and not i.name for i in issues)    # Visible = No: cuenta en su fila superior
+    assert where(issues, "EDT-018") == {"Fase": (TARGET_ROW, "1.0.0"), "Fase dos": (TARGET_ROW, "2.0.0")}
     assert all(i.target == TARGET_GENERAL and not i.row for i in issues if not i.code and not i.name)
 
 

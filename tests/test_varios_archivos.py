@@ -187,7 +187,10 @@ def test_generate_combines_files(xml, tmp_path, capsys):
     assert meta["proyecto.P2"].startswith("Accesos y servicios") and not meta["planificacion.P2"]
     wb = load_workbook(book)
     assert wb["Resumen"]["A2"].value == "Programa de ejemplo EVM + Accesos y servicios (proyecto 2 de ejemplo)"
-    assert wb["Resumen"]["B14"].value == "P1: INTERNO  |  P2: todas"
+    assert wb["Resumen"]["B10"].value == "P1: p1_base.xml  |  P2: p2_base.xml"
+    assert wb["Cuadro de Mando"]["B3"].value == "Archivos: P1 (Línea base); P2 (Línea base)"
+    assert wb["PV"]["A2"].value.startswith(f"Informe: {wb['Resumen']['A2'].value}  |  "
+                                           "Archivos: P1 = p1_base.xml, P2 = p2_base.xml  |  Generado: ")
     assert wb["Cuadro de Mando"]["B2"].value == wb["Resumen"]["A2"].value
     details = [r["detalle"] for r in validation_rows(book) if r["detalle"]]
     assert any(d.startswith("[P1] Planificación 'INTERNO'") for d in details)
@@ -249,8 +252,8 @@ def test_each_file_is_read_with_its_own_settings(xml, tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("args, message", [
-    (["--origen", "x.xml"], "NOMBRE=RUTA"),
     (["--origen", "P9=x.xml"], "NOMBRE=RUTA"),
+    (["--origen", "x.xml"], "LEC-001"),                    # una ruta: solo ese archivo (CFG-057), que no existe
     (["--origen", "P1=activo"], "no se admite 'activo'"),
     (["--planificacion", "CLIENTE"], "--planificacion"),
     (["--linea-base", "1"], "--linea-base"),
@@ -259,6 +262,37 @@ def test_generate_option_errors(xml, tmp_path, capsys, args, message):
     cfg = write_config(xml, "varios.toml")
     assert main(["generar", "--config", str(cfg), "--salida", str(tmp_path / "e.xlsx"), *args]) == 2
     assert message in capsys.readouterr().err
+
+
+def test_a_single_origin_path_takes_priority_over_the_projects(xml, tmp_path, capsys, monkeypatch):
+    """CFG-057: con [[proyectos]], --origen RUTA lee solo ese archivo, con la planificación y la línea base de su
+    sección (o las generales si no es ninguna); NOMBRE=RUTA sigue reemplazando la ruta de una sección."""
+    cfg = write_config(xml, "prioridad.toml", [("P1", "p1_base.xml", ""),
+                                                ("P2", "p2_base.xml", 'planificacion = ""\nlinea_base = 0\n')])
+    seen = []
+    original = cli.open_project
+
+    def spy(origen, cfg, motor, visible=False, status=None, name="", links=True, **kw):
+        seen.append((origen, name, cfg.plan, cfg.baseline, len(cfg.projects)))
+        return original(origen, cfg, motor, visible, status, name, links, **kw)
+
+    monkeypatch.setattr(cli, "open_project", spy)
+    p2 = str(xml[(2, "base")])
+    assert main(["validar", "--config", str(cfg), "--origen", p2]) in (0, 1)
+    out = capsys.readouterr().out
+    assert seen == [(p2, "", "", 0, 0)]
+    assert ("[i] CFG-057 Se lee solo el archivo de --origen (es el de la sección 'P2', con su planificación y su línea "
+            "base), no los 2 archivos de [[proyectos]].") in out
+    seen.clear()
+    other = tmp_path / "otro.xml"
+    other.write_bytes(xml[(2, "base")].read_bytes())
+    assert main(["validar", "--config", str(cfg), "--origen", str(other), "--planificacion", ""]) in (0, 1)
+    assert seen == [(str(other), "", "", None, 0)]
+    assert "no es el de ninguna sección" in capsys.readouterr().out
+    seen.clear()
+    assert main(["validar", "--config", str(cfg), "--origen", f"P2={other}"]) in (0, 1)      # reemplaza la ruta
+    assert [(o, n) for o, n, *_ in seen] == [(str(xml[(1, "base")]), "P1"), (str(other), "P2")]
+    assert "CFG-057" not in capsys.readouterr().out
 
 
 def test_generate_requires_output_and_origin(xml, tmp_path, capsys):

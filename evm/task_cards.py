@@ -4,7 +4,7 @@ Las fichas son las filas del libro (nivel máximo, planificación, campo Visible
 sin las filas «-D». Cada ficha tiene las fechas y la duración de la línea base (las del % planificado) y sus
 predecesoras y sucesoras: cada vínculo de MS Project se traslada a los elementos con ficha que contienen sus dos
 tareas. No se muestran los vínculos internos de un elemento, los repetidos ni los vínculos con tareas sin ficha (de
-otra planificación, inactivas, con Visible = No o de otro proyecto).
+otra planificación, inactivas, con Peso = 0 o de otro proyecto).
 """
 from __future__ import annotations
 
@@ -88,7 +88,7 @@ def build_cards(report: Report, parts: list[ReportPart], cfg: Config) -> Cards:
     order = {id(c): i for i, c in enumerate(out.cards)}
 
     # Ficha de cada tarea exportada: la suya o la de su tarea superior más cercana con ficha. Las tareas que quedan
-    # fuera del árbol (otra planificación, inactivas, Visible = No) o sin elemento superior con ficha no tienen
+    # fuera del árbol (otra planificación, inactivas, Peso = 0) o sin elemento superior con ficha no tienen
     owner: dict[tuple[str, int], Card] = {}
     for part in parts:
         name = part.source.name

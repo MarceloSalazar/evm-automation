@@ -145,7 +145,7 @@ def fmt_number(v: float, decimals: int = 2, trim: bool = False) -> str:
 CONFIG_FIELDS = {
     "edt": ("EDT", "[campos] edt"),
     "metodo": ("de método", "[campos] metodo"),
-    "peso_hito": ("de peso de hitos", "[campos] peso_hito"),
+    "peso_hito": ("de peso", "[campos] peso_hito"),
     "visible": ("Visible", "[campos] visible"),
     "descripcion": ("de descripción", "[campos] descripcion"),
     "campo_empresa": ("de empresa", "[multiempresa] campo_empresa"),
