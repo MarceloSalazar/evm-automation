@@ -440,7 +440,7 @@ def test_multi_formulas_recalculate(multi_book, example_files, recalc):
     assert out["PV-EmpresaA"].cell(total_row, 4).value == pytest.approx(9_947_000)
     assert out["AC"].cell(total_row, FIRST_MONTH_COL + 17).value == pytest.approx(1_500)
     summary = {out["Resumen"].cell(r, 1).value: out["Resumen"].cell(r, 2).value for r in range(1, 60)}
-    assert summary["AC - Costo real acumulado"] == pytest.approx(1_500)
+    assert summary["AC - Coste real acumulado"] == pytest.approx(1_500)
     assert out["Cuadro de Mando"]["Q10"].value == pytest.approx(1_500)                 # AC total en el tablero
     ev_total = sum(out["EV"].cell(total_row, c).value or 0 for c in range(FIRST_MONTH_COL, FIRST_MONTH_COL + 18))
     assert summary["EV - Valor ganado acumulado"] == pytest.approx(ev_total)

@@ -20,13 +20,13 @@ MS Project en los dos idiomas.
 ### 1.1 Qué es una línea base
 
 Una línea base (*Baseline*) es una **foto del plan** en un momento dado: MS Project copia las fechas, la
-duración, el trabajo y el costo de cada tarea a unos campos aparte, que no cambian aunque el cronograma
+duración, el trabajo y el coste de cada tarea a unos campos aparte, que no cambian aunque el cronograma
 cambie después.
 
 ```mermaid
 flowchart LR
     subgraph C["Cronograma (cambia cada mes)"]
-        A["Comienzo, Fin, Duración,<br/>Trabajo, Costo"]
+        A["Comienzo, Fin, Duración,<br/>Trabajo, Coste"]
     end
     subgraph LB["Línea base (no cambia sola)"]
         B["Comienzo previsto, Fin previsto,<br/>Duración prevista,<br/>Trabajo previsto, Costo previsto"]
@@ -83,7 +83,7 @@ inglés lo muestra como «NA» y en español como «ND» (no disponible).
 ### 1.3 Línea base y plan provisional no son lo mismo
 
 MS Project también tiene **planes provisionales** (*Interim plans*: *Comienzo1/Fin1* a *Comienzo10/Fin10*;
-en inglés, *Start1/Finish1*...). Solo guardan las fechas, no la duración, el trabajo ni el costo. El
+en inglés, *Start1/Finish1*...). Solo guardan las fechas, no la duración, el trabajo ni el coste. El
 programa EVM no los usa. En el cuadro *Establecer línea base* aparecen como segunda opción (*Establecer
 plan provisional*, *Set interim plan*); hay que tener cuidado de no confundirlos.
 

@@ -1,7 +1,7 @@
 """Lector por automatización COM de MS Project de escritorio (Windows + pywin32).
 
 Abre el archivo .mpp en modo solo lectura y lee las tareas: fechas de la línea
-base, fechas actuales, avance y campos personalizados. Los costos no se leen: el
+base, fechas actuales, avance y campos personalizados. Los costes no se leen: el
 BAC se ingresa en el libro.
 
 Precauciones:
@@ -406,7 +406,15 @@ class ComSession:
         if self.read_only:
             raise ProjectAppError("CLI-018", "El proyecto se abrió como de solo lectura: no se puede guardar.")
         self._activate()
-        self.app.FileSave()
+        try:
+            self.app.FileSave()
+        except Exception as exc:
+            from evm.client_writer import com_error_text as _com_text
+            name = str(_get(self.project, "FullName", "") or "el archivo")
+            raise ProjectAppError("LEC-027", f"MS Project no pudo guardar {name}: {_com_text(exc)}. Se debe "
+                                             "comprobar que el archivo y su carpeta no son de solo lectura, que no "
+                                             "está abierto en otra instancia de MS Project y que hay espacio en "
+                                             "el disco.") from exc
 
     def _open_project_names(self) -> set[str] | None:
         """Rutas (en minúsculas) de los proyectos abiertos en MS Project; None si no se pueden leer."""

@@ -122,18 +122,6 @@ def test_migration_keeps_report_month(book, tmp_path, example_files):
     assert last_row(charts(new)[1]) == dashboard.D_FIRST_ROW + 18 - 1
 
 
-def test_legacy_book_keeps_s_curve(book, example_files):
-    """Libros de versiones anteriores (hoja Curva S, sin Cuadro de Mando): se recrea su curva S."""
-    wb = load_workbook(book)
-    for name in (DASH, "_graficos"):
-        del wb[name]
-    wb["Evolución mensual"].title = "Curva S"
-    wb.save(book)
-    update(book, example_files)
-    xml = charts(book)
-    assert len(xml) == 1 and all(r.startswith("'Curva S'!") for r in refs(xml[0]))
-
-
 # ----------------------------------------------------------------------------
 # Valores (LibreOffice)
 # ----------------------------------------------------------------------------
@@ -204,7 +192,7 @@ def test_dashboard_values_recalculate(book, example_files, recalc):
     check_cards(card_values(out[DASH]), ind, ind.eac_cpi_spi)
     assert out[DASH]["H5"].value == 19
 
-    # Sin AC cargado: los indicadores de costo quedan vacíos
+    # Sin AC cargado: los indicadores de coste quedan vacíos
     out = recalc_with(book, recalc, datetime(2027, 3, 1))
     values = card_values(out[DASH])
     assert values["pv"] == pytest.approx(indicators_for(b, date(2027, 3, 31)).pv, abs=0.01)

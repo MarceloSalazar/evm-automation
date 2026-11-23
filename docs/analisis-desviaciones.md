@@ -3,8 +3,9 @@
 [Inicio](../README.md) › [Documentación](README.md) › Análisis de desviaciones
 
 La hoja **Análisis de desviaciones** lista cada mes los paquetes de trabajo fuera de umbral (SPI o CPI
-en amarillo o rojo, por debajo o por encima del rango verde) y tiene columnas para explicar cada desviación: causa, impacto, acción correctiva,
-responsable y fecha compromiso. Así, el análisis que acompaña al informe mensual queda en el mismo libro
+en amarillo o rojo, por debajo o por encima del rango verde de los rangos admisibles) y tiene columnas para
+explicar cada desviación y seguir su acción hasta el cierre: causa, impacto, acción, responsable, fecha
+objetivo, criterio de cierre y estado. Así, el análisis que acompaña al informe mensual queda en el mismo libro
 que los datos, y lo escrito se conserva al actualizar el libro y al regenerarlo por un cambio de línea
 base.
 
@@ -30,12 +31,16 @@ paquetes como ejemplo: uno por encima del rango verde (CPI 1,10) y dos por debaj
 ## 1. Qué paquetes se listan
 
 `actualizar` agrega a la hoja las **filas de ingreso** (paquetes de trabajo y filas `-D Otras tareas`)
-cuyo **SPI o CPI acumulado** al mes de la fecha de corte está fuera del **rango verde** del semáforo:
-menor que `amarillo_inferior` o mayor que `amarillo_superior` (0,95 y 1,05 por defecto,
-[Configuración](configuracion.md)). Es decir, los paquetes con semáforo amarillo o rojo en
-`Indicadores EDT`.
+con algún indicador acumulado al mes de la fecha de corte fuera del **rango verde** de los rangos admisibles
+([Configuración](configuracion.md)):
 
-- Un índice **por debajo** del rango indica atraso (SPI) o sobrecosto (CPI).
+- **SPI o CPI** menor que `amarillo_inferior` o mayor que `amarillo_superior` (0,95 y 1,05 por defecto);
+- **SV %** (SV / PV), **CV %** (CV / EV) o **desviación del avance técnico** (% completado − % planificado,
+  en puntos del BAC) de más de ±5 % (`sv_amarillo`, `cv_amarillo` y `avance_amarillo`).
+
+Es decir, los paquetes con algún indicador en amarillo o rojo en `Indicadores EDT`.
+
+- Un índice **por debajo** del rango indica atraso (SPI) o sobrecoste (CPI).
 - Un índice **por encima** del rango también se analiza: puede indicar un AC incompleto, un avance
   informado de más o un presupuesto o una línea base poco exigentes
   ([Cuadro de Mando](cuadro-de-mando.md#3-valores-desviaciones-índices-y-pronósticos)).
@@ -43,7 +48,7 @@ menor que `amarillo_inferior` o mayor que `amarillo_superior` (0,95 y 1,05 por d
 - El SPI y el CPI se calculan igual que en `Indicadores EDT`. Un índice sin valor (por ejemplo, el CPI
   de un paquete sin AC) no se considera.
 - Los umbrales son los mismos con los que se **generó** el libro: los que muestra la fila
-  *Semáforo CPI y SPI* del `Cuadro de Mando`.
+  *Rangos admisibles CPI y SPI* del `Cuadro de Mando`.
 - Los elementos de nivel 1 y 2 (subtotales) no se listan: su desviación se explica con la de sus
   paquetes.
 - Con [varios archivos de MS Project](varios-archivos.md), se listan los paquetes de todos los
@@ -53,7 +58,7 @@ La pantalla también muestra la lista al terminar `actualizar`, incluso con `--s
 de 2027, el de [Comandos](comandos.md#actualizar-carga-el--ganado-del-mes)):
 
 ```text
-Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05): 13 (hoja 'Análisis de desviaciones')
+Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05, o SV %, CV % o desviación del avance fuera de su rango verde): 13 (hoja 'Análisis de desviaciones')
   1.1.1      Oficina de gestión del programa (PMO)     SPI  1,00  CPI  1,11
   1.1.2      Control de proyectos y EVM                SPI  1,00  CPI  1,11
   1.1.3      Gestión de riesgos                        SPI  1,00  CPI  1,09
@@ -71,21 +76,20 @@ Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05): 13 (hoja 'Análisis d
 | Mes | Mes analizado (el de la fecha de corte). |
 | Código EDT, Actividad | Paquete de trabajo. |
 | BAC, PV, EV y AC acumulados, SV, CV, SPI, CPI | **Fórmulas** sobre las hojas `PV`, `EV` y `AC`, acumuladas hasta el mes de la fila. Si se corrige un valor en esas hojas, el análisis se recalcula. |
-| Semáforo | `Rojo`, `Amarillo` o `Verde`, según el índice más alejado del rango verde: `Rojo` si alguno de los dos está por debajo de `rojo_inferior` o por encima de `rojo_superior`. Una fila puede quedar en `Verde` si se corrigieron los datos después de agregarla. |
+| Desv. avance | **Fórmula**: desviación del avance técnico, (EV − PV) / BAC: % completado menos % planificado del paquete. |
+| Rango admisible | `Rojo`, `Amarillo` o `Verde`, según el indicador más alejado de su rango verde (SPI, CPI, SV %, CV % y desviación del avance): `Rojo` si alguno está en rojo. Una fila puede quedar en `Verde` si se corrigieron los datos después de agregarla. |
 | SPI mes ant., CPI mes ant. | **Fórmulas**: SPI y CPI acumulados del paquete en el último mes con EV cargado antes del mes de la fila (con informes bimestrales, el del informe anterior). Vacíos si no hay un mes anterior con datos. |
 | Tendencia | `Empeora` si el SPI o el CPI se alejan de 1 más de 0,01 respecto del mes anterior; `Mejora` si alguno se acerca y ninguno se aleja; `Estable` en otro caso. Un índice por encima del rango verde que baja hacia 1 también mejora. |
 | Desvío fin (días lab.), Holgura (días lab.), Crítica | Plazo del paquete según el cronograma de MS Project en el mes del análisis ([Indicadores EDT](libro-excel.md#indicadores-edt)): días laborables entre el fin de la línea base y el fin previsto (> 0 = atraso), menor holgura total de sus tareas sin terminar y si alguna de ellas es crítica. Son valores (no fórmulas): las filas de meses anteriores conservan los de su mes. El desvío se marca en rojo si el paquete es crítico o tiene holgura negativa (el atraso afecta la fecha de fin), y en amarillo si no lo es. |
-| Antecedente | `Nuevo` (primer mes fuera de umbral), `También en MM/AAAA` (estaba fuera de umbral el mes anterior, sin texto) o `Texto copiado de MM/AAAA: se debe revisar` (ver la [sección 4](#4-qué-se-conserva-de-un-mes-a-otro)). |
-| **Causa**, **Impacto en plazo y costo**, **Acción correctiva**, **Responsable**, **Fecha compromiso** | Celdas amarillas: se completan a mano. |
+| Antecedente | `Nuevo` (primer mes fuera de umbral), `También en MM/AAAA` (estaba fuera de umbral el mes anterior, sin texto), `Texto copiado de MM/AAAA: se debe revisar` o `Nuevo (cerrada en MM/AAAA)` (ver la [sección 4](#4-qué-se-conserva-de-un-mes-a-otro)). |
+| **Causa**, **Impacto en alcance, plazo y coste**, **Acción**, **Código de acción**, **Responsable**, **Fecha objetivo**, **Criterio de cierre** | Celdas amarillas: se completan a mano. La *Acción* es la de recuperación o mitigación; el *Código de acción*, el de la acción en el registro de acciones del programa (trazabilidad); el *Criterio de cierre*, la condición que se debe cumplir para dar la desviación por corregida. |
+| **Estado** | Celda amarilla con una lista: `Abierta`, `En curso` o `Cerrada`. Una fila `Cerrada` no se avisa en el cierre siguiente ni copia su texto al mes siguiente ([sección 3](#3-cierre-mensual)). |
 
 La columna oculta `clave` asocia cada fila con su paquete (el *Id. único* de la tarea en MS Project). No
 se debe modificar.
 
 Las columnas de plazo ayudan a completar el **impacto en plazo**: un paquete con SPI 0,85 y 40 días de
 holgura no tiene la misma urgencia que otro con el mismo SPI en el camino crítico.
-
-Los libros generados con versiones anteriores a la 2.3.0 reciben las columnas nuevas en el siguiente
-`actualizar` o `analizar`, con el texto ya escrito en su lugar.
 
 ---
 
@@ -120,9 +124,9 @@ EIA-748 pide explicar cada mes las desviaciones significativas y seguir las acci
 
 | Aviso | Qué indica |
 |---|---|
-| [ACT-043](codigos.md#act-043) | Una fila del análisis anterior tiene texto, pero no tiene *Causa* o no tiene *Acción correctiva*. |
+| [ACT-043](codigos.md#act-043) | Una fila del análisis anterior tiene texto, pero no tiene *Causa* o no tiene *Acción* (salvo que su *Estado* sea `Cerrada`). |
 | [ACT-044](codigos.md#act-044) | Paquetes del análisis anterior **sin ningún texto**: se quitan de la hoja (como siempre), pero quedan listados en la consola. Los que siguen fuera de umbral vuelven a listarse en el mes de corte. |
-| [ACT-045](codigos.md#act-045) | Acción vencida: el paquete sigue fuera de umbral y la *Fecha compromiso* de su acción es anterior a la fecha de corte. Si el paquete vuelve al rango verde, deja de listarse y la acción se da por cumplida. |
+| [ACT-045](codigos.md#act-045) | Acción vencida: el paquete sigue fuera de umbral, la *Fecha objetivo* de su acción es anterior a la fecha de corte y su *Estado* no es `Cerrada`. Si el paquete vuelve al rango verde, deja de listarse y la acción se da por cumplida. |
 
 ---
 
@@ -136,7 +140,9 @@ EIA-748 pide explicar cada mes las desviaciones significativas y seguir las acci
   - las filas de los meses anteriores **sin texto** se eliminan;
   - si un paquete sigue fuera de umbral y tenía texto, el texto se **copia** a la fila del mes nuevo,
     con el antecedente `Texto copiado de MM/AAAA: se debe revisar`, para actualizarlo en lugar de
-    escribirlo de nuevo.
+    escribirlo de nuevo;
+  - si esa fila anterior tiene el *Estado* `Cerrada`, el texto no se copia: la desviación se dio por
+    corregida, de modo que la fila nueva queda vacía, con el antecedente `Nuevo (cerrada en MM/AAAA)`.
 - **Filas agregadas a mano.** Una fila escrita a mano debajo de la lista (por ejemplo, el comentario de
   un elemento de nivel 2) se conserva, sin fórmulas.
 
@@ -161,7 +167,7 @@ encabezado.
 ## 6. Filtrar e imprimir
 
 - El encabezado tiene **filtros**: por ejemplo, se filtra la columna `Mes` para ver solo el mes del
-  informe, o `Semáforo` para ver solo los rojos.
+  informe, `Rango admisible` para ver solo los rojos o `Estado` para ver las acciones abiertas.
 - La hoja se imprime en horizontal, con el ancho ajustado a una página y el encabezado repetido en cada
   página, para adjuntarla al informe mensual junto con el `Cuadro de Mando`.
 
@@ -169,15 +175,15 @@ encabezado.
 
 ## 7. Preguntas frecuentes
 
-**¿Se pueden cambiar los umbrales?** Son los del semáforo (`[semaforo]`) con que se generó el libro. Para
+**¿Se pueden cambiar los umbrales?** Son los rangos admisibles (`[rangos_admisibles]`) con que se generó el libro. Para
 usar otros se cambia la configuración y se regenera el libro con `--migrar-desde`, que conserva el
 análisis. Para no analizar los índices altos se indican umbrales superiores que no se alcanzan en la
 práctica ([Configuración](configuracion.md#ejemplos)).
 
 **¿Por qué aparece un paquete de nivel de esfuerzo (LOE) con SPI 1?** Porque su CPI está fuera del rango
-verde: el SPI de un paquete LOE siempre es 1, pero su costo puede desviarse. En el ejemplo, los paquetes
+verde: el SPI de un paquete LOE siempre es 1, pero su coste puede desviarse. En el ejemplo, los paquetes
 LOE de gestión (`1.1.1` a `1.1.3` y `1.2.3`) tienen CPI de 1,08 a 1,10 en diciembre de 2027 porque su
-costo real es menor que el planificado.
+coste real es menor que el planificado.
 
 **¿Qué pasa si se borra una fila del análisis?** Si el paquete sigue fuera de umbral en el mes de corte,
 vuelve a aparecer (sin texto) la próxima vez que se ejecute `actualizar` o `analizar` para ese mes.

@@ -35,7 +35,7 @@ from evm.workbook import (C_AC, C_ACN, C_DATE, C_EV, C_EVN, C_PVC, CURVE_FIRST_R
                           FILL_GREEN, FILL_HEADER, FILL_INPUT, FILL_RED, FILL_YELLOW, FMT_DATE, FMT_RATIO,
                           MONTHNUM_ROW, NAME_START, NAME_STATUS, ROW_BL_FINISH, ROW_CRITICAL, ROW_ES_FINISH,
                           ROW_FINISH, ROW_LATE, ROW_PLAN_STATUS, ROW_VARIANCE, SHEET_AC, SHEET_CURVE, SHEET_EV,
-                          SHEET_PV, SHEET_SUMMARY, Thresholds, _Layout, _traffic_light, col, fmt_decimal,
+                          SHEET_PV, SHEET_SUMMARY, Thresholds, _Layout, _traffic_light, pct_light, col, fmt_decimal,
                           loaded_month, money_format, month_sum, put_text)
 
 SHEET_DASHBOARD = "Cuadro de Mando"
@@ -57,21 +57,17 @@ MAX_SCATTER = 200                       # Excel admite hasta 255 series por grá
 # Cuadrícula de la hoja: columnas B a U de 50 píxeles
 GRID_FIRST, GRID_LAST = 2, 21
 GRID_WIDTH = 7.140625                   # ancho que Excel muestra como 50 píxeles (Calibri 11)
-ROW_CHARTS = 25                         # gráficos 1 y 2 (disposición 1; en la 2, LAYOUT_SHIFT filas más abajo)
-ROW_CHARTS_END = 44
-ROW_SCATTER = 47                        # gráfico 3 y tabla de elementos EDT
-ROW_SCATTER_END = 72
-# Disposición de la hoja: 1 = libros de versiones anteriores a la 2.3.0; 2 = con las secciones de tendencia y de
-# plazo sobre los gráficos (_meta disposicion_cuadro_mando). 'actualizar' vuelve a crear los gráficos de cada libro
-# en las filas de su disposición.
-LAYOUT = 2
-LAYOUT_SHIFT = 10
+# Filas de los gráficos, debajo de las secciones de tendencia y de plazo
+ROW_CHARTS = 35                         # gráficos 1 y 2
+ROW_CHARTS_END = 54
+ROW_SCATTER = 57                        # gráfico 3 y tabla de elementos EDT
+ROW_SCATTER_END = 82
 ROW_TREND = 23                          # sección de tendencia (tarjetas en las filas 24 a 26)
 ROW_PLAN = 28                           # sección de plazo (tarjetas en las filas 29 a 31)
 
 # Hoja _graficos: parámetros (A1:B9), cuadrantes (D1:F5), serie mensual y elementos EDT (desde la fila 11).
-# Las columnas no se deben mover: 'actualizar' vuelve a crear los gráficos de libros de versiones anteriores
-# con estas mismas columnas. Las bandas superiores del semáforo (versión 1.5.0) van después de los elementos EDT.
+# Las columnas no se deben mover: 'actualizar' vuelve a crear los gráficos con estas mismas columnas. Las bandas
+# superiores de los rangos admisibles van después de los elementos EDT.
 D_HEADER_ROW, D_FIRST_ROW = 10, 11
 (M_NUM, M_DATE, M_PV, M_EV, M_AC, M_BAC, M_MARK, M_CPI, M_SPI, M_RED, M_YELLOW, M_GREEN, M_TARGET,
  M_CPI_RAW, M_SPI_RAW) = range(1, 16)
@@ -102,7 +98,7 @@ class ChartPackage:
 
 
 def chart_packages(rows) -> list[ChartPackage]:
-    """Elementos EDT de nivel 1 y 2 (sin las filas de otros costos), en el orden del libro.
+    """Elementos EDT de nivel 1 y 2 (sin las filas de otros costes), en el orden del libro.
 
     rows: tuplas (fila, código, nivel, tipo). Si son demasiados para un gráfico, solo el nivel 1.
     """
@@ -112,10 +108,9 @@ def chart_packages(rows) -> list[ChartPackage]:
     return out
 
 
-def chart_rows(layout: int = LAYOUT) -> tuple[int, int, int, int]:
-    """Filas de los gráficos según la disposición de la hoja: (gráficos 1 y 2, su fin, gráfico 3, su fin)."""
-    shift = LAYOUT_SHIFT if layout >= 2 else 0
-    return ROW_CHARTS + shift, ROW_CHARTS_END + shift, ROW_SCATTER + shift, ROW_SCATTER_END + shift
+def chart_rows() -> tuple[int, int, int, int]:
+    """Filas de los gráficos: (gráficos 1 y 2, su fin, gráfico 3, su fin)."""
+    return ROW_CHARTS, ROW_CHARTS_END, ROW_SCATTER, ROW_SCATTER_END
 
 
 def chart_months(months: int, plan_end: int, cutoff: int | None) -> tuple[int, int]:
@@ -282,8 +277,8 @@ def _quadrants() -> list[tuple[str, float, float]]:
     """Rótulos de los cuadrantes: (texto, CPI, SPI), en el margen superior o inferior del gráfico."""
     left, right = (INDEX_MIN + 1) / 2, (INDEX_MAX + 1) / 2
     top, bottom = INDEX_MAX + SCATTER_PAD / 2, INDEX_MIN - SCATTER_PAD / 2
-    return [("Adelantado / sobrecosto", left, top), ("Adelantado / ahorro", right, top),
-            ("Atrasado / sobrecosto", left, bottom), ("Atrasado / ahorro", right, bottom)]
+    return [("Adelantado / sobrecoste", left, top), ("Adelantado / ahorro", right, top),
+            ("Atrasado / sobrecoste", left, bottom), ("Atrasado / ahorro", right, bottom)]
 
 
 # ----------------------------------------------------------------------------
@@ -337,9 +332,9 @@ def _card(ws, row: int, c1: int, c2: int, label: str, value, fmt: str, caption=N
 
 
 def _threshold_scale(ws, row: int, th: Thresholds) -> None:
-    """Escala del semáforo de CPI y SPI (umbrales de la configuración con que se generó el libro)."""
+    """Escala de los rangos admisibles de CPI y SPI (umbrales de la configuración con que se generó el libro)."""
     ws.row_dimensions[row].height = 15
-    label = _merge(ws, row, GRID_FIRST, 4, "Semáforo CPI y SPI")
+    label = _merge(ws, row, GRID_FIRST, 4, "Rangos admisibles CPI y SPI")
     label.font = Font(bold=True, size=8, color=DARK)
     label.alignment = Alignment(horizontal="right", vertical="center")
     fills = {"Rojo": FILL_RED, "Amarillo": FILL_YELLOW, "Verde": FILL_GREEN}
@@ -354,7 +349,7 @@ def _threshold_scale(ws, row: int, th: Thresholds) -> None:
 
 
 def _tcpi_light(ws, ref: str, cfg: Config) -> None:
-    """Semáforo del TCPI: rojo si supera 1/umbral rojo (o es negativo), amarillo si supera 1/umbral amarillo."""
+    """Color del TCPI: rojo si supera 1/umbral rojo (o es negativo), amarillo si supera 1/umbral amarillo."""
     red, yellow = 1 / cfg.threshold_red, 1 / cfg.threshold_yellow
     ws.conditional_formatting.add(ref, FormulaRule(
         formula=[f"AND(ISNUMBER({ref}),OR({ref}<0,{ref}>{red:.6f}))"], fill=FILL_RED, stopIfTrue=True))
@@ -470,20 +465,20 @@ def write_dashboard(ws, report: Report, cfg: Config, lay: _Layout, packages: lis
     pv = _card(ws, 9, 7, 11, "PV  ·  valor planificado", cum(SHEET_PV), money, None, '0.0%" planificado"',
                ACCENT_PV)
     ev = _card(ws, 9, 12, 16, "EV  ·  valor ganado", cum(SHEET_EV), money, None, '0.0%" completado"', ACCENT_EV)
-    ac = _card(ws, 9, 17, 21, "AC  ·  costo real", cum(SHEET_AC), money, None, '0.0%" del BAC gastado"',
+    ac = _card(ws, 9, 17, 21, "AC  ·  coste real", cum(SHEET_AC), money, None, '0.0%" del BAC gastado"',
                ACCENT_AC)
     for ref, c in ((pv, 7), (ev, 12), (ac, 17)):
         ws.cell(row=11, column=c, value=f'=IFERROR({ref}/{bac},"")')
 
     ws.row_dimensions[12].height = 10
     _section(ws, 13, "Desviaciones e índices de desempeño")
-    # Los indicadores de costo quedan vacíos mientras no haya AC cargado (p. ej. AC a mano en multi-empresa)
-    cv = _card(ws, 14, 2, 6, "CV  ·  variación de costo", f'=IF(OR({ev}="",{ac}=0),"",{ev}-{ac})', money_signed,
+    # Los indicadores de coste quedan vacíos mientras no haya AC cargado (p. ej. AC a mano en multi-empresa)
+    cv = _card(ws, 14, 2, 6, "CV  ·  variación de coste", f'=IF(OR({ev}="",{ac}=0),"",{ev}-{ac})', money_signed,
                None, '0.0%" del EV"')
     sv = _card(ws, 14, 7, 11, "SV  ·  variación de cronograma", f'=IF({ev}="","",{ev}-{pv})', money_signed,
                None, '0.0%" del PV"')
-    cpi = _card(ws, 14, 12, 16, "CPI  ·  índice de costo", f'=IFERROR({ev}/{ac},"")', FMT_RATIO,
-                "EV / AC  ·  < 1: sobrecosto")
+    cpi = _card(ws, 14, 12, 16, "CPI  ·  índice de coste", f'=IFERROR({ev}/{ac},"")', FMT_RATIO,
+                "EV / AC  ·  < 1: sobrecoste")
     spi = _card(ws, 14, 17, 21, "SPI  ·  índice de cronograma", f'=IFERROR({ev}/{pv},"")', FMT_RATIO,
                 "EV / PV  ·  < 1: atraso")
     ws.cell(row=16, column=2, value=f'=IFERROR({cv}/{ev},"")')
@@ -491,14 +486,18 @@ def write_dashboard(ws, report: Report, cfg: Config, lay: _Layout, packages: lis
     th = Thresholds.from_config(cfg)
     for ref in (cpi, spi):
         _traffic_light(ws, ref.replace("$", ""), th)
+    # SV y CV por su % (fila 16); % completado (L11) por su desviación del % planificado (G11)
+    pct_light(ws, cv.replace("$", ""), 'IFERROR($B$16,"")', th, "cv")
+    pct_light(ws, sv.replace("$", ""), 'IFERROR($G$16,"")', th, "sv")
+    pct_light(ws, "L11", 'IFERROR($L$11-$G$11,"")', th, "avance")
     _threshold_scale(ws, 17, th)
     _section(ws, 18, "Pronósticos")
     m = NAME_EAC_METHOD
     eac = _card(
-        ws, 19, 6, 9, "EAC  ·  costo estimado final",
+        ws, 19, 6, 9, "EAC  ·  coste estimado final",
         f'=IFERROR(IF({ac}=0,"",IF({m}="{EAC_METHODS[1]}",{ac}+{bac}-{ev},IF({m}="{EAC_METHODS[2]}",'
         f'{ac}+({bac}-{ev})/({cpi}*{spi}),{bac}/{cpi}))),"")', money, f'="Método: "&{m}')
-    _card(ws, 19, 2, 5, "ETC  ·  costo para terminar", f'=IFERROR({eac}-{ac},"")', money, "EAC - AC")
+    _card(ws, 19, 2, 5, "ETC  ·  coste para terminar", f'=IFERROR({eac}-{ac},"")', money, "EAC - AC")
     vac = _card(ws, 19, 10, 13, "VAC  ·  variación al final", f'=IFERROR({bac}-{eac},"")', money_signed,
                 None, '0.0%" del BAC"')
     ws.cell(row=21, column=10, value=f'=IFERROR({vac}/{bac},"")')
@@ -515,8 +514,9 @@ def write_dashboard(ws, report: Report, cfg: Config, lay: _Layout, packages: lis
     ws.row_dimensions[27].height = 10
     _plan_cards(ws)
 
-    # Gráficos (la fila anterior a la sección es más baja para compensar la escala del semáforo de la fila 17)
-    charts, charts_end, scatter, scatter_end = chart_rows(LAYOUT)
+    # Gráficos (la fila anterior a la sección es más baja para compensar la escala de los rangos admisibles de la
+    # fila 17)
+    charts, charts_end, scatter, scatter_end = chart_rows()
     ws.row_dimensions[charts - 3].height = 5
     _section(ws, charts - 2, "Evolución en el tiempo")
     ws.row_dimensions[charts - 1].height = 6
@@ -570,7 +570,7 @@ def write_dashboard(ws, report: Report, cfg: Config, lay: _Layout, packages: lis
     note = _merge(ws, note_row, GRID_FIRST, GRID_LAST,
                   f"Gráficos de índices: escala de {fmt_decimal(INDEX_MIN)} a {fmt_decimal(INDEX_MAX)}; los "
                   "valores fuera de escala se dibujan en el límite de la escala (los valores exactos están en la "
-                  "tabla). Gráfico CPI-SPI: el centro es (1, 1); a la derecha, costo menor que el presupuestado; "
+                  "tabla). Gráfico CPI-SPI: el centro es (1, 1); a la derecha, coste menor que el presupuestado; "
                   "arriba, avance mayor que el planificado.")
     note.font = Font(size=8, italic=True, color=GRAY_TEXT)
     note.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True, indent=1)
@@ -863,7 +863,7 @@ def _scatter_chart(data, packages: list[ChartPackage]):
         chart.series.append(s)
     # Margen de SCATTER_PAD alrededor de la escala: sus marcas no muestran número
     fmt = f'[<{INDEX_MIN - SCATTER_PAD / 2}]"";[>{INDEX_MAX + SCATTER_PAD / 2}]"";0.0'
-    for axis, title in ((chart.x_axis, "CPI - índice de costo"), (chart.y_axis, "SPI - índice de cronograma")):
+    for axis, title in ((chart.x_axis, "CPI - índice de coste"), (chart.y_axis, "SPI - índice de cronograma")):
         _style_axis(axis, title=title, fmt=fmt, grid=True)
         axis.scaling.min = INDEX_MIN - SCATTER_PAD
         axis.scaling.max = INDEX_MAX + SCATTER_PAD
@@ -874,17 +874,16 @@ def _scatter_chart(data, packages: list[ChartPackage]):
 
 
 def add_dashboard_charts(wb, packages: list[ChartPackage], months: int, plan_end: int, cutoff: int | None,
-                         bac: float, currency: str, data_months: int = 0, layout: int = LAYOUT) -> None:
+                         bac: float, currency: str, data_months: int = 0) -> None:
     """Agrega (o vuelve a agregar) los tres gráficos de la hoja Cuadro de Mando.
 
     data_months: meses con EV o AC cargados hasta la fecha de corte (con 1 o 2, EV y AC llevan marcadores).
-    layout: disposición de la hoja (libros de versiones anteriores a la 2.3.0: 1).
     """
     ws = wb[SHEET_DASHBOARD]
     data = wb[SHEET_CHARTDATA]
     ws._charts = []  # openpyxl no conserva gráficos al reabrir: se recrean siempre
     evm_months, index_months = chart_months(months, plan_end, cutoff)
-    charts, charts_end, scatter, scatter_end = chart_rows(layout)
+    charts, charts_end, scatter, scatter_end = chart_rows()
     r1, r2 = charts - 1, charts_end - 1
 
     chart = _evm_chart(data, evm_months, bac, currency, data_months)

@@ -7,7 +7,7 @@ from openpyxl import load_workbook
 from evm.config import Config
 from evm.update import run_update
 from evm.wbs import build_report
-from evm.workbook import SHEET_META, read_meta, write_meta, write_workbook
+from evm.workbook import read_meta, write_workbook
 
 from builders import P, T, rows_by_code, set_bac
 
@@ -99,12 +99,3 @@ def test_book_records_the_criterion_and_actualizar_compares_with_it(tmp_path):
     moved[3].baseline_start, moved[3].baseline_finish = MAR
     res = run_update(P(moved, status_date=datetime(2026, 3, 31)), c, book, backup=False, dry_run=True)
     assert any(w.id == "ACT-047" and "1.1" in w.message for w in res.warnings)
-    # Libro anterior a la 2.7.0 (sin el dato): criterio de las fechas actuales; con una tarea sin línea base en la
-    # fila no se compara, como antes
-    wb = load_workbook(book)
-    meta = read_meta(wb)
-    meta.pop("pv_fechas_actuales")
-    write_meta(wb[SHEET_META], meta)
-    wb.save(book)
-    res = run_update(P(tasks(), status_date=datetime(2026, 3, 31)), c, book, backup=False, dry_run=True)
-    assert not any(w.id == "ACT-047" and "1.1" in w.message for w in res.warnings)

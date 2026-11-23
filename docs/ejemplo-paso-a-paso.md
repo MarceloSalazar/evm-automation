@@ -3,7 +3,7 @@
 [Inicio](../README.md) › [Documentación](README.md) › Tutorial con el proyecto de ejemplo
 
 El repositorio incluye un programa ficticio en formato XML de MS Project para probar el programa sin
-MS Project. Este tutorial genera el libro, carga el BAC, simula 24 meses de avance y de costo real, y
+MS Project. Este tutorial genera el libro, carga el BAC, simula 24 meses de avance y de coste real, y
 recorre el resultado ([Cálculo del PV y el EV](calculo-pv-ev.md)). Las capturas del libro de la
 documentación (`docs/img/excel`) se obtuvieron con estos pasos y sus variantes multi-empresa, con dos
 archivos y con depuración de costes ([Desarrollo](desarrollo.md#4-documentación-e-imágenes)); las
@@ -43,21 +43,21 @@ planificaciones, `INTERNO` y `CLIENTE` (esta con un presupuesto ficticio un 15 %
 - Los campos `Empresa` y `% Reparto` permiten probar multi-empresa: gestión compartida 60/40,
   ingeniería de EmpresaA (salvo los estudios de terreno, de EmpresaB), construcción de EmpresaB y puesta
   en marcha compartida al 50 %.
-- El XML contiene también costos, que escribe el generador del ejemplo: el programa no los usa. El BAC y
+- El XML contiene también costes, que escribe el generador del ejemplo: el programa no los usa. El BAC y
   el AC se ingresan en el libro.
 
 `ejemplos/generar_ejemplo.py` vuelve a crear el XML y, con `--fecha-estado`, genera una versión con
-**avance simulado** a esa fecha: un atraso del 15 % y un sobrecosto del 8 % en todas las tareas. Con
+**avance simulado** a esa fecha: un atraso del 15 % y un sobrecoste del 8 % en todas las tareas. Con
 `--libro`, además escribe en el libro los datos ficticios que en un proyecto real se ingresan a mano:
 
 | Comando | Qué escribe en el libro |
 |---|---|
 | `generar_ejemplo.py --libro ejemplo.xlsx` | El **BAC** de cada fila, en las celdas de la columna D que están vacías: el presupuesto ficticio del paquete (en multi-empresa, el de cada empresa). Con depuración de costes, también una previsión ficticia en la hoja `PV-depuración`, si está vacía. |
-| `generar_ejemplo.py --fecha-estado AAAA-MM-DD --salida avance.xml --libro ejemplo.xlsx` | Crea el XML con el avance a esa fecha y escribe el **AC** de ese mes: el costo real simulado acumulado menos el AC ya cargado en los meses anteriores, como si viniera del ERP. También el BAC de las filas que no lo tienen. |
+| `generar_ejemplo.py --fecha-estado AAAA-MM-DD --salida avance.xml --libro ejemplo.xlsx` | Crea el XML con el avance a esa fecha y escribe el **AC** de ese mes: el coste real simulado acumulado menos el AC ya cargado en los meses anteriores, como si viniera del ERP. También el BAC de las filas que no lo tienen. |
 
 > En la simulación las tareas avanzan como máximo hasta el 85 % (nunca se marcan terminadas) y los
 > hitos se cumplen 20 días después de su fecha prevista. Por eso los paquetes `0/100` y algunos de
-> `Hitos ponderados` muestran costo real sin valor ganado: es el comportamiento esperado de esos métodos
+> `Hitos ponderados` muestran coste real sin valor ganado: es el comportamiento esperado de esos métodos
 > cuando un paquete no termina.
 
 ---
@@ -99,7 +99,7 @@ python evm_export.py generar --origen ejemplos\programa_ejemplo.xml --config con
 ```
 
 ```text
-Exportador EVM 2.7.0
+Exportador EVM 2.7.1
 Leyendo ejemplos\programa_ejemplo.xml ...
 Proyecto: Programa de ejemplo EVM
   Planificación: INTERNO
@@ -160,7 +160,7 @@ python ejemplos\generar_ejemplo.py --fecha-estado 2026-01-31 --salida avance.xml
 python evm_export.py actualizar --origen avance.xml --config config.toml --libro ejemplo.xlsx
 ```
 
-El primer comando crea el XML con el avance a esa fecha y escribe en la hoja `AC` el costo real
+El primer comando crea el XML con el avance a esa fecha y escribe en la hoja `AC` el coste real
 simulado del mes (en un proyecto real, se ingresa a mano); el segundo calcula el % ganado de cada
 paquete y lo escribe en la hoja `% EV`.
 
@@ -199,7 +199,7 @@ Plazo según MS Project: fin de línea base 18/10/2030  |  fin previsto 09/12/20
   Paquetes críticos sin terminar: 5 (5 con fin atrasado)
 ```
 
-El CPI de los últimos 3 meses (0,58) es mucho menor que el acumulado (0,76): el sobrecosto se acelera, y
+El CPI de los últimos 3 meses (0,58) es mucho menor que el acumulado (0,76): el sobrecoste se acelera, y
 el EAC subió 2,1 millones respecto de noviembre. El cronograma vigente del ejemplo termina 36 días
 laborables después de la línea base, con 5 paquetes críticos atrasados: el atraso afecta la fecha de
 fin.
@@ -221,18 +221,18 @@ Al abrir `ejemplo.xlsx` en Excel, el `Cuadro de Mando` muestra diciembre de 2027
 
 Puntos para observar (detalle en [Cuadro de Mando e indicadores](cuadro-de-mando.md)):
 
-1. **Curva S:** EV por debajo de PV (atraso) y AC por encima de EV (sobrecosto).
+1. **Curva S:** EV por debajo de PV (atraso) y AC por encima de EV (sobrecoste).
 2. **CPI y SPI:** en los primeros meses oscilan mucho porque los importes son pequeños; desde septiembre
    de 2026 se estabilizan cerca de 0,91 y 0,84. El CPI cae al final de 2027, cuando comienza el
-   suministro de equipos: tiene costo real, pero sus hitos (con pesos 40 y 60) todavía no se cumplieron,
+   suministro de equipos: tiene coste real, pero sus hitos (con pesos 40 y 60) todavía no se cumplieron,
    y su PV está en los meses de esos hitos.
 3. **CPI vs SPI por elemento:** `1.1.0 Dirección y control` (LOE) está en SPI = 1, porque el LOE no
    genera variación de cronograma; `3.0.0 Construcción` tiene un CPI de 0,54 por el suministro de
    equipos.
 4. **Indicadores EDT:** identifica los paquetes que explican la desviación.
 5. **Análisis de desviaciones:** lista los 17 paquetes fuera del rango verde en diciembre de 2027: los
-   atrasados y con sobrecosto, y también los que tienen CPI mayor que 1,05 (por ejemplo, los de nivel
-   de esfuerzo, cuyo costo real es menor que el planificado). Tiene columnas
+   atrasados y con sobrecoste, y también los que tienen CPI mayor que 1,05 (por ejemplo, los de nivel
+   de esfuerzo, cuyo coste real es menor que el planificado). Tiene columnas
    para explicar cada uno ([Análisis de desviaciones](analisis-desviaciones.md)).
 
 ![Hoja Indicadores EDT del ejemplo](img/excel/indicadores-edt.png)

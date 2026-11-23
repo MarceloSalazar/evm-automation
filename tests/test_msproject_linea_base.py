@@ -174,7 +174,7 @@ def test_open_file_delete_is_not_saved_and_one_undo_restores_it(setup):
 
 def test_establish_copies_the_current_values_to_a_free_baseline(setup):
     """--establecer en una copia cerrada: la línea base libre recibe los valores actuales (comienzo, fin, duración,
-    trabajo y costo) y la línea base del PV no cambia."""
+    trabajo y coste) y la línea base del PV no cambia."""
     mpp = setup["folder"] / "establecer.mpp"
     shutil.copyfile(MPP, mpp)
     with ComSession(str(mpp)) as s:
@@ -190,7 +190,7 @@ def test_establish_copies_the_current_values_to_a_free_baseline(setup):
         wait_until_closed()
     assert bf.same(got[setup["free"]], current, numbers=False), \
         f"Fechas establecidas: {got[setup['free']].dates()}; se esperaban las actuales {current.dates()}"
-    print(f"\nEstablecer: duración, trabajo y costo "
+    print(f"\nEstablecer: duración, trabajo y coste "
           f"{'iguales a los actuales' if bf.same(got[setup['free']], current) else 'recalculados (LBA-020)'}")
     assert bf.same(got[setup["pv"]], setup["original"]), "Cambió la línea base del PV"
     assert got["notes"].replace("\r", "\n").rstrip().endswith(
@@ -217,7 +217,7 @@ def test_na_text_and_summary_baseline_can_be_written(setup):
             values = bf.read_values(store.tasks[summary.uid], setup["pv"])
             writer.write_values([(summary, setup["free"], values)])
             got = bf.read_values(store.tasks[summary.uid], setup["free"])
-            print(f"Tarea resumen {setup['summary_code']} (UID {summary.uid}): escrita; trabajo y costo "
+            print(f"Tarea resumen {setup['summary_code']} (UID {summary.uid}): escrita; trabajo y coste "
                   f"{'iguales' if bf.same(got, values) else 'recalculados por MS Project (LBA-020)'}")
             assert bf.same(got, values, numbers=False)
     if not setup["was_running"]:

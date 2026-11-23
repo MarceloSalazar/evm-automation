@@ -42,8 +42,9 @@ def rows_of(book) -> dict[str, int]:
     return {ws.cell(r, A_CODE).value: r for r in range(FIRST, ws.max_row + 1) if ws.cell(r, A_KEY).value}
 
 
-def expected(book, month: date, low: float = 0.95, high: float = 1.05) -> set[str]:
-    """Paquetes con SPI o CPI acumulado fuera del rango verde (0,95 a 1,05 por defecto), calculados aparte."""
+def expected(book, month: date, low: float = 0.95, high: float = 1.05, pct: float = 0.05) -> set[str]:
+    """Paquetes fuera del rango verde, calculados aparte: SPI o CPI acumulado fuera de 0,95 a 1,05, o SV % (SV / PV),
+    CV % (CV / EV) o desviación del avance ((EV - PV) / BAC) de más de ±5 % (por defecto)."""
     b = read_book(book)
     idx = b.horizon.index(month)
     out = set()
@@ -51,8 +52,11 @@ def expected(book, month: date, low: float = 0.95, high: float = 1.05) -> set[st
         pv = sum(b.pv[s.row][: idx + 1])
         ev = sum(v or 0 for v in b.ev[s.row][: idx + 1])
         ac = sum(v or 0 for v in b.ac[s.row][: idx + 1])
-        if any(not low <= x <= high for x in ((ev / pv) if pv else None, (ev / ac) if ac else None)
-               if x is not None):
+        bac = b.bac.get(s.row) or 0
+        indices = [x for x in ((ev / pv) if pv else None, (ev / ac) if ac else None) if x is not None]
+        pcts = [x for x in ((ev - pv) / pv if pv else None, (ev - ac) / ev if ev and ac else None,
+                            (ev - pv) / bac if bac else None) if x is not None]
+        if any(not low <= x <= high for x in indices) or any(abs(x) > pct for x in pcts):
             out.add(s.code)
     return out
 
@@ -78,8 +82,30 @@ def test_generate_creates_empty_sheet(book):
     assert ws.auto_filter.ref.startswith(f"A4:{key}")     # al ordenar, la clave acompaña a su fila
     assert entries(book) == []
     meta = read_book(book).meta
-    assert [meta[k] for k in ("semaforo_rojo_inferior", "semaforo_amarillo_inferior", "semaforo_amarillo_superior",
-                              "semaforo_rojo_superior")] == [0.9, 0.95, 1.05, 1.1]
+    assert [meta[k] for k in ("rango_rojo_inferior", "rango_amarillo_inferior", "rango_amarillo_superior",
+                              "rango_rojo_superior")] == [0.9, 0.95, 1.05, 1.1]
+    # Columnas que se completan a mano y lista de Estado
+    assert [ws.cell(HEAD_ROW, c).value for c in analysis.TEXT_COLS] == [
+        "Causa", "Impacto en alcance, plazo y coste", "Acción", "Código de acción", "Responsable", "Fecha objetivo",
+        "Criterio de cierre", "Estado"]
+    assert ws.cell(HEAD_ROW, analysis.A_PROGRESS).value == "Desv. avance"
+    status = get_column_letter(analysis.A_STATUS)
+    lists = [dv for dv in ws.data_validations.dataValidation if str(dv.sqref).startswith(f"{status}{FIRST}")]
+    assert len(lists) == 1 and lists[0].formula1 == '"Abierta,En curso,Cerrada"'
+    assert meta["formato_libro"] == 1
+
+
+def test_book_of_another_format_is_rejected(book):
+    """formato_libro distinto del que lee esta versión: LIB-018."""
+    from evm.messages import EvmError
+    wb = load_workbook(book)
+    ws = wb["_meta"]
+    row = next(r for r in range(2, ws.max_row + 1) if ws.cell(r, 1).value == "formato_libro")
+    ws.cell(row, 2).value = 2
+    wb.save(book)
+    with pytest.raises(EvmError) as exc:
+        read_book(book)
+    assert exc.value.id == "LIB-018"
 
 
 def test_update_lists_packages_out_of_threshold(book, example_files, capsys):
@@ -90,7 +116,8 @@ def test_update_lists_packages_out_of_threshold(book, example_files, capsys):
     n = len(codes)
     assert codes == expected(book, JUN) and n == JUNE_COUNT
     assert {"1.1.1", "2.2.1"} <= codes                    # 1.1.1 (LOE): CPI mayor que 1,05; 2.2.1: atraso
-    assert f"Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05): {n}" in out
+    assert (f"Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05, o SV %, CV % o desviación del avance "
+            f"fuera de su rango verde): {n}") in out
     assert all(e.month == JUN and e.origin == analysis.NEW for e in found)
     # La clave y las fórmulas apuntan a la fila del paquete en las hojas PV, EV y AC
     b = read_book(book)
@@ -130,7 +157,7 @@ def test_text_is_kept_and_copied_to_the_next_month(book_jun, example_files):
     assert set(july) == expected(book, JUL)
     assert [e.code for e in old] == ["2.2.1"]            # junio: solo la fila con texto
     copied = july["2.2.1"]
-    assert copied.texts[0] == "Planos del proveedor atrasados" and copied.texts[3] == "Ingeniería"
+    assert copied.texts[0] == "Planos del proveedor atrasados" and copied.texts[4] == "Ingeniería"
     assert copied.origin == "Texto copiado de 06/2027: se debe revisar"
     assert july["2.2.2"].origin == "También en 06/2027"
     assert any(not e.key and e.code == "2.0.0" for e in found)
@@ -179,28 +206,14 @@ def test_text_kept_when_back_within_threshold(book_jun, example_files):
 
 def test_simulation_does_not_write(book, example_files, capsys):
     update(book, example_files, "jun", "--simular")
-    assert f"Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05): {JUNE_COUNT}" in capsys.readouterr().out
+    assert (f"Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05, o SV %, CV % o desviación del avance fuera "
+            f"de su rango verde): {JUNE_COUNT}") in capsys.readouterr().out
     assert entries(book) == []
 
 
 def test_analizar_requires_status_date(book, capsys):
     assert main(["analizar", "--libro", str(book)]) == 2
     assert "antes de 'analizar'" in capsys.readouterr().err
-
-
-def test_old_book_gets_the_sheet(book, example_files):
-    """Libro de una versión anterior (sin la hoja ni los umbrales en _meta): 'actualizar' crea la hoja."""
-    wb = load_workbook(book)
-    del wb[SHEET_ANALYSIS]
-    ws = wb["_meta"]
-    for r in range(ws.max_row, 1, -1):
-        if str(ws.cell(r, 1).value).startswith("semaforo_"):
-            ws.delete_rows(r)
-    wb.save(book)
-    update(book, example_files, "jun")
-    wb = load_workbook(book)
-    assert wb.sheetnames.index(SHEET_ANALYSIS) == wb.sheetnames.index("Indicadores EDT") + 1
-    assert {e.code for e in entries(book)} == expected(book, JUN)
 
 
 def test_migrate_keeps_the_analysis(book_jun, example_files, tmp_path):

@@ -160,7 +160,7 @@ def test_random_project_recalculates_like_python(tmp_path, generator, configs, r
     assert summary["BAC - Presupuesto a la conclusión"] == pytest.approx(ind.bac, abs=0.01)
     assert summary["PV - Valor planificado acumulado"] == pytest.approx(ind.pv, abs=0.01)
     assert summary["EV - Valor ganado acumulado"] == pytest.approx(ind.ev, abs=0.01)
-    assert summary["AC - Costo real acumulado"] == pytest.approx(ind.ac, abs=0.01)
+    assert summary["AC - Coste real acumulado"] == pytest.approx(ind.ac, abs=0.01)
     dash = out["Cuadro de Mando"]
     assert (dash["L10"].value, dash["Q10"].value) == (pytest.approx(ind.ev, abs=0.01), pytest.approx(ind.ac, abs=0.01))
     pv = out["PV"]

@@ -139,6 +139,12 @@ decimales = 0
 # ejemplo, si Excel informara un problema al abrir un libro).
 guardado_rapido = true
 
+# Protección de las hojas de resultados y de datos (sin contraseña: Revisar >
+# Desproteger hoja): solo las celdas de ingreso (amarillas o con lista) quedan
+# editables, para no escribir por error sobre fórmulas ni insertar filas. Con la
+# hoja protegida, los botones de agrupar filas (+/-) no funcionan.
+proteger_hojas = true
+
 # % ganado histórico: si el archivo de MS Project ya tiene avance y fecha de estado,
 # generar carga el % ganado de cada mes hasta la fecha de estado (los meses anteriores
 # se reconstruyen con las fechas reales) y la usa como fecha de corte del Resumen.
@@ -224,8 +230,9 @@ depuracion_calculos = false
 #   "Avance lineal",
 # ]
 
-[semaforo]
-# Umbrales comunes de SPI y CPI (se muestran en el Cuadro de Mando):
+[rangos_admisibles]
+# Rangos admisibles de SPI y CPI, comunes a los dos índices (se muestran en el
+# Cuadro de Mando). Hasta la versión 2.7.0 la sección se llamaba [semaforo]:
 #   rojo      si el índice es menor que "rojo_inferior" o mayor que "rojo_superior"
 #   amarillo  si es menor que "amarillo_inferior" o mayor que "amarillo_superior"
 #   verde     entre "amarillo_inferior" y "amarillo_superior" (inclusive)
@@ -235,6 +242,15 @@ rojo_inferior = 0.90
 amarillo_inferior = 0.95
 amarillo_superior = 1.05
 rojo_superior = 1.10
+# SV % (SV / PV), CV % (CV / EV) y desviación del avance técnico (% completado -
+# % planificado, en puntos del BAC), en valor absoluto: verde hasta "X_amarillo",
+# amarillo hasta "X_rojo", rojo por encima (0.05 = 5 %).
+sv_amarillo = 0.05
+sv_rojo = 0.10
+cv_amarillo = 0.05
+cv_rojo = 0.10
+avance_amarillo = 0.05
+avance_rojo = 0.10
 
 [validacion]
 # Método de medición frente a la duración de la línea base de cada paquete (ver

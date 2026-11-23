@@ -160,6 +160,22 @@ def test_weight_field_of_unknown_type_is_read_by_its_values(tmp_path, values, ex
     assert [t.milestone_weight for t in project.tasks if t.outline_level == 1] == expected
 
 
+@pytest.mark.parametrize("cf_type, values, expected", [
+    # Número: el XML omite los 0, pero un 0 escrito sigue siendo vacío (con pocos ceros, la regla de los valores
+    # lo tomaría como Peso = 0)
+    ("5", ["", "", "0", "20"], [None, None, None, 20.0]),
+    ("0", ["", "0", "", "20"], [None, None, None, 20.0]),               # coste: numérico
+    ("7", ["0", "0", "0", "20"], [0.0, 0.0, 0.0, 20.0]),                 # texto: el 0 es Peso = 0
+])
+def test_xml_enterprise_weight_field_type_comes_from_its_cftype(tmp_path, cf_type, values, expected):
+    tasks = [task_xml(0, 0, "Proyecto")] + [
+        task_xml(i, 1, f"T{i}", wbs=str(i), ext={ENTERPRISE: v} if v else None) for i, v in enumerate(values, start=1)]
+    path = write_xml(tmp_path / "p.xml",
+                     project_xml(tasks, definitions=[(ENTERPRISE, "Enterprise1", "Peso", cf_type)]))
+    project = read_xml(path, cfg())
+    assert [t.milestone_weight for t in project.tasks if t.outline_level == 1] == expected
+
+
 def test_com_weight_field_kind():
     from evm.fields import TASK_NUMBER_IDS, TASK_TEXT_IDS
     from evm.reader_com import weight_kind

@@ -8,7 +8,7 @@ personalizados, el método de medición, la línea base, el registro del avance 
 cálculo se explica en [Cálculo del PV y el EV](calculo-pv-ev.md) y los métodos en
 [Métodos de medición](metodos-de-medicion.md).
 
-MS Project **no necesita costos ni recursos**: el BAC de cada fila se ingresa en el libro
+MS Project **no necesita costes ni recursos**: el BAC de cada fila se ingresa en el libro
 ([sección 4](#4-presupuesto-bac)).
 
 > Los nombres de menú corresponden a MS Project en español 2016 a 2024 y a la versión de suscripción
@@ -141,11 +141,11 @@ español (`Texto10`, `Número1`) o por su alias (`Método EVM`).
 
 ## 4. Presupuesto (BAC)
 
-No se cargan costos ni recursos en MS Project. El % planificado de cada fila sale de la duración de
+No se cargan costes ni recursos en MS Project. El % planificado de cada fila sale de la duración de
 línea base de sus tareas y de sus pesos (`Peso hito`: % de su tarea resumen)
 ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)), y el **BAC** de cada
 fila se ingresa a mano en la columna D de la hoja `PV` del libro (en multi-empresa, en `PV-EmpresaA` y
-`PV-EmpresaB`). Si el proyecto tiene recursos o costos cargados, no se usan.
+`PV-EmpresaB`). Si el proyecto tiene recursos o costes cargados, no se usan.
 
 ---
 
@@ -221,8 +221,8 @@ Buenas prácticas del registro:
   `validar`).
 - No modificar la línea base al registrar el avance.
 
-El costo real no se registra en MS Project: el AC de cada mes se carga en la hoja `AC` del libro
-([AC: costo real](calculo-pv-ev.md#9-ac-costo-real)).
+El coste real no se registra en MS Project: el AC de cada mes se carga en la hoja `AC` del libro
+([AC: coste real](calculo-pv-ev.md#9-ac-coste-real)).
 
 ---
 

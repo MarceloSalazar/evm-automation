@@ -466,16 +466,44 @@ def test_tampered_book_fails_with_format_error(example_book, example_files, caps
     assert "Leyendo" not in out                             # se informa antes de leer MS Project
 
 
-def test_legacy_book_without_dashboard_still_updates(small_book):
-    """Libros anteriores a la versión 1.3.0: sin Cuadro de Mando ni _graficos, con hoja 'Curva S'."""
-    def legacy(wb):
-        del wb["Cuadro de Mando"]
-        del wb["_graficos"]
-        wb["Evolución mensual"].title = "Curva S"
-    tamper(small_book, legacy)
-    res = run_update(P(progress_tasks()), Config(), small_book, date(2026, 1, 31), backup=False)
-    assert {r.code for r in res.rows} == {"1.1.0", "1.2.0"}
-    assert chart_count(small_book) == 1
+def test_calculation_settings_are_stored_and_compared(small_book):
+    """La configuración de cálculo se guarda en _meta (config.*) y actualizar avisa si cambia (ACT-052)."""
+    from datetime import date as d_
+    from openpyxl import load_workbook
+    from evm.workbook import read_meta
+    meta = read_meta(load_workbook(small_book))
+    assert meta["config.distribucion"] == "habiles" and meta["config.incluir_inactivas"] == "false"
+    res = run_update(P(progress_tasks()), Config(), small_book, d_(2026, 1, 31), backup=False, dry_run=True)
+    assert not [w for w in res.warnings if w.id == "ACT-052"]
+    other = Config(distribution="calendario", holidays={d_(2026, 1, 6)})
+    res = run_update(P(progress_tasks()), other, small_book, d_(2026, 1, 31), backup=False, dry_run=True)
+    found = [w.message for w in res.warnings if w.id == "ACT-052"]
+    assert len(found) == 1 and "distribucion: 'habiles' en el libro y 'calendario' en la configuración" in found[0]
+    assert "feriados: vacío en el libro y '2026-01-06' en la configuración" in found[0]
+
+
+def test_sheets_are_protected_and_input_cells_unlocked(small_book):
+    """Hojas de resultados y de datos protegidas sin contraseña: solo las celdas de ingreso quedan editables. La
+    protección se conserva al actualizar (guardado rápido)."""
+    from datetime import date as d_
+    from openpyxl import load_workbook
+
+    def check():
+        wb = load_workbook(small_book)
+        for name in ("Cuadro de Mando", "Resumen", "PV", "EV", "AC", "% PV", "Indicadores EDT", "_meta"):
+            assert wb[name].protection.sheet, name
+        for name in ("% EV", "Análisis de desviaciones", "Registro de cambios", "Validación"):
+            assert not wb[name].protection.sheet, name
+        pv, ac = wb["PV"], wb["AC"]
+        row = next(r for r in range(5, pv.max_row + 1) if pv.cell(r, 4).fill.fgColor.rgb == "00FFF2CC")
+        assert not pv.cell(row, 4).protection.locked and not pv.cell(row, 3).protection.locked   # BAC y método
+        assert pv.cell(row, 7).protection.locked and pv.cell(row, 1).protection.locked
+        assert not ac.cell(row, 7).protection.locked                                             # AC del mes
+        assert not wb["Resumen"]["B5"].protection.locked                                         # fecha de corte
+
+    check()
+    run_update(P(progress_tasks()), Config(), small_book, d_(2026, 1, 31), backup=False)
+    check()
 
 
 def test_missing_company_sheet_in_multi_book(tmp_path):
@@ -702,7 +730,7 @@ def test_cli_rejects_zero_overrides(tmp_path, capsys, example_files, option, mes
     pytest.param(b'[exportacion]\nferiados = "2026-01-01"\n', "lista de fechas", id="feriados_texto"),
     pytest.param(b'[horizonte]\nmeses = 0\n', "meses debe estar entre", id="meses_0"),
     pytest.param(b'[exportacion]\ndecimales = 5\n', "decimales", id="decimales_5"),
-    pytest.param(b'[semaforo]\nrojo = 0.97\namarillo = 0.95\n', "umbrales", id="umbrales_invertidos"),
+    pytest.param(b'[rangos_admisibles]\nrojo_inferior = 0.97\namarillo_inferior = 0.95\n', "umbrales", id="umbrales_invertidos"),
     pytest.param(b'[campos\n', "Error de sintaxis", id="sintaxis"),
     pytest.param('[campos]\nmetodo = "Método EVM"\n'.encode("cp1252"), "UTF-8", id="ansi_cp1252"),
     # Sección que no es tabla y enteros con decimales: ver test_robustez_calculo.py

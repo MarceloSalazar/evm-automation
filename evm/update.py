@@ -12,7 +12,7 @@ from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.workbook.properties import CalcProperties
 
 from evm import analysis, changes, consistency, progress
-from evm.config import MODE_PERCENT, Config, ConfigError
+from evm.config import Config, ConfigError
 from evm.fields import fmt_number
 from evm.messages import InputError, Issue, MissingFileError
 from evm.methods import parse_method
@@ -20,11 +20,11 @@ from evm.model import ProjectData, Task
 from evm.timeline import Horizon
 from evm.wbs import (KIND_LEAF, KIND_RESIDUAL, KIND_SUMMARY, Scope, Visibility, build_tree, code_key, code_level,
                      has_interior_zero, iter_subtree, plural, prune_inactive, row_visibility, select_scope)
-from evm.workbook import (COL_BAC, COL_CODE, COL_METHOD, FIRST_MONTH_COL, FMT_PCT_MONTH, LEGACY_SHEET_CURVE,
+from evm.workbook import (COL_BAC, COL_CODE, COL_METHOD, FIRST_MONTH_COL, FMT_PCT_MONTH,
                           PCT_PREFIX, SHEET_AC, SHEET_EV, SHEET_META, SHEET_PV, SHEET_SUMMARY, STATUS_CELL, StructRow,
-                          WorkbookFormatError, add_s_curve_chart, book_sources, clean_text, col, company_sheet,
+                          WorkbookFormatError, book_sources, clean_text, col, company_sheet,
                           pct_sheet, read_meta, read_schedule, read_structure, read_wbs_list, save_workbook,
-                          source_meta, split_key, write_meta, write_schedule, write_summary_trend)
+                          source_meta, split_key, write_meta, write_schedule)
 from evm.workcalendar import closes_month
 
 PLAN_TOL = 1e-6         # diferencia del % planificado acumulado (fracción del BAC) que se considera un cambio
@@ -135,16 +135,6 @@ def _as_date(v) -> date | None:
 
 def _company_names(meta: dict) -> tuple[str, str]:
     return str(meta.get("empresa_a") or ""), str(meta.get("empresa_b") or "")
-
-
-def check_version(meta: dict) -> None:
-    """Los libros de versiones anteriores calculaban el PV y el EV con los costos de MS Project: no se admiten."""
-    if str(meta.get("modo") or "").strip().lower() != MODE_PERCENT:
-        raise WorkbookFormatError(
-            "LIB-009",
-            "El libro se generó con una versión anterior del programa, que calculaba el PV y el EV con los costos "
-            "de MS Project: no se puede usar con esta versión (para ese libro se debe usar la versión 1.x). Se debe "
-            "generar un libro nuevo.")
 
 
 def company_sheets(meta: dict) -> list[str]:
@@ -262,7 +252,6 @@ def read_book(path: str | Path, wb=None, allow_fix: bool = False) -> BookData:
             cached_values.append(load_workbook(path, data_only=True))
         return cached_values[0][sheet].cell(row=r, column=c).value
     meta = read_meta(wb)
-    check_version(meta)
     structure = read_structure(wb)
     check_sheets(wb.sheetnames, meta)
     _check_layout(wb, structure, meta)
@@ -332,7 +321,6 @@ def book_meta(path: str | Path) -> dict:
         raise WorkbookFormatError("LIB-004", f"No se pudo abrir '{path.name}' como libro de Excel: {exc}") from exc
     try:
         meta = read_meta(wb)
-        check_version(meta)
         check_sheets(wb.sheetnames, meta, charts=True)
         return meta
     finally:
@@ -343,7 +331,7 @@ def apply_book_settings(cfg: Config, meta: dict) -> Config:
     """Configuración con la que se generó el libro: campo Visible y, en multi-empresa, nombres y campos de
     MS Project."""
     cfg = replace(cfg)
-    # Campo Visible con que se generó el libro (libros anteriores: no se lee)
+    # Campo Visible con que se generó el libro
     cfg.visible_field = str(meta.get("campo_visible") or "")
     cfg.visible_field_explicit = False
     cfg.multi_enabled = bool(meta.get("multiempresa"))
@@ -408,13 +396,31 @@ class UpdateResult:
     book: BookData | None = None
     dry_run: bool = False
     deviations: list = field(default_factory=list)   # paquetes fuera de umbral (analysis.Deviation)
-    thresholds: object | None = None                 # umbrales del semáforo (workbook.Thresholds)
+    thresholds: object | None = None                 # rangos admisibles (workbook.Thresholds)
     schedule: object | None = None                   # plazo según MS Project (schedule.ScheduleSummary)
 
 
 def book_level(book: BookData, cfg: Config) -> int:
     """Nivel máximo del código EDT con que se generó el libro (libros antiguos: el de la configuración)."""
     return int(book.meta.get("nivel_maximo") or cfg.max_level)
+
+
+def config_warnings(cfg: Config, meta: dict) -> list[Issue]:
+    """ACT-052: claves de cálculo de la configuración distintas de las que guardó 'generar' en _meta."""
+    from evm.workbook import CONFIG_PREFIX, config_snapshot
+
+    def shown(value) -> str:
+        return f"'{value}'" if str(value or "") != "" else "vacío"
+
+    changed = [f"{key[len(CONFIG_PREFIX):]}: {shown(meta.get(key))} en el libro y {shown(value)} en la configuración"
+               for key, value in config_snapshot(cfg).items()
+               if key in meta and str(meta.get(key) or "") != str(value or "")]
+    if not changed:
+        return []
+    return [Issue("ACT-052", message="La configuración de cálculo no es la del libro (" + "; ".join(changed) + "). "
+                                     "El % ganado se calcula con la configuración actual: si el cambio no es "
+                                     "intencionado, se debe volver a la del libro; si lo es, se debe regenerar el "
+                                     "libro con --migrar-desde.")]
 
 
 def book_ignores_interior_zeros(meta: dict) -> bool:
@@ -510,7 +516,7 @@ def _match_tasks(project: ProjectData, book: BookData, cfg: Config,
 
 def _contributors(book: BookData, row: StructRow, task: Task, matches: dict[int, Task],
                   unlisted: list[Task] = ()) -> list[Task]:
-    """Tareas cuyo costo forma la fila: la rama del paquete, o (fila -D) lo que cuelga de la
+    """Tareas cuyo coste forma la fila: la rama del paquete, o (fila -D) lo que cuelga de la
     tarea resumen sin pertenecer a sus filas hijas ni a paquetes agregados después de generar el libro."""
     if row.kind != KIND_RESIDUAL:
         return list(iter_subtree(task))
@@ -519,7 +525,7 @@ def _contributors(book: BookData, row: StructRow, task: Task, matches: dict[int,
 
 
 def _row_children(book: BookData, row: StructRow, matches: dict[int, Task]) -> list[Task]:
-    """Tareas de las filas hijas de la tarea resumen de una fila de otros costos (-D)."""
+    """Tareas de las filas hijas de la tarea resumen de una fila de otros costes (-D)."""
     return [matches[s.row] for s in book.structure
             if s.parent_row == row.parent_row and s.kind != "residual" and s.row in matches]
 
@@ -680,9 +686,8 @@ def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares:
 
     out = []
     notes: list[Issue] = []
-    # % planificado de hoy, con el criterio con que se generó el libro (los anteriores a la 2.7.0: fechas actuales)
-    current_dates = book.meta.get("pv_fechas_actuales")
-    current_dates = True if current_dates is None else bool(current_dates)
+    # % planificado de hoy, con el criterio con que se generó el libro
+    current_dates = bool(book.meta["pv_fechas_actuales"])
     units, _out = pv_selection(leaves, task, s.kind != KIND_RESIDUAL, current_dates,
                                {t.uid for t in contributors}) if task is not None else ([], [])
     # Reparto de la fila entre sus tareas, como en 'generar' (el mismo en todos los métodos)
@@ -719,13 +724,10 @@ def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares:
 def _baseline_drift(book: BookData, s: StructRow, planned: dict[str, list[float]],
                     idx: int) -> tuple[float, float] | None:
     """PV acumulado de la fila a la fecha de corte con el % planificado de MS Project y con el del libro, si el %
-    planificado acumulado de algún mes difiere (None si coinciden). Las filas con el reparto del plan de costes
-    (procesar-costes antes de la versión 2.6.0) no se comparan: no sale de la línea base, y DEP-021 las informa."""
+    planificado acumulado de algún mes difiere (None si coinciden)."""
     now = book_pv = 0.0
     differs = False
     for role, _company in book.roles():
-        if role in s.plan_pv:
-            continue
         new, old = planned.get(role, []), book.pct_pv[role][s.row]
         cum_new = cum_old = 0.0
         for i in range(len(old)):
@@ -736,23 +738,6 @@ def _baseline_drift(book: BookData, s: StructRow, planned: dict[str, list[float]
         now += bac * sum(new[: idx + 1])
         book_pv += bac * sum(old[: idx + 1])
     return (now, book_pv) if differs else None
-
-
-def plan_rows_warning(book: BookData) -> list[Issue]:
-    """DEP-021: filas cuyo % planificado es el reparto del plan de costes, escrito por procesar-costes antes de la
-    versión 2.6.0 (marcadas en la hoja _estructura). --migrar-desde les devuelve el % de MS Project."""
-    sheets = []
-    for role, company in book.roles():
-        codes = [s.code for s in book.input_rows if role in s.plan_pv]
-        if codes:
-            shown = ", ".join(codes[:10]) + (f" y {len(codes) - 10} más" if len(codes) > 10 else "")
-            sheets.append(f"{plural(len(codes), 'fila', 'filas')} de la hoja {pct_sheet(SHEET_PV, company)} ({shown})")
-    if not sheets:
-        return []
-    return [Issue("DEP-021", message=(
-        f"El % planificado de {' y '.join(sheets)} es el reparto del plan de costes, escrito por procesar-costes en "
-        "una versión anterior: no es el de MS Project. Para recuperarlo, se debe generar un libro nuevo con "
-        "--migrar-desde (conserva el BAC, el % ganado y el AC)."))]
 
 
 def _drift_warning(drift: list[tuple[StructRow, float, float]], book: BookData, idx: int) -> Issue:
@@ -789,6 +774,7 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     check_sources(book.meta, list(projects))
     warnings: list[Issue] = [_tag(n, w) for n, p in projects.items() for w in p.warnings]
     warnings += _list_warnings(cfg, book)
+    warnings += config_warnings(cfg, book.meta)
     configured_zeros = cfg.ignore_interior_zeros
     cfg = apply_book_settings(cfg, book.meta)
     cfg.wbs_list = book.wbs_list            # las filas del libro se decidieron con su lista (o sin lista)
@@ -929,7 +915,6 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
 
     if drift:
         warnings.append(_drift_warning(drift, book, idx))
-    warnings += plan_rows_warning(book)
 
     where = (f"las hojas {company_sheet(SHEET_PV, book.company_a)} y {company_sheet(SHEET_PV, book.company_b)}"
              if multi else f"la hoja {SHEET_PV}")
@@ -975,7 +960,7 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
     warnings += consistency.loe_share(book, cfg.max_loe_share)
 
     # Paquetes fuera de umbral en el mes de corte (con el EV y el AC que quedan en el libro)
-    th = analysis.thresholds(book.meta, cfg)
+    th = analysis.thresholds(book.meta)
     found = analysis.deviations(book, idx, th)
     plan = _schedule(book, projects, calendars, leaves_of, status)
     entries, notes = _analysis_entries(wb, book, idx, found, status, _schedule_by_key(book, plan))
@@ -994,7 +979,6 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
         meta["ultima_actualizacion"] = datetime.now().replace(microsecond=0)
         write_meta(wb[SHEET_META], meta)
         write_schedule(wb, plan, [x.row for x in book.structure], book.meta["fila_total"], "actualizar")
-        write_summary_trend(wb[SHEET_SUMMARY], book.meta["fila_total"], book.horizon.months, th)
         _write_analysis(wb, book, idx, entries, found, th)
         _write_changes(wb, book, idx, status, changed, decimals)
         _refresh_charts(wb, book, idx, meta)
@@ -1079,14 +1063,13 @@ def _analysis_entries(wb, book: BookData, idx: int, found: list, status: date,
 
 
 def _write_analysis(wb, book: BookData, idx: int, entries: list, found: list, th) -> None:
-    """Escribe la hoja Análisis de desviaciones (la crea en los libros de versiones anteriores)."""
+    """Escribe (vuelve a crear) la hoja Análisis de desviaciones."""
     analysis.write_sheet(wb, entries, {s.key: s.row for s in book.input_rows}, book.horizon.months, th,
                          int(book.meta.get("decimales") or 0), book.horizon.month_start(idx), len(found))
 
 
 def _write_changes(wb, book: BookData, idx: int, status: date, changed: list, decimals: int) -> None:
-    """Agrega los cambios a la hoja Registro de cambios (la crea en los libros de versiones anteriores) y guarda la
-    referencia para la ejecución siguiente."""
+    """Agrega los cambios a la hoja Registro de cambios y guarda la referencia para la ejecución siguiente."""
     if changed:
         changes.append(wb, changed, datetime.now().replace(microsecond=0), status, decimals)
     else:
@@ -1135,11 +1118,10 @@ def run_analysis(cfg: Config, book_path: str | Path, backup: bool = True) -> Upd
     warnings += consistency.eac_realism(book, idx)
     warnings += consistency.loe_share(book, cfg.max_loe_share)
     progress.stage("analizar", "Análisis de desviaciones")
-    th = analysis.thresholds(book.meta, cfg)
+    th = analysis.thresholds(book.meta)
     found = analysis.deviations(book, idx, th)
     entries, notes = _analysis_entries(wb, book, idx, found, book.status_date)
     warnings += notes
-    write_summary_trend(wb[SHEET_SUMMARY], book.meta["fila_total"], book.horizon.months, th)
     _write_analysis(wb, book, idx, entries, found, th)
     _write_changes(wb, book, idx, book.status_date, changed, decimals)
     _refresh_charts(wb, book, idx, book.meta)
@@ -1156,21 +1138,14 @@ def _refresh_charts(wb, book: BookData, idx: int | None, meta: dict) -> None:
     if dashboard.SHEET_DASHBOARD in wb.sheetnames:
         bac = book_totals(book)[3]
         packages = dashboard.chart_packages((s.row, s.code, s.level, s.kind) for s in book.structure)
-        try:
-            layout = int(meta.get("disposicion_cuadro_mando") or 1)
-        except (TypeError, ValueError):
-            layout = 1
         if idx is None:
-            dashboard.add_dashboard_charts(wb, packages, book.horizon.months, plan_end(book), None, bac, currency,
-                                           layout=layout)
+            dashboard.add_dashboard_charts(wb, packages, book.horizon.months, plan_end(book), None, bac, currency)
         else:
             wb[dashboard.SHEET_DASHBOARD][dashboard.REPORT_CELL].value = book.horizon.month_start(idx)
             loaded = [i for i in range(idx + 1)
                       if any(series[r][i] is not None for series in (book.ev, book.ac) for r in series)]
             dashboard.add_dashboard_charts(wb, packages, book.horizon.months, plan_end(book), idx + 1,
-                                           bac, currency, idx + 1 - loaded[0] if loaded else 0, layout)
-    elif LEGACY_SHEET_CURVE in wb.sheetnames:
-        add_s_curve_chart(wb[LEGACY_SHEET_CURVE], book.horizon.months, str(meta.get("proyecto") or ""), currency)
+                                           bac, currency, idx + 1 - loaded[0] if loaded else 0)
     from evm import cost_review
     if cost_review.SHEET_CHART in wb.sheetnames and cost_review.SHEET_PASTE in wb.sheetnames:
         months = book.horizon.months

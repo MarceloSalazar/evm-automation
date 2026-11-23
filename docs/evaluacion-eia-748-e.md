@@ -58,7 +58,7 @@ Cada guía tiene una cobertura:
 | **Cubre** | El programa produce lo que pide la guía y controla sus datos. La organización sigue siendo responsable del proceso. |
 | **Parcial** | El programa cubre una parte; el resto lo hace la organización o se registra fuera del programa. |
 | **No cubre** | El programa no tiene la información que pide la guía, aunque podría incorporarla. |
-| **Fuera de alcance** | Corresponde a otros sistemas (contabilidad, costos indirectos, materiales) o no aplica por diseño: el programa calcula el PV y el EV como el BAC × el %, sin leer costos ni recursos de MS Project. |
+| **Fuera de alcance** | Corresponde a otros sistemas (contabilidad, costes indirectos, materiales) o no aplica por diseño: el programa calcula el PV y el EV como el BAC × el %, sin leer costes ni recursos de MS Project. |
 
 La columna **Controles** indica los códigos de los controles automáticos relacionados
 ([Códigos de errores y advertencias](codigos.md)); un guion indica que no hay control automático.
@@ -78,20 +78,20 @@ La columna **Controles** indica los códigos de los controles automáticos relac
 | 5 | Identificar los indicadores de avance | Parcial | [HIT](codigos.md#46-hit--hitos-y-pesos), [FEC-004](codigos.md#fec-004), [FEC-005](codigos.md#fec-005) |
 | 6 | Programar el trabajo autorizado | Cubre | [LOG](codigos.md#410-log--lógica-del-cronograma), [AVA-008](codigos.md#ava-008) a [AVA-015](codigos.md#ava-015), [FEC-008](codigos.md#fec-008) ([Evaluación DCMA](evaluacion-dcma.md)) |
 | 7 | Establecer y mantener una línea base distribuida en el tiempo | Cubre | [FEC-009](codigos.md#fec-009), [FEC-010](codigos.md#fec-010), [FEC-012](codigos.md#fec-012), [FEC-019](codigos.md#fec-019), [CFG-044](codigos.md#cfg-044), [CFG-045](codigos.md#cfg-045), [ACT-022](codigos.md#act-022), [ACT-023](codigos.md#act-023), [ACT-047](codigos.md#act-047) |
-| 8 | Autorizar alcance, plazo y presupuesto por elementos de costo | Fuera de alcance | — |
+| 8 | Autorizar alcance, plazo y presupuesto por elementos de coste | Fuera de alcance | — |
 | 9 | Planificar en paquetes de trabajo y de planificación | Parcial | [MET-004](codigos.md#met-004), [LOG-016](codigos.md#log-016), [HIT-005](codigos.md#hit-005), [EDT-018](codigos.md#edt-018) |
 | 10 | Establecer los criterios de medición de cada paquete | Parcial | [MET](codigos.md#47-met--método-de-medición), [LEC-019](codigos.md#lec-019), [ACT-049](codigos.md#act-049) |
 | 11 | Aplicar tasas indirectas a los presupuestos | Fuera de alcance | — |
 | 12 | Identificar el presupuesto no distribuido y la reserva de gestión | No cubre | — |
-| 13 | Conciliar con el objetivo de costo | No cubre | — |
+| 13 | Conciliar con el objetivo de coste | No cubre | — |
 | **Avance y recolección de datos** | | | |
 | 14 | Medir el avance y determinar el EV | Cubre | [AVA](codigos.md#49-ava--avance-a-la-fecha-de-estado), [ACT-004](codigos.md#act-004) a [ACT-006](codigos.md#act-006), [ACT-019](codigos.md#act-019) |
-| 15 | Registrar los costos reales por elementos de costo | Parcial | [ACT-026](codigos.md#act-026), [ACT-039](codigos.md#act-039) a [ACT-042](codigos.md#act-042) |
+| 15 | Registrar los costes reales por elementos de coste | Parcial | [ACT-026](codigos.md#act-026), [ACT-039](codigos.md#act-039) a [ACT-042](codigos.md#act-042) |
 | 16 | Contabilizar el material comprado | Fuera de alcance | — |
 | **Análisis e informes de gestión** | | | |
-| 17 | Generar las variaciones de cronograma y de costo | Cubre | [ACT-018](codigos.md#act-018), [ACT-046](codigos.md#act-046) |
+| 17 | Generar las variaciones de cronograma y de coste | Cubre | [ACT-018](codigos.md#act-018), [ACT-046](codigos.md#act-046) |
 | 18 | Identificar y evaluar las variaciones significativas | Parcial | [ACT-043](codigos.md#act-043), [ACT-044](codigos.md#act-044) |
-| 19 | Evaluar las variaciones de costos indirectos | Fuera de alcance | — |
+| 19 | Evaluar las variaciones de costes indirectos | Fuera de alcance | — |
 | 20 | Actualizar el EAC de cada cuenta de control | Parcial | — |
 | 21 | Resumir, revisar y evaluar los datos de desempeño | Cubre | — |
 | 22 | Implementar acciones de gestión | Parcial | [ACT-045](codigos.md#act-045) |
@@ -103,7 +103,7 @@ La columna **Controles** indica los códigos de los controles automáticos relac
 | 27 | Línea base o cronograma por encima del objetivo (OTB/OTS) | Parcial | [ACT-048](codigos.md#act-048) |
 
 **En resumen:** de las 27 guías, el programa **cubre 6**, cubre **en parte 15**, **no cubre 2** que
-podría incorporar, y **4 están fuera de su alcance** (costos por elemento, indirectos y materiales). Lo
+podría incorporar, y **4 están fuera de su alcance** (costes por elemento, indirectos y materiales). Lo
 más sólido es lo que se apoya en el cronograma de MS Project: la EDT, la lógica del cronograma, la
 línea base distribuida en el tiempo, la medición del EV con métodos objetivos y las variaciones, junto
 con el registro de los cambios de los datos ya informados. Lo más débil son los presupuestos que no son
@@ -150,7 +150,7 @@ responsables.
 ### Guía 4 · Integrar los procesos de gestión con la EDT y la OBS
 
 - **Qué exige:** que el cronograma, el presupuesto, la autorización del trabajo y la acumulación de
-  costos compartan los mismos códigos, para medir el desempeño por EDT u OBS.
+  costes compartan los mismos códigos, para medir el desempeño por EDT u OBS.
 - **Qué hace el programa:** el código EDT de MS Project es la clave común del cronograma, el PV, el EV y
   el AC; por eso los códigos no se pueden repetir (`EDT-009`, `EDT-011`). `actualizar` comprueba que el
   libro y el cronograma sigan correspondiéndose (`ACT-011` a `ACT-017`). La
@@ -198,12 +198,12 @@ responsables.
 - **Qué queda a cargo de la organización:** el BAC de cada fila, ingresado en el libro, y el presupuesto
   de los paquetes lejanos que todavía no se detallan (ver guía 12).
 
-### Guía 8 · Autorizar alcance, plazo y presupuesto por elementos de costo
+### Guía 8 · Autorizar alcance, plazo y presupuesto por elementos de coste
 
-- **Qué exige:** presupuestos por elemento de costo (mano de obra, material, subcontratos, otros
+- **Qué exige:** presupuestos por elemento de coste (mano de obra, material, subcontratos, otros
   directos), en importes, horas u otras unidades.
-- **Fuera de alcance:** el BAC de cada fila es un importe único. El programa no lee recursos ni costos de
-  MS Project. La desagregación por elemento de costo se lleva en el sistema de presupuestos de la
+- **Fuera de alcance:** el BAC de cada fila es un importe único. El programa no lee recursos ni costes de
+  MS Project. La desagregación por elemento de coste se lleva en el sistema de presupuestos de la
   organización.
 
 ### Guía 9 · Planificar en paquetes de trabajo y de planificación
@@ -232,7 +232,7 @@ responsables.
 
 ### Guía 11 · Aplicar tasas indirectas a los presupuestos
 
-- **Fuera de alcance:** las tasas de costos indirectos y sus presupuestos son del sistema de costos de
+- **Fuera de alcance:** las tasas de costes indirectos y sus presupuestos son del sistema de costes de
   la organización. Si el BAC incluye indirectos, el programa los trata como parte del importe.
 
 ### Guía 12 · Identificar el presupuesto no distribuido y la reserva de gestión
@@ -242,7 +242,7 @@ responsables.
 - **No cubre:** el libro solo tiene el BAC de cada fila; la reserva y el presupuesto no distribuido se
   llevan fuera del libro.
 
-### Guía 13 · Conciliar con el objetivo de costo
+### Guía 13 · Conciliar con el objetivo de coste
 
 - **Qué exige:** que el presupuesto del contrato (CBB) sea igual a la suma de los presupuestos internos
   más la reserva de gestión: CBB = PMB + MR, y PMB = suma de las cuentas de control + UB.
@@ -262,20 +262,20 @@ responsables.
   cronograma esté actualizado: fechas reales coherentes, avance en el futuro, trabajo pendiente antes de
   la fecha de estado y avance fuera de secuencia (`AVA-001` a `AVA-016`). `actualizar` exige la fecha
   de corte y avisa si difiere de la fecha de estado (`ACT-004` a `ACT-006`, `ACT-019`).
-- **Fuera de alcance:** el material (el programa no distingue elementos de costo).
+- **Fuera de alcance:** el material (el programa no distingue elementos de coste).
 
-### Guía 15 · Registrar los costos reales por elementos de costo
+### Guía 15 · Registrar los costes reales por elementos de coste
 
-- **Qué exige:** AC directos e indirectos, por elemento de costo, de un sistema controlado por la
-  contabilidad general, **en el mismo período que el EV**. Si el costo real todavía no está registrado,
+- **Qué exige:** AC directos e indirectos, por elemento de coste, de un sistema controlado por la
+  contabilidad general, **en el mismo período que el EV**. Si el coste real todavía no está registrado,
   se usa una estimación.
 - **Qué hace el programa:** el AC de cada fila y mes se ingresa a mano en la hoja `AC` (`ACT-026`), con
   la misma fecha de corte que el EV. `actualizar` y `analizar` revisan que el EV y el AC de cada paquete
-  sean coherentes hasta el último mes con AC cargado: avance sin costo (`ACT-039`), costo sin avance
-  (`ACT-040`, salvo los métodos 0/100 e hitos ponderados) y costo después de terminar (`ACT-041`).
-- **Qué falta:** la conexión con la contabilidad y los elementos de costo.
+  sean coherentes hasta el último mes con AC cargado: avance sin coste (`ACT-039`), coste sin avance
+  (`ACT-040`, salvo los métodos 0/100 e hitos ponderados) y coste después de terminar (`ACT-041`).
+- **Qué falta:** la conexión con la contabilidad y los elementos de coste.
 - **Qué queda a cargo de la organización:** el AC del ERP con la misma fecha de corte y las estimaciones
-  de costos devengados no facturados ([Proceso de reporte](proceso-reporte-evm.md#2-roles)).
+  de costes devengados no facturados ([Proceso de reporte](proceso-reporte-evm.md#2-roles)).
 
 ### Guía 16 · Contabilizar el material comprado
 
@@ -286,7 +286,7 @@ responsables.
 
 ## 7. Análisis e informes de gestión (guías 17 a 23)
 
-### Guía 17 · Generar las variaciones de cronograma y de costo
+### Guía 17 · Generar las variaciones de cronograma y de coste
 
 - **Qué exige:** **al menos cada mes**, el SV, el CV y el VAC por cuenta de control y en los niveles
   superiores, con AC conciliable con la contabilidad.
@@ -310,13 +310,13 @@ responsables.
 - **Qué falta:** los umbrales son sobre los índices, no sobre importes (SV, CV, VAC) ni sobre el desvío
   de fin.
 
-### Guía 19 · Evaluar las variaciones de costos indirectos
+### Guía 19 · Evaluar las variaciones de costes indirectos
 
-- **Fuera de alcance:** el programa no distingue los costos indirectos.
+- **Fuera de alcance:** el programa no distingue los costes indirectos.
 
 ### Guía 20 · Actualizar el EAC de cada cuenta de control
 
-- **Qué exige:** que el responsable de cada cuenta de control estime el costo del trabajo que queda
+- **Qué exige:** que el responsable de cada cuenta de control estime el coste del trabajo que queda
   (ETC) a partir del cronograma y de los recursos, y calcule el EAC y el VAC de la cuenta.
 - **Qué hace el programa:** calcula el EAC estadístico de cada fila (BAC / CPI) en `Indicadores EDT`.
 - **Qué falta:** un lugar para el EAC del responsable de cada paquete y su comparación con el EAC
@@ -418,9 +418,9 @@ Para cumplir la norma, la organización debe aportar lo que el programa no hace:
 - una **descripción del sistema EVM** con sus procesos, roles y responsables
   ([Proceso de reporte EVM](proceso-reporte-evm.md#2-roles));
 - la **OBS** y un **responsable** por cuenta de control;
-- los **presupuestos** por elemento de costo, la **reserva de gestión**, el **presupuesto no distribuido** y
+- los **presupuestos** por elemento de coste, la **reserva de gestión**, el **presupuesto no distribuido** y
   la conciliación con el presupuesto del contrato;
-- el **AC** de la contabilidad, con la misma fecha de corte que el EV, y los costos indirectos y de
+- el **AC** de la contabilidad, con la misma fecha de corte que el EV, y los costes indirectos y de
   material;
 - el **control de cambios** de la línea base: la aprobación de cada cambio y, en la hoja
   [Registro de cambios](libro-excel.md#registro-de-cambios) que llena el programa, su motivo y su número

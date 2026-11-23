@@ -13,15 +13,15 @@ ambos.
 
 | Sigla | Nombre en español | Nombre en inglés | Campo de MS Project en español | Fórmula |
 |---|---|---|---|---|
-| **BAC** | Presupuesto a la conclusión | Budget at Completion | *Costo previsto* (descrito también como CPF, costo presupuestado al finalizar) | Σ PV |
-| **PV** | Valor planificado | Planned Value (BCWS) | **CPTP** (costo presupuestado del trabajo programado) | — |
-| **EV** | Valor ganado | Earned Value (BCWP) | **CPTR** (costo presupuestado del trabajo realizado), "valor acumulado" | según el método |
-| **AC** | Costo real | Actual Cost (ACWP) | **CRTR** (costo real del trabajo realizado) | — |
+| **BAC** | Presupuesto a la conclusión | Budget at Completion | *Costo previsto* (descrito también como CPF, coste presupuestado al finalizar) | Σ PV |
+| **PV** | Valor planificado | Planned Value (BCWS) | **CPTP** (coste presupuestado del trabajo programado) | — |
+| **EV** | Valor ganado | Earned Value (BCWP) | **CPTR** (coste presupuestado del trabajo realizado), "valor acumulado" | según el método |
+| **AC** | Coste real | Actual Cost (ACWP) | **CRTR** (costo real del trabajo realizado) | — |
 | **SV** | Variación del cronograma | Schedule Variance | **VP** | EV − PV |
-| **CV** | Variación del costo | Cost Variance | **VC** | EV − AC |
+| **CV** | Variación del coste | Cost Variance | **VC** | EV − AC |
 | **SV %**, **CV %** | Variación porcentual | SV %, CV % | **%VP**, **%VC** | SV / PV, CV / EV |
 | **SPI** | Índice de desempeño del cronograma | Schedule Performance Index | **IRP** | EV / PV |
-| **CPI** | Índice de desempeño del costo | Cost Performance Index | **IRC** | EV / AC |
+| **CPI** | Índice de desempeño del coste | Cost Performance Index | **IRC** | EV / AC |
 | **EAC** | Estimación a la conclusión | Estimate at Completion | **CEF** | BAC / CPI (u otras) |
 | **ETC** | Estimación hasta la conclusión | Estimate to Complete | — | EAC − AC |
 | **VAC** | Variación a la conclusión | Variance at Completion | **VAF** | BAC − EAC |
@@ -36,7 +36,7 @@ ambos.
 > **Atención:** en MS Project en español, **VP** es la variación del cronograma (SV), no el valor
 > planificado. El valor planificado es el **CPTP**.
 
-El programa no lee estos campos de MS Project: el cronograma no necesita costos, el PV y el EV son el
+El programa no lee estos campos de MS Project: el cronograma no necesita costes, el PV y el EV son el
 BAC que se ingresa en el libro × el % planificado y el % ganado, y el AC se carga a mano
 ([Cálculo del PV y el EV](calculo-pv-ev.md)).
 
@@ -76,8 +76,10 @@ BAC que se ingresa en el libro × el % planificado y el % ganado, y el AC se car
 | Término | Significado |
 |---|---|
 | BAC de una fila | Presupuesto del paquete, que se ingresa a mano en la columna D de la hoja `PV` (o de `PV-EmpresaA` y `PV-EmpresaB`). |
-| % planificado | Parte del BAC de una fila planificada en cada mes (hoja `% PV`); suma 100 % en cada fila. Lo calcula `generar` con las fechas de línea base de las tareas y el `Peso hito` de los hitos ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)). |
+| % planificado | Parte del BAC de una fila planificada en cada mes (hoja `% PV`); suma 100 % en cada fila. Lo calcula `generar` con las fechas de línea base de las tareas y el peso de las tareas ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)). |
 | % ganado | Parte del BAC de una fila ganada en cada mes (hoja `% EV`), según su método de medición. La escribe `actualizar` ([Cálculo del PV y el EV](calculo-pv-ev.md#6--ganado-métodos-de-medición)). |
+| Línea base (PMB) | Línea base de medida del rendimiento (*Performance Measurement Baseline*): el PV mensual de cada fila, contra el que se comparan el EV y el AC. Es el título de la hoja `PV`. |
+| Rangos admisibles | Umbrales de SPI, CPI, SV %, CV % y desviación del avance técnico que dan su color (verde, amarillo o rojo) en el libro: sección `[rangos_admisibles]` de la [configuración](configuracion.md). Los paquetes fuera del rango verde se listan en el [Análisis de desviaciones](analisis-desviaciones.md). |
 | Peso de una tarea | % de la parte de su tarea resumen que le corresponde (campo de `[campos] peso_hito`); sin peso, la parte se reparte por su duración de línea base. No se propaga más arriba de su tarea resumen. |
 | Fecha de corte | Último día del mes informado. Por defecto, la fecha de estado de MS Project. |
 | Fila de ingreso | Fila sin filas inferiores (por defecto, de nivel 3) donde se ingresan el BAC y el AC, y cuyo % ganado escribe `actualizar`: paquetes de trabajo y filas `-D`. Las filas con filas inferiores son subtotales. |
