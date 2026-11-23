@@ -177,20 +177,20 @@ def row_fill(row: ReportRow) -> PatternFill | None:
     nivel 2, azul claro; los niveles siguientes y las filas -D (wbs_level 0), sin fondo."""
     return FILL_L1 if row.wbs_level == 1 else (FILL_L2 if row.wbs_level == 2 else None)
 
-# Regla de cálculo de cada método (el avance se pondera por la duración de las tareas y el peso de los hitos)
+# Regla de cálculo de cada método (el avance se pondera por la duración y el peso de las tareas)
 METHOD_HELP = {
     "Por definir": "Aún no se asignó método. Para calcular el % ganado se usa % completado.",
     "0/100": "0 % al comenzar y 100 % al terminar. Para tareas que empiezan y terminan en el mismo mes.",
     "50/50": "50 % al comenzar y 50 % al terminar. Para tareas de hasta 2 meses.",
     "25/75": "25 % al comenzar y 75 % al terminar. Tareas de hasta 2 meses con el trabajo concentrado al final.",
     "20/80": "20 % al comenzar y 80 % al terminar. Tareas de hasta 2 meses con el trabajo concentrado al final.",
-    "Hitos ponderados": "% ganado = suma de los 'Peso hito' de los hitos cumplidos (si suman menos de 100, las "
+    "Hitos ponderados": "% ganado = suma de los pesos de los hitos cumplidos (si suman menos de 100, las "
                         "tareas se reparten el resto por duración, con su % completado). Para paquetes de 3 o más "
                         "meses, con al menos un hito por mes.",
     "% Completado": "% ganado = % completado de MS Project de las subtareas (mide % de duración), ponderado por su "
-                    "duración de línea base; un hito cuenta su 'Peso hito' al cumplirse.",
+                    "duración de línea base o su peso; un hito cuenta su peso al cumplirse.",
     "% Físico completado": "% ganado = '% físico completado' de MS Project de las subtareas (avance medido "
-                           "objetivamente), ponderado por su duración de línea base y el peso de los hitos.",
+                           "objetivamente), ponderado por su duración de línea base o su peso.",
     "Unidades completadas": "% ganado = unidades terminadas / unidades totales. El cociente se registra en "
                             "'% físico completado' de MS Project.",
     "Avance lineal": "Nivel de esfuerzo (LOE): % ganado = % planificado (EV = PV). No genera variación de plazo; "
@@ -1415,7 +1415,7 @@ def plan_roles(text) -> tuple[str, ...]:
 def pct_pv_title(company: str) -> str:
     """Título de la hoja '% PV'."""
     return ("% planificado por mes" + (f"  -  {company}" if company else "") +
-            "  -  calculado por 'generar' desde MS Project (duración de la línea base y peso de los hitos)")
+            "  -  calculado por 'generar' desde MS Project (duración de la línea base y peso de las tareas)")
 
 
 def write_wbs_list(ws, codes: list[str]) -> None:

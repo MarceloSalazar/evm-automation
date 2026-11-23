@@ -1208,7 +1208,7 @@ Algunas tareas de detalle no tienen línea base y su fila tiene otras tareas con
 
 ### 4.6 HIT · Hitos y pesos
 
-Peso de los hitos, método «Hitos ponderados» y filas sin % planificado.
+Peso de las tareas, método «Hitos ponderados» y filas sin % planificado.
 
 | Código | Severidad | Descripción |
 |---|---|---|
@@ -1266,7 +1266,7 @@ Los hitos sin peso no reciben parte de la fila: no forman parte del % planificad
 
 Ninguna tarea de la fila tiene fechas ni es un hito con peso: su BAC no se puede repartir en el tiempo.
 
-**Qué hacer:** Indicar fechas o duración a sus tareas, o el peso de sus hitos.
+**Qué hacer:** Indicar fechas o duración a sus tareas, o su peso.
 
 #### HIT-006
 

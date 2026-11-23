@@ -232,6 +232,10 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 - Mismo criterio en la cabecera de las hojas `PV`, `% PV`, `EV`, `% EV` y `AC` (sin planificación ni
   moneda, y *Generado* sin la hora) y en la línea de datos del `Cuadro de Mando` (solo la línea base y, con
   varios archivos, la de cada uno). Los gráficos siguen indicando la moneda en el eje de importes.
+- Como el peso ya no es solo de los hitos, los textos del libro, de los mensajes, de la documentación y de
+  la presentación hablan del peso de las tareas (por ejemplo, el título de la hoja `% PV`, el aviso
+  `LIB-001` y la ayuda de los métodos en la hoja `Listas`). El campo se sigue configurando en
+  `[campos] peso_hito`.
 
 <a id="v2.6.0"></a>
 

@@ -556,11 +556,11 @@ def prune_hidden(scope: Scope, visibility: Visibility) -> dict[int, list[Task]]:
 # ----------------------------------------------------------------------------
 # % planificado
 # ----------------------------------------------------------------------------
-PERCENT_PV_SOURCE = ("% planificado de MS Project (duración de la línea base de las tareas y peso de los hitos) "
+PERCENT_PV_SOURCE = ("% planificado de MS Project (duración de la línea base y peso de las tareas) "
                      "× BAC ingresado en el libro")
 # Sin la línea base seleccionada (FEC-009): el % planificado sale de las fechas actuales
-CURRENT_PV_SOURCE = ("% planificado de MS Project con las fechas ACTUALES de las tareas (sin línea base) y el peso de "
-                     "los hitos × BAC ingresado en el libro")
+CURRENT_PV_SOURCE = ("% planificado de MS Project con las fechas ACTUALES de las tareas (sin línea base) y su peso × "
+                     "BAC ingresado en el libro")
 
 
 def leaf_span(leaves: list[Task], start: datetime | None = None,
@@ -1372,8 +1372,8 @@ def assemble_report(parts: list[ReportPart], cfg: Config) -> Report:
     sheets = (f"PV-{cfg.company_a} y PV-{cfg.company_b}" if cfg.multi_enabled else "PV")
     issues.insert(0, Issue("LIB-001", "", "",
                            "El PV y el EV de cada fila son el BAC × el % planificado y el % ganado (hojas % PV y "
-                           "% EV), que se calculan con la duración de la línea base de las tareas y el peso de los "
-                           "hitos. Se debe ingresar el BAC de cada fila en las celdas amarillas de la columna D de "
+                           "% EV), que se calculan con la duración de la línea base y el peso de las tareas. "
+                           "Se debe ingresar el BAC de cada fila en las celdas amarillas de la columna D de "
                            f"{'las hojas' if cfg.multi_enabled else 'la hoja'} {sheets}."))
     # Sin las filas de los archivos cuyo campo de método no se leyó: ya lo informa LEC-010 o LEC-019
     unread = {p.source.name for p in parts if p.method_unread}

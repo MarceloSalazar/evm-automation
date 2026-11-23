@@ -15,7 +15,7 @@ except ModuleNotFoundError:  # pragma: no cover
 
 
 # Cálculo del PV y del EV: MS Project da el % planificado y el % ganado de cada fila (por la duración de la línea
-# base de sus tareas y el peso de sus hitos); el importe es el BAC que se ingresa en el libro multiplicado por el %.
+# base y el peso de sus tareas); el importe es el BAC que se ingresa en el libro multiplicado por el %.
 # Libros de versiones anteriores calculados con los costos de MS Project: _meta modo = "costo" (no se admiten).
 MODE_PERCENT = "porcentaje"
 
@@ -89,7 +89,7 @@ class Config:
     # [campos] -- campos de MS Project a leer
     wbs_field: str = "WBS"                # WBS | OutlineNumber | Text1..Text30 | alias
     method_field: str = ""                # campo con el método de medición (p.ej. Text10)
-    milestone_weight_field: str = ""      # campo numérico con el peso de cada hito (p.ej. Number1)
+    milestone_weight_field: str = ""      # campo con el peso de cada tarea (p.ej. Text7 o Number1)
     # Campo de texto "Visible": Sí = fila propia (también por debajo del nivel máximo); No = la tarea y su rama
     # quedan fuera del PV, el EV y el AC (si todas las subtareas tienen No, las representa su tarea superior);
     # vacío = según el nivel máximo. "" = no se lee

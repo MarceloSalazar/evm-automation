@@ -38,7 +38,7 @@ planificaciones, `INTERNO` y `CLIENTE` (esta con un presupuesto ficticio un 15 %
 - Los códigos EDT son del tipo `1.0.0`, `1.1.0`, `1.1.1` y `1.1.1.1`, y están también en el campo
   personalizado `Item EDT`, el que indica `config.ejemplo.toml`.
 - Los hitos de los paquetes y la reunión de arranque no tienen código EDT.
-- El método está en el campo `Método EVM` (*Texto10*) y el peso de los hitos en `Peso hito`
+- El método está en el campo `Método EVM` (*Texto10*) y el peso de las tareas en `Peso hito`
   (*Número1*). En los paquetes de `Hitos ponderados` los pesos suman 100.
 - Los campos `Empresa` y `% Reparto` permiten probar multi-empresa: gestión compartida 60/40,
   ingeniería de EmpresaA (salvo los estudios de terreno, de EmpresaB), construcción de EmpresaB y puesta
@@ -68,7 +68,7 @@ planificaciones, `INTERNO` y `CLIENTE` (esta con un presupuesto ficticio un 15 %
 copy config.ejemplo.toml config.toml
 ```
 
-En `config.toml` se definen los campos de método y de peso de los hitos:
+En `config.toml` se definen los campos de método y de peso de las tareas:
 
 ```toml
 [campos]
@@ -103,7 +103,7 @@ Exportador EVM 2.7.0
 Leyendo ejemplos\programa_ejemplo.xml ...
 Proyecto: Programa de ejemplo EVM
   Planificación: INTERNO
-  Línea base  |  PV: % planificado de MS Project (duración de la línea base de las tareas y peso de los hitos) × BAC ingresado en el libro
+  Línea base  |  PV: % planificado de MS Project (duración de la línea base y peso de las tareas) × BAC ingresado en el libro
   Filas EDT: 36 (24 de ingreso)  |  Nivel máximo: 3
   Horizonte: 01/2026 a 12/2035 (120 meses)
   BAC: se debe ingresar el BAC de cada fila en la columna D de PV (celdas amarillas).
@@ -130,7 +130,7 @@ ejemplo los mantiene para mostrar cada método; en un proyecto real conviene div
 usar un método de avance ([Validaciones](validaciones-y-problemas.md#11-datos-del-libro-generar-y-validar)).
 
 La hoja `% PV` tiene el % planificado de cada paquete y mes, calculado con la duración de la línea base
-de sus tareas y el peso de sus hitos:
+y el peso de sus tareas:
 
 ![Hoja % PV del libro generado](img/excel/pct-pv.png)
 

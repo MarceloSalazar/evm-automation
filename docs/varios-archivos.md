@@ -85,7 +85,7 @@ Cada archivo se prepara como un proyecto individual
 | Condición | Motivo |
 |---|---|
 | **Códigos EDT distintos** en cada archivo: un mismo código no puede estar en dos archivos. | Las hojas identifican cada fila por su código EDT. Si un código se repite, `generar` se detiene sin crear el libro. |
-| Los **mismos campos personalizados** (EDT, método de medición, peso de hito y, si se usan, `Visible`, descripción y empresa) con el mismo nombre o alias en todos los archivos. | La sección `[campos]` de la configuración es común a todos los archivos. |
+| Los **mismos campos personalizados** (EDT, método de medición, peso y, si se usan, `Visible`, descripción y empresa) con el mismo nombre o alias en todos los archivos. | La sección `[campos]` de la configuración es común a todos los archivos. |
 | **Línea base** guardada en cada archivo. | El % planificado de las filas de cada archivo sale de las fechas de su línea base. El BAC de cada fila se ingresa en el libro. |
 | Cada mes, la **misma fecha de estado** en todos los archivos. | El informe tiene una sola fecha de corte. |
 | La **misma moneda** en todos los archivos. | El libro muestra una sola moneda. |
@@ -163,8 +163,8 @@ Exportador EVM 2.7.0
 Leyendo P1: ...\ejemplos\programa_ejemplo.xml ...
 Leyendo P2: ...\ejemplos\proyecto2_ejemplo.xml ...
 Informe: Programa de ejemplo con dos proyectos
-  P1: Programa de ejemplo EVM  |  Planificación: INTERNO  |  Línea base  |  PV: % planificado de MS Project (duración de la línea base de las tareas y peso de los hitos) × BAC ingresado en el libro
-  P2: Accesos y servicios (proyecto 2 de ejemplo)  |  Línea base  |  PV: % planificado de MS Project (duración de la línea base de las tareas y peso de los hitos) × BAC ingresado en el libro
+  P1: Programa de ejemplo EVM  |  Planificación: INTERNO  |  Línea base  |  PV: % planificado de MS Project (duración de la línea base y peso de las tareas) × BAC ingresado en el libro
+  P2: Accesos y servicios (proyecto 2 de ejemplo)  |  Línea base  |  PV: % planificado de MS Project (duración de la línea base y peso de las tareas) × BAC ingresado en el libro
   Filas EDT: 44 (29 de ingreso)  |  Nivel máximo: 3
   Horizonte: 01/2026 a 12/2035 (120 meses)
   BAC: se debe ingresar el BAC de cada fila en la columna D de PV (celdas amarillas).
