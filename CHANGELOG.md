@@ -20,7 +20,16 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 ### Nuevas funciones
 
-- Ninguna.
+- **Análisis de desviaciones con seguimiento hasta el cierre:** las columnas que se completan a mano son
+  *Causa*, *Impacto en alcance, plazo y coste*, *Acción*, *Responsable*, *Fecha objetivo* (antes *Fecha
+  compromiso*), *Criterio de cierre* (nueva) y *Estado* (nueva, con la lista `Abierta`, `En curso` y
+  `Cerrada`). Una fila `Cerrada` no se avisa en el cierre siguiente (`ACT-043`, `ACT-045`) y, si el paquete
+  vuelve a quedar fuera de umbral, su texto no se copia al mes nuevo (antecedente `Nuevo (cerrada en
+  MM/AAAA)`) ([Análisis de desviaciones](docs/analisis-desviaciones.md#2-columnas)).
+- **Formato del libro:** la hoja oculta `_meta` guarda `formato_libro = 1`. Desde la 2.7.1, cada cambio de
+  la estructura del libro aumenta ese número y la versión que lo introduce migra los libros anteriores; un
+  libro de otro formato se rechaza (`LIB-018`, nuevo)
+  ([El libro Excel](docs/libro-excel.md#6-formato-del-libro-y-versiones-anteriores)).
 
 ### Correcciones
 
@@ -29,14 +38,31 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   ninguna tarea tenía `Sí`. Ahora indica cuántas tareas lo tienen y qué tarea superior no lo tiene, para
   poner `Sí` también en ella
   ([Planificación para el cliente](docs/generar-cliente.md#2-qué-tareas-ve-el-cliente)).
-- Campo de peso empresarial de Project Online leído de un XML: el tipo (número, costo o texto) se toma de
+- Campo de peso empresarial de Project Online leído de un XML: el tipo (número, coste o texto) se toma de
   la definición del campo en el XML. Antes se decidía por los valores y, como el XML omite los 0 de un
   campo numérico, un 0 escrito en pocas tareas se tomaba como Peso = 0
   ([Configuración](docs/configuracion.md)).
 
 ### Otros
 
-- Ninguna.
+- **Terminología:**
+  - «coste» y «sobrecoste» en lugar de «costo» y «sobrecosto» en el libro, la consola, los mensajes, la
+    documentación y la presentación (los nombres de MS Project en español, como *Costo previsto*, no
+    cambian);
+  - «Rangos admisibles» en lugar de «Semáforo»: fila *Rangos admisibles CPI y SPI* del `Cuadro de Mando`
+    y columna *Rango admisible* del `Análisis de desviaciones`. La sección de la configuración pasa de
+    `[semaforo]` a `[rangos_admisibles]`, con las mismas claves; con el nombre anterior el programa se
+    detiene (`CFG-058`, nuevo) y ya no se admiten los nombres `rojo` y `amarillo` (`CFG-015` retirado)
+    ([Configuración](docs/configuracion.md));
+  - el título de la hoja `PV` indica **Línea base (PMB - Performance Measurement Baseline)**.
+- **Libros anteriores a la 2.7.1:** no se admiten. `actualizar`, `analizar`, `procesar-costes` y
+  `--migrar-desde` se detienen con `LIB-018`; se debe generar un libro nuevo. Se quita el código que solo
+  servía para libros de versiones anteriores: hoja `Curva S`, Cuadro de Mando anterior a la 2.3.0, hoja
+  `Análisis de desviaciones` leída por posición, hojas y columnas que `actualizar` agregaba a los libros
+  antiguos, valores por defecto de `_meta`, formatos anteriores de la hoja `PV-depuración`, reparto del
+  plan de costes en `% PV` (anterior a la 2.6.0) y el nombre de método `Avance lineal (LOE)` en
+  `[metodos] lista`. Se retiran `LIB-009`, `DEP-007`, `DEP-009`, `DEP-020`, `DEP-021` y `DEP-024`.
+- Capturas del libro regeneradas y presentación con la terminología nueva.
 
 <a id="v2.7.0"></a>
 

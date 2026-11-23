@@ -355,7 +355,7 @@ python evm_export.py actualizar --origen "C:\Programa\Programa.mpp" --config con
   si encuentra un problema; también avisa si el libro está abierto en Excel. El libro se guarda primero
   en un archivo temporal, de modo que un error al guardar no daña el libro anterior.
 - Agrega a la hoja `Análisis de desviaciones` los paquetes con SPI o CPI fuera del rango verde del
-  semáforo en el mes de corte, y conserva lo ya escrito ([Análisis de desviaciones](analisis-desviaciones.md)).
+  de los rangos admisibles en el mes de corte, y conserva lo ya escrito ([Análisis de desviaciones](analisis-desviaciones.md)).
   Avisa si el análisis del mes anterior quedó incompleto o si hay acciones vencidas.
 - Registra los cambios del BAC y de los valores de meses ya informados (% ganado y AC) desde la ejecución
   anterior en la hoja `Registro de cambios` ([El libro Excel](libro-excel.md#registro-de-cambios)), y
@@ -380,7 +380,7 @@ Fecha de corte: 30/06/2027 (mes 18 del horizonte)
 Observaciones por fila:
   [i] ACT-034 4.2.2 Cierre administrativo: método no definido: se usó % completado
   [!] ACT-044 13 paquetes fuera de umbral en 05/2027 quedaron sin analizar, sin texto en la hoja Análisis de desviaciones (1.1.1, 1.1.2, 1.1.3, 1.2.1, 1.2.2, 1.2.3, 2.1.1, 2.1.2, 2.1.3, 2.1.4 y 3 más): se quitan de la hoja, y los que siguen fuera de umbral vuelven a listarse en el mes de corte.
-  [i] ACT-026 El AC se carga a mano en la hoja 'AC'; los indicadores de costo usan los valores cargados.
+  [i] ACT-026 El AC se carga a mano en la hoja 'AC'; los indicadores de coste usan los valores cargados.
 Paquetes fuera de umbral (SPI o CPI fuera de 0,95 a 1,05): 13 (hoja 'Análisis de desviaciones')
   1.1.1      Oficina de gestión del programa (PMO)     SPI  1,00  CPI  1,11
   1.1.2      Control de proyectos y EVM                SPI  1,00  CPI  1,11
@@ -434,7 +434,7 @@ LOE.
 |---|---|
 | `--libro` | Libro creado con `generar`, con al menos un `actualizar`. **Obligatoria.** |
 | `--sin-respaldo` | No crea la copia de respaldo del libro. |
-| `--config` | Solo se usan `[validacion] silenciar` y `loe_maximo` ([ACT-049](codigos.md#act-049)) y `[exportacion] guardado_rapido`: el libro guarda los umbrales del semáforo al generarse. Sin `--config`, `loe_maximo` vale 15 y el guardado rápido está activado. |
+| `--config` | Solo se usan `[validacion] silenciar` y `loe_maximo` ([ACT-049](codigos.md#act-049)) y `[exportacion] guardado_rapido`: el libro guarda los rangos admisibles al generarse. Sin `--config`, `loe_maximo` vale 15 y el guardado rápido está activado. |
 | `--silenciar CODIGOS` | Igual que en `generar`. |
 
 ---

@@ -356,61 +356,6 @@ def test_migration_shifts_months_and_checks_the_company(tmp_path):
     assert load_workbook(other)[cr.SHEET_PASTE].cell(row=cr.P_FIRST, column=1).value is None
 
 
-def old_sheet(path, header: dict[int, object], lines: list[list]) -> None:
-    """Hoja PV-depuración de una versión anterior: encabezados en la fila 7 y el plan desde la celda A8."""
-    wb = load_workbook(path)
-    ws = wb[cr.SHEET_PASTE]
-    for row in ws.iter_rows(min_row=1, max_row=cr.P_FIRST + 10, max_col=ws.max_column):
-        for cell in row:
-            cell.value = None
-    for c, v in header.items():
-        ws.cell(row=cr.OLD_HEADER_ROW, column=c, value=v)
-    for k, line in enumerate(lines):
-        for c, v in enumerate(line, start=1):
-            ws.cell(row=cr.OLD_FIRST + k, column=c, value=v)
-    wb.save(path)
-
-
-def test_migration_converts_a_paste_without_internal_wbs_columns(tmp_path):
-    """Libro anterior a las columnas de EDT interna: código, descripción, BAC y meses desde la columna D."""
-    old = tmp_path / "old.xlsx"
-    make_book(old, config())
-    old_sheet(old, {3: cr.LEGACY_BAC_HEADER}, [[1.2, "Contratos", None], ["XRF01", "Subtarea", 50, 20, None, 30],
-                                                [None, "Nota", None], ["2.1", "Básica", 10, 10]])
-    assert cr.paste_format(load_workbook(old)[cr.SHEET_PASTE]) == cr.FORMAT_LEGACY
-    assert cr.last_paste_month(load_workbook(old)[cr.SHEET_PASTE], 24) == 3
-    new = tmp_path / "new.xlsx"
-    rep = make_book(new, config(), prior_from_book(old, "Programa"))
-    assert issues_with(rep, "tenía el formato sin EDT interna", SEV_INFO)
-    assert issues_with(rep, f"el plan empieza ahora en la celda A{cr.P_FIRST} (antes, en la A8)", SEV_INFO)
-    ws = load_workbook(new)[cr.SHEET_PASTE]
-    assert cr.paste_format(ws) == cr.FORMAT_CURRENT
-    got = [[ws.cell(row=cr.P_FIRST + k, column=c).value for c in range(1, 10)] for k in range(4)]
-    assert got == [[1.2, "Contratos", None, None, None, None, None, None, None],
-                   [None, None, "XRF01", "Subtarea", 50, 50, 20, None, 30],      # EAC: suma de los meses
-                   [None, None, None, "Nota", None, None, None, None, None],
-                   ["2.1", "Básica", None, None, 10, 10, 10, None, None]]
-    assert cr.last_paste_month(ws, 24) == 3
-
-
-def test_migration_adds_the_eac_column_of_a_version_2_4_paste(tmp_path):
-    """Libro de la versión 2.4: sin la columna EAC, con los meses desde la columna F."""
-    old = tmp_path / "old.xlsx"
-    make_book(old, config())
-    old_sheet(old, {cr.P_EAC: datetime(2027, 1, 1)},                    # encabezado del mes 1
-              [["1.1", "Dirección", None, None, 200, 100, 100], [None, None, "ABC01", "Pliegos"]])
-    assert cr.paste_format(load_workbook(old)[cr.SHEET_PASTE]) == cr.FORMAT_NO_EAC
-    assert cr.last_paste_month(load_workbook(old)[cr.SHEET_PASTE], 24) == 2
-    new = tmp_path / "new.xlsx"
-    rep = make_book(new, config(), prior_from_book(old, "Programa"))
-    assert issues_with(rep, "no tenía la columna EAC", SEV_INFO)
-    ws = load_workbook(new)[cr.SHEET_PASTE]
-    got = [[ws.cell(row=cr.P_FIRST + k, column=c).value for c in range(1, 9)] for k in range(2)]
-    assert got == [["1.1", "Dirección", None, None, 200, 200, 100, 100],
-                   [None, None, "ABC01", "Pliegos", None, None, None, None]]
-    assert ws.cell(row=cr.P_HEADER_ROW, column=cr.P_EAC).value == "EAC" and cr.last_paste_month(ws, 24) == 2
-
-
 # ----------------------------------------------------------------------------
 # Fórmulas de Excel (LibreOffice)
 # ----------------------------------------------------------------------------
@@ -574,7 +519,7 @@ def test_procesar_costes_with_calculations(tmp_path):
     assert res.saved and res.calculated == 16 and [x[0] for x in res.rows] == ["1.1.0", "1.2.1", "1.2.2"]
     assert [x[2] for x in res.rows] == [117, 65, 96]
     book = read_book(path)
-    assert book.pct_pv == before.pct_pv and all(not s.plan_pv for s in book.structure)
+    assert book.pct_pv == before.pct_pv
     wb = load_workbook(path)
     assert "procesar-costes" not in wb["% PV-EmpresaA"]["A1"].value
     assert wb[SHEET_STRUCT].max_column == 8                 # sin la columna de las filas procesadas (antes de 2.6.0)
@@ -646,66 +591,6 @@ def test_procesar_costes_command(tmp_path, capsys):
     make_book(plain, config(review=False))
     assert main(["procesar-costes", "--libro", str(plain)]) == 2
     assert "DEP-012" in capsys.readouterr().err
-
-
-def legacy_processed_book(tmp_path):
-    """Libro procesado con procesar-costes antes de la versión 2.6.0: el reparto del plan en la hoja % PV-EmpresaA
-    (importe / EAC) y las filas marcadas en la columna 9 de _estructura."""
-    path = processed_book(tmp_path)
-    wb = load_workbook(path)
-    r = rows(wb)
-    ws_pct, ws_struct = wb["% PV-EmpresaA"], wb[SHEET_STRUCT]
-    ws_struct.cell(row=1, column=9, value="pv_plan_costes")
-    struct_row = {ws_struct.cell(row=k, column=3).value: k for k in range(2, ws_struct.max_row + 1)}
-    for code, amounts in PLAN_COST.items():
-        for i in range(24):
-            v = amounts[i] / sum(amounts) if i < len(amounts) else None
-            ws_pct.cell(row=r[code], column=7 + i).value = v
-        ws_struct.cell(row=struct_row[code], column=9, value="PV-A")
-    wb.save(path)
-    return path
-
-
-def test_legacy_processed_book_is_reported_and_migration_recovers_ms_project(tmp_path):
-    fresh = tmp_path / "fresh.xlsx"                 # % planificado de MS Project
-    make_book(fresh, config())
-    ms_project = read_book(fresh)
-    path = legacy_processed_book(tmp_path)
-    old = read_book(path)
-    assert {s.code: s.plan_pv for s in old.structure}["1.1.0"] == ("A",)
-    r_old = rows(load_workbook(path))
-    assert old.pct_pv["A"][r_old["1.2.2"]][:3] == pytest.approx([56 / 96, 40 / 96, 0])
-    # procesar-costes y actualizar avisan; actualizar no compara esas filas con la línea base (ACT-047)
-    res = run_cost_plan(config(), path)
-    dep = next(i.message for i in res.warnings if i.id == "DEP-021")
-    assert "3 filas de la hoja % PV-EmpresaA (1.1.0, 1.2.1, 1.2.2)" in dep and "--migrar-desde" in dep
-    res = run_update(P(tasks()), config(), path, date(2027, 2, 28), backup=False)
-    assert [w for w in res.warnings if w.id == "DEP-021"]
-    assert not [w for w in res.warnings if w.id == "ACT-047"]
-    # La otra empresa sí se compara: un % planificado distinto del de MS Project se informa
-    wb = load_workbook(path)
-    wb["% PV-EmpresaB"].cell(row=rows(wb)["1.1.0"], column=7, value=0.9)
-    wb.save(path)
-    res = run_update(P(tasks()), config(), path, date(2027, 2, 28), backup=False)
-    drift = [w for w in res.warnings if w.id == "ACT-047"]
-    assert len(drift) == 1 and "(1.1.0)" in drift[0].message
-    # --migrar-desde: el libro nuevo (también el de entrega) tiene el % de MS Project y conserva el BAC
-    for review, name in ((True, "new.xlsx"), (False, "final.xlsx")):
-        new = tmp_path / name
-        rep = make_book(new, config(review=review), prior_from_book(path, "Programa"))
-        found = issues_with(rep, "3 filas de la hoja % PV-EmpresaA tenían en el libro anterior el reparto del plan "
-                                 "de costes", SEV_INFO)
-        assert found and found[0].id == "DEP-020"
-        book = read_book(new)
-        r_new, r_fresh = rows(load_workbook(new)), rows(load_workbook(fresh))
-        for code in ("1.1.0", "1.2.1", "1.2.2", "2.1.0", "1.0.0-D"):
-            assert book.pct_pv["A"][r_new[code]] == pytest.approx(ms_project.pct_pv["A"][r_fresh[code]]), code
-            assert book.pct_pv["B"][r_new[code]] == pytest.approx(ms_project.pct_pv["B"][r_fresh[code]]), code
-        assert all(not s.plan_pv for s in book.structure)
-        assert book.bac_role["A"][r_new["1.2.2"]] == 100.0
-        assert "procesar-costes" not in load_workbook(new)["% PV-EmpresaA"]["A1"].value
-        assert not [w for w in run_update(P(tasks()), config(review=review), new, date(2027, 2, 28),
-                                          backup=False).warnings if w.id in ("DEP-021", "ACT-047")]
 
 
 # ----------------------------------------------------------------------------
@@ -827,7 +712,7 @@ def test_review_sheet_layout_and_rates_table(tmp_path):
     assert ws["A1"].value == "Plan de costes  -  EmpresaA" and ws.freeze_panes == f"G{cr.P_FIRST}"
     assert [ws.cell(row=r, column=1).value for r in (2, 3, 4)] == ["Leído en filas del libro",
                                                                    "Leído después del horizonte", "Sin leer"]
-    assert ws["C2"].value.startswith("=SUMIFS(") and cr.P_FIRST == 12 and cr.paste_first_row(ws) == cr.P_FIRST
+    assert ws["C2"].value.startswith("=SUMIFS(") and cr.P_FIRST == 12
     assert ws.cell(row=11, column=1).value == "EDT cliente" and ws.cell(row=11, column=cr.P_EAC).value == "EAC"
     assert ws.cell(row=10, column=cr.P_FIRST_MONTH).value == 1
     assert "A12" in ws["A8"].value and "[depuracion_precio]" in ws["A8"].value
@@ -896,7 +781,7 @@ def test_price_formulas_match_python(tmp_path, recalc):
     assert ws.cell(row=cr.P_TOTAL_ROW, column=cr.P_CONTROL).value == pytest.approx(sum(PRICE_MONTHS) + 20)
 
 
-def test_migration_keeps_the_rates_and_moves_an_old_sheet(tmp_path):
+def test_migration_keeps_the_rates(tmp_path):
     old = price_book(tmp_path)
     run_cost_plan(price_config(cost_review_calcs=True), old, backup=False)
     new = tmp_path / "new.xlsx"
@@ -912,18 +797,3 @@ def test_migration_keeps_the_rates_and_moves_an_old_sheet(tmp_path):
     assert ws["E2"].value == 0.01 and ws["N7"].value == 0.025 and ws["D6"].value == "Gastos generales"
     assert ws["E6"].value is None
     assert ws.cell(row=cr.P_FIRST + 1, column=cr.P_FIRST_MONTH).value.startswith(f"=(G{cr.P_FIRST + 2}*(1+$E$2)")
-    # Libro de la versión 2.5: el plan desde la celda A8. procesar-costes pide --migrar-desde, que lo pasa a A12
-    legacy = tmp_path / "v25.xlsx"
-    make_book(legacy, config())
-    line = ["1.1", "Dirección", None, None, 200, 200, 100, 100]
-    old_sheet(legacy, {1: "EDT cliente", cr.P_EAC: cr.EAC_HEADER}, [line])
-    ws = load_workbook(legacy)[cr.SHEET_PASTE]
-    assert cr.paste_first_row(ws) == cr.OLD_FIRST and cr.paste_format(ws) == cr.FORMAT_CURRENT
-    with pytest.raises(InputError) as exc:
-        run_cost_plan(config(), legacy)
-    assert exc.value.id == "DEP-024" and "--migrar-desde" in str(exc.value)
-    moved = tmp_path / "moved.xlsx"
-    rep = make_book(moved, config(), prior_from_book(legacy, "Programa"))
-    assert issues_with(rep, "(1 línea); el plan empieza ahora en la celda A12 (antes, en la A8).", SEV_INFO)
-    ws = load_workbook(moved)[cr.SHEET_PASTE]
-    assert [ws.cell(row=cr.P_FIRST, column=c).value for c in range(1, 9)] == line

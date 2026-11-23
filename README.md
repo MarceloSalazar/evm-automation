@@ -32,18 +32,18 @@ simulado.*
   50/50, hitos ponderados, ponderado, % completado, % físico completado, unidades y avance lineal
   (LOE)), y carga del valor del mes en el libro. El **AC** se carga a mano.
 - **Cuadro de Mando** con el mes de reporte seleccionable: BAC, PV, EV, AC, desviaciones, índices con
-  semáforo, pronósticos (ETC, EAC, VAC, TCPI), **tendencia** (CPI y SPI de los últimos 3 meses y
+  rangos admisibles, pronósticos (ETC, EAC, VAC, TCPI), **tendencia** (CPI y SPI de los últimos 3 meses y
   variación respecto del mes anterior) y tres gráficos nativos de Excel.
 - **Plazo según el cronograma de MS Project**: fin previsto, desvío de fin, holgura total y camino
   crítico del proyecto y de cada elemento de la EDT, para saber si un atraso afecta la fecha de fin.
 - **Indicadores** del proyecto y de cada elemento de la EDT, incluido el **Earned Schedule**.
-- **Semáforo** de CPI y SPI con umbrales inferiores y superiores configurables, indicados en el Cuadro
-  de Mando.
+- **Rangos admisibles** de CPI y SPI (verde, amarillo y rojo) con umbrales inferiores y superiores
+  configurables, indicados en el Cuadro de Mando.
 - **Análisis de desviaciones**: cada mes, la lista de paquetes con SPI o CPI fuera de umbral, con
   columnas para la causa, el impacto, la acción correctiva, el responsable y la fecha, que se conservan
   de un mes a otro.
 - **Controles del cierre mensual** según la norma EIA-748-E: hoja `Registro de cambios` con los cambios
-  del BAC y de los meses ya informados, y avisos de datos incoherentes (avance sin costo, meses sin
+  del BAC y de los meses ya informados, y avisos de datos incoherentes (avance sin coste, meses sin
   informe, línea base de MS Project distinta de la del libro, EAC poco realista o mucho BAC en LOE).
 - **Códigos de los mensajes** (`FEC-003`...), explicados en la documentación; las observaciones ya
   revisadas se pueden silenciar.
@@ -70,8 +70,8 @@ flowchart LR
     XL --> CM["Cuadro de Mando,<br/>Resumen e<br/>Indicadores EDT"]
 ```
 
-> La versión 2.0.0 eliminó el cálculo con los costos cargados en MS Project. Para calcular el PV y el EV
-> con esos costos se debe usar la [versión 1.5.1](https://github.com/MarceloSalazar/evm-automation/releases/tag/v1.5.1).
+> La versión 2.0.0 eliminó el cálculo con los costes cargados en MS Project. Para calcular el PV y el EV
+> con esos costes se debe usar la [versión 1.5.1](https://github.com/MarceloSalazar/evm-automation/releases/tag/v1.5.1).
 
 ---
 
@@ -227,7 +227,7 @@ sobre el mismo tema. Un buen informe incluye:
   o con un XML reducido.
 
 > **El repositorio es público.** No se deben adjuntar archivos `.mpp`, `.xml`, libros Excel ni
-> `config.toml` de proyectos reales con información confidencial (costos, nombres, clientes o
+> `config.toml` de proyectos reales con información confidencial (costes, nombres, clientes o
 > proveedores). Se recomienda reproducir el problema con el proyecto de ejemplo o reemplazar los datos
 > sensibles antes de adjuntar un archivo.
 
@@ -250,9 +250,10 @@ completa con la plantilla del repositorio, que incluye una lista de control con 
 - **Pruebas:** `python -m pytest` debe pasar. Cada corrección o función nueva se acompaña de pruebas; en
   una corrección, una prueba que falle sin ella. Las pruebas y la estructura del código se describen en
   [Desarrollo](docs/desarrollo.md).
-- **Compatibilidad:** los libros generados con versiones anteriores de la misma versión mayor (por
-  ejemplo, 2.x) deben seguir funcionando con `actualizar`. Si un cambio exige regenerarlos o cambiar la
-  configuración, es una versión mayor y se indica en el Pull Request.
+- **Compatibilidad:** los libros generados desde la versión 2.7.1 deben seguir funcionando con
+  `actualizar`. Un cambio de la estructura del libro aumenta `formato_libro` (hoja `_meta`) e incluye la
+  migración de los formatos anteriores; se indica en el Pull Request
+  ([El libro Excel](docs/libro-excel.md#6-formato-del-libro-y-versiones-anteriores)).
 - **Documentación:** se actualiza el documento de `docs/` que corresponda (el README solo resume) y, si
   cambia el libro, las capturas. El cambio se anota en la sección *Sin publicar* de
   [CHANGELOG.md](CHANGELOG.md).

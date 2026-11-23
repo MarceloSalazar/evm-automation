@@ -73,20 +73,23 @@ SINGLE = [
      {"date": ("E5", dt.datetime(2027, 12, 1)), "value": ("R5", "AC + (BAC - EV) / (CPI × SPI)")}),
     # Análisis de desviaciones de diciembre de 2027, con el texto de dos paquetes como ejemplo
     # (filas: 1.1.1 por encima del rango verde, 2.2.1 y 3.2.1 por debajo)
-    ("analisis-desviaciones", "Análisis de desviaciones", "$A$1:$X$21",
+    ("analisis-desviaciones", "Análisis de desviaciones", "$A$1:$Z$21",
      {"landscape": True, "values": [
          ("T5", "Dos puestos de la PMO sin cubrir desde octubre."),
-         ("U5", "Ahorro de costo, con riesgo de menor control del programa."),
+         ("U5", "Ahorro de coste, con riesgo de menor control del programa."),
          ("V5", "Cubrir los puestos vacantes de la PMO."),
          ("W5", "Director del Programa"), ("X5", dt.datetime(2028, 1, 15)),
+         ("Y5", "Puestos cubiertos y CPI de la PMO dentro del rango verde."), ("Z5", "En curso"),
          ("T15", "Planos de los proveedores de equipos recibidos con 6 semanas de atraso."),
-         ("U15", "Atraso de 1 mes en la emisión para construcción; sin impacto en costo."),
+         ("U15", "Atraso de 1 mes en la emisión para construcción; sin impacto en coste."),
          ("V15", "Reforzar el equipo de detalle con 2 proyectistas hasta marzo."),
          ("W15", "Jefe de Ingeniería"), ("X15", dt.datetime(2028, 1, 31)),
+         ("Y15", "Emisión para construcción al día según el plan."), ("Z15", "Abierta"),
          ("T21", "Retraso en la fabricación (FAT reprogramado)."),
          ("U21", "Riesgo de atraso del montaje mecánico; penalidad al proveedor."),
          ("V21", "Inspección semanal en fábrica y plan de recuperación del proveedor."),
-         ("W21", "Jefe de Compras"), ("X21", dt.datetime(2028, 2, 15))]}),
+         ("W21", "Jefe de Compras"), ("X21", dt.datetime(2028, 2, 15)),
+         ("Y21", "FAT realizado y fecha de entrega confirmada."), ("Z21", "En curso")]}),
 ]
 # Registro de cambios: dos cambios de datos ya informados en una copia del libro del ejemplo (build_change_log_book),
 # con el motivo y el número de cambio completados como ejemplo

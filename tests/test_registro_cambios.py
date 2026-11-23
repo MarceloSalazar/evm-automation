@@ -54,8 +54,8 @@ def ids(issues) -> list[tuple[str, str]]:
 # ----------------------------------------------------------------------------
 def test_ev_and_ac_consistency():
     book = fake_book({
-        "1.1": {"ev": [0.2, 0.1], "ac": [0, None]},                     # avance sin costo
-        "1.2": {"ev": [0, 0], "ac": [300, 100]},                        # costo sin avance
+        "1.1": {"ev": [0.2, 0.1], "ac": [0, None]},                     # avance sin coste
+        "1.2": {"ev": [0, 0], "ac": [300, 100]},                        # coste sin avance
         "1.3": {"ev": [0, 0], "ac": [300, 100], "method": "0/100"},     # 0/100: es lo esperado
         "1.6": {"ev": [0, 0], "ac": [300, 100], "method": "Hitos ponderados"},   # antes del primer hito
         "1.4": {"ev": [0.6, 0.4, 0], "ac": [500, 400, 50]},             # terminó en febrero, AC en marzo
@@ -87,7 +87,7 @@ def test_tcpi_well_above_cpi():
     (issue,) = consistency.eac_realism(book, 1)
     assert issue.id == "ACT-048"
     assert issue.message == ("TCPI 1,12 frente a CPI 0,80 a 02/2027 (30 % completado): terminar dentro del BAC exige "
-                             "una eficiencia de costo de 1,12 en el trabajo que queda, frente a 0,80 lograda hasta "
+                             "una eficiencia de coste de 1,12 en el trabajo que queda, frente a 0,80 lograda hasta "
                              "ahora. Se debe revisar el EAC (EAC = BAC / CPI = 1.250) y, si el desvío se confirma, "
                              "evaluar una línea base por encima del objetivo (OTB).")
     fine = fake_book({"1.1": {"ev": [0.5], "ac": [510]}})                  # CPI 0,98, TCPI 1,02
@@ -140,7 +140,8 @@ def test_month_gaps():
 def entry(month: date, code: str, **texts) -> analysis.Entry:
     values = [None] * len(TEXT_COLS)
     for column, value in texts.items():
-        values[TEXT_COLS.index({"cause": A_CAUSE, "action": A_ACTION, "date": A_DATE}[column])] = value
+        values[TEXT_COLS.index({"cause": A_CAUSE, "action": A_ACTION, "date": A_DATE,
+                                "status": analysis.A_STATUS}[column])] = value
     return analysis.Entry(month, f"k{code}", code, f"Paquete {code}", values)
 
 
@@ -150,7 +151,7 @@ def test_incomplete_analysis_of_the_previous_month():
                entry(jun, "1.3"), entry(may, "1.4", cause="Antigua"), entry(jul, "1.5")]
     issues = analysis.incomplete(entries, jul)
     assert ids(issues) == [("ACT-043", "1.2"), ("ACT-044", "")]
-    assert issues[0].message == "El análisis de 06/2027 no tiene acción correctiva."
+    assert issues[0].message == "El análisis de 06/2027 no tiene acción."
     assert issues[1].message.startswith("1 paquete fuera de umbral en 06/2027 quedó sin analizar, sin texto en la hoja "
                                         "Análisis de desviaciones (1.3): se quitan de la hoja")
     assert analysis.incomplete(entries, may) == []
@@ -166,6 +167,24 @@ def test_overdue_actions_of_packages_still_out_of_threshold():
     issues = analysis.overdue(entries, found, jul, date(2027, 7, 31))
     assert ids(issues) == [("ACT-045", "1.1")]
     assert "(15/07/2027) es anterior a la fecha de corte" in issues[0].message
+
+
+def test_closed_rows_are_not_warned_nor_copied():
+    """Estado Cerrada: sin ACT-043 ni ACT-045, y si el paquete vuelve a quedar fuera de umbral, la fila nueva no copia
+    el texto cerrado."""
+    jun, jul = date(2027, 6, 1), date(2027, 7, 1)
+    closed = entry(jun, "1.1", cause="Retraso", status="cerrada")       # sin acción, pero cerrada
+    open_ = entry(jun, "1.2", cause="Lluvias", status="Abierta")
+    assert closed.closed and not open_.closed
+    assert ids(analysis.incomplete([closed, open_], jul)) == [("ACT-043", "1.2")]
+    late = [entry(jul, "1.1", action="Reforzar", date=datetime(2027, 7, 15), status="Cerrada"),
+            entry(jul, "1.2", action="Reforzar", date=datetime(2027, 7, 15), status="En curso")]
+    found = [analysis.Deviation(f"k{c}", c, "", 0.8, 0.9) for c in ("1.1", "1.2")]
+    assert ids(analysis.overdue(late, found, jul, date(2027, 7, 31))) == [("ACT-045", "1.2")]
+    out = analysis.refresh([closed, open_], found, jul)
+    new = {e.code: e for e in out if e.month == jul}
+    assert new["1.1"].origin == "Nuevo (cerrada en 06/2027)" and not new["1.1"].has_text
+    assert new["1.2"].origin.startswith("Texto copiado de 06/2027") and new["1.2"].texts[0] == "Lluvias"
 
 
 # ----------------------------------------------------------------------------
@@ -321,7 +340,7 @@ def test_incomplete_analysis_and_overdue_action(book_jun, example_files, capsys)
     capsys.readouterr()
     assert update(book, example_files, "jul") == 0
     out = capsys.readouterr().out
-    assert "[!] ACT-043 2.2.1" in out and "no tiene acción correctiva" in out
+    assert "[!] ACT-043 2.2.1" in out and "no tiene acción" in out
     assert any(line.startswith("  [!] ACT-044 12 paquetes fuera de umbral en 06/2027 quedaron sin analizar")
                and "(1.1.1, 1.1.2" in line and "y 2 más)" in line and "2.2.1" not in line for line in out.splitlines())
     assert "[!] ACT-045 2.2.1" in out and "(15/07/2027)" in out

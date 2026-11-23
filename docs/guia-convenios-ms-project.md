@@ -16,7 +16,7 @@ El informe EVM compara, para cada elemento de la EDT y cada mes, tres valores:
 |---|---|---|
 | **PV** (*Planned Value*) | Trabajo que se planificó hacer | Fechas de la **línea base** y peso de cada tarea |
 | **EV** (*Earned Value*) | Trabajo realmente hecho | **Avance** registrado en MS Project, según el método de medición |
-| **AC** (*Actual Cost*) | Costo real | Contabilidad (no se carga en MS Project) |
+| **AC** (*Actual Cost*) | Coste real | Contabilidad (no se carga en MS Project) |
 
 El presupuesto (**BAC**) de cada elemento se carga en el informe EVM, no en MS Project. Del cronograma
 solo se toma **cómo se reparte el trabajo en el tiempo y cuánto se avanzó**. Por eso, la estructura, la

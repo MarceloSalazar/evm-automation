@@ -93,7 +93,7 @@ flowchart LR
         C["Columna C de la hoja PV<br/>(método del cálculo)"]
         V["Hoja % EV<br/>(% ganado del mes)"]
         B["BAC y AC<br/>(a mano)"]
-        F["Fórmulas: EV, acumulados,<br/>índices, pronósticos,<br/>semáforos y gráficos"]
+        F["Fórmulas: EV, acumulados,<br/>índices, pronósticos,<br/>rangos admisibles y gráficos"]
     end
     M1 --> G --> C
     C --> U
@@ -109,13 +109,13 @@ flowchart LR
 | Método que usa el cálculo | Excel: columna C de la hoja `PV`, que `generar` copia de MS Project ([2.3](#23-en-excel-columna-c-de-la-hoja-pv)). |
 | % ganado acumulado de cada paquete | El programa, al ejecutar `actualizar` (o `generar --ev-rellenar`, con un proyecto ya en ejecución), que escribe el % del mes en la hoja `% EV` ([Cálculo del PV y el EV](calculo-pv-ev.md#6--ganado-métodos-de-medición)). |
 | BAC y AC | Excel: se ingresan a mano en la columna D de la hoja `PV` y en la hoja `AC`. |
-| EV, acumulados, índices, pronósticos, semáforos y gráficos | Excel, con fórmulas ([Cuadro de Mando e indicadores](cuadro-de-mando.md)). |
+| EV, acumulados, índices, pronósticos, rangos admisibles y gráficos | Excel, con fórmulas ([Cuadro de Mando e indicadores](cuadro-de-mando.md)). |
 | Valor acumulado de MS Project (*CPTR*) | No se usa ([sección 6](#6-valor-acumulado-de-ms-project)). |
 
 El reparto responde a los datos que tiene cada herramienta:
 
 - **MS Project** ofrece solo dos métodos de valor acumulado, *% completado* y *% físico completado*,
-  que se calculan con costos: no tiene `0/100`, fórmulas fijas ni hitos ponderados.
+  que se calculan con costes: no tiene `0/100`, fórmulas fijas ni hitos ponderados.
 - **Excel** tiene una fila por paquete: no tiene las subtareas, los hitos cumplidos, los pesos ni las
   fechas reales que necesita la regla del método.
 - **El programa** lee ese detalle de MS Project y escribe en Excel el resultado de cada paquete. En un
@@ -189,7 +189,7 @@ mes), o entregas puntuales (un suministro que solo tiene valor al recibirse).
 *Fin real* y *% completado* ≥ 99,5.
 
 **Precaución:** si el paquete dura varios meses, el EV es 0 durante toda su ejecución mientras se
-acumula costo real: el CPI y el SPI del paquete aparecen muy bajos hasta el final (es lo que muestra el
+acumula coste real: el CPI y el SPI del paquete aparecen muy bajos hasta el final (es lo que muestra el
 paquete `1.2.1` del [ejemplo](ejemplo-paso-a-paso.md)).
 
 ### 3.2 Fórmulas fijas 50/50, 25/75 y 20/80
@@ -315,7 +315,7 @@ equipos instalados).
 ### 3.7 Avance lineal
 
 **Regla:** EV = PV acumulado de la fila (nivel de esfuerzo, LOE por *Level of Effort*). El paquete nunca tiene
-variación de cronograma (SV = 0, SPI = 1); sí puede tener variación de costo.
+variación de cronograma (SV = 0, SPI = 1); sí puede tener variación de coste.
 
 **Cuándo usarlo:** actividades de soporte sin entregables medibles que duran lo que dura el proyecto:
 dirección, oficina de proyecto (PMO), control de proyectos, administración de contratos.
@@ -479,9 +479,9 @@ sirve de referencia para medir el avance cada mes y para explicar el informe. Ej
 
 ## 6. Valor acumulado de MS Project
 
-MS Project calcula su propio valor ganado, que llama **valor acumulado** (campo *CPTR*), con el costo
+MS Project calcula su propio valor ganado, que llama **valor acumulado** (campo *CPTR*), con el coste
 de la línea base y el *Método de valor acumulado* de cada tarea (*% completado* o *% físico
-completado*). El programa no lo usa: el cronograma no necesita costos, y el % ganado de cada paquete se
+completado*). El programa no lo usa: el cronograma no necesita costes, y el % ganado de cada paquete se
 calcula con el método de la columna C y el avance registrado ([sección 3](#3-los-métodos-en-detalle)).
 Por eso no hace falta configurar el *Método de valor acumulado* de las tareas, y las tablas de valor
 acumulado de MS Project (*CPTP*, *CPTR*, *CRTR*, ver el [glosario](glosario.md)) no coinciden con el

@@ -8,8 +8,8 @@ from evm import changes
 from evm.analysis import A_CODE, A_KEY, A_MONTH, A_NAME, A_ORIGIN, SHEET_ANALYSIS, TEXT_COLS, read_entries
 from evm.config import ConfigError
 from evm.cost_price import norm_label
-from evm.cost_review import (FORMAT_CURRENT, FORMAT_LEGACY, FORMAT_NO_EAC, P_FIRST, SHEET_PASTE, month_offset,
-                             paste_first_row, paste_months, read_paste, read_rates, resolve_formulas, review_company,
+from evm.cost_review import (SHEET_PASTE, month_offset,
+                             paste_months, read_paste, read_rates, resolve_formulas, review_company,
                              shift_rows)
 from evm.fields import same_name
 from evm.messages import SEV_INFO, SEV_WARN, Issue
@@ -17,7 +17,7 @@ from evm.methods import is_undefined
 from evm.model import MonthKey, Task
 from evm.wbs import (KIND_LEAF, KIND_RESIDUAL, Report, ReportRow, code_key, fmt_money, has_interior_zero,
                      iter_subtree, plural)
-from evm.workbook import (PCT_PREFIX, SHEET_EV, SHEET_LISTS, SHEET_PV, book_sources, clean_text, pct_sheet, role_key,
+from evm.workbook import (PCT_PREFIX, SHEET_EV, SHEET_LISTS, book_sources, clean_text, pct_sheet, role_key,
                           row_key, source_meta, split_key)
 
 
@@ -32,21 +32,14 @@ class PriorRow:
     # AC ("AC", o "AC-A" y "AC-B")
     series: dict[str, dict[MonthKey, float]]
     method: str
-    origin_method: str | None = None     # método al generarse el libro (None: libro antiguo)
+    origin_method: str = ""              # método al generarse el libro
     source: str = ""                     # varios archivos: nombre del archivo de la fila
     bac: dict[str, float] = field(default_factory=dict)     # BAC ingresado ("" o "A" y "B")
-    # Empresas ("" o "A" y "B") cuya hoja % PV tenía el reparto del plan de costes (procesar-costes antes de la
-    # versión 2.6.0): en el libro nuevo vuelve a ser el % de MS Project (DEP-020)
-    plan_pv: tuple[str, ...] = ()
 
     @property
     def method_edited(self) -> bool:
         """True si el método de la columna C fue modificado en Excel."""
-        if not self.method:
-            return False
-        if self.origin_method is not None:
-            return self.method != self.origin_method
-        return self.method.strip().lower() not in ("por definir", "a definir", "")
+        return bool(self.method) and self.method != self.origin_method
 
     @property
     def has_values(self) -> bool:
@@ -89,18 +82,13 @@ class PriorData:
     matched: int = 0
     unmatched: list[PriorRow] = field(default_factory=list)
     bac: dict[str, dict[str, float]] = field(default_factory=dict)    # clave nueva -> BAC
-    # Clave nueva -> empresas cuya fila anterior tenía el reparto del plan de costes: recupera el % de MS Project
-    plan_pv: dict[str, set[str]] = field(default_factory=dict)
-    # Depuración de costes: líneas de la hoja PV-depuración (en el formato actual), empresa que se depuraba ('' =
-    # libro de una sola empresa), mes 1 del horizonte, formato que tenía la hoja (cost_review.paste_format) y si se
-    # trasladan al libro nuevo (lo decide plan_migration)
+    # Depuración de costes: líneas de la hoja PV-depuración, empresa que se depuraba ('' = libro de una sola empresa),
+    # mes 1 del horizonte, si la hoja tenía fórmulas y si se trasladan al libro nuevo (lo decide plan_migration)
     review_rows: list[list] = field(default_factory=list)
     review_company: str = ""
     review_start: date | None = None
-    review_format: str = FORMAT_CURRENT
     review_calcs: bool = False          # la hoja tenía fórmulas (cálculos del plan): se vuelven a escribir
     review_keep: bool = False
-    review_first: int = P_FIRST         # primera fila del plan en la hoja anterior (A8 hasta la versión 2.5)
     # Tabla Recargos: texto normalizado -> año -> valor, y el texto de cada coeficiente
     review_rates: dict[str, dict[int, object]] = field(default_factory=dict)
     review_rate_labels: dict[str, str] = field(default_factory=dict)
@@ -141,7 +129,7 @@ def prior_from_book(path, project_name: str) -> PriorData:
             key=s.key, code=s.code, name=s.name, uid=int(uid_text) if uid_text.isdigit() else None,
             residual=residual, series={k: v for k, v in series.items() if v},
             method=book.method[s.row], origin_method=s.origin_method, source=source,
-            bac={k: v for k, v in bac.items() if v}, plan_pv=tuple(r for r in s.plan_pv if r in book.pct_pv)))
+            bac={k: v for k, v in bac.items() if v}))
     methods_list = []
     from openpyxl import load_workbook
     wb = load_workbook(path, read_only=True)
@@ -152,15 +140,13 @@ def prior_from_book(path, project_name: str) -> PriorData:
             if len(value.strip()) <= 60:
                 methods_list.append(value.strip())
     analysis = read_entries(wb[SHEET_ANALYSIS]) if SHEET_ANALYSIS in wb.sheetnames else []
-    review_rows, review_format, review_first, rates, rate_labels = [], FORMAT_CURRENT, P_FIRST, {}, {}
+    review_rows, rates, rate_labels = [], {}, {}
     if SHEET_PASTE in wb.sheetnames:
         ws_paste = wb[SHEET_PASTE]
-        review_rows, review_format = read_paste(ws_paste, book.horizon.months)
-        review_first = paste_first_row(ws_paste)
-        if review_first == P_FIRST:                 # la tabla Recargos está desde la versión 2.6.0
-            table = read_rates(ws_paste)
-            rates = table.values_by_label()
-            rate_labels = {key: table.labels[r] for key, r in table.rows.items()}
+        review_rows = read_paste(ws_paste, book.horizon.months)
+        table = read_rates(ws_paste)
+        rates = table.values_by_label()
+        rate_labels = {key: table.labels[r] for key, r in table.rows.items()}
     # Las fórmulas pasan con su valor calculado: el libro nuevo vuelve a escribir las de los cálculos del plan
     review_rows, review_formulas, _missing = resolve_formulas(path, review_rows, book.horizon.months)
     change_log = changes.read_rows(wb[changes.SHEET_LOG]) if changes.SHEET_LOG in wb.sheetnames else []
@@ -174,7 +160,7 @@ def prior_from_book(path, project_name: str) -> PriorData:
                      ignore_interior_zeros=book_ignores_interior_zeros(book.meta),
                      project_names=names, analysis=analysis, review_rows=review_rows,
                      review_company=str(book.meta.get("depuracion_empresa") or ""), review_start=book.horizon.start,
-                     review_format=review_format, review_calcs=review_formulas > 0, review_first=review_first,
+                     review_calcs=review_formulas > 0,
                      review_rates=rates, review_rate_labels=rate_labels, change_log=change_log, reference=reference,
                      overwritten=list(book.formula_values))
 
@@ -256,23 +242,12 @@ def _migrate_review(report: Report, prior: PriorData) -> list[Issue]:
     content = lines + (f" y los recargos de {plural(len(kept), 'coeficiente', 'coeficientes')} de la tabla Recargos"
                        if kept else "")
     calcs = "; se volvieron a escribir las fórmulas de los cálculos del plan" if prior.review_calcs else ""
-    moved = (f"; el plan empieza ahora en la celda A{P_FIRST} (antes, en la A{prior.review_first})"
-             if prior.review_rows and prior.review_first != P_FIRST else "")
-    issues = [Issue("DEP-006", "", "", f"Se conservó el contenido de la hoja {SHEET_PASTE} ({content}){calcs}{moved}.")]
+    issues = [Issue("DEP-006", "", "", f"Se conservó el contenido de la hoja {SHEET_PASTE} ({content}){calcs}.")]
     if lost:
         why = ("[depuracion_precio.recargos] no tiene esos textos" if report.cost_rates
                else "la configuración no tiene [depuracion_precio.recargos]")
         issues.append(Issue("DEP-025", "", "", f"Los recargos de la tabla Recargos del libro anterior de "
                                               f"{', '.join(lost)} no se trasladaron: {why}."))
-    if prior.review_format == FORMAT_LEGACY:
-        issues.append(Issue("DEP-007", "", "", f"La hoja {SHEET_PASTE} del libro anterior tenía el formato sin EDT "
-                                              "interna: los códigos numéricos quedaron como EDT cliente y los demás "
-                                              "(p. ej. XRF01), como EDT interna, y se agregó la columna EAC con la "
-                                              "suma de los meses de cada línea."))
-    elif prior.review_format == FORMAT_NO_EAC:
-        issues.append(Issue("DEP-009", "", "", f"La hoja {SHEET_PASTE} del libro anterior no tenía la columna EAC: se "
-                                              "agregó con la suma de los meses de cada línea, y los meses empiezan "
-                                              "en la columna G."))
     offset = month_offset(prior.review_start, report.horizon.start) if prior.review_start else 0
     if offset:
         prior.review_rows, lost = shift_rows(prior.review_rows, offset, paste_months(report.horizon.months))
@@ -437,11 +412,6 @@ def plan_migration(report: Report, prior: PriorData, max_level: int,
                                         "combinar. Se debe revisar la hoja % EV de esta fila."))
         if any(merged_bac.values()):
             prior.bac[key] = merged_bac
-        # Reparto del plan de costes (procesar-costes antes de la versión 2.6.0): no se conserva, la fila nueva tiene
-        # el % de MS Project
-        roles = {role for old, _how in lst for role in old.plan_pv}
-        if roles:
-            prior.plan_pv[key] = roles
         if any(merged.values()):
             prior.values[key] = merged
             if any(v for data in merged.values() for v in data.values()):
@@ -454,12 +424,9 @@ def plan_migration(report: Report, prior: PriorData, max_level: int,
                 prior.methods[key] = old.method
 
     if prior.methods:
-        legacy = any(o.origin_method is None for o in prior.rows)
         issues.append(Issue("MIG-010", "", "",
                             f"Se conservaron {len(prior.methods)} métodos de medición de la columna C del libro "
-                            "anterior"
-                            + (" (el libro anterior no indica si se editaron en Excel o cambiaron en MS Project; "
-                               "se recomienda revisarlos)." if legacy else ", editados en Excel.")))
+                            "anterior, editados en Excel."))
         # Recalcular el aviso de filas sin método
         undefined = sum(1 for r in inputs if is_undefined(prior.methods.get(row_key(r)) or r.method))
         report.issues[:] = [i for i in report.issues if i.id != "MET-005"]
@@ -477,7 +444,6 @@ def plan_migration(report: Report, prior: PriorData, max_level: int,
     if prior.bac:
         issues.append(Issue("MIG-013", "", "", f"Se conservó el BAC de {plural(len(prior.bac), 'fila', 'filas')} del "
                                               "libro anterior."))
-    issues += _plan_issues(report, prior)
     issues += _migrate_changes(prior, key_map, sources)
     issues += _migrate_review(report, prior)
     if prior.overwritten:
@@ -494,20 +460,3 @@ def plan_migration(report: Report, prior: PriorData, max_level: int,
                             f"{fmt_money(old.total('AC'))}): la tarea no existe en el proyecto nuevo o se "
                             "dividió en varias filas. Se debe cargar a mano en las filas que correspondan."))
     return issues
-
-
-def _plan_issues(report: Report, prior: PriorData) -> list[Issue]:
-    """DEP-020: filas que tenían el reparto del plan de costes (procesar-costes antes de la versión 2.6.0) y vuelven a
-    tener el % planificado de MS Project."""
-    if not prior.plan_pv:
-        return []
-    companies = {"A": report.company_a, "B": report.company_b}
-    sheets = []
-    for role in ("", "A", "B"):
-        n = sum(1 for roles in prior.plan_pv.values() if role in roles)
-        if n:
-            sheets.append(f"{plural(n, 'fila', 'filas')} de la hoja {pct_sheet(SHEET_PV, companies.get(role, ''))}")
-    return [Issue("DEP-020", "", "", (
-        f"{' y '.join(sheets)} tenían en el libro anterior el reparto del plan de costes (procesar-costes "
-        "de una versión anterior): ahora su % planificado es el de MS Project. El plan de costes se compara con el PV "
-        "en las filas «(coste)» de un libro con depuración de costes."), SEV_INFO)]

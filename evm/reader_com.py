@@ -1,7 +1,7 @@
 """Lector por automatización COM de MS Project de escritorio (Windows + pywin32).
 
 Abre el archivo .mpp en modo solo lectura y lee las tareas: fechas de la línea
-base, fechas actuales, avance y campos personalizados. Los costos no se leen: el
+base, fechas actuales, avance y campos personalizados. Los costes no se leen: el
 BAC se ingresa en el libro.
 
 Precauciones:

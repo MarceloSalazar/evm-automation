@@ -1,5 +1,6 @@
 """Hoja "Análisis de desviaciones": paquetes de trabajo fuera de umbral en el mes de la fecha de corte,
-con las columnas que se completan a mano (causa, impacto, acción correctiva, responsable y fecha).
+con las columnas que se completan a mano (causa, impacto, acción, responsable, fecha objetivo, criterio de cierre
+y estado).
 
 'actualizar' (y 'analizar', sin leer MS Project) agrega los paquetes del mes de corte. Las filas se
 identifican con la clave de su fila del libro (UniqueID de la tarea, o 'P2:UniqueID' con varios archivos),
@@ -15,6 +16,7 @@ from datetime import date, datetime
 
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.styles import Alignment, Font
+from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 
 from evm.messages import Issue
@@ -29,24 +31,27 @@ STATUS_ROW = 3              # resumen del último análisis
 HEAD_ROW = 4                # encabezados
 FIRST = 5                   # primera fila de datos
 (A_MONTH, A_CODE, A_NAME, A_BAC, A_PV, A_EV, A_AC, A_SV, A_CV, A_SPI, A_CPI, A_LIGHT, A_SPI_PREV, A_CPI_PREV,
- A_TREND, A_VARIANCE, A_SLACK, A_CRITICAL, A_ORIGIN, A_CAUSE, A_IMPACT, A_ACTION, A_OWNER, A_DATE,
- A_KEY) = range(1, 26)
-TEXT_COLS = (A_CAUSE, A_IMPACT, A_ACTION, A_OWNER, A_DATE)
+ A_TREND, A_VARIANCE, A_SLACK, A_CRITICAL, A_ORIGIN, A_CAUSE, A_IMPACT, A_ACTION, A_OWNER, A_DATE, A_CLOSE,
+ A_STATUS, A_KEY) = range(1, 28)
+TEXT_COLS = (A_CAUSE, A_IMPACT, A_ACTION, A_OWNER, A_DATE, A_CLOSE, A_STATUS)
+# Estado de la acción (lista de la columna Estado). Una fila Cerrada no se avisa (ACT-043, ACT-045) ni copia su texto
+# al mes siguiente
+STATUSES = ("Abierta", "En curso", "Cerrada")
+CLOSED = "Cerrada"
 PLAN_COLS = (A_VARIANCE, A_SLACK, A_CRITICAL)      # plazo según MS Project en el mes del análisis (valores)
 HEADERS = {
     A_MONTH: "Mes", A_CODE: "Código EDT", A_NAME: "Actividad", A_BAC: "BAC", A_PV: "PV acum.", A_EV: "EV acum.",
-    A_AC: "AC acum.", A_SV: "SV", A_CV: "CV", A_SPI: "SPI", A_CPI: "CPI", A_LIGHT: "Semáforo",
+    A_AC: "AC acum.", A_SV: "SV", A_CV: "CV", A_SPI: "SPI", A_CPI: "CPI", A_LIGHT: "Rango admisible",
     A_SPI_PREV: "SPI mes ant.", A_CPI_PREV: "CPI mes ant.", A_TREND: "Tendencia",
     A_VARIANCE: "Desvío fin (días lab.)", A_SLACK: "Holgura (días lab.)", A_CRITICAL: "Crítica",
-    A_ORIGIN: "Antecedente", A_CAUSE: "Causa", A_IMPACT: "Impacto en plazo y costo",
-    A_ACTION: "Acción correctiva", A_OWNER: "Responsable", A_DATE: "Fecha compromiso", A_KEY: "clave",
+    A_ORIGIN: "Antecedente", A_CAUSE: "Causa", A_IMPACT: "Impacto en alcance, plazo y coste",
+    A_ACTION: "Acción", A_OWNER: "Responsable", A_DATE: "Fecha objetivo", A_CLOSE: "Criterio de cierre",
+    A_STATUS: "Estado", A_KEY: "clave",
 }
-# Columnas de las hojas de versiones anteriores a la 2.3.0 (sin encabezados reconocibles)
-LEGACY_COLS = {c_: i for i, c_ in enumerate((A_MONTH, A_CODE, A_NAME, A_BAC, A_PV, A_EV, A_AC, A_SV, A_CV, A_SPI,
-                                             A_CPI, A_LIGHT, A_ORIGIN) + TEXT_COLS + (A_KEY,), start=1)}
 WIDTHS = {A_MONTH: 10, A_CODE: 11, A_NAME: 34, A_BAC: 13, A_PV: 13, A_EV: 13, A_AC: 13, A_SV: 12, A_CV: 12,
           A_SPI: 7, A_CPI: 7, A_LIGHT: 10, A_SPI_PREV: 8, A_CPI_PREV: 8, A_TREND: 10, A_VARIANCE: 9, A_SLACK: 9,
-          A_CRITICAL: 9, A_ORIGIN: 24, A_CAUSE: 38, A_IMPACT: 30, A_ACTION: 38, A_OWNER: 16, A_DATE: 12}
+          A_CRITICAL: 9, A_ORIGIN: 24, A_CAUSE: 38, A_IMPACT: 30, A_ACTION: 38, A_OWNER: 16, A_DATE: 12,
+          A_CLOSE: 30, A_STATUS: 11}
 NEW = "Nuevo"
 ALIGN_TOP = Alignment(vertical="top", wrap_text=False)
 ALIGN_TOP_WRAP = Alignment(vertical="top", wrap_text=True)
@@ -68,7 +73,7 @@ class Entry:
     key: str                    # clave de la fila del libro ("" = fila agregada a mano)
     code: str
     name: str
-    texts: list = field(default_factory=lambda: [None] * len(TEXT_COLS))   # causa ... fecha compromiso
+    texts: list = field(default_factory=lambda: [None] * len(TEXT_COLS))   # causa ... estado
     origin: str = ""            # antecedente: "Nuevo", "También en 06/2027", "Texto copiado de 06/2027..."
     raw: list | None = None     # fila agregada a mano: sus valores (sin fórmulas), tal como estaban
     plan: tuple = (None, None, None)    # desvío de fin, holgura y crítica en el mes del análisis
@@ -76,6 +81,11 @@ class Entry:
     @property
     def has_text(self) -> bool:
         return any(v is not None and str(v).strip() != "" for v in self.texts)
+
+    @property
+    def closed(self) -> bool:
+        """Estado = Cerrada (sin distinguir mayúsculas)."""
+        return str(self.texts[TEXT_COLS.index(A_STATUS)] or "").strip().casefold() == CLOSED.casefold()
 
 
 @dataclass
@@ -89,9 +99,9 @@ class Deviation:
     cpi: float | None
 
 
-def thresholds(meta: dict, cfg) -> Thresholds:
-    """Umbrales del semáforo con que se generó el libro (libros antiguos: los de la configuración)."""
-    return Thresholds.from_meta(meta, cfg)
+def thresholds(meta: dict) -> Thresholds:
+    """Rangos admisibles con que se generó el libro (hoja _meta)."""
+    return Thresholds.from_meta(meta)
 
 
 def _month(value) -> date | None:
@@ -101,11 +111,9 @@ def _month(value) -> date | None:
 
 
 def _columns(ws) -> dict[int, int]:
-    """Columna de la hoja de cada dato (A_MONTH...), según los encabezados: las hojas de versiones anteriores
-    tienen menos columnas."""
+    """Columna de la hoja de cada dato (A_MONTH...), según los encabezados (una columna agregada a mano no mueve
+    las demás)."""
     found = {str(c.value).strip(): c.column for c in ws[HEAD_ROW] if c.value is not None}
-    if found.get(HEADERS[A_KEY]) is None:
-        return dict(LEGACY_COLS)
     return {c_: found[text] for c_, text in HEADERS.items() if text in found}
 
 
@@ -133,7 +141,7 @@ def read_entries(ws) -> list[Entry]:
 
 
 def deviations(book, idx: int, th: Thresholds) -> list[Deviation]:
-    """Filas de ingreso con SPI o CPI acumulado fuera del rango verde del semáforo (menor que el amarillo
+    """Filas de ingreso con SPI o CPI acumulado fuera del rango verde de los rangos admisibles (menor que el amarillo
     inferior o mayor que el amarillo superior) en el mes idx del horizonte (mismos cálculos que la hoja
     Indicadores EDT)."""
     out = []
@@ -154,7 +162,8 @@ def refresh(entries: list[Entry], found: list[Deviation], month: date,
 
     - Un paquete que ya tenía fila en el mes conserva su texto. Si tiene varias (una fila copiada a mano para otra
       causa o acción, o filas que --migrar-desde reunió en un paquete), se conservan todas las que tienen texto.
-    - Un paquete nuevo en el mes copia el texto de su último análisis anterior (para revisarlo).
+    - Un paquete nuevo en el mes copia el texto de su último análisis anterior (para revisarlo), salvo que esa fila
+      esté Cerrada: la desviación es nueva y se analiza de nuevo.
     - Las filas de otros meses se conservan solo si tienen texto (o si se agregaron a mano).
     - plan: desvío de fin, holgura y crítica de cada fila (clave -> valores) para las filas del mes; las de meses
       anteriores conservan los suyos.
@@ -181,6 +190,8 @@ def refresh(entries: list[Entry], found: list[Deviation], month: date,
         prev = earlier.get(d.key)
         if prev is None:
             e = Entry(month, d.key, d.code, d.name, origin=NEW)
+        elif prev.closed:
+            e = Entry(month, d.key, d.code, d.name, origin=f"Nuevo (cerrada en {prev.month:%m/%Y})")
         elif prev.has_text:
             e = Entry(month, d.key, d.code, d.name, list(prev.texts),
                       f"Texto copiado de {prev.month:%m/%Y}: se debe revisar")
@@ -201,8 +212,8 @@ def _blank(value) -> bool:
 
 
 def incomplete(entries: list[Entry], month: date) -> list[Issue]:
-    """Filas del último análisis anterior al mes `month` sin causa o sin acción correctiva (ACT-043), o sin ningún
-    texto (ACT-044: 'refresh' las quita de la hoja). Se revisan antes de 'refresh'."""
+    """Filas del último análisis anterior al mes `month` sin causa o sin acción (ACT-043; no las Cerradas), o sin
+    ningún texto (ACT-044: 'refresh' las quita de la hoja). Se revisan antes de 'refresh'."""
     earlier = [e.month for e in entries if e.key and e.month is not None and e.month < month]
     if not earlier:
         return []
@@ -215,9 +226,11 @@ def incomplete(entries: list[Entry], month: date) -> list[Issue]:
         if not e.has_text:
             empty.append(e.code)
             continue
+        if e.closed:
+            continue
         cause, action = (_blank(e.texts[TEXT_COLS.index(c_)]) for c_ in (A_CAUSE, A_ACTION))
         if cause or action:
-            what = "causa ni acción correctiva" if cause and action else "causa" if cause else "acción correctiva"
+            what = "causa ni acción" if cause and action else "causa" if cause else "acción"
             out.append(Issue("ACT-043", e.code, e.name, f"El análisis de {last:%m/%Y} no tiene {what}."))
     if empty:
         shown = ", ".join(empty[:10]) + (f" y {len(empty) - 10} más" if len(empty) > 10 else "")
@@ -230,25 +243,25 @@ def incomplete(entries: list[Entry], month: date) -> list[Issue]:
 
 
 def overdue(entries: list[Entry], found: list[Deviation], month: date, status: date) -> list[Issue]:
-    """Paquetes fuera de umbral en el mes `month` cuya fecha compromiso es anterior a la fecha de corte (ACT-045). Se
-    revisan después de 'refresh': la fila del mes copia el texto del análisis anterior."""
+    """Paquetes fuera de umbral en el mes `month` cuya fecha objetivo es anterior a la fecha de corte (ACT-045; no
+    las filas Cerradas). Se revisan después de 'refresh': la fila del mes copia el texto del análisis anterior."""
     flagged = {d.key for d in found}
     out: list[Issue] = []
     for e in entries:
-        if e.key not in flagged or e.month != month:
+        if e.key not in flagged or e.month != month or e.closed:
             continue
         when = e.texts[TEXT_COLS.index(A_DATE)]
         if isinstance(when, datetime):
             when = when.date()
         if isinstance(when, date) and when < status:
             out.append(Issue("ACT-045", e.code, e.name,
-                             f"Sigue fuera de umbral y la fecha compromiso de su acción ({when:%d/%m/%Y}) es anterior "
+                             f"Sigue fuera de umbral y la fecha objetivo de su acción ({when:%d/%m/%Y}) es anterior "
                              "a la fecha de corte."))
     return out
 
 
 def _light_formula(rng: str, th: Thresholds) -> str:
-    """Semáforo del peor de los dos índices de la fila (SPI y CPI)."""
+    """Rango admisible (color) del peor de los dos índices de la fila (SPI y CPI)."""
     low, high = f"MIN({rng})", f"MAX({rng})"
     return (f'=IF(COUNT({rng})=0,"",IF(OR({low}<{th.red_low!r},{high}>{th.red_high!r}),"Rojo",'
             f'IF(OR({low}<{th.yellow_low!r},{high}>{th.yellow_high!r}),"Amarillo","Verde")))')
@@ -293,7 +306,7 @@ def write_sheet(wb, entries: list[Entry], row_of: dict[str, int], months: int, t
     ws.cell(row=1, column=1, value="Análisis de desviaciones").font = FONT_TITLE
     ws.cell(row=2, column=1, value=(
         f"Paquetes con SPI o CPI acumulado fuera del rango verde ({fmt_decimal(th.yellow_low)} a "
-        f"{fmt_decimal(th.yellow_high)}) en el mes de corte. Semáforo: {th.describe()}. Tendencia: SPI y CPI "
+        f"{fmt_decimal(th.yellow_high)}) en el mes de corte. Rangos admisibles: {th.describe()}. Tendencia: SPI y CPI "
         f"frente a los del mes anterior (Empeora si alguno se aleja de 1 más de {fmt_decimal(TREND_TOL)}). Desvío "
         "de fin, holgura y crítica: cronograma de MS Project en el mes del análisis. Las columnas amarillas se "
         "completan a mano y se conservan al actualizar; las filas de meses anteriores sin texto se "
@@ -353,6 +366,12 @@ def write_sheet(wb, entries: list[Entry], row_of: dict[str, int], months: int, t
                    number_format=money if c_ in MONEY_COLS else CELL_FORMATS.get(c_))
 
     end = max(FIRST, FIRST + len(entries) - 1)
+    # Estado: lista desplegable (también en filas libres, para las que se agregan a mano)
+    status = DataValidation(type="list", formula1='"' + ",".join(STATUSES) + '"', allow_blank=True,
+                            showErrorMessage=True, errorTitle="Estado",
+                            error="Elegir un estado de la lista: " + ", ".join(STATUSES) + ".")
+    status.add(f"{col(A_STATUS)}{FIRST}:{col(A_STATUS)}{end + 200}")
+    ws.add_data_validation(status)
     _traffic_light(ws, f"{col(A_SPI)}{FIRST}:{col(A_CPI)}{end}", th)
     _traffic_light(ws, f"{col(A_SPI_PREV)}{FIRST}:{col(A_CPI_PREV)}{end}", th)
     light = f"{col(A_LIGHT)}{FIRST}:{col(A_LIGHT)}{end}"
@@ -371,7 +390,6 @@ def write_sheet(wb, entries: list[Entry], row_of: dict[str, int], months: int, t
                                   FormulaRule(formula=[f'{k}="Sí"'], font=Font(bold=True, color="C00000")))
     for c_, w in WIDTHS.items():
         ws.column_dimensions[col(c_)].width = w
-        ws.column_dimensions[col(c_)].hidden = False      # hojas de versiones anteriores: la clave estaba en la S
     ws.column_dimensions[col(A_KEY)].hidden = True
     # El filtro incluye la columna oculta de la clave: al ordenar desde el filtro, la clave acompaña a su fila
     ws.auto_filter.ref = f"A{HEAD_ROW}:{col(A_KEY)}{end}"

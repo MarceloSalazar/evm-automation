@@ -16,8 +16,6 @@ except ModuleNotFoundError:  # pragma: no cover
 
 # Cálculo del PV y del EV: MS Project da el % planificado y el % ganado de cada fila (por la duración de la línea
 # base y el peso de sus tareas); el importe es el BAC que se ingresa en el libro multiplicado por el %.
-# Libros de versiones anteriores calculados con los costos de MS Project: _meta modo = "costo" (no se admiten).
-MODE_PERCENT = "porcentaje"
 
 # Lista de métodos de medición ofrecida en el desplegable de la columna C.
 DEFAULT_METHODS = [
@@ -142,7 +140,7 @@ class Config:
     # [metodos] -- None = lista por defecto
     methods_list: list[str] | None = None
 
-    # [semaforo] -- umbrales comunes de SPI y CPI. Rojo: menor que el rojo inferior o mayor que el rojo
+    # [rangos_admisibles] -- umbrales comunes de SPI y CPI. Rojo: menor que el rojo inferior o mayor que el rojo
     # superior; amarillo: menor que el amarillo inferior o mayor que el amarillo superior; verde: entre ambos
     threshold_red: float = 0.90           # rojo inferior
     threshold_yellow: float = 0.95        # amarillo inferior
@@ -223,7 +221,7 @@ class Config:
         if not (0 < self.threshold_red <= self.threshold_yellow < self.threshold_yellow_upper
                 <= self.threshold_red_upper):
             raise ConfigError("CFG-014",
-                              "Los umbrales del semáforo deben cumplir 0 < rojo_inferior <= amarillo_inferior < "
+                              "Los umbrales de [rangos_admisibles] deben cumplir 0 < rojo_inferior <= amarillo_inferior < "
                               "amarillo_superior <= rojo_superior (por defecto 0,90 / 0,95 / 1,05 / 1,10).")
         if self.default_method and self.default_method not in self.methods:
             self.methods_list = [self.default_method] + self.methods
@@ -488,15 +486,12 @@ def load_config(path: str | Path | None) -> Config:
             raise ConfigError("CFG-018", "[metodos] lista debe ser una lista de textos.")
         cfg.methods_list = [x.strip() for x in lista if x.strip()]
 
-    sem = _section(data, "semaforo")
-    for key, alias in (("rojo_inferior", "rojo"), ("amarillo_inferior", "amarillo")):
-        if key in sem and alias in sem:
-            raise ConfigError("CFG-015",
-                              f"[semaforo]: se indicó '{key}' y '{alias}', que son la misma clave ('{alias}' es el "
-                              f"nombre anterior). Se debe dejar solo '{key}'.")
-    cfg.threshold_red = _get(sem, "rojo_inferior" if "rojo_inferior" in sem else "rojo", cfg.threshold_red, float)
-    cfg.threshold_yellow = _get(sem, "amarillo_inferior" if "amarillo_inferior" in sem else "amarillo",
-                                cfg.threshold_yellow, float)
+    if "semaforo" in data:
+        raise ConfigError("CFG-058", "La sección [semaforo] se llama [rangos_admisibles] desde la versión 2.7.1: se "
+                                     "debe cambiar el nombre de la sección (las claves son las mismas).")
+    sem = _section(data, "rangos_admisibles")
+    cfg.threshold_red = _get(sem, "rojo_inferior", cfg.threshold_red, float)
+    cfg.threshold_yellow = _get(sem, "amarillo_inferior", cfg.threshold_yellow, float)
     cfg.threshold_yellow_upper = _get(sem, "amarillo_superior", cfg.threshold_yellow_upper, float)
     cfg.threshold_red_upper = _get(sem, "rojo_superior", cfg.threshold_red_upper, float)
 

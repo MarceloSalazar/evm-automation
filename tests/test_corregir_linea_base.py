@@ -55,7 +55,7 @@ def _project(pv=1):
 
 
 class DictStore:
-    """Valores de las líneas base a partir de las fechas de las tareas (duración de 20 días, trabajo y costo)."""
+    """Valores de las líneas base a partir de las fechas de las tareas (duración de 20 días, trabajo y coste)."""
 
     def __init__(self, project, notes=None):
         self.project = project

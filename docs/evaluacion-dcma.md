@@ -86,7 +86,7 @@ contratos del gobierno de EE. UU. no son obligatorios; se usan como buena práct
 | 7 | Holgura negativa | Tareas sin terminar con holgura total negativa | Ninguna | Sí | [LOG-014](codigos.md#log-014) |
 | 8 | Duración alta | Tareas sin terminar con más de 44 días laborables de duración en la línea base | Hasta 5 % | Sí | [LOG-016](codigos.md#log-016) |
 | 9 | Fechas no válidas | Fechas reales posteriores a la fecha de estado y fechas previstas anteriores a ella | Ninguna | Sí | [AVA-008](codigos.md#ava-008) y [AVA-011](codigos.md#ava-011) |
-| 10 | Recursos | Tareas con duración sin recursos ni costo | Ninguna (si el cronograma tiene recursos) | No aplica | — |
+| 10 | Recursos | Tareas con duración sin recursos ni coste | Ninguna (si el cronograma tiene recursos) | No aplica | — |
 | 11 | Tareas incumplidas | Tareas que debían terminar según la línea base y no terminaron, o terminaron tarde | Hasta 5 % | Sí | [AVA-013](codigos.md#ava-013) |
 | 12 | Prueba del camino crítico | Un atraso en una tarea crítica mueve el fin del proyecto lo mismo | Debe cumplirse | No (prueba manual) | — |
 | 13 | CPLI | Eficiencia necesaria para terminar en la fecha de la línea base | Al menos 0,95 | Sí | [AVA-015](codigos.md#ava-015) |
@@ -196,7 +196,7 @@ vínculos que hay que revisar, sin repetirlos. Los puntos 11 y 14 comparten una 
 
 ### 4.10 Recursos (punto 10)
 
-No se revisa. El programa no lee recursos ni costos de MS Project: el PV y el EV son el BAC que se
+No se revisa. El programa no lee recursos ni costes de MS Project: el PV y el EV son el BAC que se
 ingresa en el libro × el % planificado y el % ganado ([Cálculo del PV y el EV](calculo-pv-ev.md)). Un
 cronograma sin recursos asignados es válido para este programa. Las herramientas de análisis suelen
 tratar este punto como informativo, porque no todos los cronogramas tienen recursos asignados.
@@ -287,7 +287,7 @@ métricas DECM) y las guías de buenas prácticas incluyen:
 
 | Aspecto | Motivo | Alternativa |
 |---|---|---|
-| Recursos (punto 10) | El programa no lee recursos ni costos: el PV es el BAC × el % planificado. | No aplica. |
+| Recursos (punto 10) | El programa no lee recursos ni costes: el PV es el BAC × el % planificado. | No aplica. |
 | Prueba del camino crítico (punto 12) | Exige reprogramar el cronograma; el programa abre el archivo en solo lectura. | Prueba manual de la [sección 4.12](#412-prueba-del-camino-crítico-punto-12). |
 | Continuidad del camino crítico y tareas LOE en el camino crítico | Dependen del cálculo de MS Project. | La prueba del punto 12 los pone en evidencia. |
 | Análisis de riesgo del cronograma (simulación de Monte Carlo) | Necesita rangos de duración y una herramienta de simulación. | Herramientas especializadas. |

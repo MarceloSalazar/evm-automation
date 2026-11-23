@@ -1,7 +1,7 @@
 """Lector de archivos XML de MS Project (Archivo > Guardar como > XML).
 
 No requiere MS Project instalado. Formato: esquema MSPDI
-(http://schemas.microsoft.com/project). Los costos del XML no se leen: el BAC se
+(http://schemas.microsoft.com/project). Los costes del XML no se leen: el BAC se
 ingresa en el libro.
 """
 from __future__ import annotations
@@ -25,7 +25,7 @@ log = logging.getLogger(__name__)
 # Prefijo de FieldID de los campos de tarea (los de recurso usan 0x0C40xxxx y los de asignación
 # 0x0F40xxxx); <ExtendedAttributes> define los campos personalizados de todas esas entidades.
 _TASK_FIELD_PREFIX = 0x0B400000
-# Tipo de un campo empresarial según el CFType de su definición en el XML: costo y número son numéricos (0 = vacío),
+# Tipo de un campo empresarial según el CFType de su definición en el XML: coste y número son numéricos (0 = vacío),
 # texto es de texto; los demás tipos (o sin CFType) se deciden con los valores leídos
 _CF_NUMERIC = {"0": True, "5": True, "7": False}
 
@@ -148,7 +148,7 @@ def read_xml(path: str | Path, cfg: Config, links: bool = True, client: bool = F
 
     # Definiciones de campos personalizados: FieldID -> (FieldName, Alias)
     defs: dict[int, tuple[str, str]] = {}
-    cf_types: dict[int, str] = {}       # CFType de los campos empresariales (0 costo, 5 número, 7 texto...)
+    cf_types: dict[int, str] = {}       # CFType de los campos empresariales (0 coste, 5 número, 7 texto...)
     ext_parent = root.find(r.q("ExtendedAttributes"))
     if ext_parent is not None:
         for ea in ext_parent.findall(r.q("ExtendedAttribute")):

@@ -164,7 +164,7 @@ def test_weight_field_of_unknown_type_is_read_by_its_values(tmp_path, values, ex
     # Número: el XML omite los 0, pero un 0 escrito sigue siendo vacío (con pocos ceros, la regla de los valores
     # lo tomaría como Peso = 0)
     ("5", ["", "", "0", "20"], [None, None, None, 20.0]),
-    ("0", ["", "0", "", "20"], [None, None, None, 20.0]),               # costo: numérico
+    ("0", ["", "0", "", "20"], [None, None, None, 20.0]),               # coste: numérico
     ("7", ["0", "0", "0", "20"], [0.0, 0.0, 0.0, 20.0]),                 # texto: el 0 es Peso = 0
 ])
 def test_xml_enterprise_weight_field_type_comes_from_its_cftype(tmp_path, cf_type, values, expected):

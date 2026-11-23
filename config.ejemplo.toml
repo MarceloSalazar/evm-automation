@@ -224,8 +224,9 @@ depuracion_calculos = false
 #   "Avance lineal",
 # ]
 
-[semaforo]
-# Umbrales comunes de SPI y CPI (se muestran en el Cuadro de Mando):
+[rangos_admisibles]
+# Rangos admisibles de SPI y CPI, comunes a los dos índices (se muestran en el
+# Cuadro de Mando). Hasta la versión 2.7.0 la sección se llamaba [semaforo]:
 #   rojo      si el índice es menor que "rojo_inferior" o mayor que "rojo_superior"
 #   amarillo  si es menor que "amarillo_inferior" o mayor que "amarillo_superior"
 #   verde     entre "amarillo_inferior" y "amarillo_superior" (inclusive)

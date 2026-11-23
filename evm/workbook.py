@@ -12,9 +12,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from openpyxl import Workbook
-from openpyxl.chart import LineChart, Reference
 from openpyxl.cell.cell import ERROR_CODES, ILLEGAL_CHARACTERS_RE
-from openpyxl.chart.axis import DateAxis
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.styles.cell_style import StyleArray
@@ -27,7 +25,7 @@ from openpyxl.worksheet.hyperlink import Hyperlink
 from openpyxl.worksheet.properties import Outline
 
 from evm import progress
-from evm.config import MODE_PERCENT, Config
+from evm.config import Config
 from evm.fields import fmt_number
 from evm.messages import (SEV_ERROR, SEV_INFO, SEV_WARN, TARGET_ROW, TARGETS, EvmError, Issue, SaveError, by_priority,
                           grouped)
@@ -39,10 +37,10 @@ from evm.wbs import KIND_LEAF, KIND_RESIDUAL, KIND_SUMMARY, Report, ReportRow, l
 # ----------------------------------------------------------------------------
 SHEET_SUMMARY = "Resumen"
 SHEET_PV = "PV"
+PMB_TITLE = "Línea base (PMB - Performance Measurement Baseline)"   # título de las hojas PV
 SHEET_EV = "EV"
 SHEET_AC = "AC"
 SHEET_CURVE = "Evolución mensual"
-LEGACY_SHEET_CURVE = "Curva S"      # libros generados con versiones anteriores a la 1.3.0
 SHEET_IND = "Indicadores EDT"
 SHEET_VALID = "Validación"
 SHEET_VALID_DETAIL = "Validación detalle"     # todas las observaciones, una por tarea (desde la 2.5.0)
@@ -50,6 +48,9 @@ SHEET_LISTS = "Listas"
 SHEET_STRUCT = "_estructura"
 SHEET_META = "_meta"
 SHEET_WBS_LIST = "_lista_edt"       # lista EDT con la que se generó el libro (solo con lista_edt)
+# Formato del libro (estructura de hojas, columnas y _meta). Desde la 2.7.1, todo cambio de formato aumenta este número
+# y la versión que lo introduce migra los libros anteriores
+BOOK_FORMAT = 1
 META_SOURCES = "proyectos"          # _meta: nombres de los archivos de un libro con varios archivos ("P1;P2")
 PCT_PREFIX = "% "                   # hojas '% PV' y '% EV' (o '% PV-EmpresaA'...)
 # Columnas E y F: fechas del plan (hojas PV y % PV) o, desde la 2.7.0, las de MS Project, reales o previstas (hojas
@@ -104,7 +105,7 @@ FILL_L1 = PatternFill("solid", fgColor="BDD7EE")
 FILL_L2 = PatternFill("solid", fgColor="DDEBF7")
 FILL_INPUT = PatternFill("solid", fgColor="FFF2CC")
 FILL_TOTAL = PatternFill("solid", fgColor="D9D9D9")
-# Colores de semáforo (fgColor y bgColor: Excel usa bgColor en el formato condicional)
+# Colores de los rangos admisibles (fgColor y bgColor: Excel usa bgColor en el formato condicional)
 FILL_RED = PatternFill("solid", fgColor="F8CBAD", bgColor="F8CBAD")
 FILL_YELLOW = PatternFill("solid", fgColor="FFE699", bgColor="FFE699")
 FILL_GREEN = PatternFill("solid", fgColor="C6E0B4", bgColor="C6E0B4")
@@ -196,20 +197,18 @@ METHOD_HELP = {
     "Avance lineal": "Nivel de esfuerzo (LOE): % ganado = % planificado (EV = PV). No genera variación de plazo; "
                      "conviene limitarlo.",
 }
-# Nombres anteriores de los métodos, que pueden seguir en [metodos] lista: tienen la misma descripción
-METHOD_ALIASES = {"Avance lineal (LOE)": "Avance lineal"}       # hasta la versión 2.5
 
 
 def row_key(row: ReportRow) -> str:
     """Clave estable de una fila: UniqueID de la tarea en MS Project ('123', o '123-D' en una fila de otros
-    costos). Con varios archivos, el UniqueID se repite entre archivos: la clave lleva el nombre del archivo
+    costes). Con varios archivos, el UniqueID se repite entre archivos: la clave lleva el nombre del archivo
     ('P2:123')."""
     key = f"{row.task.uid}-D" if row.kind == KIND_RESIDUAL else str(row.task.uid)
     return f"{row.source}:{key}" if row.source else key
 
 
 def split_key(key: str) -> tuple[str, str, bool]:
-    """Partes de una clave de fila: (archivo, UniqueID, fila de otros costos). 'P2:123-D' -> ('P2', '123', True)."""
+    """Partes de una clave de fila: (archivo, UniqueID, fila de otros costes). 'P2:123-D' -> ('P2', '123', True)."""
     source, _, rest = str(key).rpartition(":")
     residual = rest.endswith("-D")
     return source, rest[:-2] if residual else rest, residual
@@ -421,12 +420,15 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
     # Depuración de costes: la hoja PV de la empresa que se depura lleva las filas «(coste)»
     review_sheet = lay.review and is_pv and not multi_total and (role or "") == report.cost_review
 
-    names = {SHEET_PV: "Valor Planificado (PV)", SHEET_EV: "Valor Ganado (EV)", SHEET_AC: "Costo Real (AC)"}
+    names = {SHEET_PV: "Valor Planificado (PV)", SHEET_EV: "Valor Ganado (EV)", SHEET_AC: "Coste Real (AC)"}
+    if is_pv:                                   # el PV mensual es la línea base de medida del rendimiento
+        names[SHEET_PV] += f" por mes  -  {PMB_TITLE}"
+    month_word = "" if is_pv else " por mes"
     if multi_total:
-        title = (f"{names[kind]} por mes: suma de las hojas {company_sheet(kind, report.company_a)} y "
+        title = (f"{names[kind]}{month_word}: suma de las hojas {company_sheet(kind, report.company_a)} y "
                  f"{company_sheet(kind, report.company_b)}")
     elif bac_input:
-        title = (f"{names[kind]} por mes" + (f"  -  {company}" if company else "") +
+        title = (f"{names[kind]}{month_word}" + (f"  -  {company}" if company else "") +
                  f"  -  BAC × % planificado (hoja '{pct_name}'); el BAC se debe ingresar en las celdas amarillas")
         if review_sheet:
             from evm.cost_review import SHEET_PASTE
@@ -751,7 +753,7 @@ def _write_lists(ws, methods: list[str]) -> None:
     _header(ws, 1, [(1, "Métodos de medición"), (2, "Descripción / regla de cálculo")])
     for i, m in enumerate(methods, start=2):
         put_text(ws, i, 1, m)
-        ws.cell(row=i, column=2, value=METHOD_HELP.get(METHOD_ALIASES.get(m, m), ""))
+        ws.cell(row=i, column=2, value=METHOD_HELP.get(m, ""))
     ws.column_dimensions["A"].width = 24
     ws.column_dimensions["B"].width = 110
     ws.column_dimensions["D"].width = 70
@@ -839,44 +841,6 @@ def _write_curve(ws, report: Report, cfg: Config, lay: _Layout) -> None:
     ws.freeze_panes = ws.cell(row=CURVE_FIRST_ROW, column=C_PV)
 
 
-def add_s_curve_chart(ws, months: int, project_name: str, currency: str = "") -> None:
-    """Agrega (o vuelve a agregar) el gráfico de curva S en la hoja 'Curva S' de los libros
-    generados con versiones anteriores a la 1.3.0 (sin hoja 'Cuadro de Mando').
-
-    El gráfico toma sus datos de la tabla de la hoja, calculada con fórmulas de
-    Excel, y abarca todo el horizonte.
-    """
-    ws._charts = []  # openpyxl no conserva gráficos al reabrir: se recrea siempre
-    last = CURVE_FIRST_ROW + max(1, months) - 1
-    chart = LineChart()
-    chart.title = f"Curva S - {project_name}" if project_name else "Curva S"
-    chart.height = 15
-    chart.width = 30
-    chart.y_axis.title = f"Monto acumulado ({currency})" if currency else "Monto acumulado"
-    chart.y_axis.number_format = "#,##0"
-    chart.y_axis.crossAx = 500
-    chart.x_axis = DateAxis(crossAx=100)
-    chart.x_axis.number_format = "mmm-yy"
-    chart.x_axis.majorTimeUnit = "months"
-    chart.x_axis.title = "Mes"
-    chart.x_axis.delete = False
-    chart.y_axis.delete = False
-    chart.legend.position = "b"
-    chart.display_blanks = "gap"
-    series_spec = [(C_PVC, "1F4E79", None), (C_EVC, "70AD47", None), (C_ACC, "C00000", None),
-                   (C_BAC, "7F7F7F", "dash")]
-    for c_, color, dash in series_spec:
-        ref = Reference(ws, min_col=c_, min_row=CURVE_HEADER_ROW, max_row=last)
-        chart.add_data(ref, titles_from_data=True)
-        s = chart.series[-1]
-        s.smooth = False
-        s.marker.symbol = "none"
-        s.graphicalProperties.line.solidFill = color
-        s.graphicalProperties.line.width = 28575 if c_ != C_BAC else 15875
-        if dash:
-            s.graphicalProperties.line.dashStyle = dash
-    chart.set_categories(Reference(ws, min_col=C_DATE, min_row=CURVE_FIRST_ROW, max_row=last))
-    ws.add_chart(chart, CHART_ANCHOR)
 
 
 def _write_summary(ws, report: Report, cfg: Config, lay: _Layout, generated: datetime,
@@ -936,19 +900,19 @@ def _write_summary(ws, report: Report, cfg: Config, lay: _Layout, generated: dat
          "Suma del BAC ingresado en la columna D de la hoja PV."),
         (17, "PV - Valor planificado acumulado", cum(pv_tot), money, "Trabajo planificado hasta la fecha de corte."),
         (18, "EV - Valor ganado acumulado", cum(ev_tot), money, "Valor del trabajo realizado."),
-        (19, "AC - Costo real acumulado", cum(ac_tot), money, "Costo incurrido."),
+        (19, "AC - Coste real acumulado", cum(ac_tot), money, "Coste incurrido."),
         (20, "SV = EV - PV", '=IFERROR(B18-B17,"")', money, "< 0: atraso."),
-        (21, "CV = EV - AC", '=IFERROR(B18-B19,"")', money, "< 0: sobrecosto."),
+        (21, "CV = EV - AC", '=IFERROR(B18-B19,"")', money, "< 0: sobrecoste."),
         (22, "SPI = EV / PV", '=IFERROR(B18/B17,"")', FMT_RATIO, "< 1: atraso."),
-        (23, "CPI = EV / AC", '=IFERROR(B18/B19,"")', FMT_RATIO, "< 1: sobrecosto."),
-        (24, "EAC = BAC / CPI", '=IFERROR(B16/B23,"")', money, "Estimación a la conclusión si el desempeño de costo continúa."),
+        (23, "CPI = EV / AC", '=IFERROR(B18/B19,"")', FMT_RATIO, "< 1: sobrecoste."),
+        (24, "EAC = BAC / CPI", '=IFERROR(B16/B23,"")', money, "Estimación a la conclusión si el desempeño de coste continúa."),
         (25, "EAC = AC + (BAC - EV)", '=IFERROR(B19+B16-B18,"")', money, "Si el trabajo restante se ejecuta según presupuesto."),
         (26, "EAC = AC + (BAC - EV) / (CPI × SPI)", '=IFERROR(B19+(B16-B18)/(B23*B22),"")', money,
-         "Si costo y plazo siguen influyendo."),
-        (27, "ETC = EAC - AC", '=IFERROR(B24-B19,"")', money, "Costo estimado para terminar (EAC = BAC / CPI)."),
+         "Si coste y plazo siguen influyendo."),
+        (27, "ETC = EAC - AC", '=IFERROR(B24-B19,"")', money, "Coste estimado para terminar (EAC = BAC / CPI)."),
         (28, "VAC = BAC - EAC", '=IFERROR(B16-B24,"")', money, "< 0: se espera terminar por encima del presupuesto."),
         (29, "TCPI = (BAC - EV) / (BAC - AC)", '=IFERROR((B16-B18)/(B16-B19),"")', FMT_RATIO,
-         "Eficiencia de costo necesaria para terminar dentro del BAC (> 1: exigente)."),
+         "Eficiencia de coste necesaria para terminar dentro del BAC (> 1: exigente)."),
         (30, "% Planificado = PV / BAC", '=IFERROR(B17/B16,"")', FMT_PCT, ""),
         (31, "% Completado = EV / BAC", '=IFERROR(B18/B16,"")', FMT_PCT, ""),
         (32, "% Gastado = AC / BAC", '=IFERROR(B19/B16,"")', FMT_PCT, ""),
@@ -1017,9 +981,7 @@ def month_sum(sheet: str, row: int, months: int, month_n: str) -> str:
 
 def write_summary_trend(ws, total_row: int, months: int, th: "Thresholds") -> None:
     """Resumen: tendencia a la fecha de corte (CPI y SPI de los últimos 3 meses e indicadores del mes anterior con
-    datos), con fórmulas. 'actualizar' la agrega también a los libros de versiones anteriores."""
-    if ws.cell(row=ROW_CPI3, column=2).value:
-        return                          # ya la tiene (los umbrales del semáforo son los del libro)
+    datos), con fórmulas. La escribe 'generar'."""
     prev, base = f"B{ROW_PREV_N}", f"B{ROW_BASE_N}"
 
     def at(sheet: str, month_n: str) -> str:
@@ -1074,8 +1036,7 @@ def ev_date_sheets(sheetnames: list[str]) -> list[str]:
 
 def _write_ev_dates(wb, summary, rows: list[int]) -> None:
     """Columnas E y F de las hojas EV, % EV y AC: comienzo y fin de cada fila según MS Project, reales o previstos
-    (schedule.RowSchedule). La hoja EV tiene los valores; las demás, una fórmula que los toma de ella. En los libros
-    anteriores a la 2.7.0 esas columnas repetían las fechas del plan de la hoja PV: 'actualizar' las reemplaza."""
+    (schedule.RowSchedule). La hoja EV tiene los valores; las demás, una fórmula que los toma de ella."""
     for name in ev_date_sheets(wb.sheetnames):
         ws = wb[name]
         _header(ws, HEADER_ROW, list(zip((COL_START, COL_FINISH), EV_DATES)))
@@ -1090,15 +1051,14 @@ def _write_ev_dates(wb, summary, rows: list[int]) -> None:
                                for c_ in (COL_START, COL_FINISH))
             for c_, v in zip((COL_START, COL_FINISH), values):
                 cell = ws.cell(row=r, column=c_)
-                cell.value = v                  # también None: borra la fórmula de los libros anteriores
+                cell.value = v                  # también None: no queda el valor de la lectura anterior
                 styled(cell, number_format=FMT_DATE)
 
 
 def write_schedule(wb, summary, rows: list[int], total_row: int, command: str) -> None:
     """Plazo según el cronograma de MS Project (schedule.ScheduleSummary): columnas Q a U de Indicadores EDT y
     sección del Resumen, y fechas de las columnas E y F de las hojas EV, % EV y AC. 'generar' y 'actualizar'
-    los escriben con los datos de su lectura de MS Project; los libros de versiones anteriores los reciben con
-    'actualizar'."""
+    los escriben con los datos de su lectura de MS Project."""
     from evm.schedule import RowSchedule
     _write_ev_dates(wb, summary, rows)
     if SHEET_IND in wb.sheetnames:
@@ -1172,12 +1132,8 @@ def _replace_schedule_rules(ws, total_row: int) -> None:
 
 def read_schedule(wb, rows: dict[int, str]) -> dict[str, tuple]:
     """Plazo escrito en Indicadores EDT por la última lectura de MS Project: {clave de la fila: (desvío, holgura,
-    crítica)} ({} en libros de versiones anteriores que aún no lo tienen). rows: fila -> clave."""
-    if SHEET_IND not in wb.sheetnames:
-        return {}
+    crítica)}. rows: fila -> clave."""
     ws = wb[SHEET_IND]
-    if ws.cell(row=HEADER_ROW, column=I_BL_FINISH).value != "Fin línea base":
-        return {}
     out = {}
     for r, key in rows.items():
         out[key] = tuple(ws.cell(row=r, column=c_).value for c_ in (I_VARIANCE, I_SLACK, I_CRITICAL))
@@ -1186,7 +1142,7 @@ def read_schedule(wb, rows: dict[int, str]) -> dict[str, tuple]:
 
 @dataclass(frozen=True)
 class Thresholds:
-    """Umbrales comunes del semáforo de SPI y CPI. Rojo: menor que red_low o mayor que red_high; amarillo:
+    """Rangos admisibles comunes de SPI y CPI ([rangos_admisibles]). Rojo: menor que red_low o mayor que red_high; amarillo:
     menor que yellow_low o mayor que yellow_high; verde: entre yellow_low y yellow_high (inclusive)."""
 
     red_low: float
@@ -1194,20 +1150,21 @@ class Thresholds:
     yellow_high: float
     red_high: float
 
-    META_KEYS = ("semaforo_rojo_inferior", "semaforo_amarillo_inferior", "semaforo_amarillo_superior",
-                 "semaforo_rojo_superior")
+    META_KEYS = ("rango_rojo_inferior", "rango_amarillo_inferior", "rango_amarillo_superior",
+                 "rango_rojo_superior")
 
     @classmethod
     def from_config(cls, cfg: Config) -> "Thresholds":
         return cls(cfg.threshold_red, cfg.threshold_yellow, cfg.threshold_yellow_upper, cfg.threshold_red_upper)
 
     @classmethod
-    def from_meta(cls, meta: dict, cfg: Config) -> "Thresholds":
-        """Los umbrales con que se generó el libro (libros de versiones anteriores: los de la configuración)."""
+    def from_meta(cls, meta: dict) -> "Thresholds":
+        """Los rangos admisibles con que se generó el libro (hoja _meta)."""
         try:
             return cls(*(float(meta[k]) for k in cls.META_KEYS))
         except (KeyError, TypeError, ValueError):
-            return cls.from_config(cfg)
+            raise WorkbookFormatError("LIB-006", "Faltan los rangos admisibles en la hoja _meta "
+                                                 f"({', '.join(cls.META_KEYS)}).") from None
 
     def meta(self) -> dict:
         return dict(zip(self.META_KEYS, (self.red_low, self.yellow_low, self.yellow_high, self.red_high)))
@@ -1223,7 +1180,7 @@ class Thresholds:
         return "Verde"
 
     def bands(self) -> list[tuple[str, str]]:
-        """Escala del semáforo, de menor a mayor: (texto, color)."""
+        """Escala de los rangos admisibles, de menor a mayor: (texto, color)."""
         f = fmt_decimal
         return [(f"< {f(self.red_low)}", "Rojo"), (f"{f(self.red_low)} a {f(self.yellow_low)}", "Amarillo"),
                 (f"{f(self.yellow_low)} a {f(self.yellow_high)}", "Verde"),
@@ -1243,7 +1200,7 @@ def fmt_decimal(v: float) -> str:
 
 
 def _traffic_light(ws, rng: str, th: Thresholds) -> None:
-    """Semáforo (formato condicional) de un rango de índices SPI o CPI."""
+    """Colores de los rangos admisibles (formato condicional) de un rango de índices SPI o CPI."""
     first = rng.split(":")[0].replace("$", "")
     for low, high, fill in ((th.red_low, th.red_high, FILL_RED), (th.yellow_low, th.yellow_high, FILL_YELLOW)):
         ws.conditional_formatting.add(rng, FormulaRule(
@@ -1398,20 +1355,6 @@ def _write_structure(ws, report: Report, lay: _Layout) -> None:
             ws.cell(row=lay.struct_row(r + 1), column=5, value=KIND_COST)
 
 
-# _estructura, columna 9 ('pv_plan_costes'), solo en libros procesados con procesar-costes antes de la versión 2.6.0:
-# hojas '% PV' de cada fila con el reparto del plan de costes, por empresa ('PV', 'PV-A', 'PV-B'). Los libros nuevos
-# no la tienen: se lee para avisar (DEP-021) y para que --migrar-desde informe las filas que recuperan el % de MS
-# Project (DEP-020).
-def plan_roles(text) -> tuple[str, ...]:
-    """Empresas ('A', 'B' o '' en un libro de una sola empresa) de un valor de la columna 9 de _estructura."""
-    out = []
-    for token in str(text or "").split(","):
-        head, sep, role = token.strip().partition("-")
-        if head == SHEET_PV and role in (("A", "B") if sep else ("",)):
-            out.append(role)
-    return tuple(out)
-
-
 def pct_pv_title(company: str) -> str:
     """Título de la hoja '% PV'."""
     return ("% planificado por mes" + (f"  -  {company}" if company else "") +
@@ -1552,6 +1495,7 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
     p = report.project
     several = report.multi_file
     meta = {
+        "formato_libro": BOOK_FORMAT,
         "version": version_label(),
         "proyecto": report.title if several else p.name,
         "titulo": report.title,
@@ -1570,13 +1514,11 @@ def write_workbook(report: Report, cfg: Config, path: str | Path, prior=None,
         "decimales": cfg.decimals,
         **Thresholds.from_config(cfg).meta(),
         "generado": generated.replace(microsecond=0),
-        "modo": MODE_PERCENT,
         "campo_visible": cfg.visible_field,
         # Criterio del % planificado (wbs.pv_selection); los libros anteriores a la 2.7.0 no lo tienen: True
         "pv_fechas_actuales": cfg.pv_current_dates,
         "multiempresa": bool(report.multi),
         "depuracion_costes": review is not None,
-        "disposicion_cuadro_mando": dashboard.LAYOUT,
     }
     if cfg.wbs_list is not None:
         meta["lista_edt"] = cfg.wbs_list_file
@@ -1679,8 +1621,7 @@ class StructRow:
     kind: str
     parent_row: int | None
     name: str
-    origin_method: str | None = None    # método que traía la fila al generarse (None en libros antiguos)
-    plan_pv: tuple[str, ...] = ()       # empresas con el reparto del plan de costes (libros anteriores a 2.6.0)
+    origin_method: str = ""             # método que traía la fila al generarse
 
     @property
     def is_input(self) -> bool:
@@ -1704,7 +1645,16 @@ def read_meta(wb) -> dict:
     for k, v in wb[SHEET_META].iter_rows(min_row=2, values_only=True):
         if k:
             meta[str(k)] = v
-    for k in ("horizonte_inicio", "meses", "primera_fila", "fila_total"):
+    fmt = meta.get("formato_libro")
+    if fmt in (None, ""):
+        raise WorkbookFormatError("LIB-018", f"El libro se generó con la versión {meta.get('version') or '?'}, "
+                                             "anterior a la 2.7.1 (la hoja _meta no tiene formato_libro): esta versión "
+                                             "no lo admite. Se debe generar un libro nuevo con 'generar'.")
+    if str(fmt).strip() != str(BOOK_FORMAT):
+        raise WorkbookFormatError("LIB-018", f"El libro tiene el formato {fmt} (formato_libro de la hoja _meta), "
+                                             f"generado con la versión {meta.get('version') or '?'}; esta versión del "
+                                             f"programa lee el formato {BOOK_FORMAT}.")
+    for k in ("horizonte_inicio", "meses", "primera_fila", "fila_total", "pv_fechas_actuales"):
         if k not in meta:
             raise WorkbookFormatError("LIB-006", f"Falta el dato '{k}' en la hoja _meta.")
 
@@ -1732,8 +1682,7 @@ def read_meta(wb) -> dict:
     if not 1 <= meta["meses"] <= 16384 - FIRST_MONTH_COL:
         raise invalid("meses")
     meta["multiempresa"] = _as_bool(meta.get("multiempresa"))
-    if meta.get("pv_fechas_actuales") not in (None, ""):     # los libros anteriores a la 2.7.0 no lo tienen
-        meta["pv_fechas_actuales"] = _as_bool(meta["pv_fechas_actuales"])
+    meta["pv_fechas_actuales"] = _as_bool(meta["pv_fechas_actuales"])
     return meta
 
 
@@ -1754,11 +1703,10 @@ def read_structure(wb) -> list[StructRow]:
     for vals in wb[SHEET_STRUCT].iter_rows(min_row=2, values_only=True):
         if not vals or vals[0] is None:
             continue
-        fila, key, code, level, kind, parent, name, origin, plan = (list(vals) + [None] * 9)[:9]
+        fila, key, code, level, kind, parent, name, origin = (list(vals) + [None] * 8)[:8]
         try:
             out.append(StructRow(int(fila), str(key), str(code or ""), int(level or 0), str(kind),
-                                 int(parent) if parent else None, str(name or ""),
-                                 None if len(vals) < 8 else str(origin or ""), plan_roles(plan)))
+                                 int(parent) if parent else None, str(name or ""), str(origin or "")))
         except (TypeError, ValueError):
             raise WorkbookFormatError("LIB-008",
                                       f"La hoja oculta _estructura no es válida (fila {fila!r}). Esa hoja no se "

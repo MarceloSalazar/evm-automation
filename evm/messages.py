@@ -305,13 +305,13 @@ _CODES = [
     _code("CFG-013", F, "Decimales fuera de rango",
           "decimales no está entre 0 y 4.",
           "Indicar una cantidad de decimales entre 0 y 4."),
-    _code("CFG-014", F, "Umbrales del semáforo incoherentes",
-          "Los umbrales de [semaforo] no cumplen 0 < rojo_inferior <= amarillo_inferior < amarillo_superior <= "
+    _code("CFG-014", F, "Umbrales de los rangos admisibles incoherentes",
+          "Los umbrales de [rangos_admisibles] no cumplen 0 < rojo_inferior <= amarillo_inferior < amarillo_superior <= "
           "rojo_superior.",
           "Corregir los umbrales (por defecto 0,90 / 0,95 / 1,05 / 1,10)."),
     _code("CFG-015", F, "Umbral del semáforo indicado dos veces",
           "En [semaforo] se indicó una clave y también su nombre anterior, que es la misma clave.",
-          "Dejar solo el nombre actual de la clave."),
+          "Ninguna.", retired="2.7.1", by="CFG-058"),
     _code("CFG-016", F, "Umbral de [validacion] fuera de rango",
           "meses_0_100 o meses_formula_fija no está entre 0 y 120 meses.",
           "Indicar un valor entre 0 y 120 (0 = no se controla)."),
@@ -467,6 +467,11 @@ _CODES = [
           "su planificación y su línea base; si no, las generales (o las de --planificacion y --linea-base).",
           "Ninguna. Para leer todos los archivos se omite --origen; para reemplazar la ruta de uno solo, se indica "
           "--origen NOMBRE=RUTA.", W_SOURCE),
+    _code("CFG-058", F, "Sección [semaforo] con el nombre anterior",
+          "Desde la versión 2.7.1, los umbrales del SPI y el CPI están en la sección [rangos_admisibles], con las "
+          "mismas claves (rojo_inferior, amarillo_inferior, amarillo_superior y rojo_superior). Los nombres "
+          "anteriores rojo y amarillo ya no se admiten.",
+          "Cambiar [semaforo] por [rangos_admisibles] en la configuración."),
 
     # --- LEC: lectura de MS Project -----------------------------------------------------------------------------
     _code("LEC-001", F, "No existe el archivo de origen",
@@ -1150,8 +1155,8 @@ _CODES = [
           "La hoja oculta _estructura fue modificada.",
           "Recuperar el libro desde un respaldo (la hoja _estructura no se debe modificar)."),
     _code("LIB-009", F, "Libro de una versión anterior",
-          "El libro se generó con la versión 1.x, que calculaba el PV y el EV con los costos de MS Project.",
-          "Usar la versión 1.x para ese libro, o generar un libro nuevo."),
+          "El libro se generó con la versión 1.x, que calculaba el PV y el EV con los costes de MS Project.",
+          "Ninguna.", retired="2.7.1", by="LIB-018"),
     _code("LIB-010", F, "Falta una hoja del libro",
           "Una hoja que el programa lee o escribe se eliminó o se cambió de nombre.",
           "Restaurar su nombre original o recuperar el libro desde un respaldo."),
@@ -1187,6 +1192,11 @@ _CODES = [
           "fechas de estado distintas o la fecha de estado está fuera del horizonte del libro.",
           "Definir la fecha de estado en MS Project (Proyecto > Fecha de estado), la misma en todos los archivos, o "
           "revisar mes_inicio y meses. Si no, el % ganado se carga con actualizar.", "generar (hoja Validación)"),
+    _code("LIB-018", F, "Formato de libro no admitido",
+          "El libro se generó con una versión anterior a la 2.7.1 (la hoja oculta _meta no tiene formato_libro), que "
+          "no se admite, o con una versión posterior que usa otro formato de libro.",
+          "Libro anterior a la 2.7.1: generar un libro nuevo con generar (sin --migrar-desde). Libro de una versión "
+          "posterior: usar esa versión del programa (dato version de la hoja _meta)."),
 
     # --- MIG: --migrar-desde ------------------------------------------------------------------------------------
     _code("MIG-001", F, "Migración entre una y dos empresas",
@@ -1284,7 +1294,7 @@ _CODES = [
     _code("DEP-007", I, "Previsión pasada al formato con EDT interna",
           "La hoja PV-depuración del libro anterior no tenía las columnas de EDT interna: los códigos numéricos "
           "quedaron como EDT cliente y los demás, como EDT interna, y se agregó la columna EAC.",
-          "Revisar la hoja PV-depuración."),
+          "Ninguna.", retired="2.7.1", by="LIB-018"),
     _code("DEP-008", (W, I), "Meses de la previsión desplazados",
           "Cambió el mes 1 del horizonte: los meses de la hoja PV-depuración se desplazaron para conservar su fecha. "
           "Es una advertencia si quedaron importes fuera de las columnas.",
@@ -1292,7 +1302,7 @@ _CODES = [
     _code("DEP-009", I, "Previsión pasada al formato con la columna EAC",
           "La hoja PV-depuración del libro anterior (versión 2.4) no tenía la columna EAC: se agregó con la suma de "
           "los meses de cada línea, y los meses empiezan en la columna G.",
-          "Ninguna."),
+          "Ninguna.", retired="2.7.1", by="LIB-018"),
     _code("DEP-010", (I, W), "Reparto del plan de costes conservado",
           "Hasta la versión 2.5, --migrar-desde conservaba en el libro nuevo el % planificado de las filas procesadas "
           "con procesar-costes. Desde la versión 2.6.0, procesar-costes no modifica el % planificado y --migrar-desde "
@@ -1339,13 +1349,12 @@ _CODES = [
           "Filas que en el libro anterior tenían en la hoja % PV el reparto del plan de costes, escrito por "
           "procesar-costes en una versión anterior a la 2.6.0: en el libro nuevo, su % planificado vuelve a ser el de "
           "MS Project. El plan de costes se compara con el PV en las filas «(coste)».",
-          "Ninguna.", W_MIG),
+          "Ninguna.", W_MIG, retired="2.7.1", by="LIB-018"),
     _code("DEP-021", W, "Filas con el reparto del plan de costes",
           "El libro tiene filas cuyo % planificado es el reparto del plan de costes, escrito por procesar-costes en "
           "una versión anterior a la 2.6.0: no es el de MS Project. actualizar no compara esas filas con la línea "
           "base (ACT-047).",
-          "Generar un libro nuevo con --migrar-desde: vuelve a calcular su % planificado con MS Project y conserva el "
-          "BAC, el % ganado y el AC.", f"{W_ACT} y {W_PROC}"),
+          "Ninguna.", f"{W_ACT} y {W_PROC}", retired="2.7.1", by="LIB-018"),
     _code("DEP-022", W, "Componentes de coste fuera del precio",
           "Con [depuracion_precio], líneas de componente de coste (solo la columna D) con importes cuyo texto no "
           "está en [depuracion_precio.componentes]: no entran en el precio de su EDT interna. Los textos se comparan "
@@ -1360,8 +1369,7 @@ _CODES = [
     _code("DEP-024", F, "Hoja PV-depuración de una versión anterior",
           "La hoja PV-depuración tiene el formato de la versión 2.5 o anterior, con el plan desde la celda A8. Desde "
           "la versión 2.6.0, el plan empieza en la celda A12, con la tabla Recargos arriba.",
-          "Generar un libro nuevo con --migrar-desde: pasa el plan a la celda A12 y conserva el BAC, el % ganado y el "
-          "AC.", W_PROC),
+          "Ninguna.", W_PROC, retired="2.7.1", by="LIB-018"),
     _code("DEP-025", W, "Recargos no trasladados",
           "La tabla Recargos del libro anterior tiene coeficientes cuyo texto no está en [depuracion_precio.recargos] "
           "de la configuración del libro nuevo: sus valores no se trasladaron.",
@@ -1458,7 +1466,7 @@ _CODES = [
           "Celdas de ingreso con un número guardado como texto o con una fórmula se reemplazaron por su valor.",
           "Ninguna; se recomienda ingresar números.", "actualizar, analizar y procesar-costes"),
     _code("ACT-026", I, "El AC se carga a mano",
-          "Recordatorio: los indicadores de costo usan el AC cargado en las hojas AC.",
+          "Recordatorio: los indicadores de coste usan el AC cargado en las hojas AC.",
           "Cargar el AC del mes."),
     _code("ACT-027", I, "% ganado del mes negativo",
           "El % ganado acumulado bajó respecto del mes anterior: el mes tiene un valor negativo (corrección).",
@@ -1503,34 +1511,34 @@ _CODES = [
           "Primera ejecución con el registro de cambios: se guardaron el BAC y los valores de los meses informados "
           "de cada fila. Los cambios se registran a partir de la ejecución siguiente.",
           "Ninguna.", W_AN),
-    _code("ACT-039", W, "Avance sin costo",
-          "La fila tiene EV acumulado y no tiene AC acumulado: el costo real no se cargó o se imputó a otro "
+    _code("ACT-039", W, "Avance sin coste",
+          "La fila tiene EV acumulado y no tiene AC acumulado: el coste real no se cargó o se imputó a otro "
           "paquete, y el CPI no se puede calcular.",
           "Cargar el AC del paquete en la hoja AC o revisar el avance informado.", W_AN),
-    _code("ACT-040", W, "Costo sin avance",
-          "La fila tiene AC acumulado y no tiene EV acumulado: costo sin trabajo medido. No se revisa en los "
+    _code("ACT-040", W, "Coste sin avance",
+          "La fila tiene AC acumulado y no tiene EV acumulado: coste sin trabajo medido. No se revisa en los "
           "paquetes con método 0/100 o «Hitos ponderados», en los que el EV llega al terminar o al cumplirse cada "
           "hito.",
           "Revisar el avance en MS Project, el método de medición o la imputación del AC.", W_AN),
-    _code("ACT-041", W, "Costo después de terminar el paquete",
+    _code("ACT-041", W, "Coste después de terminar el paquete",
           "La fila tiene AC en meses posteriores al mes en que su % ganado llegó al 100 %.",
-          "Revisar si es un costo tardío del paquete (y explicarlo) o un costo de otro paquete.", W_AN),
+          "Revisar si es un coste tardío del paquete (y explicarlo) o un coste de otro paquete.", W_AN),
     _code("ACT-042", I, "AC del mes de corte sin cargar",
           "Los controles del EV y el AC se revisan hasta el último mes con AC cargado (o no se revisan, si ningún "
           "mes tiene AC).",
           "Cargar el AC del mes en la hoja AC y ejecutar analizar.", W_AN),
     _code("ACT-043", W, "Análisis del mes anterior incompleto",
           "La fila del último análisis anterior al mes de corte tiene texto, pero no tiene Causa o no tiene Acción "
-          "correctiva.",
-          "Completar la causa y la acción correctiva en la hoja Análisis de desviaciones.", W_AN),
+          "(las filas con Estado Cerrada no se avisan).",
+          "Completar la causa y la acción en la hoja Análisis de desviaciones.", W_AN),
     _code("ACT-044", W, "Desviaciones del mes anterior sin analizar",
           "Paquetes que estaban fuera de umbral en el último análisis anterior al mes de corte y cuya fila no tiene "
           "ningún texto: se quitan de la hoja. Los que siguen fuera de umbral vuelven a listarse en el mes de corte.",
           "Analizar las desviaciones de cada mes antes del cierre siguiente.", W_AN),
     _code("ACT-045", W, "Acción vencida con el paquete fuera de umbral",
-          "El paquete sigue fuera de umbral en el mes de corte y la Fecha compromiso de su acción correctiva es "
-          "anterior a la fecha de corte: la acción no se cumplió o no fue eficaz.",
-          "Revisar la acción correctiva y su fecha compromiso en la hoja Análisis de desviaciones.", W_AN),
+          "El paquete sigue fuera de umbral en el mes de corte, la Fecha objetivo de su acción es anterior a la "
+          "fecha de corte y su Estado no es Cerrada: la acción no se cumplió o no fue eficaz.",
+          "Revisar la acción, su fecha objetivo y su estado en la hoja Análisis de desviaciones.", W_AN),
     _code("ACT-046", W, "Meses sin informe",
           "Entre el primer mes con % ganado y el mes de corte hay meses sin % ganado cargado: su avance quedó en el "
           "mes cargado siguiente. La norma EIA-748-E pide la información al menos cada mes.",
@@ -1544,7 +1552,7 @@ _CODES = [
           "ganado y el AC); si no, restaurar la línea base en MS Project.", W_ACT),
     _code("ACT-048", W, "EAC poco realista",
           "El TCPI(BAC) supera al CPI en más de 0,10, o el AC ya alcanzó el BAC con trabajo pendiente: terminar "
-          "dentro del BAC exige una eficiencia de costo muy superior a la lograda. Se calcula con el proyecto (cada "
+          "dentro del BAC exige una eficiencia de coste muy superior a la lograda. Se calcula con el proyecto (cada "
           "empresa en multi-empresa) en el último mes con AC cargado, desde el 20 % completado: antes, el CPI "
           "acumulado todavía no es representativo.",
           "Revisar el EAC y, si el desvío se confirma, evaluar una línea base por encima del objetivo (OTB) con el "

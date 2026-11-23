@@ -466,18 +466,6 @@ def test_tampered_book_fails_with_format_error(example_book, example_files, caps
     assert "Leyendo" not in out                             # se informa antes de leer MS Project
 
 
-def test_legacy_book_without_dashboard_still_updates(small_book):
-    """Libros anteriores a la versión 1.3.0: sin Cuadro de Mando ni _graficos, con hoja 'Curva S'."""
-    def legacy(wb):
-        del wb["Cuadro de Mando"]
-        del wb["_graficos"]
-        wb["Evolución mensual"].title = "Curva S"
-    tamper(small_book, legacy)
-    res = run_update(P(progress_tasks()), Config(), small_book, date(2026, 1, 31), backup=False)
-    assert {r.code for r in res.rows} == {"1.1.0", "1.2.0"}
-    assert chart_count(small_book) == 1
-
-
 def test_missing_company_sheet_in_multi_book(tmp_path):
     cfg = Config(multi_enabled=True, months=24)
     book = tmp_path / "multi.xlsx"
@@ -702,7 +690,7 @@ def test_cli_rejects_zero_overrides(tmp_path, capsys, example_files, option, mes
     pytest.param(b'[exportacion]\nferiados = "2026-01-01"\n', "lista de fechas", id="feriados_texto"),
     pytest.param(b'[horizonte]\nmeses = 0\n', "meses debe estar entre", id="meses_0"),
     pytest.param(b'[exportacion]\ndecimales = 5\n', "decimales", id="decimales_5"),
-    pytest.param(b'[semaforo]\nrojo = 0.97\namarillo = 0.95\n', "umbrales", id="umbrales_invertidos"),
+    pytest.param(b'[rangos_admisibles]\nrojo_inferior = 0.97\namarillo_inferior = 0.95\n', "umbrales", id="umbrales_invertidos"),
     pytest.param(b'[campos\n', "Error de sintaxis", id="sintaxis"),
     pytest.param('[campos]\nmetodo = "Método EVM"\n'.encode("cp1252"), "UTF-8", id="ansi_cp1252"),
     # Sección que no es tabla y enteros con decimales: ver test_robustez_calculo.py

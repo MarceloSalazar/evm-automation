@@ -1,4 +1,4 @@
-"""Semáforo de SPI y CPI: umbrales inferiores y superiores (configuración, hojas, gráficos y análisis)."""
+"""Rangos admisibles de SPI y CPI: umbrales inferiores y superiores (configuración, hojas, gráficos y análisis)."""
 import re
 import shutil
 import zipfile
@@ -12,7 +12,7 @@ from evm.cli import main
 from evm.config import Config, ConfigError, load_config
 from evm.workbook import Thresholds
 
-CUSTOM = "[semaforo]\nrojo_inferior = 0.85\namarillo_inferior = 0.9\namarillo_superior = 1.1\nrojo_superior = 1.2\n"
+CUSTOM = "[rangos_admisibles]\nrojo_inferior = 0.85\namarillo_inferior = 0.9\namarillo_superior = 1.1\nrojo_superior = 1.2\n"
 
 
 def config(tmp_path, text: str, name: str = "c.toml"):
@@ -47,17 +47,17 @@ def test_config_defaults_and_keys(tmp_path):
     assert (th.red_low, th.yellow_low, th.yellow_high, th.red_high) == (0.9, 0.95, 1.05, 1.1)
     cfg = load_config(config(tmp_path, CUSTOM))
     assert Thresholds.from_config(cfg) == Thresholds(0.85, 0.9, 1.1, 1.2)
-    # Nombres anteriores de los umbrales inferiores
-    cfg = load_config(config(tmp_path, "[semaforo]\nrojo = 0.8\namarillo = 0.9\n"))
-    assert Thresholds.from_config(cfg) == Thresholds(0.8, 0.9, 1.05, 1.1)
+    # Sección con el nombre anterior: error claro (CFG-058)
+    with pytest.raises(ConfigError) as exc:
+        load_config(config(tmp_path, "[semaforo]\nrojo_inferior = 0.8\n"))
+    assert exc.value.id == "CFG-058" and "[rangos_admisibles]" in str(exc.value)
 
 
 @pytest.mark.parametrize("text, message", [
-    ("[semaforo]\nrojo = 0.9\nrojo_inferior = 0.9\n", "misma clave"),
-    ("[semaforo]\namarillo_superior = 0.95\n", "amarillo_inferior < amarillo_superior"),
-    ("[semaforo]\nrojo_superior = 1.0\n", "amarillo_superior <= rojo_superior"),
-    ("[semaforo]\nrojo_inferior = 0\n", "0 < rojo_inferior"),
-    ("[semaforo]\namarillo_superior = true\n", "numérico"),
+    ("[rangos_admisibles]\namarillo_superior = 0.95\n", "amarillo_inferior < amarillo_superior"),
+    ("[rangos_admisibles]\nrojo_superior = 1.0\n", "amarillo_superior <= rojo_superior"),
+    ("[rangos_admisibles]\nrojo_inferior = 0\n", "0 < rojo_inferior"),
+    ("[rangos_admisibles]\namarillo_superior = true\n", "numérico"),
 ])
 def test_config_errors(tmp_path, text, message):
     with pytest.raises(ConfigError, match=re.escape(message)):
@@ -76,7 +76,7 @@ def test_light_boundaries(value, light):
 def test_dashboard_shows_the_thresholds(book):
     wb = load_workbook(book)
     ws = wb[dashboard.SHEET_DASHBOARD]
-    assert ws["B17"].value == "Semáforo CPI y SPI"
+    assert ws["B17"].value == "Rangos admisibles CPI y SPI"
     assert [ws.cell(17, c).value for c in (5, 8, 11, 15, 18)] == [
         "< 0,85", "0,85 a 0,90", "0,90 a 1,10", "1,10 a 1,20", "> 1,20"]
     assert [ws.cell(17, c).fill.fgColor.rgb[-6:] for c in (5, 8, 11, 15, 18)] == [

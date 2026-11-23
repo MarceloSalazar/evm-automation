@@ -310,7 +310,7 @@ def write_sheet(wb, rows: list[list] | None = None, decimals: int = 0):
 
 
 def append(wb, changes: list[Change], detected: datetime, cutoff: date, decimals: int) -> None:
-    """Agrega los cambios al final de la hoja Registro de cambios (la crea en los libros anteriores)."""
+    """Agrega los cambios al final de la hoja Registro de cambios (la crea si falta)."""
     ws = write_sheet(wb, decimals=decimals)
     r = _last_row(ws)
     for c in changes:

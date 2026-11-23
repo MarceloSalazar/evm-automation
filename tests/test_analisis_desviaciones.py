@@ -78,8 +78,29 @@ def test_generate_creates_empty_sheet(book):
     assert ws.auto_filter.ref.startswith(f"A4:{key}")     # al ordenar, la clave acompaña a su fila
     assert entries(book) == []
     meta = read_book(book).meta
-    assert [meta[k] for k in ("semaforo_rojo_inferior", "semaforo_amarillo_inferior", "semaforo_amarillo_superior",
-                              "semaforo_rojo_superior")] == [0.9, 0.95, 1.05, 1.1]
+    assert [meta[k] for k in ("rango_rojo_inferior", "rango_amarillo_inferior", "rango_amarillo_superior",
+                              "rango_rojo_superior")] == [0.9, 0.95, 1.05, 1.1]
+    # Columnas que se completan a mano y lista de Estado
+    assert [ws.cell(HEAD_ROW, c).value for c in analysis.TEXT_COLS] == [
+        "Causa", "Impacto en alcance, plazo y coste", "Acción", "Responsable", "Fecha objetivo", "Criterio de cierre",
+        "Estado"]
+    status = get_column_letter(analysis.A_STATUS)
+    lists = [dv for dv in ws.data_validations.dataValidation if str(dv.sqref).startswith(f"{status}{FIRST}")]
+    assert len(lists) == 1 and lists[0].formula1 == '"Abierta,En curso,Cerrada"'
+    assert meta["formato_libro"] == 1
+
+
+def test_book_of_another_format_is_rejected(book):
+    """formato_libro distinto del que lee esta versión: LIB-018."""
+    from evm.messages import EvmError
+    wb = load_workbook(book)
+    ws = wb["_meta"]
+    row = next(r for r in range(2, ws.max_row + 1) if ws.cell(r, 1).value == "formato_libro")
+    ws.cell(row, 2).value = 2
+    wb.save(book)
+    with pytest.raises(EvmError) as exc:
+        read_book(book)
+    assert exc.value.id == "LIB-018"
 
 
 def test_update_lists_packages_out_of_threshold(book, example_files, capsys):
@@ -186,21 +207,6 @@ def test_simulation_does_not_write(book, example_files, capsys):
 def test_analizar_requires_status_date(book, capsys):
     assert main(["analizar", "--libro", str(book)]) == 2
     assert "antes de 'analizar'" in capsys.readouterr().err
-
-
-def test_old_book_gets_the_sheet(book, example_files):
-    """Libro de una versión anterior (sin la hoja ni los umbrales en _meta): 'actualizar' crea la hoja."""
-    wb = load_workbook(book)
-    del wb[SHEET_ANALYSIS]
-    ws = wb["_meta"]
-    for r in range(ws.max_row, 1, -1):
-        if str(ws.cell(r, 1).value).startswith("semaforo_"):
-            ws.delete_rows(r)
-    wb.save(book)
-    update(book, example_files, "jun")
-    wb = load_workbook(book)
-    assert wb.sheetnames.index(SHEET_ANALYSIS) == wb.sheetnames.index("Indicadores EDT") + 1
-    assert {e.code for e in entries(book)} == expected(book, JUN)
 
 
 def test_migrate_keeps_the_analysis(book_jun, example_files, tmp_path):

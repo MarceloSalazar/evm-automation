@@ -6,8 +6,8 @@ El cronograma de MS Project **no necesita importes**. Para cada fila del libro (
 programa calcula desde MS Project el **% planificado** de cada mes y el **% ganado** a la fecha de corte.
 El PV y el EV son el **BAC que se ingresa en el libro** multiplicado por ese %. El AC se carga a mano.
 
-> Las versiones 1.x calculaban el PV y el BAC con los costos cargados en MS Project y podían leer el
-> costo real. Esa forma de cálculo se eliminó en la versión 2.0.0: para usarla se debe instalar la versión
+> Las versiones 1.x calculaban el PV y el BAC con los costes cargados en MS Project y podían leer el
+> coste real. Esa forma de cálculo se eliminó en la versión 2.0.0: para usarla se debe instalar la versión
 > 1.5.1. Los libros generados con la versión 1.x no se pueden actualizar con la versión 2.x.
 
 ---
@@ -22,7 +22,7 @@ El PV y el EV son el **BAC que se ingresa en el libro** multiplicado por ese %. 
 6. [% ganado: métodos de medición](#6--ganado-métodos-de-medición)
 7. [Del % acumulado al % del mes](#7-del--acumulado-al--del-mes)
 8. [Fecha de corte y fecha de estado](#8-fecha-de-corte-y-fecha-de-estado)
-9. [AC: costo real](#9-ac-costo-real)
+9. [AC: coste real](#9-ac-coste-real)
 10. [Multi-empresa](#10-multi-empresa)
 11. [Hojas del libro](#11-hojas-del-libro)
 12. [Puesta en marcha y cierre mensual](#12-puesta-en-marcha-y-cierre-mensual)
@@ -68,7 +68,7 @@ AC del mes = se ingresa a mano                        (hoja AC)
 
 Así, el cronograma se puede **compartir** (con el cliente o entre las empresas que ejecutan el proyecto)
 sin importes, y el presupuesto de cada paquete puede venir de otra fuente (contrato, oferta, presupuesto
-de cada empresa). Si el proyecto tiene recursos o costos cargados en MS Project, no se usan.
+de cada empresa). Si el proyecto tiene recursos o costes cargados en MS Project, no se usan.
 
 ---
 
@@ -500,7 +500,7 @@ Particularidades:
   *% físico completado* cuando alguna tarea lo tiene registrado y, si no, *% completado*. Cada caso se
   informa en pantalla.
 - **Avance lineal:** el EV es igual al PV acumulado de la fila, por lo que la fila nunca tiene
-  variación de cronograma (SV = 0, SPI = 1). Sí puede tener variación de costo.
+  variación de cronograma (SV = 0, SPI = 1). Sí puede tener variación de coste.
 - **Tareas sin fechas** (sin pesos): el avance de la fila es el promedio simple de sus tareas.
 - **Filas `-D Otras tareas`:** el avance se mide solo con las tareas que forman la fila (las que
   dependen de la tarea resumen sin tener fila propia), no con toda la rama de la tarea resumen. Con las
@@ -659,15 +659,15 @@ es el % ganado acumulado.*
 
 ---
 
-## 9. AC: costo real
+## 9. AC: coste real
 
 El AC no se lee de MS Project: se carga a mano el **AC de cada mes** en las celdas amarillas de la hoja
 `AC` (en multi-empresa, en `AC-EmpresaA` y `AC-EmpresaB`). `actualizar` no lo modifica, y el AC y el %
 ganado se pueden cargar en cualquier orden.
 
-- Se recomienda usar el **costo devengado** del período (trabajo realizado y materiales recibidos), no
+- Se recomienda usar el **coste devengado** del período (trabajo realizado y materiales recibidos), no
   los pagos ni los compromisos (pedidos emitidos), con la misma fecha de corte que el EV.
-- Si el AC llega con un mes de retraso, conviene estimar el costo devengado no facturado del mes para no
+- Si el AC llega con un mes de retraso, conviene estimar el coste devengado no facturado del mes para no
   distorsionar el CPI.
 - Si el AC se carga después de `actualizar`, se ejecuta `analizar` para actualizar el Análisis de
   desviaciones con el AC cargado ([Comandos](comandos.md)).
@@ -808,7 +808,7 @@ Código           EV del mes     EV acumulado
 ...
 Observaciones por fila:
   [i] ACT-034 4.2.2 Cierre administrativo: método no definido: se usó % completado
-  [i] ACT-026 El AC se carga a mano en la hoja 'AC'; los indicadores de costo usan los valores cargados.
+  [i] ACT-026 El AC se carga a mano en la hoja 'AC'; los indicadores de coste usan los valores cargados.
 ...
 BAC (EUR)              44.210.000
 PV acumulado             12.092.032   % planificado 27,4 %
@@ -866,7 +866,7 @@ comportamiento esperado de ese método.
 | Celdas convertidas | Celdas de ingreso con texto o fórmulas que se reemplazaron por su valor numérico. |
 | Celdas sin la fórmula del libro | Subtotales, fila TOTAL o suma de las empresas que perdieron su fórmula (por ejemplo, porque se escribió un valor encima): se informan para restaurarlas. |
 | Cambios del BAC o de meses ya informados | El BAC de una fila, o el % ganado o el AC de un mes anterior al mes de corte, cambiaron desde la ejecución anterior: se agregan a la hoja `Registro de cambios` para indicar el motivo ([El libro Excel](libro-excel.md#registro-de-cambios)). |
-| EV y AC incoherentes | Paquetes con avance y sin costo, con costo y sin avance (salvo 0/100 e hitos ponderados) o con costo después de llegar al 100 %, hasta el último mes con AC cargado ([ACT-039](codigos.md#act-039) a [ACT-042](codigos.md#act-042)). |
+| EV y AC incoherentes | Paquetes con avance y sin coste, con coste y sin avance (salvo 0/100 e hitos ponderados) o con coste después de llegar al 100 %, hasta el último mes con AC cargado ([ACT-039](codigos.md#act-039) a [ACT-042](codigos.md#act-042)). |
 | Análisis del mes anterior incompleto y acciones vencidas | Ver [Análisis de desviaciones](analisis-desviaciones.md#3-cierre-mensual). |
 | Meses sin informe | Meses sin % ganado entre el último mes cargado y el mes de corte: su avance quedó en el mes de corte ([ACT-046](codigos.md#act-046)). |
 | Línea base distinta de la del libro | Solo `actualizar`: el % planificado que resulta hoy de MS Project no coincide con el de las hojas `% PV` (se guardó de nuevo la línea base, o cambiaron las tareas o el calendario de la fila). El libro sigue con la línea base anterior hasta generar uno nuevo con `--migrar-desde`. No se comparan las filas con tareas sin fechas de línea base ([ACT-047](codigos.md#act-047)). |
@@ -875,8 +875,8 @@ comportamiento esperado de ese método.
 
 Antes de leer MS Project, `actualizar` **verifica el libro**: si falta o se renombró una hoja, si se
 insertaron, eliminaron u ordenaron filas en las hojas mensuales (los códigos EDT de la columna A no
-coinciden con los del libro generado), si se modificaron las hojas ocultas o si el libro es de la versión
-1.x, se detiene sin modificar el libro e indica cómo corregirlo. También avisa de inmediato si el libro
+coinciden con los del libro generado), si se modificaron las hojas ocultas o si el libro es anterior a la
+versión 2.7.1 ([LIB-018](codigos.md#lib-018)), se detiene sin modificar el libro e indica cómo corregirlo. También avisa de inmediato si el libro
 está abierto en Excel.
 
 El libro se guarda primero en un archivo temporal y luego reemplaza al anterior: si el guardado falla
@@ -895,7 +895,7 @@ que la hoja `Resumen`.
 - Se recomienda ejecutar `actualizar --simular` antes de la actualización definitiva y revisar las
   observaciones por fila.
 - El EV y el AC de cada mes deben corresponder a la **misma fecha de corte**: el avance registrado en
-  MS Project y el costo real del ERP deben cerrar el mismo día.
+  MS Project y el coste real del ERP deben cerrar el mismo día.
 - Aunque el informe sea bimestral, se recomienda actualizar **todos los meses**: la curva S y los
   métodos `0/100` y `50/50` se miden con el período mensual.
 - Las correcciones de meses ya informados no se hacen reescribiendo el pasado: el mes actual absorbe la
@@ -921,5 +921,5 @@ peso 10 en `1.2.3.4` vale el 10 % de la parte de `1.2.3`; para que valga el 10 %
 como subtarea directa de `1.2` o se indica el peso de `1.2.3`
 ([Pesos por tarea resumen](#pesos-por-tarea-resumen)).
 
-**¿Se pueden usar los costos de MS Project?** No en la versión 2.x. Para calcular el PV y el EV con los
-costos de línea base de MS Project se debe usar la versión 1.5.1.
+**¿Se pueden usar los costes de MS Project?** No en la versión 2.x. Para calcular el PV y el EV con los
+costes de línea base de MS Project se debe usar la versión 1.5.1.

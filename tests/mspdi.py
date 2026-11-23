@@ -120,10 +120,10 @@ def task_xml(uid: int, level: int | None, name: str = "Tarea", *, tid: int | Non
              ext: dict[int, str] | None = None, extra: str = "") -> str:
     """<Task>.
 
-    level None omite <OutlineLevel>. baselines: tuplas (número, inicio, fin, costo) con
+    level None omite <OutlineLevel>. baselines: tuplas (número, inicio, fin, coste) con
     inicio/fin None si no existen, y opcionalmente la duración (p. ej. "PT80H0M0S") como quinto
     elemento. timephased: tuplas (tipo, inicio, fin, monto) de
-    <TimephasedData> (tipo 10 = costo de línea base; 19 + 6 * (N - 1) = línea base N).
+    <TimephasedData> (tipo 10 = coste de línea base; 19 + 6 * (N - 1) = línea base N).
     ext: {FieldID: valor} de campos personalizados. extra: XML agregado tal cual.
     """
     parts = [f"<Task><UID>{uid}</UID><ID>{uid if tid is None else tid}</ID>{_el('Name', name)}",
