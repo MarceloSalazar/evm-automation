@@ -94,7 +94,7 @@ class _TaskProgress:
 def earned_history(report, cfg) -> EarnedHistory:
     """Calcula el % ganado de cada mes hasta la fecha de estado (ReportRow.ev_hist) si el archivo tiene avance."""
     out = EarnedHistory()
-    inputs = [r for r in report.rows if r.is_input and (r.weights or r.weighted)]      # «Ponderado»: weighted
+    inputs = [r for r in report.rows if r.is_input and r.weights]
     if not any(is_started(t) or is_complete(t) for r in inputs for t in r.leaves):
         return out
     statuses = {s.name: s.project.status_date for s in report.sources}
@@ -137,23 +137,18 @@ def earned_history(report, cfg) -> EarnedHistory:
                 states[key] = _TaskProgress(t, status_end, cal, cfg.distribution)
             return states[key]
 
-        for role in (row.weighted or row.weights):
-            rw = row.weights.get(role)
+        for role in row.weights:
+            rw = row.weights[role]
             pv = row.pct_vec.get(role, [])
             values: list[float] = []
             prev = 0.0
             for i in range(idx + 1):
-                if rw is not None and i < idx:
+                if i < idx:
                     members = [replace(tt, task=state(tt.task).at(month_ends[i])) for tt in rw.members]
                     rw_i = replace(rw, members=members)
                 else:
                     rw_i = rw                       # mes de la fecha de estado: el avance de MS Project
-                if row.weighted.get(role) is not None:          # «Ponderado»
-                    when = month_ends[i] if i < idx else None
-                    frac = pct.weighted_earned(row.weighted[role], report.horizon.key(i),
-                                               (lambda t, w=when: state(t).at(w)) if when else None)
-                else:
-                    frac, _note = pct.earned_fraction(method, rw_i, sum(pv[: i + 1]))
+                frac, _note = pct.earned_fraction(method, rw_i, sum(pv[: i + 1]), report.horizon.key(i))
                 values.append(round(frac - prev, 12))
                 prev = frac
             row.ev_hist[role] = values

@@ -822,60 +822,67 @@ _CODES = [
           "2.7.0 (en el PV con sus fechas actuales): generar --pv-fechas-actuales."),
 
     # --- HIT: hitos y pesos -------------------------------------------------------------------------------------
-    _code("HIT-001", W, "Peso en una tarea que no es un hito de detalle",
-          "La tarea tiene peso de hito, pero no es un hito o es una tarea resumen: el peso no se usa (las tareas "
-          "pesan por su duración).",
-          "Quitar el peso, o marcar la tarea como hito."),
+    _code("HIT-001", W, "Peso que no se usa",
+          "La tarea tiene peso, pero es la tarea de una fila del libro (su BAC se ingresa en el libro) o no forma "
+          "parte de ninguna fila: el peso no se usa. El peso de las demás tareas cuenta en todos los métodos (desde "
+          "la 2.7.0): es un % de su tarea resumen.",
+          "Quitar el peso, o indicarlo en las subtareas de la fila."),
     _code("HIT-002", W, "«Hitos ponderados» sin hitos",
           "La fila usa el método «Hitos ponderados» y no tiene hitos: actualizar calculará el % ganado con el % "
           "físico completado (o el % completado).",
           "Agregar los hitos del paquete o cambiar el método."),
-    _code("HIT-003", I, "«Hitos ponderados» con hitos sin peso",
-          "Ningún hito de la fila tiene peso: los hitos se ponderan por igual.",
-          "Indicar el peso de los hitos, si no deben pesar igual."),
+    _code("HIT-003", W, "«Hitos ponderados» sin pesos",
+          "Ninguna tarea de la fila tiene peso: el % planificado y el % ganado se reparten por igual entre los hitos "
+          "(cada uno en el mes de su fecha) y las tareas sin hito no cuentan.",
+          "Indicar el peso de los hitos, si no deben pesar igual, o cambiar el método si las tareas deben contar."),
     _code("HIT-004", I, "«Hitos ponderados» con algunos hitos sin peso",
-          "Los hitos sin peso no suman % ganado al cumplirse.",
+          "Los hitos sin peso no reciben parte de la fila: no forman parte del % planificado ni suman % ganado al "
+          "cumplirse.",
           "Indicar el peso de esos hitos, si deben sumar."),
     _code("HIT-005", W, "Fila sin % planificado",
           "Ninguna tarea de la fila tiene fechas ni es un hito con peso: su BAC no se puede repartir en el tiempo.",
           "Indicar fechas o duración a sus tareas, o el peso de sus hitos."),
-    _code("HIT-006", W, "Hitos con peso negativo",
-          "Algunos hitos tienen peso negativo: se toma como 0.",
-          "Corregir el peso de esos hitos."),
+    _code("HIT-006", W, "Tareas con peso negativo",
+          "Algunas tareas de la fila tienen peso negativo: se toman como si no tuvieran peso (reciben parte del resto "
+          "según su duración; un hito, nada).",
+          "Corregir el peso de esas tareas."),
     _code("HIT-007", W, "Los pesos de los hitos suman más de 100 %",
           "Los pesos se escalaron a 100 % y las tareas sin hito de la fila no reciben % planificado.",
-          "Corregir los pesos para que sumen como máximo 100 %."),
+          "Ninguna.", retired="2.7.0", by="HIT-013"),
     _code("HIT-008", W, "Pesos de hitos menores a 100 % sin tareas con duración",
           "La fila solo tiene hitos y sus pesos suman menos de 100 %: se escalaron a 100 %.",
-          "Corregir los pesos para que sumen 100 %."),
-    _code("HIT-009", W, "Tareas sin duración ni hitos con peso",
-          "Ninguna tarea de la fila tiene duración ni es un hito con peso: todas pesan igual.",
-          "Indicar la duración de las tareas o el peso de los hitos."),
+          "Ninguna.", retired="2.7.0", by="HIT-013"),
+    _code("HIT-009", W, "Tareas sin duración ni peso",
+          "En la fila o en una de sus tareas resumen, ninguna subtarea tiene peso ni duración (p. ej. tareas resumen "
+          "que solo tienen hitos): todas reciben la misma parte.",
+          "Indicar el peso de esas subtareas, si no deben pesar igual."),
     _code("HIT-010", E, "Hito sin peso en una fila «Ponderado»",
           "En una fila con el método «Ponderado», un hito (0 días) sin peso no forma parte del % planificado ni del % "
           "ganado: suele ser un olvido (un peso vacío significa sin definir; para que no cuente se escribe 0).",
           "Indicar el peso del hito. Si sus tareas hermanas suman menos de 100, un hito sin peso no recibe nada del "
           "resto, que se reparte por duración."),
-    _code("HIT-011", W, "Tarea sin peso en una fila «Ponderado»",
-          "En una fila con el método «Ponderado», la tarea sin peso (con sus subtareas, si es una tarea resumen) no "
-          "forma parte del % planificado ni del % ganado: las tareas con peso de la misma tarea resumen suman 100 o "
-          "más, o el resto se reparte por duración y la suya es 0 (p. ej. sin fechas). Es lo esperado si su trabajo "
-          "no tiene valor propio. Si los pesos suman menos de 100, el resto se reparte entre las tareas sin peso "
-          "según su duración y no se informa. Si la tarea resumen contiene tareas con peso, se informa con HIT-014.",
+    _code("HIT-011", W, "Tarea sin peso que no cuenta",
+          "La tarea sin peso (con sus subtareas, si es una tarea resumen) no forma parte del % planificado ni del % "
+          "ganado: las tareas con peso de la misma tarea resumen suman 100 o más o, en una fila «Ponderado», el resto "
+          "se reparte por duración y la suya es 0 (p. ej. sin fechas). No se informa en las filas «Hitos "
+          "ponderados», en las que las tareas sin peso no cuentan cuando los hitos suman 100. Es lo esperado si su "
+          "trabajo no tiene valor propio. Si los pesos suman menos de 100, el resto se reparte entre las tareas sin "
+          "peso según su duración y no se informa. Si la tarea resumen contiene tareas con peso, se informa con "
+          "HIT-014.",
           "Si debe pesar, indicar su peso y ajustar los de sus tareas hermanas; si es intencionado, escribir 0 (no "
           "cuenta en el libro y no se informa)."),
     _code("HIT-012", W, "«Ponderado» sin pesos",
           "La fila usa el método «Ponderado» y ninguna de sus tareas tiene peso: el % planificado se reparte por la "
-          "duración de las tareas y el % ganado se calcula con el % completado.",
+          "duración de las tareas y el % ganado se calcula con el método de cada tarea.",
           "Indicar el peso de las tareas de la fila (campo de [campos] peso_hito) o cambiar el método."),
-    _code("HIT-013", (E, W), "Pesos de una fila «Ponderado» que no suman 100",
+    _code("HIT-013", (E, W), "Pesos que no suman 100",
           "En la fila o en una de sus tareas resumen, los pesos de las subtareas directas son % de la tarea resumen. "
           "Error si suman más de 100: se escalan a 100 y las subtareas sin peso no cuentan. Advertencia si suman "
           "menos de 100 y no hay subtareas sin peso que reciban el resto: se escalan a 100.",
           "Corregir los pesos de las subtareas para que sumen 100 (o menos, si el resto es para las subtareas sin "
           "peso)."),
     _code("HIT-014", (E, W), "Pesos que no se usan",
-          "Error: en una fila «Ponderado», una tarea resumen sin peso no recibe parte de la fila (sus tareas hermanas "
+          "Error: una tarea resumen sin peso no recibe parte de la fila (sus tareas hermanas "
           "con peso suman 100 o más, o el resto se reparte por duración y la suya es 0, p. ej. solo tiene hitos). "
           "Advertencia: la tarea tiene Peso = 0 (o está dentro de una que lo tiene) y no cuenta en el libro. En los "
           "dos casos, las subtareas con peso que contiene no forman parte del % planificado ni del % ganado.",
@@ -892,6 +899,11 @@ _CODES = [
           "0: la fila se conserva, porque su código es una fila del libro, pero sus tareas sin fila propia no cuentan "
           "y su PV y su EV son 0. Sus filas inferiores conservan su valor.",
           "Revisar el peso de la tarea: si debe contar, borrar el 0; si no, se puede dejar (la fila queda en 0)."),
+    _code("HIT-017", W, "Tarea sin parte del % planificado",
+          "La tarea (o tarea resumen) no tiene peso y sus tareas con línea base no tienen duración (p. ej. un hito "
+          "con línea base y tareas agregadas después, sin línea base): el resto de su tarea superior se reparte por "
+          "la duración planificada y no recibe parte del % planificado, aunque sí del % ganado.",
+          "Indicar el peso de la tarea (y ajustar los de sus tareas hermanas)."),
 
     # --- MET: método de medición --------------------------------------------------------------------------------
     _code("MET-001", W, "Método no reconocido",
@@ -1457,8 +1469,8 @@ _CODES = [
     _code("ACT-030", I, "Hitos sin peso ponderados por igual",
           "Método «Hitos ponderados»: ningún hito tiene peso: se ponderaron por igual.",
           "Indicar el peso de los hitos, si no deben pesar igual.", W_ROW),
-    _code("ACT-031", I, "Hitos con peso negativo tomados con peso 0",
-          "Método «Hitos ponderados»: algunos hitos tienen peso negativo.",
+    _code("ACT-031", I, "Hitos con peso negativo tomados sin peso",
+          "Método «Hitos ponderados»: algunos hitos tienen peso negativo: se tomaron como si no tuvieran peso.",
           "Corregir el peso de esos hitos.", W_ROW),
     _code("ACT-032", I, "Sin hitos: % físico completado",
           "Método «Hitos ponderados» sin hitos: se usó el % físico completado.",

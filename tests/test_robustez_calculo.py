@@ -14,7 +14,7 @@ from evm.config import Config, ConfigError, load_config
 from evm.indicators import compute, earned_schedule
 from evm.methods import FIXED, UNKNOWN, parse_method
 from evm.model import Task
-from evm.percent import RowWeights, TaskTime, company_weights, earned_fraction, full_weights, row_weights
+from evm.percent import RowTree, RowWeights, TaskTime, earned_fraction
 from evm.timeline import round_preserving_total
 
 from builders import (S, T, assert_report_invariants, by_name, earned_after_update, issues_with, random_tree,
@@ -130,17 +130,25 @@ def test_parse_method_fixed_formula_edges(text, kind, start):
     assert m.kind == kind and (start is None or m.start_fraction == start)
 
 
+def flat_tree(times, method=""):
+    """Reparto de una fila cuyas tareas son subtareas directas, con la duración de `times`."""
+    by_uid = {tt.task.uid: tt for tt in times}
+    return RowTree(None, [tt.task for tt in times], lambda t: by_uid[t.uid], None, parse_method(method))
+
+
 def milestone_row(weights, done=(0,)):
-    """Fila con un hito por peso; los hitos de `done` están cumplidos."""
+    """Fila «Hitos ponderados» con un hito por peso; los hitos de `done` están cumplidos."""
     hitos = [Task(uid=2 + i, id=2 + i, name=f"H{i}", outline_level=4, milestone=True, milestone_weight=w,
                   percent_complete=100 if i in done else 0) for i, w in enumerate(weights)]
-    return RowWeights({}, times_of(hitos))
+    return flat_tree(times_of(hitos), "Hitos ponderados").full()[0]
 
 
 def test_weighted_milestones_without_weights_count_equally():
-    for weights in ((None, None, None), (0, 0, 0)):
-        frac, note = earned_fraction(parse_method("Hitos ponderados"), milestone_row(weights), 0)
-        assert frac == pytest.approx(1 / 3) and "por igual" in note.message
+    frac, note = earned_fraction(parse_method("Hitos ponderados"), milestone_row((None, None, None)), 0)
+    assert frac == pytest.approx(1 / 3) and "por igual" in note.message
+    # Peso = 0 escrito (campo de texto): el hito no cuenta en el libro
+    rw = milestone_row((None, 0, None))
+    assert set(rw.weights) == {2, 4} and earned_fraction(parse_method("Hitos ponderados"), rw, 0)[0] == 0.5
 
 
 def test_weighted_milestones_negative_weight_counts_as_zero():
@@ -166,7 +174,7 @@ def _milestones_and_tasks(weights, done=(), progress=(50, 100)):
     a = Task(uid=20, id=20, name="A", outline_level=4, percent_complete=progress[0])
     b = Task(uid=21, id=21, name="B", outline_level=4, percent_complete=progress[1])
     times = times_of(hitos) + [TaskTime(a, 480.0, {(2026, 1): 1.0}, True), TaskTime(b, 960.0, {(2026, 1): 1.0}, True)]
-    return full_weights(times)
+    return flat_tree(times, "Hitos").full()[0]
 
 
 def test_milestones_under_100_share_the_rest_with_tasks_as_in_the_planned_percent():
@@ -212,7 +220,7 @@ def test_earned_fraction_always_in_unit_interval(seed):
             for i in range(2, rng.randint(2, 7))]
     times = [TaskTime(t, 0.0 if t.milestone else rng.choice([0.0, rng.uniform(1, 5000)]),
                       {(2026, 1): 1.0} if rng.random() < 0.9 else {}, True) for t in kids]
-    rw = row_weights(times) or RowWeights({}, [])
+    rw = flat_tree(times).full()[0]
     for text in ("0/100", "30/70", "Hitos ponderados", "% Completado", "% Físico completado", "Unidades",
                  "Avance lineal", "Avance lineal (LOE)", "Por definir", "otro"):
         frac, _ = earned_fraction(parse_method(text), rw, rng.uniform(-0.5, 1.5))
@@ -254,21 +262,22 @@ def company_row():
 def test_multi_all_company_a_matches_single_mode(text):
     times = company_row()
     method = parse_method(text)
-    single = earned_fraction(method, full_weights(times), 0.25)
-    assert earned_fraction(method, company_weights(times, lambda t: 1.0, "EmpresaA"), 0.25) == \
-        pytest.approx(single)
+    tree = flat_tree(times, text)
+    single = earned_fraction(method, tree.full()[0], 0.25)
+    assert earned_fraction(method, tree.company(lambda t: 1.0)[0], 0.25) == pytest.approx(single)
 
 
 def test_company_weights_by_share_and_fallback():
     times = company_row()
     share = {2: 1.0, 3: 0.5, 4: 0.0}
-    rw = company_weights(times, lambda t: share[t.uid], "EmpresaA")
+    tree = flat_tree(times)
+    rw = tree.company(lambda t: share[t.uid])[0]
     # el hito no es de la empresa; las tareas pesan por duración × parte de la empresa (A completa, B a la mitad)
     assert rw.weights == pytest.approx({2: 2 / 3, 3: 1 / 3})
     assert not rw.fallback
     # Una empresa sin tareas en la fila: pesos de la fila completa (fallback)
-    none = company_weights(times, lambda t: 0.0, "EmpresaB")
-    assert none.fallback and none.weights == pytest.approx(full_weights(times).weights)
+    none = tree.company(lambda t: 0.0)[0]
+    assert none.fallback and none.weights == pytest.approx(tree.full()[0].weights)
 
 
 # ----------------------------------------------------------------------------

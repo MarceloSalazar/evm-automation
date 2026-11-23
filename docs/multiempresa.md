@@ -131,8 +131,8 @@ en la hoja oculta `_meta`), aunque la configuración no tenga la sección `[mult
 ## 5. Parte de cada empresa en cada tarea
 
 La parte de cada empresa multiplica la **duración** de la tarea: es el peso que la tarea tiene en el %
-planificado y en el % ganado de esa empresa ([sección 6](#6-pv-ev-y-ac-de-cada-empresa)). No reparte el
-`Peso hito` de los hitos.
+planificado y en el % ganado de esa empresa ([sección 6](#6-pv-ev-y-ac-de-cada-empresa)). No reparte los
+pesos: un peso vale para cada empresa que participa en la tarea.
 
 | Columna `Empresa` | Parte de la empresa A (la empresa B recibe el resto) |
 |---|---|
@@ -179,7 +179,7 @@ resultante.*
 | Valor de cada empresa | Cálculo |
 |---|---|
 | BAC | Se ingresa a mano en la columna D de su hoja PV (`PV-EmpresaA` o `PV-EmpresaB`, celdas amarillas). |
-| % planificado | Con las tareas de la fila en las que participa: cada tarea pesa su duración de la línea base × la parte de la empresa. Un hito vale su `Peso hito` para cada empresa que participa en él. `generar` lo escribe en `% PV-EmpresaA` y `% PV-EmpresaB`. |
+| % planificado | Con las tareas de la fila en las que participa: cada tarea pesa su duración de la línea base × la parte de la empresa. Un peso (de un hito o una tarea) es un % de la parte de la empresa en su tarea resumen, para cada empresa que participa en la tarea. `generar` lo escribe en `% PV-EmpresaA` y `% PV-EmpresaB`. |
 | PV del mes | BAC de la empresa × su % planificado del mes. |
 | % ganado | Según el método de la fila (columna C), con las tareas y los hitos de la empresa (tabla siguiente). `actualizar` escribe el % del mes en `% EV-EmpresaA` y `% EV-EmpresaB`. |
 | EV del mes | BAC de la empresa × su % ganado del mes. |
@@ -189,7 +189,7 @@ resultante.*
 |---|---|
 | `% Completado`, `% Físico completado`, `Unidades completadas` | Avance de sus tareas, ponderado por el peso que cada tarea tiene para la empresa. |
 | `0/100`, `X/Y` | Según comiencen y terminen **sus** tareas: una empresa que terminó su parte no espera a la otra. |
-| `Hitos ponderados` | Sus hitos cumplidos, ponderados por su `Peso hito`. |
+| `Hitos ponderados` | Sus hitos cumplidos, ponderados por su parte (su peso, % de su tarea resumen). |
 | `Avance lineal` | Su % planificado acumulado a la fecha de corte. |
 
 Si una empresa **no participa** en ninguna tarea de la fila y se le asigna BAC, se usan el % planificado

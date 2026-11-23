@@ -108,7 +108,7 @@ encabezado de una columna > **Campos personalizados** (o *Proyecto > Campos pers
 |---|---|---|---|---|
 | *Texto2* | Texto | `Item EDT` | Código EDT (`1.0.0`, `1.1.0`, `1.1.1`) | `[campos] edt` |
 | *Texto10* | Texto | `Método EVM` | Lista de búsqueda con los métodos | `[campos] metodo` |
-| *Número1* | Número | `Peso hito` | Peso de cada hito: % del BAC del paquete | `[campos] peso_hito` |
+| *Número1* | Número | `Peso hito` | Peso de cada tarea o hito: % de la parte de su tarea resumen | `[campos] peso_hito` |
 | *Texto3* | Texto | `Empresa` | Lista: `EmpresaA`, `EmpresaB`, `Ambas` | `[multiempresa] campo_empresa` |
 | *Número2* | Número | `% Reparto` | % de la empresa A en tareas `Ambas` | `[multiempresa] campo_reparto` |
 | *Texto5* | Texto | `Visible` | Lista: `Sí`, `No` (vacío = según el nivel máximo) | `[campos] visible` |
@@ -153,7 +153,8 @@ fila se ingresa a mano en la columna D de la hoja `PV` del libro (en multi-empre
 
 - Campo `Método EVM` con lista de búsqueda, completado en los paquetes de nivel 3.
 - Para `Hitos ponderados`: hitos (duración 0) como subtareas del paquete, con su peso en `Peso hito`. El
-  peso es el % del BAC del paquete que se planifica en el mes del hito y que se gana al cumplirlo: para
+  peso es el % de la parte de su tarea resumen (del paquete, si es una subtarea directa) que se planifica
+  en el mes del hito y que se gana al cumplirlo: para
   un paquete medido solo con hitos, los pesos deben sumar 100.
 
 El método de cada paquete se elige con la

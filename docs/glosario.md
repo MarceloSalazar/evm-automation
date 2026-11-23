@@ -56,7 +56,7 @@ BAC que se ingresa en el libro × el % planificado y el % ganado, y el AC se car
 | Comienzo real, Fin real | Actual Start, Actual Finish | Comienzo y fin de los paquetes. |
 | EDT, Número de esquema | WBS, Outline Number | Código EDT de cada tarea. |
 | Texto1..30, Número1..20 | Text1..30, Number1..20 | Campos personalizados (método, peso de los hitos, empresa, % de reparto, visible y descripción de las fichas). |
-| Hito | Milestone | Su `Peso hito` es un % del BAC del paquete; método `Hitos ponderados`. |
+| Hito | Milestone | Su peso es un % de la parte de su tarea resumen; método `Hitos ponderados`. |
 | Activo / Desactivar | Active / Inactivate | Tareas inactivas excluidas. |
 | Duración (estimada, con `?`) | Duration (Estimated) | `validar`: hitos con duración, tareas con duración 0 y duraciones estimadas. |
 | Programada manualmente | Manually Scheduled | `validar`: MS Project no recalcula sus fechas. |
@@ -78,7 +78,7 @@ BAC que se ingresa en el libro × el % planificado y el % ganado, y el AC se car
 | BAC de una fila | Presupuesto del paquete, que se ingresa a mano en la columna D de la hoja `PV` (o de `PV-EmpresaA` y `PV-EmpresaB`). |
 | % planificado | Parte del BAC de una fila planificada en cada mes (hoja `% PV`); suma 100 % en cada fila. Lo calcula `generar` con las fechas de línea base de las tareas y el `Peso hito` de los hitos ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)). |
 | % ganado | Parte del BAC de una fila ganada en cada mes (hoja `% EV`), según su método de medición. La escribe `actualizar` ([Cálculo del PV y el EV](calculo-pv-ev.md#6--ganado-métodos-de-medición)). |
-| Peso de una tarea | Fracción del BAC de la fila que le corresponde, por su duración de línea base o, en un hito, por su `Peso hito`. |
+| Peso de una tarea | % de la parte de su tarea resumen que le corresponde (campo de `[campos] peso_hito`); sin peso, la parte se reparte por su duración de línea base. No se propaga más arriba de su tarea resumen. |
 | Fecha de corte | Último día del mes informado. Por defecto, la fecha de estado de MS Project. |
 | Fila de ingreso | Fila sin filas inferiores (por defecto, de nivel 3) donde se ingresan el BAC y el AC, y cuyo % ganado escribe `actualizar`: paquetes de trabajo y filas `-D`. Las filas con filas inferiores son subtotales. |
 | Fila `-D Otras tareas` | Fila `<código>-D Otras tareas de «tarea»` que reúne las tareas sin fila propia (sin código EDT, con código más detallado que `nivel_maximo` o, con `lista_edt`, fuera de la lista) que dependen directamente de una fila resumen, con su propio BAC. |

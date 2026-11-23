@@ -12,7 +12,7 @@ from evm.fields import fmt_number
 from evm.messages import (SEV_ERROR, SEV_INFO, SEV_WARN, TARGET_DETAIL, TARGET_GENERAL,  # noqa: F401
                           TARGET_OUT, TARGET_ROW, TOPIC_BOOK, TOPIC_COMPANY, TOPIC_DATES, TOPIC_LOGIC, TOPIC_METHOD,
                           TOPIC_PROGRESS, TOPIC_READ, TOPIC_VISIBLE, TOPIC_WBS, TOPIC_WEIGHTS, TOPICS, Issue)
-from evm.methods import WEIGHTED, is_undefined, parse_method
+from evm.methods import MILESTONES, WEIGHTED, is_undefined, parse_method
 from evm.model import MonthKey, ProjectData, Task
 from evm.timeline import Horizon, first_of_month
 
@@ -50,8 +50,8 @@ class ReportRow:
     # línea base). pv_out: tareas de detalle sin línea base que quedan fuera del PV
     pv_leaves: list[Task] | None = field(default=None, repr=False)
     pv_out: list[Task] = field(default_factory=list, repr=False)
-    # Método «Ponderado»: tareas y fracción del % ganado de cada empresa (percent.weighted_row)
-    weighted: dict[str, list] = field(default_factory=dict, repr=False)
+    # Reparto de la fila entre sus tareas (percent.RowTree)
+    tree: object = field(default=None, repr=False)
     # % ganado de cada mes hasta la fecha de estado que carga 'generar' (history.earned_history), de cada empresa
     ev_hist: dict[str, list[float]] = field(default_factory=dict, repr=False)
 
@@ -628,66 +628,77 @@ def pv_selection(leaves: list[Task], top: Task, include_top: bool, current_dates
     return units, out
 
 
-def _weighted_curves(row: ReportRow, roles, calendar, cfg: Config, cache: dict, planned: dict, issues: list,
-                     code_of) -> bool:
-    """% planificado y fracciones del % ganado de una fila «Ponderado» (False si ninguna tarea tiene peso: HIT-012, y
-    la fila se calcula como las demás)."""
+def _weight_issues(row: ReportRow, tree, code_of) -> list[Issue]:
+    """Observaciones del reparto de una fila entre sus tareas (percent.RowTree): pesos que no suman 100, tareas sin
+    parte y pesos que no se usan. Los hitos sin peso solo se informan en las filas «Ponderado» (HIT-010): en las
+    demás es normal que un hito no tenga valor propio."""
     from evm import percent as pct
-
-    def time_of(t: Task) -> "pct.TaskTime":
-        return cache.setdefault(t.uid, pct.task_time(t, calendar, cfg.distribution))
-
-    wr = pct.weighted_row(row.task, time_of)
-    if wr is None:
+    issues: list[Issue] = []
+    kind = parse_method(row.method).kind
+    weighted, milestones = kind == WEIGHTED, kind == MILESTONES
+    where = f"la fila {row.code}"
+    if weighted and not tree.has_weights and tree.leaves:
         issues.append(Issue("HIT-012", row.code, row.name, "Método «Ponderado» y ninguna tarea con peso: % planificado "
-                                                           "por duración y % ganado con el % completado."))
-        return False
-    for role, _company, fn in roles:
-        row.pct[role] = pct.weighted_curve(pct.company_pairs(wr.pv, fn))
-        row.weighted[role] = pct.company_pairs(wr.ev, fn)
-    planned.update((tt.task.uid, tt) for tt, _f in wr.pv)
-    for t, why in wr.unweighted:
+                                                           "por duración y % ganado con el método de cada tarea."))
+    if tree.negative:
+        n = len(tree.negative)
+        issues.append(Issue("HIT-006", row.code, row.name,
+                            f"{plural(n, 'tarea', 'tareas')} con peso negativo ("
+                            + ", ".join(code_of(x) or task_name(x, code_of) for x in tree.negative[:5])
+                            + (f" y {n - 5} más" if n > 5 else "") + "): se toma como si no tuviera peso."))
+    for t, why in tree.unweighted:
         reason = ("sus tareas hermanas con peso suman 100 o más" if why == pct.NO_SHARE_FULL else
                   "el resto de su tarea superior se reparte por duración y la suya es 0")
-        if pct.is_zero_duration(t):
-            issues.append(Issue("HIT-010", code_of(t), task_name(t, code_of),
-                                f"Hito sin peso en la fila «Ponderado» {row.code}: no forma parte del % planificado ni "
-                                "del % ganado.", uid=t.uid))
-            continue
-        subtasks = sum(1 for x in iter_subtree(t) if not x.children) if t.children else 0
         lost = [x for x in iter_subtree(t) if x is not t and pct.task_weight(x) > 0]
         if lost:
             names = ", ".join(code_of(x) or task_name(x, code_of) for x in lost[:5]) + (
                 f" y {len(lost) - 5} más" if len(lost) > 5 else "")
             issues.append(Issue("HIT-014", code_of(t), task_name(t, code_of),
-                                f"Tarea resumen sin peso en la fila «Ponderado» {row.code}: {reason}, y no forma parte "
-                                f"del % planificado ni del % ganado. "
+                                f"Tarea resumen sin peso en {where}: {reason}, y no forma parte del % planificado "
+                                "ni del % ganado. "
                                 + ("El peso de su subtarea" if len(lost) == 1 else f"Los pesos de sus {len(lost)} subtareas")
                                 + f" ({names}) no se usan: se debe indicar el peso de la tarea resumen.",
                                 uid=t.uid))
             continue
+        if pct.is_zero_duration(t):
+            if weighted and tree.has_weights:       # sin ningún peso ya lo informa HIT-012
+                issues.append(Issue("HIT-010", code_of(t), task_name(t, code_of),
+                                    f"Hito sin peso en la fila «Ponderado» {row.code}: no forma parte del % planificado "
+                                    "ni del % ganado.", uid=t.uid))
+            continue
+        if not weighted and why == pct.NO_SHARE_DURATION:
+            continue                        # sin duración (p. ej. una tarea resumen de hitos sin peso)
+        if milestones:
+            continue                        # «Hitos ponderados»: lo esperado es que las tareas no cuenten
+        subtasks = len(tree.branch_leaves(t)) if t.children else 0
         issues.append(Issue("HIT-011", code_of(t), task_name(t, code_of),
-                            f"Sin peso en la fila «Ponderado» {row.code}"
+                            f"Sin peso en {where}"
                             + (f" (con sus {subtasks} subtareas)" if subtasks > 1 else "")
                             + f": {reason}, y no forma parte del % planificado ni del % ganado.", uid=t.uid))
-    for g in wr.groups:
-        own = g.task is row.task
+    for g in tree.groups:
+        own = g.task is None or g.task is row.task
         code, name = (row.code, row.name) if own else (code_of(g.task), task_name(g.task, code_of))
-        where = "la fila" if own else f"«{g.task.name}»"
+        place = "la fila" if own else f"«{g.task.name}»"
         total = fmt_number(g.total, 2, trim=True)
         if g.total > pct.WEIGHT_TOTAL:
             issues.append(Issue("HIT-013", code, name,
-                                f"Los pesos de las subtareas de {where} suman {total}, más de 100: se escalan a 100 y "
+                                f"Los pesos de las subtareas de {place} suman {total}, más de 100: se escalan a 100 y "
                                 "sus subtareas sin peso no cuentan. Se deben corregir los pesos para que sumen como "
                                 "máximo 100.", SEV_ERROR, uid=None if own else g.task.uid))
         else:
             issues.append(Issue("HIT-013", code, name,
-                                f"Los pesos de las subtareas de {where} suman {total} y no hay subtareas sin peso que "
+                                f"Los pesos de las subtareas de {place} suman {total} y no hay subtareas sin peso que "
                                 "reciban el resto: se escalan a 100.", SEV_WARN, uid=None if own else g.task.uid))
-    if not any(row.pct.values()):
-        issues.append(Issue("HIT-005", row.code, row.name,
-                            "Ninguna tarea con peso tiene línea base: la fila no tiene % planificado."))
-    return True
+    if tree.equal:
+        places = ", ".join("la fila" if t is None or t is row.task else f"«{t.name}»" for t in tree.equal[:5])
+        issues.append(Issue("HIT-009", row.code, row.name,
+                            f"Las tareas de {places} no tienen duración ni peso: pesan igual."))
+    for t in tree.pv_lost:
+        issues.append(Issue("HIT-017", code_of(t), task_name(t, code_of),
+                            f"Sin peso en {where} y sus tareas con línea base no tienen duración: no recibe parte del % "
+                            "planificado, aunque sí del % ganado (sus tareas sin línea base tienen duración). Se debe "
+                            "indicar su peso.", uid=t.uid))
+    return issues
 
 
 def pv_span(pv_leaves: list[Task] | None, leaves: list[Task], start: datetime | None,
@@ -720,32 +731,30 @@ def _percent_curves(project: ProjectData, cfg: Config, rows: list[ReportRow], co
         roles = [(pct.ROLE_A, cfg.company_a, share), (pct.ROLE_B, cfg.company_b, lambda t: 1.0 - share(t))]
     else:
         roles = [(pct.ROLE_ALL, "", None)]
+
+    def time_of(t: Task) -> pct.TaskTime:
+        if t.uid not in cache:
+            cache[t.uid] = pct.task_time(t, calendar, cfg.distribution)
+        return cache[t.uid]
+
     for i, row in enumerate(rows, start=1):
         progress.step(i, len(rows), "filas")
         if not row.is_input:
             continue
-        def times_of(tasks: list[Task]) -> list[pct.TaskTime]:
-            return [cache.setdefault(t.uid, pct.task_time(t, calendar, cfg.distribution)) for t in tasks]
-
-        if row.kind != KIND_RESIDUAL and parse_method(row.method).kind == WEIGHTED:
-            if _weighted_curves(row, roles, calendar, cfg, cache, planned, issues, code_of):
-                continue
         own = row.pv_leaves is not None                       # tareas del PV distintas de las de detalle
-        times = times_of(row.leaves if not own else row.pv_leaves)      # % planificado
-        planned.update((tt.task.uid, tt) for tt in times)
+        tree = pct.RowTree(row.task, row.leaves, time_of, row.pv_leaves, parse_method(row.method))
+        row.tree = tree
+        planned.update((t.uid, time_of(t)) for t in (row.leaves if not own else row.pv_leaves))
         excluded.extend((t, row) for t in row.pv_out)
         if own and not row.pv_leaves:
             no_pv.append(row)
-        full = pct.full_weights(times)
-        ev_times = times_of(row.leaves) if own else times                # % ganado: todas las tareas de detalle
-        ev_full = pct.full_weights(ev_times) if own else full
         for role, company, fn in roles:
-            rw = pct.company_weights(times, fn, company, full)
-            if rw.fallback and times:
+            rw, pv_pairs = tree.company(fn)
+            if rw.fallback:
                 alone.setdefault(company, []).append(row.code)
-            row.pct[role] = pct.curve(times, rw)
-            row.weights[role] = pct.company_weights(ev_times, fn, company, ev_full) if own else rw
-            issues += [replace(note, code=row.code, name=row.name) for note in rw.notes]
+            row.pct[role] = pct.weighted_curve(pv_pairs)
+            row.weights[role] = rw
+        issues += _weight_issues(row, tree, code_of)
         if not any(row.pct.values()) and (not own or row.pv_leaves):
             issues.append(Issue("HIT-005", row.code, row.name,
                                 "Ninguna tarea de la fila tiene fechas ni es un hito con peso: no tiene % "

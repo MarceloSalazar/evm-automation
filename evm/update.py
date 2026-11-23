@@ -15,7 +15,7 @@ from evm import analysis, changes, consistency, progress
 from evm.config import MODE_PERCENT, Config, ConfigError
 from evm.fields import fmt_number
 from evm.messages import InputError, Issue, MissingFileError
-from evm.methods import WEIGHTED, parse_method
+from evm.methods import parse_method
 from evm.model import ProjectData, Task
 from evm.timeline import Horizon
 from evm.wbs import (KIND_LEAF, KIND_RESIDUAL, KIND_SUMMARY, Scope, Visibility, build_tree, code_key, code_level,
@@ -671,8 +671,13 @@ def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares:
     from evm.wbs import pv_selection
     method = parse_method(book.method[s.row])
     leaves = [t for t in contributors if not t.children]
-    times = pct.leaf_times(leaves, calendar, cfg.distribution)      # % ganado: todas las tareas de detalle
-    full = pct.full_weights(times)
+    cache: dict[int, pct.TaskTime] = {}
+
+    def time_of(t: Task) -> pct.TaskTime:
+        if t.uid not in cache:
+            cache[t.uid] = pct.task_time(t, calendar, cfg.distribution)
+        return cache[t.uid]
+
     out = []
     notes: list[Issue] = []
     # % planificado de hoy, con el criterio con que se generó el libro (los anteriores a la 2.7.0: fechas actuales)
@@ -680,36 +685,25 @@ def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares:
     current_dates = True if current_dates is None else bool(current_dates)
     units, _out = pv_selection(leaves, task, s.kind != KIND_RESIDUAL, current_dates,
                                {t.uid for t in contributors}) if task is not None else ([], [])
-    pv_times = pct.leaf_times(units, calendar, cfg.distribution) if units else times
-    pv_full = pct.full_weights(pv_times) if units else full
+    # Reparto de la fila entre sus tareas, como en 'generar' (el mismo en todos los métodos)
+    tree = pct.RowTree(task, leaves, time_of, units, method)
     planned: dict[str, list[float]] | None = {}
-    if units == [] or any(tt.dist and not tt.from_baseline for tt in pv_times):
+    if units == [] or any(time_of(t).dist and not time_of(t).from_baseline for t in (leaves if units is None
+                                                                                      else units)):
         planned = None                  # sin % planificado, o con fechas actuales: no se compara (ACT-047)
-    weighted = None                     # «Ponderado»: cada tarea con su peso y su método
-    if method.kind == WEIGHTED and task is not None and s.kind != KIND_RESIDUAL:
-        cache = {tt.task.uid: tt for tt in times}
-        weighted = pct.weighted_row(task, lambda t: cache.get(t.uid) or pct.task_time(t, calendar, cfg.distribution),
-                                    {t.uid for t in contributors})
-        planned = {} if weighted is not None and weighted.pv else planned
     for role, company in book.roles():
         share = None
         if role == "A":
             share = lambda t: shares.get(t.uid, 0.5)            # noqa: E731
         elif role == "B":
             share = lambda t: 1.0 - shares.get(t.uid, 0.5)      # noqa: E731
-        rw = pct.company_weights(times, share, company, full)
+        rw, pv_pairs = tree.company(share)
         if planned is not None:
-            rw_pv = pct.company_weights(pv_times, share, company, pv_full) if units else rw
-            curve = (pct.weighted_curve(pct.company_pairs(weighted.pv, share)) if weighted is not None
-                     else pct.curve(pv_times, rw_pv))
-            vec, before, _after = book.horizon.to_vector(curve)
+            vec, before, _after = book.horizon.to_vector(pct.weighted_curve(pv_pairs))
             vec[0] += before                # como en 'generar': lo anterior al horizonte, en el mes 1
             planned[role] = vec
         pv_cum = sum(book.pct_pv[role][s.row][: idx + 1])
-        if weighted is not None:
-            frac, note = pct.weighted_earned(pct.company_pairs(weighted.ev, share), book.horizon.key(idx)), None
-        else:
-            frac, note = pct.earned_fraction(method, rw, pv_cum)
+        frac, note = pct.earned_fraction(method, rw, pv_cum, book.horizon.key(idx))
         bac = book.bac_role[role][s.row]
         if note is not None and all(n.message != note.message for n in notes):
             notes.append(replace(note, code=s.code, name=s.name))

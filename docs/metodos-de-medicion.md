@@ -13,9 +13,9 @@ MS Project.
 > corresponden a MS Project en español 2016 a 2024 y a la versión de suscripción; pueden variar
 > levemente según la versión.
 
-> **Ponderación de las subtareas.** En un paquete con subtareas, cada tarea pesa según su **duración de
-> línea base** y cada hito según su `Peso hito`, que es un % del BAC del paquete: son los mismos pesos
-> del % planificado ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)).
+> **Ponderación de las subtareas.** En un paquete con subtareas, cada tarea con peso recibe ese % de la
+> parte de **su tarea resumen**, y las demás se reparten el resto según su **duración de línea base** (un
+> hito sin peso no tiene valor): es el mismo reparto del % planificado, en todos los métodos ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)).
 
 ---
 
@@ -52,7 +52,7 @@ MS Project.
 | `0/100` | 0 hasta terminar; BAC al terminar. | Paquete al 100 % (o *Fin real*) al terminar. |
 | `50/50`, `25/75`, `20/80` (`X/Y`) | X % del BAC al comenzar; 100 % al terminar. | *Comienzo real* (o cualquier avance) al comenzar; 100 % al terminar. |
 | `Hitos ponderados` | BAC × Σ pesos de los hitos cumplidos / Σ pesos. Si suman menos de 100, las actividades se reparten el resto por duración. | Cada hito al 100 % cuando se cumple (y el *% completado* de las actividades, si los pesos suman menos de 100). |
-| `% Completado` | BAC × *% completado* de las subtareas, ponderado por su duración de línea base (un hito cumplido cuenta su `Peso hito`). | *% completado* (o duración real) de las tareas. |
+| `% Completado` | BAC × *% completado* de las subtareas, ponderado por su parte de la fila (su peso o su duración de línea base; un hito cumplido cuenta su parte). | *% completado* (o duración real) de las tareas. |
 | `% Físico completado` | BAC × *% físico completado* de las subtareas, con la misma ponderación. | *% físico completado* estimado o medido. |
 | `Unidades completadas` | BAC × unidades hechas / unidades totales. | El cociente, en *% físico completado*. |
 | `Avance lineal` | EV = PV acumulado de la fila. | Nada específico (fechas reales recomendables). |
@@ -116,8 +116,8 @@ El reparto responde a los datos que tiene cada herramienta:
 - **Excel** tiene una fila por paquete: no tiene las subtareas, los hitos cumplidos, los pesos ni las
   fechas reales que necesita la regla del método.
 - **El programa** lee ese detalle de MS Project y escribe en Excel el resultado de cada paquete. En un
-  paquete con subtareas, el avance es el promedio de las subtareas ponderado por su duración de línea
-  base, y cada hito cuenta su `Peso hito`
+  paquete con subtareas, el avance es el promedio de las subtareas ponderado por su parte (su peso, que
+  es un % de su tarea resumen, o su duración de línea base)
   ([Cálculo del PV y el EV](calculo-pv-ev.md#6--ganado-métodos-de-medición)).
 
 > **Importante:** `actualizar` usa el método de la **columna C**, no el de MS Project, y no compara los
@@ -219,8 +219,8 @@ recomendado para paquetes largos porque es **objetivo**.
    los identifica en la jerarquía ([EDT-023](codigos.md#edt-023)).
 2. **Vínculos:** cada hito se vincula como sucesor de las actividades que producen su entregable, para
    que su fecha se mueva con el trabajo.
-3. **Pesos:** campo `Peso hito` (*Número1*) en cada hito: es el % del BAC del paquete que se planifica
-   en el mes del hito ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)).
+3. **Pesos:** campo `Peso hito` (*Número1*) en cada hito: es el % de la parte de su tarea resumen (del
+   paquete, si es una subtarea directa) que se planifica en el mes del hito ([Cálculo del PV y el EV](calculo-pv-ev.md#4--planificado-peso-de-cada-tarea)).
    Los pesos deben sumar 100 y ser proporcionales al presupuesto del trabajo que lleva a cada hito: así
    el PV del paquete se concentra en los meses de sus hitos. Si suman menos de 100, el resto se reparte
    entre las actividades según su duración, en el % planificado y en el % ganado (con su *% completado*):
@@ -256,8 +256,8 @@ cualquier nivel.
 
 ### 3.4 % Completado
 
-**Regla:** BAC × *% completado* de las subtareas, ponderado por su duración de línea base; un hito
-cumplido cuenta su `Peso hito`.
+**Regla:** BAC × *% completado* de las subtareas, ponderado por su parte (su peso o su duración de línea
+base); un hito cumplido cuenta su parte.
 
 **Cuándo usarlo:** cuando no hay una medida física mejor y la duración transcurrida es un indicador
 razonable del avance.

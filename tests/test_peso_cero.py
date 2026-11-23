@@ -6,7 +6,7 @@ import pytest
 
 from evm.config import Config
 from evm.messages import SEV_WARN
-from evm.percent import task_time, weighted_row
+from evm.percent import RowTree, task_time
 from evm.reader_xml import read_xml
 from evm.wbs import KIND_RESIDUAL, build_report
 from evm.workcalendar import WorkCalendar
@@ -90,8 +90,10 @@ def test_weighted_row_skips_zero_tasks_without_pruning():
     from evm.wbs import build_tree
     build_tree(tasks)
     calendar = WorkCalendar()
-    wr = weighted_row(tasks[0], lambda t: task_time(t, calendar))
-    assert {tt.task.name: pytest.approx(f) for tt, f in wr.ev} == {"Con peso": 0.5, "Vacía": 0.5}
+    tree = RowTree(tasks[0], tasks[1:], lambda t: task_time(t, calendar))
+    names = {t.uid: t.name for t in tasks}
+    assert {names[uid]: pytest.approx(f) for uid, f in tree.full()[0].weights.items()} == {"Con peso": 0.5,
+                                                                                          "Vacía": 0.5}
 
 
 @pytest.mark.parametrize("field, number, expected", [(TEXT3, False, [0.0, None, 20.0]),

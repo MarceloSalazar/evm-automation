@@ -1,4 +1,4 @@
-"""Método «Ponderado»: cada tarea de la fila con su peso y su propio método (percent.weighted_row, desde la 2.7.0)."""
+"""Método «Ponderado»: cada tarea de la fila con su peso y su propio método (percent.RowTree, desde la 2.7.0)."""
 from datetime import datetime
 
 import pytest
@@ -91,7 +91,7 @@ def test_rework_without_baseline_counts_only_in_ev():
     rep = build_report(P(tasks), cfg())
     row = rows_by_code(rep)["1.1"]
     assert sum(row.pct_vec[""]) == pytest.approx(1.0) and row.pct_vec[""][3] == pytest.approx(0.30)   # PV igual
-    assert pct.weighted_earned(row.weighted[""], None) == pytest.approx(100 / 120)
+    assert pct.earned_fraction(parse_method(row.method), row.weights[""], 0.0)[0] == pytest.approx(100 / 120)
 
 
 def test_without_weights_falls_back():
@@ -188,7 +188,7 @@ def test_summary_without_weight_next_to_weights_that_sum_100_does_not_count():
                     hito(7, "Hito del bloque", level=4, weight=10, percent_complete=100.0))
     rep = build_report(P(tasks), cfg())
     row = rows_by_code(rep)["1.1"]
-    assert pct.weighted_earned(row.weighted[""], None) == pytest.approx(0.70)
+    assert pct.earned_fraction(parse_method(row.method), row.weights[""], 0.0)[0] == pytest.approx(0.70)
     [issue] = found(rep, "HIT-014")                              # sus pesos internos no se usan: error
     assert (issue.name, issue.severity) == ("Bloque (Id 5)", SEV_ERROR)
     assert "sus tareas hermanas con peso suman 100 o más" in issue.message and "El peso de su subtarea" in issue.message

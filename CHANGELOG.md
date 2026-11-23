@@ -106,6 +106,29 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 ### Correcciones
 
+- **Pesos por tarea resumen, en todos los métodos:** el peso de un hito en un nivel inferior (por ejemplo,
+  `1.2.3.4` con peso 10 en el paquete `1.2`) era un % de toda la fila: ahora es un % de la parte de su tarea
+  resumen (`1.2.3`) y solo se reparte con sus tareas hermanas. El reparto es el mismo en todos los métodos
+  (también en las filas -D) y el método solo decide cómo se mide el avance de cada tarea. Además:
+  - el peso de una tarea con duración o de una tarea resumen ya no se ignora: es un % de su tarea resumen
+    (`HIT-001` pasa a informar solo el peso de la tarea de una fila o de una tarea fuera de las filas);
+  - los avisos de pesos se dan por tarea resumen, en todos los métodos: pesos que no suman 100 (`HIT-013`,
+    que reemplaza a `HIT-007` y `HIT-008`, retirados), tareas sin peso que no cuentan (`HIT-011`), pesos
+    que no se usan (`HIT-014`) y tareas que pesan igual (`HIT-009`). Antes no se avisaba cuando los hitos
+    sumaban 100 y las tareas quedaban sin PV, y se avisaba por error de pesos que sumaban más de 100 si
+    estaban en tareas resumen distintas. El hito sin peso solo es un error en las filas `Ponderado`
+    (`HIT-010`);
+  - `Hitos ponderados` sin ningún peso reparte por igual entre los hitos el % planificado y el % ganado (el
+    % planificado se repartía entre las tareas y el % ganado solo contaba los hitos); `HIT-003` pasa a ser
+    advertencia;
+  - el método `Ponderado` usa el bloque de una tarea desglosada después de guardar la línea base y respeta
+    `generar --pv-fechas-actuales`, como los demás métodos, y mide cada tarea con su propio método también
+    cuando ninguna tiene peso (`HIT-012`);
+  - la parte de una tarea sin línea base la reciben, en el % planificado, sus tareas hermanas de la misma
+    tarea resumen; una tarea resumen sin peso cuyas tareas con línea base no tienen duración no recibe parte
+    del % planificado y se avisa (`HIT-017`, nuevo);
+  - en multi-empresa, el peso es un % de la parte de cada empresa también en el método `Ponderado`.
+  ([Pesos por tarea resumen](docs/calculo-pv-ev.md#pesos-por-tarea-resumen)).
 - Método `Hitos ponderados` con pesos que suman menos de 100 y tareas con duración: el % planificado
   repartía el resto entre las tareas, pero el % ganado solo contaba los hitos. Ahora el % ganado usa el
   mismo reparto: cada hito cumplido suma su peso y las tareas suman su parte por su % completado

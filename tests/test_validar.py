@@ -239,10 +239,14 @@ def test_milestone_weight_checks():
     ''')
     t = by_name(tasks)
     t["Tarea con peso"].milestone_weight = 30
+    t["B"].milestone_weight = 50
     t["B"].method = "Hitos ponderados"
     rep = report(tasks, Config(milestone_weight_field="Peso hito", method_field="Método EVM"))
     weights = found(rep, TOPIC_WEIGHTS)
-    assert any(i.name.startswith("Tarea con peso") and "no es un hito" in i.message for i in weights)
+    # El peso de una tarea cuenta en todos los métodos (es la única de su fila: suma 30 y se escala a 100)
+    assert any(i.id == "HIT-013" and "suman 30" in i.message for i in weights)
+    # El peso de la tarea de una fila no se usa
+    assert [i.name for i in weights if i.id == "HIT-001"] == ["B"]
     assert any(i.code == "1.2.0" and "no tiene hitos" in i.message for i in weights)
 
 

@@ -116,7 +116,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [EDT](#43-edt--estructura-y-códigos-edt) | Estructura y códigos EDT | Estructura y códigos EDT | generar (hoja Validación) y validar | 21 |
 | [VIS](#44-vis--campo-visible) | Campo Visible | Campo Visible | generar (hoja Validación) y validar | 5 |
 | [FEC](#45-fec--fechas-y-duración) | Fechas y duración | Fechas y duración | generar (hoja Validación) y validar | 14 |
-| [HIT](#46-hit--hitos-y-pesos) | Hitos y pesos | Hitos y pesos | generar (hoja Validación) y validar | 16 |
+| [HIT](#46-hit--hitos-y-pesos) | Hitos y pesos | Hitos y pesos | generar (hoja Validación) y validar | 15 |
 | [MET](#47-met--método-de-medición) | Método de medición | Método de medición | generar (hoja Validación) y validar | 5 |
 | [EMP](#48-emp--empresas) | Empresas | Empresas | generar (hoja Validación) y validar | 5 |
 | [AVA](#49-ava--avance-a-la-fecha-de-estado) | Avance a la fecha de estado | Avance a la fecha de estado | validar | 13 |
@@ -1212,30 +1212,29 @@ Peso de los hitos, método «Hitos ponderados» y filas sin % planificado.
 
 | Código | Severidad | Descripción |
 |---|---|---|
-| [HIT-001](#hit-001) | Advertencia | Peso en una tarea que no es un hito de detalle |
+| [HIT-001](#hit-001) | Advertencia | Peso que no se usa |
 | [HIT-002](#hit-002) | Advertencia | «Hitos ponderados» sin hitos |
-| [HIT-003](#hit-003) | Info | «Hitos ponderados» con hitos sin peso |
+| [HIT-003](#hit-003) | Advertencia | «Hitos ponderados» sin pesos |
 | [HIT-004](#hit-004) | Info | «Hitos ponderados» con algunos hitos sin peso |
 | [HIT-005](#hit-005) | Advertencia | Fila sin % planificado |
-| [HIT-006](#hit-006) | Advertencia | Hitos con peso negativo |
-| [HIT-007](#hit-007) | Advertencia | Los pesos de los hitos suman más de 100 % |
-| [HIT-008](#hit-008) | Advertencia | Pesos de hitos menores a 100 % sin tareas con duración |
-| [HIT-009](#hit-009) | Advertencia | Tareas sin duración ni hitos con peso |
+| [HIT-006](#hit-006) | Advertencia | Tareas con peso negativo |
+| [HIT-009](#hit-009) | Advertencia | Tareas sin duración ni peso |
 | [HIT-010](#hit-010) | Error | Hito sin peso en una fila «Ponderado» |
-| [HIT-011](#hit-011) | Advertencia | Tarea sin peso en una fila «Ponderado» |
+| [HIT-011](#hit-011) | Advertencia | Tarea sin peso que no cuenta |
 | [HIT-012](#hit-012) | Advertencia | «Ponderado» sin pesos |
-| [HIT-013](#hit-013) | Error o Advertencia | Pesos de una fila «Ponderado» que no suman 100 |
+| [HIT-013](#hit-013) | Error o Advertencia | Pesos que no suman 100 |
 | [HIT-014](#hit-014) | Error o Advertencia | Pesos que no se usan |
 | [HIT-015](#hit-015) | Info | Tareas con Peso = 0 que no cuentan en el libro |
 | [HIT-016](#hit-016) | Advertencia | Fila del libro con Peso = 0 |
+| [HIT-017](#hit-017) | Advertencia | Tarea sin parte del % planificado |
 
 #### HIT-001
 
-**Peso en una tarea que no es un hito de detalle** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+**Peso que no se usa** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-La tarea tiene peso de hito, pero no es un hito o es una tarea resumen: el peso no se usa (las tareas pesan por su duración).
+La tarea tiene peso, pero es la tarea de una fila del libro (su BAC se ingresa en el libro) o no forma parte de ninguna fila: el peso no se usa. El peso de las demás tareas cuenta en todos los métodos (desde la 2.7.0): es un % de su tarea resumen.
 
-**Qué hacer:** Quitar el peso, o marcar la tarea como hito.
+**Qué hacer:** Quitar el peso, o indicarlo en las subtareas de la fila.
 
 #### HIT-002
 
@@ -1247,17 +1246,17 @@ La fila usa el método «Hitos ponderados» y no tiene hitos: actualizar calcula
 
 #### HIT-003
 
-**«Hitos ponderados» con hitos sin peso** · Info · generar (hoja Validación) y validar · se puede silenciar
+**«Hitos ponderados» sin pesos** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-Ningún hito de la fila tiene peso: los hitos se ponderan por igual.
+Ninguna tarea de la fila tiene peso: el % planificado y el % ganado se reparten por igual entre los hitos (cada uno en el mes de su fecha) y las tareas sin hito no cuentan.
 
-**Qué hacer:** Indicar el peso de los hitos, si no deben pesar igual.
+**Qué hacer:** Indicar el peso de los hitos, si no deben pesar igual, o cambiar el método si las tareas deben contar.
 
 #### HIT-004
 
 **«Hitos ponderados» con algunos hitos sin peso** · Info · generar (hoja Validación) y validar · se puede silenciar
 
-Los hitos sin peso no suman % ganado al cumplirse.
+Los hitos sin peso no reciben parte de la fila: no forman parte del % planificado ni suman % ganado al cumplirse.
 
 **Qué hacer:** Indicar el peso de esos hitos, si deben sumar.
 
@@ -1271,35 +1270,19 @@ Ninguna tarea de la fila tiene fechas ni es un hito con peso: su BAC no se puede
 
 #### HIT-006
 
-**Hitos con peso negativo** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+**Tareas con peso negativo** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-Algunos hitos tienen peso negativo: se toma como 0.
+Algunas tareas de la fila tienen peso negativo: se toman como si no tuvieran peso (reciben parte del resto según su duración; un hito, nada).
 
-**Qué hacer:** Corregir el peso de esos hitos.
-
-#### HIT-007
-
-**Los pesos de los hitos suman más de 100 %** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
-
-Los pesos se escalaron a 100 % y las tareas sin hito de la fila no reciben % planificado.
-
-**Qué hacer:** Corregir los pesos para que sumen como máximo 100 %.
-
-#### HIT-008
-
-**Pesos de hitos menores a 100 % sin tareas con duración** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
-
-La fila solo tiene hitos y sus pesos suman menos de 100 %: se escalaron a 100 %.
-
-**Qué hacer:** Corregir los pesos para que sumen 100 %.
+**Qué hacer:** Corregir el peso de esas tareas.
 
 #### HIT-009
 
-**Tareas sin duración ni hitos con peso** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+**Tareas sin duración ni peso** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-Ninguna tarea de la fila tiene duración ni es un hito con peso: todas pesan igual.
+En la fila o en una de sus tareas resumen, ninguna subtarea tiene peso ni duración (p. ej. tareas resumen que solo tienen hitos): todas reciben la misma parte.
 
-**Qué hacer:** Indicar la duración de las tareas o el peso de los hitos.
+**Qué hacer:** Indicar el peso de esas subtareas, si no deben pesar igual.
 
 #### HIT-010
 
@@ -1311,9 +1294,9 @@ En una fila con el método «Ponderado», un hito (0 días) sin peso no forma pa
 
 #### HIT-011
 
-**Tarea sin peso en una fila «Ponderado»** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+**Tarea sin peso que no cuenta** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-En una fila con el método «Ponderado», la tarea sin peso (con sus subtareas, si es una tarea resumen) no forma parte del % planificado ni del % ganado: las tareas con peso de la misma tarea resumen suman 100 o más, o el resto se reparte por duración y la suya es 0 (p. ej. sin fechas). Es lo esperado si su trabajo no tiene valor propio. Si los pesos suman menos de 100, el resto se reparte entre las tareas sin peso según su duración y no se informa. Si la tarea resumen contiene tareas con peso, se informa con [HIT-014](#hit-014).
+La tarea sin peso (con sus subtareas, si es una tarea resumen) no forma parte del % planificado ni del % ganado: las tareas con peso de la misma tarea resumen suman 100 o más o, en una fila «Ponderado», el resto se reparte por duración y la suya es 0 (p. ej. sin fechas). No se informa en las filas «Hitos ponderados», en las que las tareas sin peso no cuentan cuando los hitos suman 100. Es lo esperado si su trabajo no tiene valor propio. Si los pesos suman menos de 100, el resto se reparte entre las tareas sin peso según su duración y no se informa. Si la tarea resumen contiene tareas con peso, se informa con [HIT-014](#hit-014).
 
 **Qué hacer:** Si debe pesar, indicar su peso y ajustar los de sus tareas hermanas; si es intencionado, escribir 0 (no cuenta en el libro y no se informa).
 
@@ -1321,13 +1304,13 @@ En una fila con el método «Ponderado», la tarea sin peso (con sus subtareas, 
 
 **«Ponderado» sin pesos** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-La fila usa el método «Ponderado» y ninguna de sus tareas tiene peso: el % planificado se reparte por la duración de las tareas y el % ganado se calcula con el % completado.
+La fila usa el método «Ponderado» y ninguna de sus tareas tiene peso: el % planificado se reparte por la duración de las tareas y el % ganado se calcula con el método de cada tarea.
 
 **Qué hacer:** Indicar el peso de las tareas de la fila (campo de `[campos] peso_hito`) o cambiar el método.
 
 #### HIT-013
 
-**Pesos de una fila «Ponderado» que no suman 100** · Error o Advertencia · generar (hoja Validación) y validar · se puede silenciar
+**Pesos que no suman 100** · Error o Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
 En la fila o en una de sus tareas resumen, los pesos de las subtareas directas son % de la tarea resumen. Error si suman más de 100: se escalan a 100 y las subtareas sin peso no cuentan. Advertencia si suman menos de 100 y no hay subtareas sin peso que reciban el resto: se escalan a 100.
 
@@ -1337,7 +1320,7 @@ En la fila o en una de sus tareas resumen, los pesos de las subtareas directas s
 
 **Pesos que no se usan** · Error o Advertencia · generar (hoja Validación) y validar · se puede silenciar
 
-Error: en una fila «Ponderado», una tarea resumen sin peso no recibe parte de la fila (sus tareas hermanas con peso suman 100 o más, o el resto se reparte por duración y la suya es 0, p. ej. solo tiene hitos). Advertencia: la tarea tiene Peso = 0 (o está dentro de una que lo tiene) y no cuenta en el libro. En los dos casos, las subtareas con peso que contiene no forman parte del % planificado ni del % ganado.
+Error: una tarea resumen sin peso no recibe parte de la fila (sus tareas hermanas con peso suman 100 o más, o el resto se reparte por duración y la suya es 0, p. ej. solo tiene hitos). Advertencia: la tarea tiene Peso = 0 (o está dentro de una que lo tiene) y no cuenta en el libro. En los dos casos, las subtareas con peso que contiene no forman parte del % planificado ni del % ganado.
 
 **Qué hacer:** Indicar el peso de la tarea resumen (y ajustar los de sus tareas hermanas para que sumen como máximo 100), o, si el Peso = 0 es intencionado, quitar los pesos de sus subtareas.
 
@@ -1356,6 +1339,14 @@ Un 0 escrito en el campo de peso (de texto) indica que la tarea se hace pero no 
 Una tarea con fila propia (código de nivel no mayor al máximo, Visible = Sí o de la lista EDT) tiene Peso = 0: la fila se conserva, porque su código es una fila del libro, pero sus tareas sin fila propia no cuentan y su PV y su EV son 0. Sus filas inferiores conservan su valor.
 
 **Qué hacer:** Revisar el peso de la tarea: si debe contar, borrar el 0; si no, se puede dejar (la fila queda en 0).
+
+#### HIT-017
+
+**Tarea sin parte del % planificado** · Advertencia · generar (hoja Validación) y validar · se puede silenciar
+
+La tarea (o tarea resumen) no tiene peso y sus tareas con línea base no tienen duración (p. ej. un hito con línea base y tareas agregadas después, sin línea base): el resto de su tarea superior se reparte por la duración planificada y no recibe parte del % planificado, aunque sí del % ganado.
+
+**Qué hacer:** Indicar el peso de la tarea (y ajustar los de sus tareas hermanas).
 
 ---
 
@@ -2331,7 +2322,7 @@ Carga del % ganado del mes: fecha de corte, filas del libro, BAC y observaciones
 | [ACT-028](#act-028) | Info | La empresa no participa en las tareas de la fila |
 | [ACT-029](#act-029) | Info | Hitos con pesos negativos ponderados por igual |
 | [ACT-030](#act-030) | Info | Hitos sin peso ponderados por igual |
-| [ACT-031](#act-031) | Info | Hitos con peso negativo tomados con peso 0 |
+| [ACT-031](#act-031) | Info | Hitos con peso negativo tomados sin peso |
 | [ACT-032](#act-032) | Info | Sin hitos: % físico completado |
 | [ACT-033](#act-033) | Info | Sin hitos ni % físico: % completado |
 | [ACT-034](#act-034) | Info | Método no definido: % completado |
@@ -2595,9 +2586,9 @@ Método «Hitos ponderados»: ningún hito tiene peso: se ponderaron por igual.
 
 #### ACT-031
 
-**Hitos con peso negativo tomados con peso 0** · Info · actualizar (observaciones por fila) · se puede silenciar
+**Hitos con peso negativo tomados sin peso** · Info · actualizar (observaciones por fila) · se puede silenciar
 
-Método «Hitos ponderados»: algunos hitos tienen peso negativo.
+Método «Hitos ponderados»: algunos hitos tienen peso negativo: se tomaron como si no tuvieran peso.
 
 **Qué hacer:** Corregir el peso de esos hitos.
 
@@ -3550,6 +3541,8 @@ reemplazar por el código que lo informa ahora.
 | <a id="fec-011"></a>FEC-011 | Tarea sin fechas de línea base | 2.6.0 | [FEC-010](#fec-010) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [FEC-010](#fec-010). |
 | <a id="fec-014"></a>FEC-014 | Tarea resumen con la línea base sin resumir | 2.6.0 | [FEC-013](#fec-013) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [FEC-013](#fec-013). |
 | <a id="fec-016"></a>FEC-016 | Líneas base incompletas | 2.6.0 | [FEC-015](#fec-015) | Desde la versión 2.6.0, el resumen de las líneas base incompletas y cada tarea se informan con [FEC-015](#fec-015). |
+| <a id="hit-007"></a>HIT-007 | Los pesos de los hitos suman más de 100 % | 2.7.0 | [HIT-013](#hit-013) | Los pesos se escalaron a 100 % y las tareas sin hito de la fila no reciben % planificado. |
+| <a id="hit-008"></a>HIT-008 | Pesos de hitos menores a 100 % sin tareas con duración | 2.7.0 | [HIT-013](#hit-013) | La fila solo tiene hitos y sus pesos suman menos de 100 %: se escalaron a 100 %. |
 | <a id="emp-004"></a>EMP-004 | Tarea sin empresa | 2.6.0 | [EMP-003](#emp-003) | Desde la versión 2.6.0, el resumen y cada tarea se informan con [EMP-003](#emp-003). |
 | <a id="ava-009"></a>AVA-009 | Tarea atrasada sin terminar | 2.6.0 | [AVA-011](#ava-011) | Desde la versión 2.6.0, cada tarea con trabajo pendiente antes de la fecha de estado se informa con [AVA-011](#ava-011), como su resumen. |
 | <a id="ava-010"></a>AVA-010 | Tarea sin comenzar con Comienzo pasado | 2.6.0 | [AVA-011](#ava-011) | Desde la versión 2.6.0, cada tarea con trabajo pendiente antes de la fecha de estado se informa con [AVA-011](#ava-011), como su resumen. |

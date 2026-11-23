@@ -38,7 +38,7 @@ El PV y el EV son el **BAC que se ingresa en el libro** multiplicado por ese %. 
 ```mermaid
 flowchart LR
     subgraph MSP["MS Project (sin importes)"]
-        T["Tareas con fechas de línea base,<br/>hitos con Peso hito,<br/>Empresa y avance"]
+        T["Tareas con fechas de línea base,<br/>pesos, Empresa y avance"]
     end
     subgraph LIBRO["Libro Excel"]
         PPV["% PV<br/>(% planificado del mes)"] --> PV["PV = BAC × % PV"]
@@ -57,8 +57,8 @@ EV del mes = BAC de la fila × % ganado del mes        (hoja % EV)
 AC del mes = se ingresa a mano                        (hoja AC)
 ```
 
-- `generar` calcula el % planificado de cada fila con las **fechas de la línea base** de sus tareas y el
-  **peso** de sus hitos. La suma del % planificado de una fila es 100 %.
+- `generar` calcula el % planificado de cada fila con las **fechas de la línea base** de sus tareas y sus
+  **pesos**. La suma del % planificado de una fila es 100 %.
 - `actualizar` calcula el % ganado acumulado de cada fila a la fecha de corte, según su método de
   medición, y escribe el **% del mes**: la diferencia con lo cargado en los meses anteriores.
 - El PV y el EV son **fórmulas de Excel**: al escribir o cambiar el BAC de una fila, se recalculan
@@ -81,8 +81,8 @@ cálculo:
 |---|---|
 | Código EDT | Cada fila del libro es un elemento EDT hasta el nivel máximo, con el detalle que indique el campo `Visible` de cada tarea, o un código de la lista EDT ([sección 3](#3-filas-del-libro)). |
 | Línea base | Guardada (*Proyecto > Establecer línea base*): el % planificado usa sus **fechas**. |
-| Tareas de detalle | Su **duración** define su peso dentro del paquete: conviene que las tareas representen el trabajo del paquete. Una tarea larga de poco valor pesa más que una corta de mucho valor. |
-| Hitos | Con el campo `Peso hito` (*Número1*), que se indica en `[campos] peso_hito`: el % del BAC del paquete que se planifica en el mes del hito ([sección 4](#4--planificado-peso-de-cada-tarea)). Cómo cuenta en el % ganado depende del método ([sección 6](#6--ganado-métodos-de-medición)). |
+| Tareas de detalle | Sin peso, su **duración** define su parte dentro de su tarea resumen: conviene que las tareas representen el trabajo del paquete. Una tarea larga de poco valor pesa más que una corta de mucho valor; para evitarlo, se indica su peso. |
+| Pesos | Con el campo de peso (por ejemplo, `Peso`, de texto), que se indica en `[campos] peso_hito`: el % de la parte de su tarea resumen que recibe la tarea, el hito o la tarea resumen ([sección 4](#4--planificado-peso-de-cada-tarea)). Un hito sin peso no tiene valor propio. |
 | Método de medición | Campo `Método EVM` (*Texto10*), que se indica en `[campos] metodo` ([Métodos de medición](metodos-de-medicion.md)). |
 | Avance | *% completado*, *% físico completado*, comienzo y fin reales, y la fecha de estado. |
 | Multi-empresa | Columnas `Empresa` y `% Reparto` ([sección 10](#10-multi-empresa)). |
@@ -92,7 +92,7 @@ Datos que se leen de cada tarea:
 | Campo de MS Project | Uso en el cálculo |
 |---|---|
 | *Comienzo previsto* y *Fin previsto* (fechas de la línea base) | % planificado: duración y reparto en los meses. Sin línea base, las fechas actuales ([sección 5](#5-horizonte-de-meses-y-proyecto-sin-línea-base)). |
-| *Hito* y campo `Peso hito` | % planificado del hito y método `Hitos ponderados`. |
+| *Hito* y campo de peso | Parte de cada tarea en su tarea resumen ([sección 4](#4--planificado-peso-de-cada-tarea)); un hito, en el mes de su fecha. |
 | *% completado* | Métodos `% Completado`, `0/100` y `X/Y`; método de respaldo cuando falta otro dato. |
 | *% físico completado* | Métodos `% Físico completado` y `Unidades completadas`, y respaldo de `Hitos ponderados`. |
 | *Comienzo real* | Indica que la tarea comenzó (métodos `X/Y`). |
@@ -104,10 +104,10 @@ Criterios comunes a todos los métodos:
 - **Tarea comenzada:** tiene *Comienzo real*, o *% completado* > 0, o *% físico completado* > 0.
 - **Tarea terminada:** *% completado* = 100, o tiene *Fin real* y *% completado* ≥ 99,5.
 
-> **Pesos visibles.** El cronograma no tiene importes, pero sí los `Peso hito`. Si quien recibe el
-> cronograma conoce también el BAC del paquete, puede calcular el valor de cada hito. Cuando eso no se
-> debe saber, se deja el peso vacío: los hitos no tienen valor propio y, con el método
-> `Hitos ponderados`, pesan igual.
+> **Pesos visibles.** El cronograma no tiene importes, pero sí los pesos. Si quien recibe el
+> cronograma conoce también el BAC del paquete, puede calcular el valor de cada tarea con peso. Cuando eso
+> no se debe saber, se deja el peso vacío: las tareas pesan por su duración, los hitos no tienen valor
+> propio y, con el método `Hitos ponderados` sin ningún peso, pesan igual.
 
 ---
 
@@ -317,13 +317,18 @@ resumen) debe tener su código, de un nivel más que su tarea superior (`2.1.2.1
 
 ## 4. % planificado: peso de cada tarea
 
-Cada tarea de detalle de la fila recibe un peso (una fracción del BAC de la fila):
+Cada tarea de la fila recibe una **parte del BAC** (las partes suman 100 %). Desde la versión 2.7.0 el
+reparto es el mismo en todos los métodos y sigue la EDT de la fila: en cada tarea resumen, empezando por la
+de la fila, su parte se reparte entre sus subtareas directas.
 
-| Tarea | Peso | Reparto en el tiempo |
+| Subtarea | Parte de la tarea resumen | Reparto en el tiempo |
 |---|---|---|
-| Tarea con duración | Su **duración de la línea base**: el tiempo laborable entre su comienzo y su fin (`distribucion = "habiles"`, por defecto) o los días corridos (`"calendario"`). Los pesos de las tareas se reparten el % que no tienen los hitos. | Proporcional a esa misma duración en cada mes. |
-| Hito con `Peso hito` | Ese **% del BAC** de la fila. | Entero en el mes de su fecha. |
-| Hito sin peso | Ninguno: es solo un evento. | — |
+| Con peso (campo de `[campos] peso_hito`) | Ese **% de la parte de su tarea resumen**. El peso no se propaga más arriba de su tarea resumen ([abajo](#pesos-por-tarea-resumen)). | Tarea: proporcional a su duración en cada mes. Hito: entero en el mes de su fecha. Tarea resumen: el de sus subtareas. |
+| Sin peso | El resto (100 menos los pesos de sus tareas hermanas), repartido según su **duración de la línea base**: el tiempo laborable entre su comienzo y su fin (`distribucion = "habiles"`, por defecto) o los días corridos (`"calendario"`). En una tarea resumen, la de sus tareas de detalle. | Igual que con peso. |
+| Hito sin peso | Ninguna (su duración es 0): es solo un evento. | — |
+
+Una fila sin ningún peso se reparte, así, según la duración de sus tareas. El método de medición de la fila
+solo decide cómo se mide el avance de cada tarea en el % ganado ([sección 6](#6--ganado-métodos-de-medición)).
 
 El calendario es el del proyecto (XML), al que se agregan los `feriados` de la configuración, o de lunes
 a viernes con esos `feriados` (`.mpp`).
@@ -332,17 +337,35 @@ Casos especiales (se informan en `Validación`):
 
 | Caso | Tratamiento |
 |---|---|
-| Los pesos de los hitos suman 100 | Los hitos se reparten todo el BAC; las tareas no reciben % planificado (sin aviso). |
-| Los pesos de los hitos suman más de 100 | Se escalan a 100 % y las tareas no reciben % planificado. |
-| Los pesos suman menos de 100 y la fila no tiene tareas con duración | Se escalan a 100 %. |
-| `Peso hito` negativo | Se toma como 0. |
-| Ninguna tarea con duración ni hito con peso | Todas las tareas pesan igual. |
-| Tarea sin fechas de línea base (agregada después de guardarla) en una fila con otras tareas con línea base | No forma parte del % planificado, que es el de la línea base aprobada: cuenta en el % ganado y en la fecha de fin ([abajo](#tareas-sin-línea-base-retrabajo-y-trabajo-no-previsto)). Con `generar --pv-fechas-actuales`, se usan sus fechas actuales. |
+| Los pesos de las subtareas de una tarea resumen suman 100 | Las subtareas sin peso no reciben nada ([HIT-011](codigos.md#hit-011), salvo en las filas `Hitos ponderados`, donde es lo esperado; un hito sin peso solo se informa en las filas `Ponderado`, con [HIT-010](codigos.md#hit-010)). |
+| Suman más de 100 | Se escalan a 100 y las subtareas sin peso no reciben nada (error [HIT-013](codigos.md#hit-013)). |
+| Suman menos de 100 y no hay subtareas sin peso | Se escalan a 100 (aviso [HIT-013](codigos.md#hit-013)). |
+| Tarea resumen sin peso que no recibe parte (sus hermanas suman 100, o su duración es 0) y contiene tareas con peso | Sus pesos no se usan (error [HIT-014](codigos.md#hit-014)): se debe indicar el peso de la tarea resumen. |
+| Ninguna subtarea de una tarea resumen tiene duración ni peso (p. ej. tareas resumen que solo tienen hitos) | Todas reciben la misma parte ([HIT-009](codigos.md#hit-009)). |
+| Peso negativo | Se toma como si no tuviera peso ([HIT-006](codigos.md#hit-006)). |
+| Peso en la tarea de una fila, o en una tarea que no forma parte de ninguna fila | No se usa: el BAC de la fila se ingresa en el libro ([HIT-001](codigos.md#hit-001)). |
+| `Hitos ponderados` sin ningún peso en la fila | El % planificado y el % ganado se reparten por igual entre los hitos; las tareas sin hito no cuentan ([HIT-003](codigos.md#hit-003)). |
+| Tarea sin fechas de línea base (agregada después de guardarla) en una fila con otras tareas con línea base | No forma parte del % planificado, que es el de la línea base aprobada: cuenta en el % ganado y en la fecha de fin ([abajo](#tareas-sin-línea-base-retrabajo-y-trabajo-no-previsto)). Su parte la reciben sus tareas hermanas de la misma tarea resumen. Con `generar --pv-fechas-actuales`, se usan sus fechas actuales. |
+| Tarea resumen sin peso cuyas tareas con línea base no tienen duración (p. ej. un hito con línea base y tareas nuevas) | No recibe parte del % planificado, aunque sí del % ganado ([HIT-017](codigos.md#hit-017)): se debe indicar su peso. |
 | Ninguna tarea de la fila tiene línea base | La fila no tiene % planificado: su BAC debe ser 0 hasta que el trabajo se apruebe ([FEC-019](codigos.md#fec-019)). Con `generar --pv-fechas-actuales`, se usan sus fechas actuales. |
 | Ninguna tarea de la fila tiene fechas | La fila no tiene % planificado: su BAC no se puede repartir en el tiempo. |
 
-En las filas con el método `Ponderado` el peso de cada tarea sale del campo de peso, por tarea resumen
-([Método «Ponderado»](#método-ponderado)).
+### Pesos por tarea resumen
+
+Un peso es un % de la parte de **su** tarea resumen y solo se reparte con sus tareas hermanas: no se
+propaga más arriba. Ejemplo: paquete `1.2` con la tarea `1.2.1` (20 días) y la tarea resumen `1.2.3`, que
+contiene la tarea `1.2.3.1` (20 días) y el hito `1.2.3.4` con peso 10.
+
+| Tarea | Parte | % del BAC |
+|---|---|---:|
+| `1.2.1` | Sin peso: 20 de 40 días del paquete | 50 % |
+| `1.2.3` | Sin peso: 20 de 40 días del paquete | 50 % |
+| `1.2.3.1` | Sin peso: el 90 % restante de `1.2.3` | 45 % |
+| `1.2.3.4` | Peso 10: el 10 % de `1.2.3` | 5 % |
+
+Para que el hito valga el 10 % de todo el paquete, se pone en el nivel de `1.2` (como subtarea directa del
+paquete) o se indica el peso de `1.2.3`. Hasta la versión 2.6.0, fuera del método `Ponderado`, el peso de un
+hito era un % de toda la fila y el de las tareas con duración y las tareas resumen no se usaba.
 
 **Tareas con Peso = 0.** Con el campo de peso de **texto** (por ejemplo, alias `Peso`), un 0 escrito
 significa que la tarea se hace pero **no cuenta en el libro**, con cualquier método: la tarea y su rama
@@ -368,7 +391,9 @@ Una tarea de detalle **sin línea base**, en una fila con otras tareas que sí l
 - **Retrabajo:** el cliente rechaza una tarea dada por terminada y se agrega una subtarea para completarla.
 - **Trabajo no previsto:** al ejecutar se ve que el desglose no era suficiente y se agregan subtareas.
 
-En los dos casos el PV de la fila no cambia, tampoco al regenerar el libro con `--migrar-desde`; el % ganado
+Su parte de la tarea resumen la reciben, en el % planificado, sus tareas hermanas con línea base (reparto
+local): la tarea resumen conserva su parte del PV, y el reparto por duración entre tareas hermanas sin peso usa
+la duración planificada. En los dos casos el PV de la fila no cambia, tampoco al regenerar el libro con `--migrar-desde`; el % ganado
 baja (queda más trabajo por hacer) y vuelve al 100 % al terminar, y la fecha de fin de la hoja `EV` pasa a
 ser la de la subtarea. `generar` y `validar` lo informan con [FEC-019](codigos.md#fec-019). Si el trabajo
 nuevo es un cambio aprobado, se guarda su línea base (*Tareas seleccionadas* y *Resumir líneas base*) y
@@ -384,12 +409,12 @@ que se generó y `actualizar` lo usa para comparar el % planificado con la líne
 El % planificado sale siempre de MS Project. Para comprobar que el PV de una empresa sigue el reparto
 mensual de su plan de costes, se compara con él en un libro con
 [depuración de costes](depuracion-costes.md), y las diferencias se ajustan en MS Project (fechas, hitos y
-su `Peso hito`).
+sus pesos).
 
 **Ejemplo** (caso ilustrativo, con datos distintos de los del proyecto de ejemplo). Paquete
 `3.2.1 Suministro de equipos`, BAC 1.000.000:
 
-| Tarea | Duración | Peso hito | Peso | PV |
+| Tarea | Duración | Peso | Parte | PV |
 |---|---:|---:|---:|---:|
 | Fabricación | 200 días | – | 70 % × 200 / 240 = 58,3 % | 583.333, repartido en sus meses |
 | Transporte | 40 días | – | 70 % × 40 / 240 = 11,7 % | 116.667, repartido en sus meses |
@@ -438,14 +463,15 @@ el EVM se debe guardar la línea base
 ## 6. % ganado: métodos de medición
 
 El método de cada fila es el de la columna C de la hoja `PV`, que se puede modificar en Excel
-([Métodos de medición](metodos-de-medicion.md)). Los pesos de las tareas y los hitos son los del %
-planificado:
+([Métodos de medición](metodos-de-medicion.md)). La parte de cada tarea es la del reparto de la
+[sección 4](#4--planificado-peso-de-cada-tarea), el mismo en todos los métodos, con todas las tareas de
+detalle (también las que no tienen línea base):
 
 | Método | % ganado acumulado |
 |---|---|
 | `0/100` | 0 hasta terminar; 100 % cuando terminan todas las tareas. |
 | `50/50`, `25/75`, `20/80` (cualquier `X/Y` con X + Y = 100) | X % cuando comienza alguna tarea; 100 % cuando terminan todas. |
-| `Hitos ponderados` | Σ `Peso hito` de los hitos cumplidos / Σ pesos de todos los hitos de la fila. Si los pesos suman menos de 100 y la fila tiene tareas con duración, el mismo reparto que el % planificado: cada hito cumplido suma su peso y las tareas se reparten el resto según su duración, con su *% completado* ([abajo](#hitos-ponderados-con-pesos-que-suman-menos-de-100)). |
+| `Hitos ponderados` | Σ parte de los hitos cumplidos + Σ parte de cada tarea × su *% completado* ([abajo](#hitos-ponderados-con-pesos-que-suman-menos-de-100)). Si ninguna tarea de la fila tiene peso, los hitos pesan igual (también en el % planificado) y las tareas no cuentan. |
 | `% Completado` | Σ peso de cada tarea × su *% completado*. Un hito cuenta su peso cuando está cumplido. |
 | `% Físico completado` | Igual, con el *% físico completado*. |
 | `Unidades completadas` | Igual que `% Físico completado` (en ese campo se registra el cociente unidades hechas / unidades totales). |
@@ -465,8 +491,9 @@ EV       = 1.000.000 × 74,2 % = 741.667
 
 Particularidades:
 
-- **Hitos ponderados:** se consideran todos los hitos de la fila, en cualquier nivel. Un peso negativo se
-  toma como 0; si ningún hito tiene peso positivo, todos pesan igual y las tareas no cuentan. Si la fila no tiene hitos, se usa
+- **Hitos ponderados:** cada hito vale su parte de la [sección 4](#4--planificado-peso-de-cada-tarea) (su
+  peso es un % de su tarea resumen). Un peso negativo se toma como si no tuviera peso; si ninguna tarea de la
+  fila tiene peso, todos los hitos pesan igual y las tareas no cuentan. Si la fila no tiene hitos, se usa
   *% físico completado* cuando alguna tarea lo tiene registrado y, si no, *% completado*. Cada caso se
   informa en pantalla.
 - **Avance lineal:** el EV es igual al PV acumulado de la fila, por lo que la fila nunca tiene
@@ -481,7 +508,7 @@ Particularidades:
 ### Hitos ponderados con pesos que suman menos de 100
 
 Desde la versión 2.7.0, el % ganado sigue el mismo reparto que el % planificado
-([sección 4](#4--planificado-peso-de-cada-tarea)): cada hito vale su `Peso hito` y las tareas con duración
+([sección 4](#4--planificado-peso-de-cada-tarea)): cada hito vale su parte y las tareas con duración
 se reparten el resto según su duración. Al cumplirse, un hito suma su peso; cada tarea suma su parte por
 su *% completado*. Antes, el % ganado solo contaba los hitos (Σ pesos cumplidos / Σ pesos), mientras que
 el PV también se repartía entre las tareas.
@@ -505,22 +532,12 @@ Desde la versión 2.7.0. Sirve para paquetes cuyas tareas son de distinta natura
 ingeniería, compras y un entregable): cada tarea de la fila tiene su **peso** y su **propio método de
 medición**.
 
-**Pesos.** Se escriben en el campo de `[campos] peso_hito` (de texto, por ejemplo con alias `Peso`). En
-cada tarea resumen de la fila (la de la fila y las de nivel inferior), los pesos de sus subtareas directas
-son **% de la parte de esa tarea resumen**:
-
-| Pesos de las subtareas de una tarea resumen | Reparto |
-|---|---|
-| Suman 100 | Cada subtarea con peso recibe su %; las de peso vacío no reciben nada ([HIT-011](codigos.md#hit-011)). |
-| Suman menos de 100 | El resto se reparte entre las subtareas de peso vacío, según su duración. Un hito de peso vacío (duración 0) no recibe nada ([HIT-010](codigos.md#hit-010), error). Si no hay subtareas de peso vacío, los pesos se escalan a 100 ([HIT-013](codigos.md#hit-013), advertencia). |
-| Suman más de 100 | Se escalan a 100 y las de peso vacío no reciben nada ([HIT-013](codigos.md#hit-013), error). |
-| Ninguna tiene peso | La parte se reparte según su duración (en partes iguales si todas duran 0). |
-| Peso 0 escrito | La subtarea no cuenta, con su rama ([arriba](#4--planificado-peso-de-cada-tarea)). |
-
-Una tarea resumen que recibe una parte la reparte del mismo modo entre sus subtareas. Una tarea resumen
-de peso vacío que no recibe nada, pero contiene subtareas con peso, es un error: esos pesos no se usan
-([HIT-014](codigos.md#hit-014)). Si ninguna tarea de la fila tiene peso, el % planificado se reparte por
-duración y el % ganado se calcula con el % completado ([HIT-012](codigos.md#hit-012)).
+**Pesos.** Se escriben en el campo de `[campos] peso_hito` (de texto, por ejemplo con alias `Peso`) y se
+reparten como en todas las filas ([sección 4](#4--planificado-peso-de-cada-tarea)): en cada tarea resumen,
+los pesos de sus subtareas directas son **% de la parte de esa tarea resumen**. En una fila `Ponderado`,
+además, un hito sin peso que no recibe nada es un error ([HIT-010](codigos.md#hit-010)): suele ser un
+olvido. Si ninguna tarea de la fila tiene peso, el % planificado se reparte por duración y el % ganado se
+calcula con el método de cada tarea ([HIT-012](codigos.md#hit-012)).
 
 **% planificado.** La parte de cada tarea de detalle se reparte en el tiempo según **sus** fechas de
 línea base: una tarea, en proporción a su duración en cada mes; un hito, entera en su mes. Las tareas sin
@@ -677,8 +694,10 @@ Con `[multiempresa] activar = true` ([Multi-empresa](multiempresa.md)):
   `% Reparto` solo se usa en las tareas cuya columna `Empresa` es `Ambas`; en las demás se ignora
   ([Multi-empresa](multiempresa.md#5-parte-de-cada-empresa-en-cada-tarea)).
 
-- Un **hito** vale su `Peso hito` para cada empresa que participa en él: el `% Reparto` reparte la
-  duración de las tareas, no el peso de los hitos.
+- Un **peso** (de un hito, una tarea o una tarea resumen) vale para cada empresa que participa en la
+  tarea: es un % de la parte de **la empresa** en su tarea resumen. El `% Reparto` reparte la duración de
+  las tareas, no los pesos. Por ejemplo, un hito de peso 10 de la empresa A vale el 10 % del BAC de A en
+  esa tarea resumen, no el 10 % de la fila completa.
 - Los métodos `0/100`, `X/Y` y `Hitos ponderados` también se miden **por empresa**, con sus tareas y sus
   hitos: una empresa que terminó su parte no espera a la otra.
 - Si una empresa **no participa** en ninguna tarea de la fila y se le asigna BAC, se usan el % planificado
@@ -822,8 +841,9 @@ comportamiento esperado de ese método.
 | El PV y el EV de cada fila son el BAC × ... | Recordatorio de dónde se ingresa el BAC. |
 | N tareas sin línea base no forman parte del % planificado | Se agregaron después de guardar la línea base (retrabajo o trabajo no previsto): cuentan en el % ganado, no en el PV. Si son trabajo aprobado, guardar su línea base. |
 | N tareas no tienen fechas de línea base | Con `generar --pv-fechas-actuales`: las tareas sin línea base forman el % planificado con sus fechas actuales. |
-| Los pesos de los hitos suman X % | Pesos mayores que 100, o menores sin tareas con duración: se escalaron a 100 %. |
-| Las tareas no tienen duración ni hitos con peso | Todas las tareas de la fila pesan igual. |
+| Los pesos de las subtareas de X suman N | Pesos mayores que 100, o menores sin subtareas sin peso: se escalaron a 100 ([HIT-013](codigos.md#hit-013)). |
+| Sin peso en la fila X: sus tareas hermanas con peso suman 100 o más | La tarea no cuenta en el PV ni en el EV ([HIT-011](codigos.md#hit-011)). |
+| Las tareas de X no tienen duración ni peso | Todas reciben la misma parte ([HIT-009](codigos.md#hit-009)). |
 | Ninguna tarea de la fila tiene fechas | La fila no tiene % planificado: su BAC no se puede repartir. |
 | EmpresaX no participa en las tareas de N filas | Si se le asigna BAC en esas filas, se usa la curva de la fila completa. |
 | % planificado anterior al mes 1 / posterior al último mes | Revisar `mes_inicio` y `meses`. |
@@ -887,9 +907,15 @@ cada mes, y su última columna el total o el acumulado.
 **¿Qué pasa si no se ingresa el BAC?** El PV y el EV de la fila quedan en 0. `actualizar` carga igual el
 % ganado y advierte; al ingresar el BAC, los importes se calculan solos.
 
-**¿Sirven los pesos relativos de hitos (1, 2, 3)?** El `Peso hito` es un % del BAC: pesos 1, 2 y 3 suman
-6 % y el 94 % restante se reparte entre las tareas por duración, también en el % ganado de un paquete
-medido con `Hitos ponderados`. Para que el paquete avance solo con sus hitos, los pesos deben sumar 100.
+**¿Sirven los pesos relativos de hitos (1, 2, 3)?** El peso es un % de la parte de su tarea resumen:
+pesos 1, 2 y 3 suman 6 % y el 94 % restante se reparte entre las tareas sin peso por duración, también en
+el % ganado de un paquete medido con `Hitos ponderados`. Para que la tarea resumen avance solo con sus
+hitos, los pesos deben sumar 100.
+
+**¿Un peso en una subtarea cuenta en todo el paquete?** No: solo dentro de su tarea resumen. Un hito de
+peso 10 en `1.2.3.4` vale el 10 % de la parte de `1.2.3`; para que valga el 10 % del paquete `1.2`, se pone
+como subtarea directa de `1.2` o se indica el peso de `1.2.3`
+([Pesos por tarea resumen](#pesos-por-tarea-resumen)).
 
 **¿Se pueden usar los costos de MS Project?** No en la versión 2.x. Para calcular el PV y el EV con los
 costos de línea base de MS Project se debe usar la versión 1.5.1.

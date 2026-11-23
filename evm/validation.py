@@ -15,7 +15,7 @@ from datetime import date, datetime, timedelta
 
 from evm.config import Config, ConfigError
 from evm.fields import fmt_number, same_name
-from evm.methods import FIXED, LOE, MILESTONES, UNKNOWN, WEIGHTED, is_complete, is_started, parse_method
+from evm.methods import FIXED, LOE, MILESTONES, UNKNOWN, is_complete, is_started, parse_method
 from evm.model import (CONSTRAINT_FNLT, CONSTRAINT_MFO, CONSTRAINT_MSO, CONSTRAINT_SNLT, LINK_FF, LINK_FS, LINK_SF,
                        LINK_SS, Link, ProjectData, Task)
 from evm.messages import SEV_ERROR, SEV_INFO, SEV_WARN, TOPIC_BOOK, Issue
@@ -485,16 +485,16 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
 
     # --- Hitos y pesos --------------------------------------------------------
     if cfg.milestone_weight_field:
-        # En las filas «Ponderado» el peso es de cualquier tarea (HIT-010 a HIT-013)
-        weighted = {x.uid for r in rows if r.is_input and r.kind != KIND_RESIDUAL
-                    and parse_method(r.method).kind == WEIGHTED for x in iter_subtree(r.task)}
-        unused = [t for t in tasks if t.milestone_weight and (not t.milestone or t.children) and t.uid not in weighted]
+        # El peso de cualquier tarea de una fila cuenta, en todos los métodos (HIT-009 a HIT-014): no se usa el de la
+        # tarea de la fila (su BAC se ingresa en el libro) ni el de una tarea que no forma parte de ninguna fila
+        used = {x.uid for r in rows if r.is_input and r.tree is not None for x in r.tree.nodes}
+        unused = [t for t in tasks if (t.milestone_weight or 0) > 0 and t.uid not in used]
         for t in unused[:LIMIT]:
-            what = "es una tarea resumen" if t.children else "no es un hito"
+            what = ("es la tarea de una fila del libro (su BAC se ingresa en el libro)"
+                    if any(r.task is t for r in rows) else "no forma parte de ninguna fila del libro")
             issues.append(_issue("HIT-001", t, code_of,
                                  f"Tiene '{cfg.milestone_weight_field}' = {_num(t.milestone_weight, 2)}, pero {what}: "
-                                 "el peso no se usa (solo cuentan los hitos de detalle; las tareas pesan por su "
-                                 "duración)."))
+                                 "el peso no se usa."))
         milestones = [t for t in leaves if t.milestone]
         if ("peso_hito" in project.fields_found and milestones
                 and not any((t.milestone_weight or 0) > 0 for t in milestones)):
@@ -506,16 +506,17 @@ def data_checks(project: ProjectData, scope: Scope, rows: list[ReportRow], cfg: 
         if not row.is_input or parse_method(row.method).kind != MILESTONES:
             continue
         milestones = [t for t in row.leaves if t.milestone]
-        weighted = [t for t in milestones if (t.milestone_weight or 0) > 0]
         if not milestones:
             issues.append(Issue("HIT-002", row.code, row.name,
                                 "Método «Hitos ponderados» y la fila no tiene hitos: «actualizar» calculará el % "
                                 "ganado con el % físico completado (o el % completado)."))
-        elif not weighted:
+        elif row.tree is not None and row.tree.equal_milestones:
             issues.append(Issue("HIT-003", row.code, row.name,
-                                "Método «Hitos ponderados» con hitos sin peso: los hitos se ponderan por igual."))
-        elif len(weighted) < len(milestones):
-            loose = [t for t in milestones if t not in weighted]
+                                "Método «Hitos ponderados» y ninguna tarea con peso: el % planificado y el % ganado se "
+                                "reparten por igual entre los hitos; las tareas sin hito no cuentan."))
+        elif row.tree is not None and any(row.tree.full()[0].weights.get(t.uid, 0.0) <= 0 for t in milestones):
+            share = row.tree.full()[0].weights
+            loose = [t for t in milestones if share.get(t.uid, 0.0) <= 0]
             issues.append(Issue("HIT-004", row.code, row.name,
                                 f"Método «Hitos ponderados»: {plural(len(loose), 'hito', 'hitos')} sin peso no "
                                 f"{'suma' if len(loose) == 1 else 'suman'} % ganado al cumplirse "
