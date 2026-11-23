@@ -24,7 +24,15 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 ### Correcciones
 
-- Ninguna.
+- `generar-cliente`: cuando no se muestra ninguna tarea porque una tarea superior no tiene `Sí` (por
+  ejemplo, la única tarea de primer nivel, la del proyecto completo, sin valor), `CLI-002` decía solo que
+  ninguna tarea tenía `Sí`. Ahora indica cuántas tareas lo tienen y qué tarea superior no lo tiene, para
+  poner `Sí` también en ella
+  ([Planificación para el cliente](docs/generar-cliente.md#2-qué-tareas-ve-el-cliente)).
+- Campo de peso empresarial de Project Online leído de un XML: el tipo (número, costo o texto) se toma de
+  la definición del campo en el XML. Antes se decidía por los valores y, como el XML omite los 0 de un
+  campo numérico, un 0 escrito en pocas tareas se tomaba como Peso = 0
+  ([Configuración](docs/configuracion.md)).
 
 ### Otros
 

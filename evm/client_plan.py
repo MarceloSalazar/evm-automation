@@ -592,8 +592,14 @@ def build_client_plan(project: ProjectData, cfg: Config) -> ClientPlan:
     tasks = plan.tasks
     in_scope = {t.uid for t in tasks}
     if not plan.shown:
+        hint = ""
+        if plan.orphans:
+            what = plural(plan.orphan_count, "tarea tiene", "tareas tienen")
+            where = ", ".join(list(dict.fromkeys(plan.ref(t.parent) for t in plan.orphans if t.parent is not None))[:3])
+            hint = (f" {what} Sí, pero una tarea superior no lo tiene"
+                    + (f" (por ejemplo {where})" if where else "") + ": se debe poner Sí también en ella.")
         raise EvmError("CLI-002", f"Ninguna tarea de la planificación tiene Sí en '{cfg.client_field}' (también en sus "
-                                  "tareas superiores): no hay nada que mostrar al cliente.")
+                                  f"tareas superiores): no hay nada que mostrar al cliente.{hint}")
     if cfg.client_internal_activity:
         _internal_activity(plan, cfg, in_scope)
         return plan

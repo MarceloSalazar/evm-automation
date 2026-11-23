@@ -52,6 +52,10 @@ hasta que se marca.
 | Valor no reconocido (por ejemplo `Sí, revisar` o `X`) | No se muestra | `CLI-003` |
 | `Sí` debajo de una tarea sin `Sí` | No se muestra | `CLI-004` |
 
+Cuando se usa todo el proyecto (sin `[exportacion] planificacion`), las tareas de primer nivel también se
+marcan: si el archivo tiene una sola, la que resume el proyecto completo, lleva `Sí`. Si no lo tiene, no se
+muestra ninguna tarea (`CLI-002`, que indica cuántas tareas tienen `Sí` y qué tarea superior no lo tiene).
+
 Una tarea vacía debajo de una que se muestra suele ser una tarea nueva que nadie marcó: el cliente deja de
 verla sin que nadie lo haya decidido. `CLI-031` la avisa en cada ejecución, también con `--simular`, con la
 tarea de más arriba de cada rama (las inactivas no cuentan). Si el cliente no la debe ver, se le pone

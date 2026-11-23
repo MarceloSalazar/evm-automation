@@ -2853,7 +2853,7 @@ generar-cliente parte de una tarea de primer nivel del esquema (la planificació
 
 Ninguna tarea de la planificación tiene Sí en el campo de [cliente] campo (en ella y en todas sus tareas superiores).
 
-**Qué hacer:** Revisar el campo configurado en [cliente] campo y marcar con Sí las tareas que debe ver el cliente, empezando por las de primer nivel de la planificación.
+**Qué hacer:** Revisar el campo configurado en [cliente] campo y marcar con Sí las tareas que debe ver el cliente, empezando por las de primer nivel de la planificación (también la del proyecto completo, si es la única de primer nivel).
 
 #### CLI-003
 

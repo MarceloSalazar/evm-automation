@@ -1589,7 +1589,8 @@ _CODES = [
           "Ninguna tarea de la planificación tiene Sí en el campo de [cliente] campo (en ella y en todas sus tareas "
           "superiores).",
           "Revisar el campo configurado en [cliente] campo y marcar con Sí las tareas que debe ver el cliente, "
-          "empezando por las de primer nivel de la planificación."),
+          "empezando por las de primer nivel de la planificación (también la del proyecto completo, si es la única "
+          "de primer nivel)."),
     _code("CLI-003", W, "Valor no reconocido en el campo del cliente",
           "El campo de [cliente] campo tiene un valor que no es Sí ni No (por ejemplo, un error de escritura): la "
           "tarea no se muestra.",
