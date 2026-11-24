@@ -40,6 +40,17 @@ def test_development_version_names_the_last_release_and_the_commit():
     assert version.describe("b513fbb") is None and version.describe("") is None
 
 
+def test_development_version_uses_the_latest_release_even_outside_the_branch_history():
+    """La etiqueta de una versión está en el commit de fusión de main: si la rama no lo tiene, git describe encuentra
+    una anterior (v2.6.0), pero la versión nombra la última publicada que no supera __version__."""
+    tags = ["v2.5.0", "v2.6.0", "v2.7.0", "v2.7.1", "v2.8.0"]
+    assert version.describe("v2.6.0-39-g017e8a6", tags, "2.7.1") == "2.7.1 + desarrollo (017e8a6)"
+    assert version.describe("v2.6.0-39-g017e8a6", tags, "2.7.0") == "2.7.0 + desarrollo (017e8a6)"
+    assert version.describe("v2.7.1-0-gf0e9c4b", tags, "2.7.1") == "2.7.1"            # en la versión publicada
+    assert version.latest_release("2.6.0", ["otra", "v2.10.0", "v2.9.1"], "2.10.0") == "2.10.0"
+    assert version.latest_release("2.6.0", [], "2.7.1") == "2.6.0"
+
+
 def test_version_without_git_is_the_published_one(monkeypatch, tmp_path):
     version.version_label.cache_clear()
     monkeypatch.setattr(version, "ROOT", tmp_path)                    # sin .git: p. ej. el instalador

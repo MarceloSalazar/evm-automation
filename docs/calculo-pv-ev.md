@@ -704,8 +704,8 @@ Con `[multiempresa] activar = true` ([Multi-empresa](multiempresa.md)):
   esa tarea resumen, no el 10 % de la fila completa.
 - Los métodos `0/100`, `X/Y` y `Hitos ponderados` también se miden **por empresa**, con sus tareas y sus
   hitos: una empresa que terminó su parte no espera a la otra.
-- Si una empresa **no participa** en ninguna tarea de la fila y se le asigna BAC, se usan el % planificado
-  y el avance de la fila completa (se informa en `Validación` y en `actualizar`).
+- Si una empresa **no participa** en ninguna tarea de la fila, su % planificado y su % ganado quedan en
+  blanco y su celda de BAC no es de ingreso: su PV y su EV son 0 ([Multi-empresa](multiempresa.md)).
 - El **AC** de cada empresa se carga a mano en `AC-EmpresaA` y `AC-EmpresaB`.
 
 **Ejemplo** (caso ilustrativo, con datos distintos de los del proyecto de ejemplo). Paquete
@@ -849,7 +849,7 @@ comportamiento esperado de ese método.
 | Sin peso en la fila X: sus tareas hermanas con peso suman 100 o más | La tarea no cuenta en el PV ni en el EV ([HIT-011](codigos.md#hit-011)). |
 | Las tareas de X no tienen duración ni peso | Todas reciben la misma parte ([HIT-009](codigos.md#hit-009)). |
 | Ninguna tarea de la fila tiene fechas | La fila no tiene % planificado: su BAC no se puede repartir. |
-| EmpresaX no participa en las tareas de N filas | Si se le asigna BAC en esas filas, se usa la curva de la fila completa. |
+| EmpresaX no participa en las tareas de N filas | En esas filas, su % planificado y su % ganado quedan en blanco y su BAC no se ingresa. |
 | % planificado anterior al mes 1 / posterior al último mes | Revisar `mes_inicio` y `meses`. |
 
 `actualizar` informa en pantalla:

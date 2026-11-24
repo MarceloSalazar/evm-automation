@@ -122,7 +122,7 @@ python evm_export.py validar --origen "C:\Programa\Programa.mpp" --silenciar LOG
 | [AVA](#49-ava--avance-a-la-fecha-de-estado) | Avance a la fecha de estado | Avance a la fecha de estado | validar | 13 |
 | [LOG](#410-log--lógica-del-cronograma) | Lógica del cronograma | Lógica del cronograma | validar | 13 |
 | [LIB](#411-lib--libro) | Libro | Libro | actualizar, analizar, procesar-costes y generar `--migrar-desde` (lectura del libro) | 17 |
-| [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 20 |
+| [MIG](#412-mig--migración---migrar-desde) | Migración (--migrar-desde) | Libro | generar `--migrar-desde` (hoja Validación) | 21 |
 | [DEP](#413-dep--depuración-de-costes) | Depuración de costes | Libro | generar con depuracion_costes (hoja Validación) | 19 |
 | [ACT](#414-act--actualizar-y-analizar) | Actualizar y analizar | Libro | actualizar | 52 |
 | [FIC](#415-fic--fichas-de-tareas) | Fichas de tareas | Libro | generar-fichas | 4 |
@@ -1437,9 +1437,9 @@ La tarea tiene % de reparto, pero su empresa no es la de las tareas compartidas 
 
 **Empresa sin tareas en la fila** · Info · generar (hoja Validación) y validar · se puede silenciar
 
-La empresa no participa en las tareas de algunas filas: si se le asigna BAC, su PV se reparte con el % planificado de la fila completa.
+La empresa no participa en las tareas de algunas filas: en ellas, su % planificado y su % ganado quedan en blanco y su celda de BAC no es de ingreso (su PV y su EV son 0).
 
-**Qué hacer:** Ninguna, si no se le asigna BAC en esas filas.
+**Qué hacer:** Ninguna. Si la empresa debe tener trabajo en esas filas, se le asignan tareas en MS Project (campo de `[multiempresa] campo_empresa`) y se regenera el libro con `--migrar-desde`.
 
 #### EMP-003
 
@@ -1907,6 +1907,7 @@ Traslado del BAC, el % ganado, el AC y los métodos de un libro anterior.
 | [MIG-018](#mig-018) | Info | Registro de cambios trasladado |
 | [MIG-019](#mig-019) | Error | Valores escritos sobre fórmulas sin trasladar |
 | [MIG-020](#mig-020) | Advertencia | Ceros intermedios con otro criterio |
+| [MIG-021](#mig-021) | Advertencia | BAC y % ganado de una empresa que ya no participa en la fila |
 
 #### MIG-001
 
@@ -2067,6 +2068,14 @@ El libro anterior tiene valores escritos sobre celdas que deben tener fórmula (
 El libro anterior y el nuevo se generaron con distinto ignorar_ceros_intermedios: los códigos con un 0 intermedio (p. ej. 1.2.0.1) cambian de nivel. Las filas que ahora se dividen en varias no pueden repartir su historial.
 
 **Qué hacer:** Cargar a mano el historial de las filas que informa [MIG-014](#mig-014).
+
+#### MIG-021
+
+**BAC y % ganado de una empresa que ya no participa en la fila** · Advertencia · generar `--migrar-desde` (hoja Validación) · se puede silenciar
+
+En el libro nuevo, la empresa no tiene tareas en la fila: su BAC y su % ganado del libro anterior no se trasladan, y su % planificado y su % ganado quedan en blanco.
+
+**Qué hacer:** Si la empresa debe tener trabajo en la fila, asignarle tareas en MS Project y regenerar el libro.
 
 ---
 
@@ -2283,7 +2292,6 @@ Carga del % ganado del mes: fecha de corte, filas del libro, BAC y observaciones
 | [ACT-025](#act-025) | Advertencia | Celdas de ingreso convertidas en número |
 | [ACT-026](#act-026) | Info | El AC se carga a mano |
 | [ACT-027](#act-027) | Info | % ganado del mes negativo |
-| [ACT-028](#act-028) | Info | La empresa no participa en las tareas de la fila |
 | [ACT-029](#act-029) | Info | Hitos con pesos negativos ponderados por igual |
 | [ACT-030](#act-030) | Info | Hitos sin peso ponderados por igual |
 | [ACT-031](#act-031) | Info | Hitos con peso negativo tomados sin peso |
@@ -2308,6 +2316,7 @@ Carga del % ganado del mes: fecha de corte, filas del libro, BAC y observaciones
 | [ACT-050](#act-050) | Advertencia | Ceros intermedios con otro criterio que el libro |
 | [ACT-051](#act-051) | Advertencia | Tareas nuevas que se suman en una fila |
 | [ACT-052](#act-052) | Advertencia | Configuración de cálculo distinta de la del libro |
+| [ACT-053](#act-053) | Advertencia | BAC de una empresa que no participa en la fila |
 
 #### ACT-001
 
@@ -2525,14 +2534,6 @@ El % ganado acumulado bajó respecto del mes anterior: el mes tiene un valor neg
 
 **Qué hacer:** Verificar el avance registrado en MS Project.
 
-#### ACT-028
-
-**La empresa no participa en las tareas de la fila** · Info · actualizar (observaciones por fila) · se puede silenciar
-
-Se usó el avance de la fila completa para el % ganado de esa empresa.
-
-**Qué hacer:** Ninguna.
-
 #### ACT-029
 
 **Hitos con pesos negativos ponderados por igual** · Info · actualizar (observaciones por fila) · se puede silenciar
@@ -2724,6 +2725,14 @@ Se agregaron tareas en MS Project después de generar el libro, con un código E
 Una clave de la configuración que interviene en el cálculo (linea_base, distribucion, feriados, incluir_inactivas, rellenar_edt o los campos edt, metodo y peso_hito) no tiene el valor con que se generó el libro, guardado en la hoja oculta `_meta`. El % ganado del mes se calcula con la configuración actual, de modo que puede no ser coherente con el % planificado del libro.
 
 **Qué hacer:** Si el cambio no es intencionado, volver a la configuración del libro. Si lo es, regenerar el libro con `--migrar-desde`.
+
+#### ACT-053
+
+**BAC de una empresa que no participa en la fila** · Advertencia · actualizar (observaciones por fila) · se puede silenciar
+
+La empresa no tiene tareas en la fila (campo de `[multiempresa] campo_empresa`), pero su celda de BAC tiene un valor: su % planificado y su % ganado están en blanco, de modo que su PV y su EV son 0.
+
+**Qué hacer:** Si la empresa debe tener trabajo en la fila, asignarle tareas en MS Project y regenerar el libro con `--migrar-desde`; si no, quitar su BAC.
 
 ---
 
@@ -3546,3 +3555,4 @@ reemplazar por el código que lo informa ahora.
 | <a id="dep-020"></a>DEP-020 | % planificado de MS Project recuperado | 2.7.1 | [LIB-018](#lib-018) | Filas que en el libro anterior tenían en la hoja % PV el reparto del plan de costes, escrito por procesar-costes en una versión anterior a la 2.6.0: en el libro nuevo, su % planificado vuelve a ser el de MS Project. El plan de costes se compara con el PV en las filas «(coste)». |
 | <a id="dep-021"></a>DEP-021 | Filas con el reparto del plan de costes | 2.7.1 | [LIB-018](#lib-018) | El libro tiene filas cuyo % planificado es el reparto del plan de costes, escrito por procesar-costes en una versión anterior a la 2.6.0: no es el de MS Project. actualizar no compara esas filas con la línea base ([ACT-047](#act-047)). |
 | <a id="dep-024"></a>DEP-024 | Hoja PV-depuración de una versión anterior | 2.7.1 | [LIB-018](#lib-018) | La hoja PV-depuración tiene el formato de la versión 2.5 o anterior, con el plan desde la celda A8. Desde la versión 2.6.0, el plan empieza en la celda A12, con la tabla Recargos arriba. |
+| <a id="act-028"></a>ACT-028 | La empresa no participa en las tareas de la fila | 2.7.2 | [ACT-053](#act-053) | Se usó el avance de la fila completa para el % ganado de esa empresa. |

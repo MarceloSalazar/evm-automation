@@ -51,7 +51,8 @@ class RowWeights:
     weights: dict[int, float]                       # UniqueID -> peso
     members: list[TaskTime]                         # tareas en las que participa la empresa
     notes: list[Issue] = field(default_factory=list)    # observaciones para la hoja Validación (sin la fila)
-    fallback: bool = False                          # la empresa no participa: pesos de la fila completa
+    fallback: bool = False                          # sin parte propia en el reparto: pesos de la fila completa
+    absent: bool = False                            # la empresa no participa en la fila: % PV y % EV en blanco
     equal_milestones: bool = False                  # «Hitos ponderados» sin pesos: los hitos pesan igual
 
 
@@ -353,8 +354,9 @@ class RowTree:
 
     def company(self, share: Share | None) -> tuple["RowWeights", list[tuple[TaskTime, float]]]:
         """% ganado y % planificado de una empresa (share: su parte en cada tarea; None = la fila completa). Si la
-        empresa no participa en ninguna tarea de la fila (o del PV), se usa el reparto de la fila completa (fallback
-        en el % ganado)."""
+        empresa no participa en ninguna tarea de la fila, no tiene % planificado ni % ganado (absent): su PV y su EV
+        quedan en blanco. Si participa pero el reparto no le da ninguna tarea (o ninguna del PV), se usa el de la fila
+        completa (fallback)."""
         if share is None:
             return self.full()
 
@@ -362,7 +364,9 @@ class RowTree:
             return max(0.0, min(1.0, share(t)))
 
         members = [self.time_of(t) for t in self.leaves if part(t) > TOL]
-        ev, pv = self._split(part, False) if members else ([], [])
+        if not members:
+            return RowWeights({}, [], absent=True), []
+        ev, pv = self._split(part, False)
         full_ev, full_pv = self.full()
         rw = self._weights(ev, members) if ev else replace(full_ev, fallback=bool(self.leaves))
         return rw, ([(self.time_of(t), f) for t, f in pv] if pv else full_pv)
