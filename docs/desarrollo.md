@@ -334,6 +334,18 @@ python instalador\construir.py
 gh release upload vX.Y.Z dist\ExportadorEVM-X.Y.Z-instalador.exe
 ```
 
+Al terminar, `desarrollo` se avanza hasta `main` (sin commit nuevo: `desarrollo` no tiene nada que `main` no
+tenga). Así la etiqueta de la versión, que está en el commit de fusión de `main`, queda en la historia de
+`desarrollo` y de las ramas que salgan de ella:
+
+```powershell
+git fetch
+git push origin origin/main:desarrollo
+```
+
+Aunque no se haga, la versión de desarrollo que muestra el programa («X.Y.Z + desarrollo (commit)») toma
+la etiqueta más alta que no supera `__version__` (`evm/version.py`).
+
 `notas_version.py` verifica que la versión tenga el ancla, el resumen y las tres secciones. Los cambios
 que no modifican la versión (por ejemplo, solo documentación) se incorporan a `desarrollo`, se anotan en
 la sección *Sin publicar* del CHANGELOG, en el mismo Pull Request, y se publican con la versión

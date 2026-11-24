@@ -193,8 +193,11 @@ resultante.*
 | `Avance lineal` | Su % planificado acumulado a la fecha de corte. |
 | `Ponderado` | Avance de sus tareas, cada una según su propio método, ponderado por la parte que cada tarea tiene para la empresa. |
 
-Si una empresa **no participa** en ninguna tarea de la fila y se le asigna BAC, se usan el % planificado
-y el avance de la fila completa (se informa en `Validación` y en `actualizar`).
+Si una empresa **no participa** en ninguna tarea de la fila, su % planificado y su % ganado quedan **en
+blanco** y su celda de BAC no es de ingreso: su PV y su EV son 0 ([EMP-002](codigos.md#emp-002)). Si aun así se
+le escribe BAC, `actualizar` lo avisa ([ACT-053](codigos.md#act-053)), y `--migrar-desde` no traslada su BAC ni su
+% ganado ([MIG-021](codigos.md#mig-021)). Para que tenga trabajo en la fila se le asignan tareas en MS Project y
+se regenera el libro.
 
 **Ejemplo.** Paquete `3.1.1` con método `0/100`: la excavación (EmpresaA) terminó y el relleno compactado
 (EmpresaB) está al 50 %. El % ganado de la empresa A es 100 %, porque terminaron todas sus tareas, y su EV
@@ -208,8 +211,8 @@ está en [Cálculo del PV y el EV](calculo-pv-ev.md#10-multi-empresa).
 
 `generar` (hoja `Validación`) y `validar` (en pantalla) informan:
 
-- Las filas en las que una empresa **no participa** en ninguna tarea: si se le asigna BAC, su PV se
-  reparte con el % planificado de la fila completa.
+- Las filas en las que una empresa **no participa** en ninguna tarea: su % planificado y su % ganado
+  quedan en blanco y su BAC no se ingresa.
 - Tareas **sin empresa** (ni propia ni heredada): se reparten con el reparto por defecto.
 - Valores de empresa **no reconocidos** (por ejemplo, un error de escritura o una empresa que no es
   `empresa_a`, `empresa_b` ni `ambas`): **error** desde la versión 2.7.0.
@@ -220,8 +223,8 @@ está en [Cálculo del PV y el EV](calculo-pv-ev.md#10-multi-empresa).
 Una tarea `Ambas` con `% Reparto` vacío no se informa: se reparte con `reparto_por_defecto`, como está
 previsto.
 
-`actualizar` indica en las observaciones de la fila cuándo una empresa con BAC no participa en sus
-tareas y se usó el avance de la fila completa.
+`actualizar` indica en las observaciones de la fila cuándo una empresa que no participa en sus tareas
+tiene BAC: su PV y su EV son 0.
 
 ![Hoja Validación de un libro multi-empresa](img/excel/multi-validacion.png)
 

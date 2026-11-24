@@ -275,9 +275,9 @@ def test_company_weights_by_share_and_fallback():
     # el hito no es de la empresa; las tareas pesan por duración × parte de la empresa (A completa, B a la mitad)
     assert rw.weights == pytest.approx({2: 2 / 3, 3: 1 / 3})
     assert not rw.fallback
-    # Una empresa sin tareas en la fila: pesos de la fila completa (fallback)
-    none = tree.company(lambda t: 0.0)[0]
-    assert none.fallback and none.weights == pytest.approx(tree.full()[0].weights)
+    # Una empresa sin tareas en la fila: sin % ganado ni % planificado (absent)
+    none, pv = tree.company(lambda t: 0.0)
+    assert none.absent and not none.fallback and none.weights == {} and pv == []
 
 
 # ----------------------------------------------------------------------------

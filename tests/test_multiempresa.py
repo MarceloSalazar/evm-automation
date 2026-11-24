@@ -236,7 +236,9 @@ def test_report_planned_percent_per_company(tmp_path, example_files):
     for r in rep.rows:
         if r.is_input:
             assert set(r.pct_vec) == {"A", "B"}
-            assert sum(r.pct_vec["A"]) == pytest.approx(1.0) and sum(r.pct_vec["B"]) == pytest.approx(1.0)
+            for role in ("A", "B"):                 # una empresa sin tareas en la fila: % planificado en blanco
+                assert sum(r.pct_vec[role]) == pytest.approx(0.0 if role in r.absent else 1.0), (r.code, role)
+            assert len(r.absent) < 2
     messages = [i.message for i in rep.issues]
     # 2.1.1 es de EmpresaB dentro de Ingeniería (EmpresaA); la construcción es de EmpresaB
     assert any(m.startswith("EmpresaA no participa en las tareas de 7 filas (2.1.1, 3.1.1, 3.1.2, 3.1.3, 3.2.1, "
@@ -322,9 +324,9 @@ def test_update_splits_ev_and_leaves_ac(multi_book, example_files):
     assert b.ev_b[loe][m] == pytest.approx(sum(b.pv[loe][:m + 1]) - pv_a, abs=0.01)
     assert b.ev_a[loe][m] == pytest.approx(0.6 * b.ev[loe][m], abs=1)
     terreno = book_row(b, "2.1.1")                                                # EmpresaB
-    assert b.ev_a[terreno][m] == 0 and b.ev_b[terreno][m] > 0
+    assert not b.ev_a[terreno][m] and b.ev_b[terreno][m] > 0          # A no participa: % ganado en blanco
     civil = book_row(b, "2.1.3")                                                  # EmpresaA
-    assert b.ev_b[civil][m] == 0 and b.ev_a[civil][m] > 0
+    assert not b.ev_b[civil][m] and b.ev_a[civil][m] > 0
     for s in b.input_rows:
         assert (b.ev[s.row][m] or 0) == pytest.approx((b.ev_a[s.row][m] or 0) + (b.ev_b[s.row][m] or 0))
         assert not any(b.ac_a[s.row]) and not any(b.ac_b[s.row])                # AC: a mano
