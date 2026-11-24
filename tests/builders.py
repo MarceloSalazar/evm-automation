@@ -112,8 +112,8 @@ BAC = 1_000_000.0      # BAC de cada fila en earned_after_update: el EV acumulad
 
 
 def set_bac(path, value: float = BAC) -> dict[str, int]:
-    """Ingresa el mismo BAC en todas las filas de ingreso (hoja PV o las de cada empresa) y devuelve las filas del
-    libro por código."""
+    """Ingresa el mismo BAC en todas las celdas de BAC de ingreso (amarillas) de la hoja PV o de las de cada empresa
+    (una empresa sin tareas en la fila no tiene celda de ingreso) y devuelve las filas del libro por código."""
     from openpyxl import load_workbook
 
     from evm.workbook import read_meta, read_structure
@@ -125,22 +125,23 @@ def set_bac(path, value: float = BAC) -> dict[str, int]:
         rows[s.code] = s.row
         if s.is_input:
             for sheet in sheets:
-                wb[sheet].cell(row=s.row, column=4, value=value)
+                cell = wb[sheet].cell(row=s.row, column=4)
+                if cell.fill.fgColor.rgb == "00FFF2CC":
+                    cell.value = value
     wb.save(path)
     return rows
 
 
 def earned_after_update(tasks: list[Task], cfg: Config, folder, status: date) -> dict[str, float]:
     """Genera el libro (BAC 1.000.000 en cada fila y empresa), simula `actualizar` a la fecha de corte y devuelve el
-    % ganado acumulado de cada fila (en multi-empresa, el promedio de las dos empresas)."""
+    % ganado acumulado de cada fila: EV / BAC de la fila (en multi-empresa, el de las empresas que participan)."""
     from evm.update import run_update
     from evm.workbook import write_workbook
     book = folder / "libro.xlsx"
     write_workbook(build_report(P(tasks), cfg), cfg, book)
     set_bac(book)
     res = run_update(P(tasks), cfg, book, status, backup=False, dry_run=True)
-    roles = 2 if cfg.multi_enabled else 1
-    return {r.code: r.ev_cum / (BAC * roles) for r in res.rows}
+    return {r.code: (r.ev_cum or 0.0) / r.bac if r.bac else 0.0 for r in res.rows}
 
 
 # ----------------------------------------------------------------------------

@@ -423,7 +423,10 @@ def test_several_ms_project_files(tmp_path, generator):
     earned = {s.key.split(":")[0] for s in book.input_rows
               if any(v for role in ("A", "B") for v in book.pct_ev[role][s.row] if v)}
     assert earned == {"P1", "P2"}
-    assert all(sum(book.pct_pv["A"][s.row]) == pytest.approx(1.0) for s in book.input_rows)
+    # Cada fila tiene el % planificado completo en las empresas que participan (en blanco en las demás)
+    for s in book.input_rows:
+        sums = [sum(book.pct_pv[role][s.row]) for role in ("A", "B")]
+        assert all(x == pytest.approx(1.0) or x == pytest.approx(0.0) for x in sums) and max(sums) == pytest.approx(1.0)
 
 
 def test_excel_formulas_match_the_program(tmp_path, example_files, recalc):

@@ -29,6 +29,9 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
   planificado y su % ganado quedan en blanco y su celda de BAC no es de ingreso (`EMP-002`). Si aun así tiene
   BAC, `actualizar` lo avisa (`ACT-053`, nuevo; `ACT-028` retirado) y `--migrar-desde` no lo traslada
   (`MIG-021`, nuevo) ([Multi-empresa](docs/multiempresa.md)).
+- La versión de desarrollo que muestra el programa nombraba la última etiqueta de la historia de la rama
+  («2.6.0 + desarrollo» en `desarrollo` después de publicar la 2.7.1): ahora toma la versión publicada más alta
+  que no supera la del programa ([Desarrollo](docs/desarrollo.md#31-versiones-y-publicaciones)).
 
 ### Otros
 
