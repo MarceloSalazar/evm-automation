@@ -24,6 +24,39 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 ### Correcciones
 
+- Ninguna.
+
+### Otros
+
+- Ninguna.
+
+<a id="v2.7.2"></a>
+
+## [2.7.2] - 2026-11-24 · Empresas que no participan en una fila
+
+### Resumen
+
+**Correcciones**
+
+- **Multi-empresa:** una empresa que no participa en las tareas de una fila tiene ahora su % planificado y su
+  % ganado en blanco, y su BAC no se ingresa. Antes recibía los de la fila completa, iguales a los de la otra
+  empresa ([Multi-empresa](docs/multiempresa.md)).
+- **Versión de desarrollo:** al ejecutar desde la rama `desarrollo` se muestra la última versión publicada
+  ([Desarrollo](docs/desarrollo.md#31-versiones-y-publicaciones)).
+
+**Otros**
+
+- **Libros multi-empresa generados con la 2.7.1:** se generan de nuevo con `generar --migrar-desde` para que
+  las filas en las que una empresa no participa queden en blanco; los demás libros no necesitan nada
+  ([Multi-empresa](docs/multiempresa.md)).
+- Instalador de Windows adjunto a la publicación.
+
+### Nuevas funciones
+
+- Ninguna.
+
+### Correcciones
+
 - Multi-empresa: una empresa sin tareas en una fila recibía el % planificado y el % ganado de la fila
   completa, iguales a los de la otra empresa, y parecía un error de lectura del campo de empresa. Ahora su %
   planificado y su % ganado quedan en blanco y su celda de BAC no es de ingreso (`EMP-002`). Si aun así tiene
@@ -35,7 +68,10 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 ### Otros
 
-- Ninguna.
+- Libros multi-empresa generados con la 2.7.1: conservan el % planificado de la fila completa en las
+  empresas que no participan. Se generan de nuevo con `generar --migrar-desde`, que deja esas filas en
+  blanco y no traslada su BAC ni su % ganado (`MIG-021`). El formato del libro no cambia.
+- Instalador de Windows adjunto a la publicación.
 
 <a id="v2.7.1"></a>
 
@@ -1684,7 +1720,8 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 - 73 pruebas automáticas en Python 3.13 y 3.14.
 
-[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.7.1...desarrollo
+[Sin publicar]: https://github.com/MarceloSalazar/evm-automation/compare/v2.7.2...desarrollo
+[2.7.2]: https://github.com/MarceloSalazar/evm-automation/compare/v2.7.1...v2.7.2
 [2.7.1]: https://github.com/MarceloSalazar/evm-automation/compare/v2.7.0...v2.7.1
 [2.7.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/MarceloSalazar/evm-automation/compare/v2.5.0...v2.6.0
