@@ -44,6 +44,7 @@ class ReportRow:
     leaves: list[Task] = field(default_factory=list, repr=False)
     pct: dict[str, dict[MonthKey, float]] = field(default_factory=dict, repr=False)
     pct_vec: dict[str, list[float]] = field(default_factory=dict, repr=False)
+    absent: set[str] = field(default_factory=set, repr=False)   # empresas ("A", "B") que no participan en la fila
     weights: dict[str, object] = field(default_factory=dict, repr=False)    # percent.RowWeights (% ganado) por empresa
     # Tareas que forman el % planificado (pv_selection): las de detalle con línea base o la tarea desglosada después;
     # None = las de detalle (leaves; --pv-fechas-actuales); [] = la fila no tiene % planificado (ninguna tarea con
@@ -773,8 +774,9 @@ def _percent_curves(project: ProjectData, cfg: Config, rows: list[ReportRow], co
             no_pv.append(row)
         for role, company, fn in roles:
             rw, pv_pairs = tree.company(fn)
-            if rw.fallback:
+            if rw.absent:
                 alone.setdefault(company, []).append(row.code)
+                row.absent.add(role)
             row.pct[role] = pct.weighted_curve(pv_pairs)
             row.weights[role] = rw
         issues += _weight_issues(row, tree, code_of)
@@ -819,8 +821,7 @@ def _percent_curves(project: ProjectData, cfg: Config, rows: list[ReportRow], co
         shown = ", ".join(codes[:10]) + (f" y {len(codes) - 10} más" if len(codes) > 10 else "")
         issues.append(Issue("EMP-002", "", "",
                             f"{company} no participa en las tareas de {plural(len(codes), 'fila', 'filas')} "
-                            f"({shown}): si se le asigna BAC, su PV se reparte con el % planificado de la fila "
-                            "completa."))
+                            f"({shown}): su % planificado y su % ganado quedan en blanco y su BAC no se ingresa."))
     return issues
 
 

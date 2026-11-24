@@ -276,6 +276,32 @@ def _whole_branches(row: ReportRow) -> list[Task]:
     return out
 
 
+def _drop_absent(report: Report, prior: PriorData) -> list[Issue]:
+    """MIG-021: BAC y % ganado del libro anterior de una empresa que no participa en la fila nueva: no se
+    trasladan (su % planificado y su % ganado quedan en blanco)."""
+    names = {"A": report.company_a, "B": report.company_b}
+    lost: list[str] = []
+    for row in report.rows:
+        if not row.is_input or not row.absent:
+            continue
+        key = row_key(row)
+        for role in sorted(row.absent):
+            bac = prior.bac.get(key, {}).pop(role, None)
+            ev = prior.values.get(key, {}).pop(role_key(pct_sheet(SHEET_EV), role), None)
+            if bac or any(v for v in (ev or {}).values()):
+                lost.append(f"{row.code} ({names[role]})")
+        if key in prior.bac and not prior.bac[key]:
+            del prior.bac[key]
+    if not lost:
+        return []
+    shown = ", ".join(lost[:10]) + (f" y {len(lost) - 10} más" if len(lost) > 10 else "")
+    return [Issue("MIG-021", "", "", f"No se trasladaron el BAC ni el % ganado de "
+                                     f"{plural(len(lost), 'fila', 'filas')} en {'la' if len(lost) == 1 else 'las'} "
+                                     f"que la empresa ya no participa ({shown}): su % planificado y su % ganado "
+                                     "quedan en blanco. Si la empresa debe tener trabajo en la fila, se le asignan "
+                                     "tareas en MS Project y se regenera el libro.")]
+
+
 def plan_migration(report: Report, prior: PriorData, max_level: int,
                    ignore_interior_zeros: bool = False) -> list[Issue]:
     """Asigna cada fila del libro anterior a una fila del libro nuevo (sin duplicar historiales).
@@ -441,6 +467,7 @@ def plan_migration(report: Report, prior: PriorData, max_level: int,
         issues.append(Issue("MIG-012", "", "",
                             f"Hay EV/AC por {fmt_money(clamped)} cargados después del último mes del nuevo horizonte: "
                             "se acumularon en el último mes."))
+    issues += _drop_absent(report, prior)
     if prior.bac:
         issues.append(Issue("MIG-013", "", "", f"Se conservó el BAC de {plural(len(prior.bac), 'fila', 'filas')} del "
                                               "libro anterior."))

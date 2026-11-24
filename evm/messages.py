@@ -949,9 +949,10 @@ _CODES = [
           "vacía hereda la parte de su tarea superior (con el % de reparto de esa tarea).",
           "Quitar el reparto o cambiar la empresa de la tarea."),
     _code("EMP-002", I, "Empresa sin tareas en la fila",
-          "La empresa no participa en las tareas de algunas filas: si se le asigna BAC, su PV se reparte con el % "
-          "planificado de la fila completa.",
-          "Ninguna, si no se le asigna BAC en esas filas."),
+          "La empresa no participa en las tareas de algunas filas: en ellas, su % planificado y su % ganado quedan en "
+          "blanco y su celda de BAC no es de ingreso (su PV y su EV son 0).",
+          "Ninguna. Si la empresa debe tener trabajo en esas filas, se le asignan tareas en MS Project (campo de "
+          "[multiempresa] campo_empresa) y se regenera el libro con --migrar-desde."),
     _code("EMP-003", W, "Tareas sin empresa",
           "Algunas tareas no tienen empresa (ni la heredan de sus tareas superiores): se tratan como compartidas, "
           "con el reparto por defecto. Un resumen con la cantidad y una línea por tarea (la de nivel más alto de "
@@ -1276,6 +1277,10 @@ _CODES = [
           "intermedio (p. ej. 1.2.0.1) cambian de nivel. Las filas que ahora se dividen en varias no pueden repartir "
           "su historial.",
           "Cargar a mano el historial de las filas que informa MIG-014."),
+    _code("MIG-021", W, "BAC y % ganado de una empresa que ya no participa en la fila",
+          "En el libro nuevo, la empresa no tiene tareas en la fila: su BAC y su % ganado del libro anterior no se "
+          "trasladan, y su % planificado y su % ganado quedan en blanco.",
+          "Si la empresa debe tener trabajo en la fila, asignarle tareas en MS Project y regenerar el libro."),
 
     # --- DEP: depuración de costes ------------------------------------------------------------------------------
     _code("DEP-001", I, "Depuración de costes activa",
@@ -1481,7 +1486,7 @@ _CODES = [
           "Verificar el avance registrado en MS Project.", W_ROW),
     _code("ACT-028", I, "La empresa no participa en las tareas de la fila",
           "Se usó el avance de la fila completa para el % ganado de esa empresa.",
-          "Ninguna.", W_ROW),
+          "Ninguna.", W_ROW, retired="2.7.2", by="ACT-053"),
     _code("ACT-029", I, "Hitos con pesos negativos ponderados por igual",
           "Método «Hitos ponderados»: ningún hito tiene un peso válido (pesos negativos): se ponderaron por igual.",
           "Corregir el peso de los hitos.", W_ROW),
@@ -1587,6 +1592,11 @@ _CODES = [
           "modo que puede no ser coherente con el % planificado del libro.",
           "Si el cambio no es intencionado, volver a la configuración del libro. Si lo es, regenerar el libro con "
           "--migrar-desde."),
+    _code("ACT-053", W, "BAC de una empresa que no participa en la fila",
+          "La empresa no tiene tareas en la fila (campo de [multiempresa] campo_empresa), pero su celda de BAC tiene "
+          "un valor: su % planificado y su % ganado están en blanco, de modo que su PV y su EV son 0.",
+          "Si la empresa debe tener trabajo en la fila, asignarle tareas en MS Project y regenerar el libro con "
+          "--migrar-desde; si no, quitar su BAC.", W_ROW),
 
     # --- FIC: fichas de tareas ----------------------------------------------------------------------------------
     _code("FIC-001", W, "No hay fichas",

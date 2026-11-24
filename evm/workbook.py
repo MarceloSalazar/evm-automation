@@ -474,12 +474,14 @@ def _write_data_sheet(ws, kind: str, report: Report, cfg: Config, lay: _Layout,
                 ws.cell(row=r, column=c_, value=f'=IF({ref}="","",{ref})')
         if is_pv and multi_total:
             ws.cell(row=r, column=COL_BAC, value=sum_of_companies(col(COL_BAC), r))
-        elif bac_input and row.is_input:
+        elif bac_input and row.is_input and (role or "") not in row.absent:
             bac_cell = ws.cell(row=r, column=COL_BAC)
             value = prior.bac_for(row_key(row), role or "") if prior is not None else None
             if value is not None:
                 bac_cell.value = round(value, 2)
             bac_cell.fill = FILL_INPUT
+        elif bac_input and row.is_input:
+            pass                        # la empresa no participa en la fila: sin BAC (celda vacía, no de ingreso)
         elif is_pv:                     # subtotales: suma de sus hijos
             ws.cell(row=r, column=COL_BAC,
                     value=_sum_formula(col(COL_BAC), [lay.r(c) for c in row.children], lay.block(row), lay.review))

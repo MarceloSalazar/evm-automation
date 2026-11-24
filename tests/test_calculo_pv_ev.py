@@ -116,7 +116,8 @@ def test_tasks_weigh_by_baseline_duration_and_shares():
     b, _pv = tree.company(lambda t: {4: 0.0, 5: 0.6}[t.uid])
     assert a.weights == pytest.approx({4: 20 / 32, 5: 12 / 32})
     assert b.weights == pytest.approx({5: 1.0})
-    assert tree.company(lambda t: 0.0)[0].fallback                # la empresa no participa: la fila completa
+    none, pv = tree.company(lambda t: 0.0)                # la empresa no participa: sin % planificado ni ganado
+    assert none.absent and not none.weights and pv == []
 
 
 def test_milestone_weight_is_a_share_of_the_bac():
@@ -277,21 +278,40 @@ def test_fixed_and_milestone_methods_are_measured_per_company(tmp_path):
     assert book.pct_ev["B"][r][i] == pytest.approx(0.0)       # B no comenzó
 
 
-def test_company_without_tasks_uses_the_whole_row(tmp_path):
+def test_company_without_tasks_has_no_planned_nor_earned_percent(tmp_path):
+    """Una empresa sin tareas en la fila: su % PV y su % EV quedan en blanco y su BAC no es de ingreso (EMP-002). Si
+    aun así se le escribe BAC, actualizar avisa (ACT-053) y su PV y su EV son 0; --migrar-desde no lo traslada."""
+    from openpyxl import load_workbook
     tasks = excavation_tasks()
     tasks[4].company, tasks[4].split_a = "EmpresaA", None
     tasks[3].percent_complete = 50
     path = tmp_path / "libro.xlsx"
     rep = make_book(path, tasks, multi_config())
-    assert issues_with(rep, "EmpresaB no participa")
-    set_bac(path, {"3.1.1": {"PV-EmpresaA": 300, "PV-EmpresaB": 100}})
-    res = run_update(P(tasks), multi_config(), path, date(2027, 3, 31), backup=False, dry_run=True)
-    row = next(x for x in res.rows if x.code == "3.1.1")
-    assert "EmpresaB no participa" in row.note
+    assert issues_with(rep, "EmpresaB no participa en las tareas de 1 fila (3.1.1): su % planificado y su % ganado "
+                            "quedan en blanco")
     book = read_book(path)
     r = row_of(book, "3.1.1")
+    assert sum(book.pct_pv["B"][r]) == 0 and sum(book.pct_pv["A"][r]) == pytest.approx(1.0)
+    wb = load_workbook(path)
+    bac_b = wb["PV-EmpresaB"].cell(r, 4)
+    assert bac_b.fill.fgColor.rgb != "00FFF2CC" and bac_b.protection.locked           # no es de ingreso
+    assert wb["PV-EmpresaA"].cell(r, 4).fill.fgColor.rgb == "00FFF2CC"
+    set_bac(path, {"3.1.1": {"PV-EmpresaA": 300, "PV-EmpresaB": 100}})
+    res = run_update(P(tasks), multi_config(), path, date(2027, 3, 31), backup=False)
+    row = next(x for x in res.rows if x.code == "3.1.1")
+    assert "ACT-053" in {n.id for n in row.notes}
+    book = read_book(path)
+    assert sum(v or 0 for v in book.pct_ev["B"][r]) == 0 and sum(v or 0 for v in book.pct_ev["A"][r]) > 0
     pv_a = book.bac_role["A"][r] * sum(book.pct_pv["A"][r])
-    assert pv_a == pytest.approx(300) and sum(book.pv[r]) - pv_a == pytest.approx(100)
+    assert pv_a == pytest.approx(300) and sum(book.pv[r]) == pytest.approx(300)      # el BAC de B no da PV
+    # Libro nuevo: el BAC de B no se traslada (MIG-021)
+    new = tmp_path / "nuevo.xlsx"
+    rep = make_book(new, tasks, multi_config(), prior_from_book(path, "Programa"))
+    assert issues_with(rep, "No se trasladaron el BAC ni el % ganado de 1 fila en la que la empresa ya no "
+                            "participa (3.1.1 (EmpresaB))")
+    book = read_book(new)
+    r = row_of(book, "3.1.1")
+    assert book.bac_role["A"][r] == pytest.approx(300) and not book.bac_role["B"][r]
 
 
 def test_bac_change_recalculates_every_month(tmp_path):

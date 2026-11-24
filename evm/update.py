@@ -712,11 +712,12 @@ def _percent_row(book: BookData, s: StructRow, contributors: list[Task], shares:
         bac = book.bac_role[role][s.row]
         if note is not None and all(n.message != note.message for n in notes):
             notes.append(replace(note, code=s.code, name=s.name))
-        if rw.fallback and bac > 0:
-            notes.append(Issue("ACT-028", s.code, s.name,
-                               f"{company} no participa en las tareas de la fila: se usó el avance de la fila "
-                               "completa"))
-        out.append((role, company, frac, bac))
+        if rw.absent and bac > 0:
+            notes.append(Issue("ACT-053", s.code, s.name,
+                               f"{company} no participa en las tareas de la fila y tiene BAC: su % ganado queda en "
+                               "blanco y su EV en 0. Si debe tener trabajo en la fila, se le asignan tareas en MS "
+                               "Project y se regenera el libro con --migrar-desde; si no, se quita su BAC"))
+        out.append((role, company, None if rw.absent else frac, bac))
     res = RowResult(s.code, s.name, book.method[s.row], book.bac[s.row], None, None, notes)
     return res, out, planned
 
@@ -880,6 +881,8 @@ def run_update(projects: ProjectData | dict[str, ProjectData], cfg: Config, book
             if moved is not None:
                 drift.append((s, *moved))
         for role, company, frac, bac_c in parts:
+            if frac is None:                    # la empresa no participa en la fila: su % ganado queda en blanco
+                continue
             sheet = pct_sheet(SHEET_EV, company)
             series = book.pct_ev[role][s.row]
             later = [i for i in range(idx + 1, len(series)) if series[i]]

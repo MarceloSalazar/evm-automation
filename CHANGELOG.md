@@ -24,7 +24,11 @@ Los cambios incorporados a la rama `desarrollo` que todavía no forman parte de 
 
 ### Correcciones
 
-- Ninguna.
+- Multi-empresa: una empresa sin tareas en una fila recibía el % planificado y el % ganado de la fila
+  completa, iguales a los de la otra empresa, y parecía un error de lectura del campo de empresa. Ahora su %
+  planificado y su % ganado quedan en blanco y su celda de BAC no es de ingreso (`EMP-002`). Si aun así tiene
+  BAC, `actualizar` lo avisa (`ACT-053`, nuevo; `ACT-028` retirado) y `--migrar-desde` no lo traslada
+  (`MIG-021`, nuevo) ([Multi-empresa](docs/multiempresa.md)).
 
 ### Otros
 

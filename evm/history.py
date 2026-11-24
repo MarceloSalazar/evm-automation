@@ -139,6 +139,8 @@ def earned_history(report, cfg) -> EarnedHistory:
 
         for role in row.weights:
             rw = row.weights[role]
+            if rw.absent:                           # la empresa no participa en la fila: sin % ganado
+                continue
             pv = row.pct_vec.get(role, [])
             values: list[float] = []
             prev = 0.0
